@@ -62,7 +62,7 @@ class BuildPlugin implements Plugin<Project> {
         configureCompile(project)
 
         configureTest(project)
-        PrecommitTasks.configure(project)
+        configurePrecommit(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -283,16 +283,24 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
+        project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.memoryMaximumSize = "1g"
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  */
+                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                // compile with compact 3 profile by default
+                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                if (project.compactProfile != 'full') {
+                    options.compilerArgs << '-profile' << project.compactProfile
+                }
                 options.encoding = 'UTF-8'
             }
         }
@@ -363,6 +371,7 @@ class BuildPlugin implements Plugin<Project> {
             enableSystemAssertions false
 
             testLogging {
+                showNumFailuresAtEnd 25
                 slowTests {
                     heartbeat 10
                     summarySize 5
@@ -406,5 +415,12 @@ class BuildPlugin implements Plugin<Project> {
             include '**/*Tests.class'
         }
         return test
+    }
+
+    private static configurePrecommit(Project project) {
+        Task precommit = PrecommitTasks.create(project, true)
+        project.check.dependsOn(precommit)
+        project.test.mustRunAfter(precommit)
+        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
     }
 }

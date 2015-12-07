@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.api.GradleException
+import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
@@ -25,7 +27,7 @@ import org.gradle.api.tasks.Input
 class ClusterConfiguration {
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'integ-test-zip'
 
     @Input
     int numNodes = 1
@@ -64,7 +66,12 @@ class ClusterConfiguration {
 
     Map<String, String> settings = new HashMap<>()
 
-    LinkedHashMap<String, FileCollection> plugins = new LinkedHashMap<>()
+    // map from destination path, to source file
+    Map<String, Object> extraConfigFiles = new HashMap<>()
+
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
+
+    List<Project> modules = new ArrayList<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
@@ -84,7 +91,30 @@ class ClusterConfiguration {
     }
 
     @Input
+    void plugin(String name, Project pluginProject) {
+        plugins.put(name, pluginProject)
+    }
+
+    /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
+    @Input
+    void module(Project moduleProject) {
+        modules.add(moduleProject)
+    }
+
+    @Input
     void setupCommand(String name, Object... args) {
         setupCommands.put(name, args)
+    }
+
+    /**
+     * Add an extra configuration file. The path is relative to the config dir, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void extraConfigFile(String path, Object sourceFile) {
+        if (path == 'elasticsearch.yml') {
+            throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
+        }
+        extraConfigFiles.put(path, sourceFile)
     }
 }

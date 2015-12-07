@@ -133,7 +133,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /** utility method to fail the given election context under the cluster state thread */
     private void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
-        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public boolean runOnlyOnMaster() {
@@ -231,7 +231,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         final String source = "zen-disco-join(elected_as_master, [" + pendingMasterJoins + "] joins received)";
-        clusterService.submitStateUpdateTask(source, Priority.IMMEDIATE, new ProcessJoinsTask() {
+        clusterService.submitStateUpdateTask(source, new ProcessJoinsTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // Take into account the previous known nodes, if they happen not to be available
@@ -280,7 +280,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /** process all pending joins */
     private void processJoins(String reason) {
-        clusterService.submitStateUpdateTask("zen-disco-join(" + reason + ")", Priority.URGENT, new ProcessJoinsTask());
+        clusterService.submitStateUpdateTask("zen-disco-join(" + reason + ")", new ProcessJoinsTask(Priority.URGENT));
     }
 
 
@@ -355,6 +355,10 @@ public class NodeJoinController extends AbstractComponent {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();
         private boolean nodeAdded = false;
+
+        public ProcessJoinsTask(Priority priority) {
+            super(priority);
+        }
 
         @Override
         public ClusterState execute(ClusterState currentState) {

@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -478,7 +479,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), true, false);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -507,10 +508,12 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
-        assertTrue(mergeResult.hasConflicts());
-        assertEquals(1, mergeResult.buildConflicts().length);
-        assertTrue(mergeResult.buildConflicts()[0].contains("different [omit_norms]"));
+        try {
+            defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("different [omit_norms]"));
+        }
     }
 
     /**

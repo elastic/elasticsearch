@@ -112,9 +112,9 @@ public class TranslogTests extends ESTestCase {
 
     protected Translog create(Path path) throws IOException {
         Settings build = Settings.settingsBuilder()
-                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .build();
+            .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+            .build();
         TranslogConfig translogConfig = new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
         return new Translog(translogConfig);
     }
@@ -312,9 +312,9 @@ public class TranslogTests extends ESTestCase {
         assertEquals(6, copy.estimatedNumberOfOperations());
         assertEquals(437, copy.getTranslogSizeInBytes());
         assertEquals("\"translog\"{\n" +
-                "  \"operations\" : 6,\n" +
-                "  \"size_in_bytes\" : 437\n" +
-                "}", copy.toString().trim());
+            "  \"operations\" : 6,\n" +
+            "  \"size_in_bytes\" : 437\n" +
+            "}", copy.toString().trim());
 
         try {
             new TranslogStats(1, -1);
@@ -460,36 +460,7 @@ public class TranslogTests extends ESTestCase {
         final CountDownLatch downLatch = new CountDownLatch(1);
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
-            threads[i] = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        downLatch.await();
-                        for (int opCount = 0; opCount < opsPerThread; opCount++) {
-                            Translog.Operation op;
-                            switch (randomFrom(Translog.Operation.Type.values())) {
-                                case CREATE:
-                                case INDEX:
-                                    op = new Translog.Index("test", threadId + "_" + opCount,
-                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
-                                    break;
-                                case DELETE:
-                                    op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
-                                            opCount, 1 + randomInt(100000),
-                                            randomFrom(VersionType.values()));
-                                    break;
-                                default:
-                                    throw new ElasticsearchException("not supported op type");
-                            }
-
-                            Translog.Location loc = translog.add(op);
-                            writtenOperations.add(new LocationOperation(op, loc));
-                        }
-                    } catch (Throwable t) {
-                        threadExceptions[threadId] = t;
-                    }
-                }
-            });
+            threads[i] = new TranslogThread(translog, downLatch, opsPerThread, threadId, writtenOperations, threadExceptions);
             threads[i].setDaemon(true);
             threads[i].start();
         }
@@ -839,7 +810,7 @@ public class TranslogTests extends ESTestCase {
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
-            if (rarely() && translogOperations > op+1) {
+            if (rarely() && translogOperations > op + 1) {
                 translog.commit();
             }
         }
@@ -918,7 +889,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogReader reader = randomBoolean() ? writer : translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
         for (int i = 0; i < numOps; i++) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
-            reader.readBytes(buffer, reader.getFirstOperationOffset() + 4*i);
+            reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
             buffer.flip();
             final int value = buffer.getInt();
             assertEquals(i, value);
@@ -957,9 +928,9 @@ public class TranslogTests extends ESTestCase {
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             final boolean commit = commitOften ? frequently() : rarely();
-            if (commit && op < translogOperations-1) {
+            if (commit && op < translogOperations - 1) {
                 translog.commit();
-                minUncommittedOp = op+1;
+                minUncommittedOp = op + 1;
                 translogGeneration = translog.getGeneration();
             }
         }
@@ -993,7 +964,7 @@ public class TranslogTests extends ESTestCase {
     public void testRecoveryUncommitted() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
-        final int prepareOp = randomIntBetween(0, translogOperations-1);
+        final int prepareOp = randomIntBetween(0, translogOperations - 1);
         Translog.TranslogGeneration translogGeneration = null;
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
@@ -1046,7 +1017,7 @@ public class TranslogTests extends ESTestCase {
     public void testRecoveryUncommittedFileExists() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
-        final int prepareOp = randomIntBetween(0, translogOperations-1);
+        final int prepareOp = randomIntBetween(0, translogOperations - 1);
         Translog.TranslogGeneration translogGeneration = null;
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
@@ -1122,10 +1093,10 @@ public class TranslogTests extends ESTestCase {
         config.setTranslogGeneration(translogGeneration);
         Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint read = Checkpoint.read(ckp);
-        Checkpoint corrupted = new Checkpoint(0,0,0);
+        Checkpoint corrupted = new Checkpoint(0, 0, 0);
         Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         try (Translog translog = new Translog(config)) {
-          fail("corrupted");
+            fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=2738, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
         }
@@ -1163,7 +1134,7 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Location> locations = new ArrayList<>();
         List<Translog.Location> locations2 = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
-        try(Translog translog2 = create(createTempDir())) {
+        try (Translog translog2 = create(createTempDir())) {
             for (int op = 0; op < translogOperations; op++) {
                 locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
                 locations2.add(translog2.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
@@ -1202,7 +1173,7 @@ public class TranslogTests extends ESTestCase {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         translog.close();
 
-        config.setTranslogGeneration(new Translog.TranslogGeneration(randomRealisticUnicodeOfCodepointLengthBetween(1, translogGeneration.translogUUID.length()),translogGeneration.translogFileGeneration));
+        config.setTranslogGeneration(new Translog.TranslogGeneration(randomRealisticUnicodeOfCodepointLengthBetween(1, translogGeneration.translogUUID.length()), translogGeneration.translogFileGeneration));
         try {
             new Translog(config);
             fail("translog doesn't belong to this UUID");
@@ -1218,6 +1189,94 @@ public class TranslogTests extends ESTestCase {
                 assertEquals(Integer.parseInt(next.getSource().source.toUtf8()), i);
             }
             assertNull(snapshot.next());
+        }
+    }
+
+    public void testFailOnClosedWrite() throws IOException {
+        translog.add(new Translog.Index("test", "1", Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+        translog.close();
+        try {
+            translog.add(new Translog.Index("test", "1", Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+            fail("closed");
+        } catch (AlreadyClosedException ex) {
+            // all is welll
+        }
+    }
+
+    public void testCloseConcurrently() throws Throwable {
+        final int opsPerThread = randomIntBetween(10, 200);
+        int threadCount = 2 + randomInt(5);
+
+        logger.info("testing with [{}] threads, each doing [{}] ops", threadCount, opsPerThread);
+        final BlockingQueue<LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
+
+        Thread[] threads = new Thread[threadCount];
+        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final CountDownLatch downLatch = new CountDownLatch(1);
+        for (int i = 0; i < threadCount; i++) {
+            final int threadId = i;
+            threads[i] = new TranslogThread(translog, downLatch, opsPerThread, threadId, writtenOperations, threadExceptions);
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+
+        downLatch.countDown();
+        translog.close();
+
+        for (int i = 0; i < threadCount; i++) {
+            if (threadExceptions[i] != null) {
+                if ((threadExceptions[i] instanceof AlreadyClosedException) == false) {
+                    throw threadExceptions[i];
+                }
+            }
+            threads[i].join(60 * 1000);
+        }
+    }
+
+    private static class TranslogThread extends Thread {
+        private final CountDownLatch downLatch;
+        private final int opsPerThread;
+        private final int threadId;
+        private final BlockingQueue<LocationOperation> writtenOperations;
+        private final Throwable[] threadExceptions;
+        private final Translog translog;
+
+        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, BlockingQueue<LocationOperation> writtenOperations, Throwable[] threadExceptions) {
+            this.translog = translog;
+            this.downLatch = downLatch;
+            this.opsPerThread = opsPerThread;
+            this.threadId = threadId;
+            this.writtenOperations = writtenOperations;
+            this.threadExceptions = threadExceptions;
+        }
+
+        @Override
+        public void run() {
+            try {
+                downLatch.await();
+                for (int opCount = 0; opCount < opsPerThread; opCount++) {
+                    Translog.Operation op;
+                    switch (randomFrom(Translog.Operation.Type.values())) {
+                        case CREATE:
+                        case INDEX:
+                            op = new Translog.Index("test", threadId + "_" + opCount,
+                                randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                            break;
+                        case DELETE:
+                            op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
+                                opCount, 1 + randomInt(100000),
+                                randomFrom(VersionType.values()));
+                            break;
+                        default:
+                            throw new ElasticsearchException("not supported op type");
+                    }
+
+                    Translog.Location loc = translog.add(op);
+                    writtenOperations.add(new LocationOperation(op, loc));
+                }
+            } catch (Throwable t) {
+                threadExceptions[threadId] = t;
+            }
         }
     }
 }

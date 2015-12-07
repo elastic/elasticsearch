@@ -20,7 +20,6 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -80,7 +79,6 @@ public class NetworkService extends AbstractComponent {
 
     private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
 
-    @Inject
     public NetworkService(Settings settings) {
         super(settings);
         IfConfig.logIfNecessary();

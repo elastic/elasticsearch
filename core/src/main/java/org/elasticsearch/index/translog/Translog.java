@@ -166,7 +166,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(checkpoint.generation + 1);
                 this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
             } else {
-                this.recoveredTranslogs = Collections.EMPTY_LIST;
+                this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
@@ -407,6 +407,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
                 Location location = current.add(bytes);
                 if (config.isSyncOnEachOperation()) {
                     current.sync();
@@ -414,6 +415,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert current.assertBytesAtLocation(location, bytes);
                 return location;
             }
+        } catch (AlreadyClosedException ex) {
+            throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
@@ -579,7 +582,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * and updated with any future translog.
      */
     public static final class View implements Closeable {
-        public static final Translog.View EMPTY_VIEW = new View(Collections.EMPTY_LIST, null);
+        public static final Translog.View EMPTY_VIEW = new View(Collections.emptyList(), null);
 
         boolean closed;
         // last in this list is always FsTranslog.current
@@ -1309,8 +1312,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void prepareCommit() throws IOException {
-        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog != null) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
@@ -1342,9 +1345,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void commit() throws IOException {
-        ensureOpen();
         ImmutableTranslogReader toClose = null;
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog == null) {
                 prepareCommit();
             }

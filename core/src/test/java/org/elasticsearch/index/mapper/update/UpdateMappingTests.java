@@ -30,12 +30,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
@@ -105,6 +107,99 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         // make sure simulate flag actually worked - no mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
+    }
+
+    public void testConflictSameType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping).mapperService();
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge("type", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
+        }
+
+        try {
+            mapperService.merge("type", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
+        }
+
+        assertTrue(mapperService.documentMapper("type").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+    }
+
+    public void testConflictNewType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type1", mapping).mapperService();
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        try {
+            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+        assertNull(mapperService.documentMapper("type2"));
+    }
+
+    // same as the testConflictNewType except that the mapping update is on an existing type
+    public void testConflictNewTypeUpdate() throws Exception {
+        XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+
+        mapperService.merge("type1", new CompressedXContent(mapping1.string()), false, false);
+        mapperService.merge("type2", new CompressedXContent(mapping2.string()), false, false);
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        try {
+            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+        assertNotNull(mapperService.documentMapper("type2"));
+        assertNull(mapperService.documentMapper("type2").mapping().root().getMapper("foo"));
     }
 
     public void testIndexFieldParsingBackcompat() throws IOException {

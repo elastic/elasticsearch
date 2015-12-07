@@ -1082,7 +1082,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
-                logger.debug("shard is now inactive");
+                logger.debug("marking shard as inactive (inactive_time=[{}]) indexing wise", inactiveTime);
                 indexEventListener.onShardInactive(this);
             }
         }

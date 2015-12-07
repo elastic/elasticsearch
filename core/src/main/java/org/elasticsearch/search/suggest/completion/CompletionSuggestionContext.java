@@ -38,10 +38,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.EMPTY_MAP;
+    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
     private final MapperService mapperService;
     private final IndexFieldDataService indexFieldDataService;
-    private Set<String> payloadFields = Collections.EMPTY_SET;
+    private Set<String> payloadFields = Collections.emptySet();
 
     CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         super(suggester);

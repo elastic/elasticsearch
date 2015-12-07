@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -55,7 +56,7 @@ public class NativeScriptTests extends ESTestCase {
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new SettingsModule(settings),
+                new SettingsModule(settings, new SettingsFilter(settings)),
                 scriptModule).createInjector();
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);

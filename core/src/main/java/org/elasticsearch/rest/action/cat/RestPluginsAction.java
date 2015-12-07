@@ -95,7 +95,7 @@ public class RestPluginsAction extends AbstractCatAction {
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
 
-            for (PluginInfo pluginInfo : info.getPlugins().getInfos()) {
+            for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
                 table.startRow();
                 table.addCell(node.id());
                 table.addCell(node.name());

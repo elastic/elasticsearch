@@ -80,8 +80,9 @@ grant {
   // TODO: look into this and decide if users should simply set the actual sysprop?!
   permission java.util.PropertyPermission "org.jboss.netty.epollBugWorkaround", "write";
 
-  // needed by lucene SPI currently 
-  permission java.lang.RuntimePermission "getClassLoader";
+  // Netty SelectorUtil wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+  // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+  permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";

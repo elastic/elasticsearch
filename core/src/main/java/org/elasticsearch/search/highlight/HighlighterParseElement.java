@@ -52,16 +52,38 @@ import java.util.Set;
  */
 public class HighlighterParseElement implements SearchParseElement {
 
-    private static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
-    private static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
-
-    private static final String[] STYLED_PRE_TAG = {
+    /** default for whether to highlight fields based on the source even if stored separately */
+    public static final boolean DEFAULT_FORCE_SOURCE = false;
+    /** default for whether a field should be highlighted only if a query matches that field */
+    public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
+    /** default for whether <tt>fvh</tt> should provide highlighting on filter clauses */
+    public static final boolean DEFAULT_HIGHLIGHT_FILTER = false;
+    /** default for highlight fragments being ordered by score */ 
+    public static final boolean DEFAULT_SCORE_ORDERED = false;
+    /** the default encoder setting */
+    public static final String DEFAULT_ENCODER = "default";
+    /** default for the maximum number of phrases the fvh will consider */
+    public static final int DEFAULT_PHRASE_LIMIT = 256;
+    /** default for fragment size when there are no matches */
+    public static final int DEFAULT_NO_MATCH_SIZE = 0;
+    /** the default number of fragments for highlighting */
+    public static final int DEFAULT_NUMBER_OF_FRAGMENTS = 5;
+    /** the default number of fragments size in characters */
+    public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
+    /** the default opening tag  */
+    public static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
+    /** the default closing tag  */
+    public static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
+    
+    /** the default opening tags when <tt>tag_schema = "styled"</tt>  */
+    public static final String[] STYLED_PRE_TAG = {
             "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
             "<em class=\"hlt4\">", "<em class=\"hlt5\">", "<em class=\"hlt6\">",
             "<em class=\"hlt7\">", "<em class=\"hlt8\">", "<em class=\"hlt9\">",
             "<em class=\"hlt10\">"
     };
-    private static final String[] STYLED_POST_TAGS = {"</em>"};
+    /** the default closing tags when <tt>tag_schema = "styled"</tt>  */
+    public static final String[] STYLED_POST_TAGS = {"</em>"};
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
@@ -78,11 +100,11 @@ public class HighlighterParseElement implements SearchParseElement {
         final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = new ArrayList<>();
 
         final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
-                .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
-                .requireFieldMatch(true).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
-                .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
+                .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED).highlightFilter(DEFAULT_HIGHLIGHT_FILTER)
+                .requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH).forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE).numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS)
+                .encoder(DEFAULT_ENCODER).boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
                 .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
-                .noMatchSize(0).phraseLimit(256);
+                .noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

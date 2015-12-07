@@ -57,6 +57,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.*;
@@ -183,7 +184,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 clientInvocationHandler);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings),
+                new SettingsModule(settings, new SettingsFilter(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule() {
                     @Override
@@ -240,7 +241,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ).createInjector();
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         ScriptService scriptService = injector.getInstance(ScriptService.class);
-        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
         MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry);
         indexFieldDataService = new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
@@ -640,7 +641,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
             }
             assertThat("different queries should not be equal", secondQuery, not(equalTo(firstQuery)));
-            assertThat("different queries should have different hashcode", secondQuery.hashCode(), not(equalTo(firstQuery.hashCode())));
         }
     }
 
@@ -896,7 +896,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 msg(expected, builder.string()),
                 expected.replaceAll("\\s+",""),
                 builder.string().replaceAll("\\s+",""));
-    }    
+    }
 
     private static String msg(String left, String right) {
         int size = Math.min(left.length(), right.length());

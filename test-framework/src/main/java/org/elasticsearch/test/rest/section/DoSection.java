@@ -45,6 +45,9 @@ import static org.junit.Assert.fail;
  *
  *   - do:
  *      catch:      missing
+ *      headers:
+ *          Authorization: Basic user:pass
+ *          Content-Type: application/json
  *      update:
  *          index:  test_1
  *          type:   test
@@ -86,7 +89,8 @@ public class DoSection implements ExecutableSection {
         }
 
         try {
-            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBodies());
+            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
+                    apiCallSection.getBodies(), apiCallSection.getHeaders());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {

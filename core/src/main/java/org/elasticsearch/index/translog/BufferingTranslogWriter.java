@@ -47,6 +47,7 @@ public final class BufferingTranslogWriter extends TranslogWriter {
     @Override
     public Translog.Location add(BytesReference data) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             operationCounter++;
             final long offset = totalOffset;
             if (data.length() >= buffer.length) {
@@ -106,19 +107,25 @@ public final class BufferingTranslogWriter extends TranslogWriter {
             return;
         }
         synchronized (this) {
-            try (ReleasableLock lock = writeLock.acquire()) {
-                flush();
-                lastSyncedOffset = totalOffset;
+            channelReference.incRef();
+            try {
+                try (ReleasableLock lock = writeLock.acquire()) {
+                    flush();
+                    lastSyncedOffset = totalOffset;
+                }
+                // we can do this outside of the write lock but we have to protect from
+                // concurrent syncs
+                checkpoint(lastSyncedOffset, operationCounter, channelReference);
+            } finally {
+                channelReference.decRef();
             }
-            // we can do this outside of the write lock but we have to protect from
-            // concurrent syncs
-            checkpoint(lastSyncedOffset, operationCounter, channelReference);
         }
     }
 
 
     public void updateBufferSize(int bufferSize) {
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (this.buffer.length != bufferSize) {
                 flush();
                 this.buffer = new byte[bufferSize];

@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -250,23 +251,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
             if (oldMapper != null) {
-                MergeResult result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+                // simulate first
+                MergeResult result = oldMapper.merge(mapper.mapping(), true, updateAllTypes);
                 if (result.hasConflicts()) {
-                    // TODO: What should we do???
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.buildConflicts()));
-                    }
+                    throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(result.buildConflicts()) + "}");
                 }
+                // then apply for real
+                result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+                assert result.hasConflicts() == false; // we already simulated
                 return oldMapper;
             } else {
-                List<ObjectMapper> newObjectMappers = new ArrayList<>();
-                List<FieldMapper> newFieldMappers = new ArrayList<>();
-                for (MetadataFieldMapper metadataMapper : mapper.mapping().metadataMappers) {
-                    newFieldMappers.add(metadataMapper);
-                }
-                MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
-                checkNewMappersCompatibility(newObjectMappers, newFieldMappers, updateAllTypes);
-                addMappers(newObjectMappers, newFieldMappers);
+                Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
+                        mapper.type(), mapper.mapping(), updateAllTypes);
+                Collection<ObjectMapper> newObjectMappers = newMappers.v1();
+                Collection<FieldMapper> newFieldMappers = newMappers.v2();
+                addMappers(mapper.type(), newObjectMappers, newFieldMappers);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -301,9 +300,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
-    protected void checkNewMappersCompatibility(Collection<ObjectMapper> newObjectMappers, Collection<FieldMapper> newFieldMappers, boolean updateAllTypes) {
+    protected void checkMappersCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        for (ObjectMapper newObjectMapper : newObjectMappers) {
+        for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
                 MergeResult result = new MergeResult(true, updateAllTypes);
@@ -314,10 +313,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
         }
-        fieldTypes.checkCompatibility(newFieldMappers, updateAllTypes);
+        fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
     }
 
-    protected void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+    protected Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> checkMappersCompatibility(
+            String type, Mapping mapping, boolean updateAllTypes) {
+        List<ObjectMapper> objectMappers = new ArrayList<>();
+        List<FieldMapper> fieldMappers = new ArrayList<>();
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            fieldMappers.add(metadataMapper);
+        }
+        MapperUtils.collect(mapping.root, objectMappers, fieldMappers);
+        checkMappersCompatibility(type, objectMappers, fieldMappers, updateAllTypes);
+        return new Tuple<>(objectMappers, fieldMappers);
+    }
+
+    protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
         ImmutableOpenMap.Builder<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
         for (ObjectMapper objectMapper : objectMappers) {
@@ -327,7 +338,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         this.fullPathObjectMappers = fullPathObjectMappers.build();
-        this.fieldTypes = this.fieldTypes.copyAndAddAll(fieldMappers);
+        this.fieldTypes = this.fieldTypes.copyAndAddAll(type, fieldMappers);
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
@@ -344,10 +355,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappers.containsKey(mappingType);
     }
 
+    /**
+     * Return the set of concrete types that have a mapping.
+     * NOTE: this does not return the default mapping.
+     */
     public Collection<String> types() {
-        return mappers.keySet();
+        final Set<String> types = new HashSet<>(mappers.keySet());
+        types.remove(DEFAULT_MAPPING);
+        return Collections.unmodifiableSet(types);
     }
 
+    /**
+     * Return the {@link DocumentMapper} for the given type. By using the special
+     * {@value #DEFAULT_MAPPING} type, you can get a {@link DocumentMapper} for
+     * the default mapping.
+     */
     public DocumentMapper documentMapper(String type) {
         return mappers.get(type);
     }

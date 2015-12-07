@@ -131,34 +131,48 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
+        // collect up lists of plugins and modules
+        List<Path> pluginsAndModules = new ArrayList<>();
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
-                    if (Files.exists(policyFile)) {
-                        // first get a list of URLs for the plugins' jars:
-                        // we resolve symlinks so map is keyed on the normalize codebase name
-                        List<URL> codebases = new ArrayList<>();
-                        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                            for (Path jar : jarStream) {
-                                codebases.add(jar.toRealPath().toUri().toURL());
-                            }
-                        }
-                        
-                        // parse the plugin's policy file into a set of permissions
-                        Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
-                        
-                        // consult this policy for each of the plugin's jars:
-                        for (URL url : codebases) {
-                            if (map.put(url.getFile(), policy) != null) {
-                                // just be paranoid ok?
-                                throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
-                            }
-                        }
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        if (Files.exists(environment.modulesFile())) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
+                for (Path plugin : stream) {
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        // now process each one
+        for (Path plugin : pluginsAndModules) {
+            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            if (Files.exists(policyFile)) {
+                // first get a list of URLs for the plugins' jars:
+                // we resolve symlinks so map is keyed on the normalize codebase name
+                List<URL> codebases = new ArrayList<>();
+                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                    for (Path jar : jarStream) {
+                        codebases.add(jar.toRealPath().toUri().toURL());
+                    }
+                }
+
+                // parse the plugin's policy file into a set of permissions
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+
+                // consult this policy for each of the plugin's jars:
+                for (URL url : codebases) {
+                    if (map.put(url.getFile(), policy) != null) {
+                        // just be paranoid ok?
+                        throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
                     }
                 }
             }
         }
+
         return Collections.unmodifiableMap(map);
     }
 
@@ -228,6 +242,7 @@ final class Security {
         // read-only dirs
         addPath(policy, "path.home", environment.binFile(), "read,readlink");
         addPath(policy, "path.home", environment.libFile(), "read,readlink");
+        addPath(policy, "path.home", environment.modulesFile(), "read,readlink");
         addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
         addPath(policy, "path.conf", environment.configFile(), "read,readlink");
         addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
@@ -33,11 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class UpdateRequestTests extends ESTestCase {
     public void testUpdateRequest() throws Exception {
@@ -127,7 +124,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     // Related to issue 3256
     public void testUpdateRequestWithTTL() throws Exception {
-        long providedTTLValue = randomIntBetween(500, 1000);
+        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
         Settings settings = settings(Version.CURRENT).build();
 
         UpdateHelper updateHelper = new UpdateHelper(settings, null);

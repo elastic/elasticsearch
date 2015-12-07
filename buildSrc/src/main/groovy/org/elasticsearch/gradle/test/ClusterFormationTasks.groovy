@@ -20,13 +20,14 @@ package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.api.*
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
-import org.gradle.api.tasks.Copy
-import org.gradle.api.tasks.Delete
-import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.*
 
 import java.nio.file.Paths
 
@@ -59,7 +60,12 @@ class ClusterFormationTasks {
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
+        String packaging = distro
+        if (distro == 'tar') {
+            packaging = 'tar.gz'
+        } else if (distro == 'integ-test-zip') {
+            packaging = 'zip'
+        }
         project.configurations {
             elasticsearchDistro
         }
@@ -99,17 +105,19 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node)
+        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
+        // install modules
+        for (Project module : node.config.modules) {
+            String actionName = pluginTaskName('install', module.name, 'Module')
+            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+        }
+
         // install plugins
-        for (Map.Entry<String, FileCollection> plugin : node.config.plugins.entrySet()) {
-            // replace every dash followed by a character with just the uppercase character
-            String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
-            String actionName = "install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
-            // delay reading the file location until execution time by wrapping in a closure within a GString
-            String file = "${-> new File(node.pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString()}"
-            Object[] args = [new File(node.homeDir, 'bin/plugin'), 'install', file]
-            setup = configureExecTask(taskName(task, node, actionName), project, setup, node, args)
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+            String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
+            setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
 
         // extra setup commands
@@ -133,8 +141,15 @@ class ClusterFormationTasks {
     /** Adds a task to extract the elasticsearch distribution */
     static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node) {
         List extractDependsOn = [project.configurations.elasticsearchDistro, setup]
+        /* project.configurations.elasticsearchDistro.singleFile will be an
+          external artifact if this is being run by a plugin not living in the
+          elasticsearch source tree. If this is a plugin built in the
+          elasticsearch source tree or this is a distro in the elasticsearch
+          source tree then this should be the version of elasticsearch built
+          by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
+            case 'integ-test-zip':
             case 'zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }
@@ -147,6 +162,33 @@ class ClusterFormationTasks {
                         project.tarTree(project.resources.gzip(project.configurations.elasticsearchDistro.singleFile))
                     }
                     into node.baseDir
+                }
+                break;
+            case 'rpm':
+                File rpmDatabase = new File(node.baseDir, 'rpm-database')
+                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
+                /* Delay reading the location of the rpm file until task execution */
+                Object rpm = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
+                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
+                        '--dbpath', rpmDatabase,
+                        '--relocate', "/=${rpmExtracted}",
+                        '-i', rpm
+                    doFirst {
+                        rpmDatabase.deleteDir()
+                        rpmExtracted.deleteDir()
+                    }
+                }
+                break;
+            case 'deb':
+                /* Delay reading the location of the deb file until task execution */
+                File debExtracted = new File(node.baseDir, 'deb-extracted')
+                Object deb = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
+                    commandLine 'dpkg-deb', '-x', deb, debExtracted
+                    doFirst {
+                        debExtracted.deleteDir()
+                    }
                 }
                 break;
             default:
@@ -169,29 +211,123 @@ class ClusterFormationTasks {
             'node.testattr'                   : 'test',
             'repositories.url.allowed_urls'   : 'http://snapshot.test*'
         ]
+        esConfig.putAll(node.config.settings)
 
-        return project.tasks.create(name: name, type: DefaultTask, dependsOn: setup) << {
-            File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
+        Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
+        writeConfig.doFirst {
+            File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
     }
 
-    /** Adds a task to copy plugins to a temp dir, which they will later be installed from. */
+    static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {
+        if (node.config.extraConfigFiles.isEmpty()) {
+            return setup
+        }
+        Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
+        copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
+        for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+            copyConfig.doFirst {
+                // make sure the copy won't be a no-op or act on a directory
+                File srcConfigFile = project.file(extraConfigFile.getValue())
+                if (srcConfigFile.isDirectory()) {
+                    throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
+                }
+                if (srcConfigFile.exists() == false) {
+                    throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
+                }
+            }
+            File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
+            copyConfig.into(destConfigFile.canonicalFile.parentFile)
+                      .from({ extraConfigFile.getValue() }) // wrap in closure to delay resolution to execution time
+                      .rename { destConfigFile.name }
+        }
+        return copyConfig
+    }
+
+    /**
+     * Adds a task to copy plugins to a temp dir, which they will later be installed from.
+     *
+     * For each plugin, if the plugin has rest spec apis in its tests, those api files are also copied
+     * to the test resources for this project.
+     */
     static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node) {
         if (node.config.plugins.isEmpty()) {
             return setup
         }
+        Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
-        return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
-            into node.pluginsTmpDir
-            from(node.config.plugins.values())
+        List<FileCollection> pluginFiles = []
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+            FileCollection pluginZip
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
+                if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+                    throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
+                }
+                String configurationName = "_plugin_${pluginProject.path}"
+                Configuration configuration = project.configurations.findByName(configurationName)
+                if (configuration == null) {
+                    configuration = project.configurations.create(configurationName)
+                }
+                project.dependencies.add(configurationName, pluginProject)
+                setup.dependsOn(pluginProject.tasks.bundlePlugin)
+                pluginZip = configuration
+
+                // also allow rest tests to use the rest spec from the plugin
+                Copy copyRestSpec = null
+                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                    if (restApiDir.exists() == false) continue
+                    if (copyRestSpec == null) {
+                        copyRestSpec = project.tasks.create(name: pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec'), type: Copy)
+                        copyPlugins.dependsOn(copyRestSpec)
+                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                    }
+                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+                }
+            } else {
+                pluginZip = plugin.getValue()
+            }
+            pluginFiles.add(pluginZip)
         }
+
+        copyPlugins.into(node.pluginsTmpDir)
+        copyPlugins.from(pluginFiles)
+        return copyPlugins
+    }
+
+    static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+        }
+        if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+        }
+        Copy installModule = project.tasks.create(name, Copy.class)
+        installModule.dependsOn(setup)
+        installModule.into(new File(node.homeDir, "modules/${module.name}"))
+        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        return installModule
+    }
+
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
+        FileCollection pluginZip
+        if (plugin instanceof Project) {
+            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+        } else {
+            pluginZip = plugin
+        }
+        // delay reading the file location until execution time by wrapping in a closure within a GString
+        String file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        Object[] args = [new File(node.homeDir, 'bin/plugin'), 'install', file]
+        return configureExecTask(name, project, setup, node, args)
     }
 
     /** Adds a task to execute a command to help setup the cluster */
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
-        return project.tasks.create(name: name, type: Exec, dependsOn: setup) {
+        return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
             workingDir node.cwd
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'cmd'
@@ -200,35 +336,32 @@ class ClusterFormationTasks {
                 executable 'sh'
             }
             args execArgs
-            // only show output on failure, when not in info or debug mode
-            if (logger.isInfoEnabled() == false) {
-                standardOutput = new ByteArrayOutputStream()
-                errorOutput = standardOutput
-                ignoreExitValue = true
-                doLast {
-                    if (execResult.exitValue != 0) {
-                        logger.error(standardOutput.toString())
-                        throw new GradleException("Process '${execArgs.join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
-                    }
-                }
-            }
         }
     }
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-        String executable
-        List<String> esArgs = []
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'cmd'
-            esArgs.add('/C')
-            esArgs.add('call')
-        } else {
-            executable = 'sh'
-        }
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+                node.env.each { key, value -> env(key: key, value: value) }
+                node.args.each { arg(value: it) }
+            }
+        }
+
+        // this closure is the actual code to run elasticsearch
+        Closure elasticsearchRunner = {
+            // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
+            // process executed. To work around this, when spawning, we wrap the elasticsearch start
+            // command inside another shell script, which simply internally redirects the output
+            // of the real elasticsearch script. This allows ant to keep the streams open with the
+            // dummy process, but us to have the output available if there is an error in the
+            // elasticsearch start script
+            if (node.config.daemonize) {
+                node.writeWrapperScript()
+            }
+
             // we must add debug options inside the closure so the config is read at execution time, as
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
@@ -236,37 +369,6 @@ class ClusterFormationTasks {
                 node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
-            // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
-            // process executed. To work around this, when spawning, we wrap the elasticsearch start
-            // command inside another shell script, which simply internally redirects the output
-            // of the real elasticsearch script. This allows ant to keep the streams open with the
-            // dummy process, but us to have the output available if there is an error in the
-            // elasticsearch start script
-            String script = node.esScript
-            if (node.config.daemonize) {
-                String scriptName = 'run'
-                String argsPasser = '"$@"'
-                String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
-                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                    scriptName += '.bat'
-                    argsPasser = '%*'
-                    exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
-                }
-                File wrapperScript = new File(node.cwd, scriptName)
-                wrapperScript.setText("\"${script}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
-                script = wrapperScript.toString()
-            }
-
-            ant.exec(executable: executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
-                node.env.each { key, value -> env(key: key, value: value) }
-                arg(value: script)
-                node.args.each { arg(value: it) }
-            }
-
-        }
-
-        // this closure is the actual code to run elasticsearch
-        Closure elasticsearchRunner = {
             node.getCommandString().eachLine { line -> logger.info(line) }
 
             if (logger.isInfoEnabled() || node.config.daemonize == false) {
@@ -338,14 +440,19 @@ class ClusterFormationTasks {
                 // We already log the command at info level. No need to do it twice.
                 node.getCommandString().eachLine { line -> logger.error(line) }
             }
-            // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
-            logger.error("Node ${node.nodeNum} ant output:")
-            node.buffer.toString('UTF-8').eachLine { line -> logger.error(line) }
+            logger.error("Node ${node.nodeNum} output:")
+            logger.error("|-----------------------------------------")
+            logger.error("|  failure marker exists: ${node.failedMarker.exists()}")
+            logger.error("|  pid file exists: ${node.pidFile.exists()}")
+            // the waitfor failed, so dump any output we got (if info logging this goes directly to stdout)
+            logger.error("|\n|  [ant output]")
+            node.buffer.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
             // also dump the log file for the startup script (which will include ES logging output to stdout)
             if (node.startLog.exists()) {
-                logger.error("Node ${node.nodeNum} log:")
-                node.startLog.eachLine { line -> logger.error(line) }
+                logger.error("|\n|  [log]")
+                node.startLog.eachLine { line -> logger.error("|    ${line}") }
             }
+            logger.error("|-----------------------------------------")
         }
         throw new GradleException(msg)
     }
@@ -389,7 +496,7 @@ class ClusterFormationTasks {
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
     static Task configureStopTask(String name, Project project, Object depends, NodeInfo node) {
-        return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
+        return project.tasks.create(name: name, type: LoggedExec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
@@ -416,6 +523,12 @@ class ClusterFormationTasks {
         } else {
             return "${parentTask.name}#${action}"
         }
+    }
+
+    static String pluginTaskName(String action, String name, String suffix) {
+        // replace every dash followed by a character with just the uppercase character
+        String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+        return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix
     }
 
     /** Runs an ant command, sending output to the given out and error streams */

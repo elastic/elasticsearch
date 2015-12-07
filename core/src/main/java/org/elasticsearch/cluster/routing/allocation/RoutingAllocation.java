@@ -39,12 +39,12 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
  * of shards and holds the {@link AllocationDeciders} which are responsible
- *  for the current routing state.
+ * for the current routing state.
  */
 public class RoutingAllocation {
 
     /**
-     * this class is used to describe results of a {@link RoutingAllocation}  
+     * this class is used to describe results of a {@link RoutingAllocation}
      */
     public static class Result {
 
@@ -58,9 +58,10 @@ public class RoutingAllocation {
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         *  @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         *
+         * @param changed      a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this result refrences
+         * @param metaData     the {@link MetaData} this Result references
          */
         public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
             this.changed = changed;
@@ -70,9 +71,10 @@ public class RoutingAllocation {
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         *  @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         *
+         * @param changed      a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
+         * @param metaData     the {@link MetaData} this Result references
          * @param explanations Explanation for the reroute actions
          */
         public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
@@ -82,7 +84,9 @@ public class RoutingAllocation {
             this.explanations = explanations;
         }
 
-        /** determine whether the actual {@link RoutingTable} has been changed
+        /**
+         * determine whether the actual {@link RoutingTable} has been changed
+         *
          * @return <code>true</code> if the {@link RoutingTable} has been changed by allocation. Otherwise <code>false</code>
          */
         public boolean changed() {
@@ -91,6 +95,7 @@ public class RoutingAllocation {
 
         /**
          * Get the {@link MetaData} referenced by this result
+         *
          * @return referenced {@link MetaData}
          */
         public MetaData metaData() {
@@ -99,6 +104,7 @@ public class RoutingAllocation {
 
         /**
          * Get the {@link RoutingTable} referenced by this result
+         *
          * @return referenced {@link RoutingTable}
          */
         public RoutingTable routingTable() {
@@ -107,6 +113,7 @@ public class RoutingAllocation {
 
         /**
          * Get the explanation of this result
+         *
          * @return explanation
          */
         public RoutingExplanations explanations() {
@@ -137,9 +144,10 @@ public class RoutingAllocation {
 
     /**
      * Creates a new {@link RoutingAllocation}
-     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster
-     * @param nodes TODO: Documentation
+     *
+     * @param deciders        {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes    Routing nodes in the current cluster
+     * @param nodes           TODO: Documentation
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo, long currentNanoTime) {
@@ -157,6 +165,7 @@ public class RoutingAllocation {
 
     /**
      * Get {@link AllocationDeciders} used for allocation
+     *
      * @return {@link AllocationDeciders} used for allocation
      */
     public AllocationDeciders deciders() {
@@ -165,6 +174,7 @@ public class RoutingAllocation {
 
     /**
      * Get routing table of current nodes
+     *
      * @return current routing table
      */
     public RoutingTable routingTable() {
@@ -173,6 +183,7 @@ public class RoutingAllocation {
 
     /**
      * Get current routing nodes
+     *
      * @return routing nodes
      */
     public RoutingNodes routingNodes() {
@@ -181,6 +192,7 @@ public class RoutingAllocation {
 
     /**
      * Get metadata of routing nodes
+     *
      * @return Metadata of routing nodes
      */
     public MetaData metaData() {
@@ -189,6 +201,7 @@ public class RoutingAllocation {
 
     /**
      * Get discovery nodes in current routing
+     *
      * @return discovery nodes
      */
     public DiscoveryNodes nodes() {
@@ -201,6 +214,7 @@ public class RoutingAllocation {
 
     /**
      * Get explanations of current routing
+     *
      * @return explanation of routing
      */
     public AllocationExplanation explanation() {
@@ -257,10 +271,11 @@ public class RoutingAllocation {
     /**
      * Create a routing decision, including the reason if the debug flag is
      * turned on
-     * @param decision decision whether to allow/deny allocation
+     *
+     * @param decision     decision whether to allow/deny allocation
      * @param deciderLabel a human readable label for the AllocationDecider
-     * @param reason a format string explanation of the decision
-     * @param params format string parameters
+     * @param reason       a format string explanation of the decision
+     * @param params       format string parameters
      */
     public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {

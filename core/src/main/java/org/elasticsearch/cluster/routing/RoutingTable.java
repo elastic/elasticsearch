@@ -308,12 +308,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         public RoutingTableDiff(RoutingTable before, RoutingTable after) {
             version = after.version;
-            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting);
+            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting, DiffableUtils.getStringKeySerializer());
         }
 
         public RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
-            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, IndexRoutingTable.PROTO);
+            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable.PROTO);
         }
 
         @Override

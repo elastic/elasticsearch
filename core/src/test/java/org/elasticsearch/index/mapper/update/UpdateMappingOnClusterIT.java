@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
@@ -49,7 +48,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     public void testAllConflicts() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_create_index.json");
         String mappingUpdate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_update_with_conflicts.json");
-        String[] errorMessage = {"[_all] enabled is true now encountering false",
+        String[] errorMessage = {
                 "[_all] has different [omit_norms] values",
                 "[_all] has different [store] values",
                 "[_all] has different [store_term_vector] values",
@@ -60,6 +59,13 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
                 "[_all] has different [similarity]"};
         // fielddata and search_analyzer should not report conflict
         testConflict(mapping, mappingUpdate, errorMessage);
+    }
+
+    public void testAllDisabled() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", true).endObject().endObject().endObject().endObject();
+        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
+        String errorMessage = "[_all] enabled is true now encountering false";
+        testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
     }
 
     public void testAllWithDefault() throws Exception {
@@ -150,9 +156,9 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         try {
             client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mappingUpdate).get();
             fail();
-        } catch (MergeMappingException e) {
+        } catch (IllegalArgumentException e) {
             for (String errorMessage : errorMessages) {
-                assertThat(e.getDetailedMessage(), containsString(errorMessage));
+                assertThat(e.getMessage(), containsString(errorMessage));
             }
         }
         compareMappingOnNodes(mappingsBeforeUpdateResponse);

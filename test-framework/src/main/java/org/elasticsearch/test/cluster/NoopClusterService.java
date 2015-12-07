@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -115,12 +114,12 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
-    public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+    public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
 
     }
 
     @Override
-    public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+    public <T> void submitStateUpdateTask(String source, T task, ClusterStateTaskConfig config, ClusterStateTaskExecutor<T> executor, ClusterStateTaskListener listener) {
 
     }
 

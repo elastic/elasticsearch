@@ -22,6 +22,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -32,13 +33,17 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 public class NodeModule extends AbstractModule {
 
     private final Node node;
+    private final NodeSettingsService nodeSettingsService;
+    private final MonitorService monitorService;
 
     // pkg private so tests can mock
     Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
     Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
 
-    public NodeModule(Node node) {
+    public NodeModule(Node node, NodeSettingsService nodeSettingsService, MonitorService monitorService) {
         this.node = node;
+        this.nodeSettingsService = nodeSettingsService;
+        this.monitorService = monitorService;
     }
 
     @Override
@@ -55,7 +60,8 @@ public class NodeModule extends AbstractModule {
         }
 
         bind(Node.class).toInstance(node);
-        bind(NodeSettingsService.class).asEagerSingleton();
+        bind(NodeSettingsService.class).toInstance(nodeSettingsService);
+        bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
     }
 }

@@ -43,3 +43,7 @@ forbiddenApisMain {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
                     PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
 }
+
+// TODO: should we have licenses for our test deps?
+dependencyLicenses.enabled = false
+

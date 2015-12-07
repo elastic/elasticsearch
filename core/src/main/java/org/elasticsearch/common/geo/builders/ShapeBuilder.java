@@ -26,8 +26,12 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -43,7 +47,7 @@ import java.util.*;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -171,6 +175,15 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+    }
+
+    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
+        out.writeDouble(coordinate.x);
+        out.writeDouble(coordinate.y);
+    }
+
+    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+        return new Coordinate(in.readDouble(), in.readDouble());
     }
 
     public static Orientation orientationFromString(String orientation) {
@@ -349,150 +362,6 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
             }
         }
 
-        private static final int top(Coordinate[] points, int offset, int length) {
-            int top = 0; // we start at 1 here since top points to 0
-            for (int i = 1; i < length; i++) {
-                if (points[offset + i].y < points[offset + top].y) {
-                    top = i;
-                } else if (points[offset + i].y == points[offset + top].y) {
-                    if (points[offset + i].x < points[offset + top].x) {
-                        top = i;
-                    }
-                }
-            }
-            return top;
-        }
-
-        private static final double[] range(Coordinate[] points, int offset, int length) {
-            double minX = points[0].x;
-            double maxX = points[0].x;
-            double minY = points[0].y;
-            double maxY = points[0].y;
-            // compute the bounding coordinates (@todo: cleanup brute force)
-            for (int i = 1; i < length; ++i) {
-                if (points[offset + i].x < minX) {
-                    minX = points[offset + i].x;
-                }
-                if (points[offset + i].x > maxX) {
-                    maxX = points[offset + i].x;
-                }
-                if (points[offset + i].y < minY) {
-                    minY = points[offset + i].y;
-                }
-                if (points[offset + i].y > maxY) {
-                    maxY = points[offset + i].y;
-                }
-            }
-            return new double[] {minX, maxX, minY, maxY};
-        }
-
-        /**
-         * Concatenate a set of points to a polygon
-         *
-         * @param component
-         *            component id of the polygon
-         * @param direction
-         *            direction of the ring
-         * @param points
-         *            list of points to concatenate
-         * @param pointOffset
-         *            index of the first point
-         * @param edges
-         *            Array of edges to write the result to
-         * @param edgeOffset
-         *            index of the first edge in the result
-         * @param length
-         *            number of points to use
-         * @return the edges creates
-         */
-        private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges, final int edgeOffset,
-                int length) {
-            assert edges.length >= length+edgeOffset;
-            assert points.length >= length+pointOffset;
-            edges[edgeOffset] = new Edge(points[pointOffset], null);
-            for (int i = 1; i < length; i++) {
-                if (direction) {
-                    edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);
-                    edges[edgeOffset + i].component = component;
-                } else if(!edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i])) {
-                    edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);
-                    edges[edgeOffset + i - 1].component = component;
-                } else {
-                    throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + points[pointOffset + i]);
-                }
-            }
-
-            if (direction) {
-                edges[edgeOffset].setNext(edges[edgeOffset + length - 1]);
-                edges[edgeOffset].component = component;
-            } else {
-                edges[edgeOffset + length - 1].setNext(edges[edgeOffset]);
-                edges[edgeOffset + length - 1].component = component;
-            }
-
-            return edges;
-        }
-
-        /**
-         * Create a connected list of a list of coordinates
-         *
-         * @param points
-         *            array of point
-         * @param offset
-         *            index of the first point
-         * @param length
-         *            number of points
-         * @return Array of edges
-         */
-        protected static Edge[] ring(int component, boolean direction, boolean handedness, LineStringBuilder shell,
-                                     Coordinate[] points, int offset, Edge[] edges, int toffset, int length) {
-            // calculate the direction of the points:
-            // find the point a the top of the set and check its
-            // neighbors orientation. So direction is equivalent
-            // to clockwise/counterclockwise
-            final int top = top(points, offset, length);
-            final int prev = (offset + ((top + length - 1) % length));
-            final int next = (offset + ((top + 1) % length));
-            boolean orientation = points[offset + prev].x > points[offset + next].x;
-
-            // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
-            // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
-            // thus if orientation is computed as cw, the logic will translate points across dateline
-            // and convert to a right handed system
-
-            // compute the bounding box and calculate range
-            double[] range = range(points, offset, length);
-            final double rng = range[1] - range[0];
-            // translate the points if the following is true
-            //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
-            //       (translation would result in a collapsed poly)
-            //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            boolean incorrectOrientation = component == 0 && handedness != orientation;
-            if ( (incorrectOrientation && (rng > DATELINE && rng != 2*DATELINE)) || (shell.translated && component != 0)) {
-                translate(points);
-                // flip the translation bit if the shell is being translated
-                if (component == 0) {
-                    shell.translated = true;
-                }
-                // correct the orientation post translation (ccw for shell, cw for holes)
-                if (component == 0 || (component != 0 && handedness == orientation)) {
-                    orientation = !orientation;
-                }
-            }
-            return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
-        }
-
-        /**
-         * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range
-         */
-        protected static void translate(Coordinate[] points) {
-            for (Coordinate c : points) {
-                if (c.x < 0) {
-                    c.x += 2*DATELINE;
-                }
-            }
-        }
-
         /**
          * Set the intersection of this line segment to the given position
          *
@@ -504,7 +373,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
             return intersect = position(coordinate, next.coordinate, position);
         }
 
-        public static Coordinate position(Coordinate p1, Coordinate p2, double position) {
+        protected static Coordinate position(Coordinate p1, Coordinate p2, double position) {
             if (position == 0) {
                 return p1;
             } else if (position == 1) {
@@ -529,7 +398,6 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
         public int compare(Edge o1, Edge o2) {
             return Double.compare(o1.intersect.y, o2.intersect.y);
         }
-
     }
 
     public static enum Orientation {
@@ -565,10 +433,14 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
         ENVELOPE("envelope"),
         CIRCLE("circle");
 
-        protected final String shapename;
+        private final String shapename;
 
         private GeoShapeType(String shapename) {
             this.shapename = shapename;
+        }
+
+        protected String shapeName() {
+            return shapename;
         }
 
         public static GeoShapeType forName(String geoshapename) {
@@ -822,5 +694,21 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
 
             return geometryCollection;
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return type().shapeName();
+    }
+
+    // NORELEASE this should be deleted as soon as all shape builders implement writable
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    // NORELEASE this should be deleted as soon as all shape builders implement writable
+    @Override
+    public ShapeBuilder readFrom(StreamInput in) throws IOException {
+        return null;
     }
 }

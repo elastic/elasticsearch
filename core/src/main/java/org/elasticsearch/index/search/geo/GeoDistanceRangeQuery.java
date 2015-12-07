@@ -206,7 +206,7 @@ public class GeoDistanceRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoDistanceRangeFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 
     @Override

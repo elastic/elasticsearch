@@ -34,12 +34,10 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
-    protected boolean translated = false;
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.field(FIELD_COORDINATES);
         coordinatesToXcontent(builder, false);
         builder.endObject();

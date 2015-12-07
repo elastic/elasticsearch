@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -475,6 +475,17 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
 
+                builder.startObject(IndexMetaData.KEY_ACTIVE_ALLOCATIONS);
+                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getActiveAllocationIds()) {
+                    builder.startArray(String.valueOf(cursor.key));
+                    for (String allocationId : cursor.value) {
+                        builder.value(allocationId);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+
+                // index metdata data
                 builder.endObject();
             }
             builder.endObject();
@@ -766,7 +777,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = after.nodes.diff(before.nodes);
             metaData = after.metaData.diff(before.metaData);
             blocks = after.blocks.diff(before.blocks);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
@@ -778,17 +789,18 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = proto.nodes.readDiffFrom(in);
             metaData = proto.metaData.readDiffFrom(in);
             blocks = proto.blocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
-                @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readFrom(in);
-                }
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
+                    @Override
+                    public Custom read(StreamInput in, String key) throws IOException {
+                        return lookupPrototypeSafe(key).readFrom(in);
+                    }
 
-                @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readDiffFrom(in);
-                }
-            });
+                    @Override
+                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
+                        return lookupPrototypeSafe(key).readDiffFrom(in);
+                    }
+                });
         }
 
         @Override

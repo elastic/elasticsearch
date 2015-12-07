@@ -70,3 +70,19 @@ no values in the `user` field and thus would not match the `exists` filter:
 { "foo": "bar" }
 --------------------------------------------------
 
+===== `missing` query
+
+The exists query can advantageously replace the `missing` query when used inside a must_not clause as follows:
+
+[source,js]
+--------------------------------------------------
+"bool": {
+    "must_not": {
+        "exists": {
+            "field": "user"
+        }
+    }
+}
+--------------------------------------------------
+
+This query returns documents that have no value in the user field.

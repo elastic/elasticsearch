@@ -25,6 +25,7 @@ import java.io.IOException;
 
 /**
  * Constructs a filter that only match on documents that the field has a value in them.
+ * @deprecated Use {@link ExistsQueryBuilder} inside a {@link BoolQueryBuilder#mustNot(QueryBuilder)} clause instead.
  */
 public class MissingQueryBuilder extends QueryBuilder {
 

@@ -38,7 +38,7 @@ These documents would *not* match the above query:
 <3> The `user` field is missing completely.
 
 [float]
-===== `null_value` mapping
+==== `null_value` mapping
 
 If the field mapping includes the <<null-value,`null_value`>> setting
 then explicit `null` values are replaced with the specified `null_value`.  For
@@ -70,7 +70,7 @@ no values in the `user` field and thus would not match the `exists` filter:
 { "foo": "bar" }
 --------------------------------------------------
 
-===== `missing` query
+==== `missing` query
 
 The exists query can advantageously replace the `missing` query when used inside a must_not clause as follows:
 

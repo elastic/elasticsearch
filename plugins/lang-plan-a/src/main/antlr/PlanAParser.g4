@@ -34,8 +34,8 @@ statement
     | CONTINUE SEMICOLON?                                                                    # continue
     | BREAK SEMICOLON?                                                                       # break
     | RETURN expression SEMICOLON?                                                           # return
-    | TRY block CATCH LP ( TYPE ID ) RP block                                                # try
-    | THROW extstart SEMICOLON?                                                              # throw
+    | TRY block ( CATCH LP ( TYPE ID ) RP block )+                                           # try
+    | THROW expression SEMICOLON?                                                            # throw
     | expression SEMICOLON?                                                                  # expr
     ;
 

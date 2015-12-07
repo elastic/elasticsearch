@@ -45,7 +45,6 @@ public class ShardsTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.COLLECTORS, ShardsCollector.NAME)
                 .put(MarvelSettings.INDICES, INDEX_PREFIX + "*")
                 .put("marvel.agent.exporters.default_local.type", "local")
-                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 

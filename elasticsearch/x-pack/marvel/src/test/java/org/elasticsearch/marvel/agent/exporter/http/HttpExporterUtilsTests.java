@@ -5,64 +5,16 @@
  */
 package org.elasticsearch.marvel.agent.exporter.http;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.support.VersionUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.MARVEL_VERSION_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
 public class HttpExporterUtilsTests extends ESTestCase {
-    public void testLoadTemplate() {
-        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
-        assertNotNull(template);
-        assertThat(template.length, Matchers.greaterThan(0));
-    }
-
-    public void testParseTemplateVersionFromByteArrayTemplate() throws IOException {
-        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
-        assertNotNull(template);
-
-        Version version = MarvelTemplateUtils.parseTemplateVersion(template);
-        assertNotNull(version);
-    }
-
-    public void testParseTemplateVersionFromStringTemplate() throws IOException {
-        List<String> templates = new ArrayList<>();
-        templates.add("{\"marvel_version\": \"1.4.0.Beta1\"}");
-        templates.add("{\"marvel_version\": \"1.6.2-SNAPSHOT\"}");
-        templates.add("{\"marvel_version\": \"1.7.1\"}");
-        templates.add("{\"marvel_version\": \"2.0.0-beta1\"}");
-        templates.add("{\"marvel_version\": \"2.0.0\"}");
-        templates.add("{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }");
-
-        for (String template : templates) {
-            Version version = MarvelTemplateUtils.parseTemplateVersion(template);
-            assertNotNull(version);
-        }
-
-        Version version = MarvelTemplateUtils.parseTemplateVersion("{\"marvel.index_format\": \"7\"}");
-        assertNull(version);
-    }
-
-    public void testParseVersion() throws IOException {
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0-beta1\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"1.5.2\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }"));
-        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel.index_format\": \"7\"}"));
-        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD + "unkown", "{\"marvel_version\": \"1.5.2\"}"));
-    }
 
     public void testHostParsing() throws MalformedURLException, URISyntaxException {
         URL url = HttpExporterUtils.parseHostWithPath("localhost:9200", "");

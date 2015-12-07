@@ -31,7 +31,6 @@ public class NodeStatsTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, NodeStatsCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", LocalExporter.TYPE)
-                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 

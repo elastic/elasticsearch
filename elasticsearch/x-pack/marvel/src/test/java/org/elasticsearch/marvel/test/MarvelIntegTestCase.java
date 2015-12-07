@@ -39,7 +39,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -110,9 +113,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * Override and returns {@code false} to force running without shield
      */
     protected boolean enableShield() {
-        boolean r = randomBoolean();
-        logger.info("--> shield is{}", r);
-        return r;
+        return randomBoolean();
     }
 
     protected void stopCollection() {
@@ -170,15 +171,15 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    protected void ensureMarvelIndicesGreen() {
+    protected void ensureMarvelIndicesYellow() {
         if (shieldEnabled) {
             try {
-                ensureGreen(".marvel-es-*");
+                ensureYellow(".marvel-es-*");
             } catch (IndexNotFoundException e) {
                 // might happen with shield...
             }
         } else {
-            ensureGreen(".marvel-es-*");
+            ensureYellow(".marvel-es-*");
         }
     }
 
@@ -257,7 +258,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                ensureMarvelIndicesGreen();
+                ensureMarvelIndicesYellow();
             }
         });
     }

@@ -413,8 +413,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
     }
 
-    
-    
+
+
     @Test
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
@@ -434,17 +434,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAlias("test2", "aliasToTests")
                 .addAlias("test2", "foos", termQuery("name", "foo"))
                 .addAlias("test2", "tests", termQuery("name", "test")));
-        
-        String[] indices = {"test1", "test2"}; 
+
+        String[] indices = {"test1", "test2"};
         String[] aliases = {"aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests"};
-        
+
         admin().indices().prepareAliases().removeAlias(indices, aliases).get();
-        
+
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
     }
 
-    
+
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
         logger.info("--> creating index [test]");
@@ -539,9 +539,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout)));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
-        
+
     }
-    
+
     @Test(expected = AliasesNotFoundException.class)
     public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
         logger.info("--> creating index [test]");

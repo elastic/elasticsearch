@@ -129,8 +129,4 @@ if (isEclipse == false || project.path == ":core-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
-
-  RestSpecHack.configureDependencies(project)
-  Task copyRestSpec = RestSpecHack.configureTask(project, true)
-  integTest.dependsOn copyRestSpec
 }

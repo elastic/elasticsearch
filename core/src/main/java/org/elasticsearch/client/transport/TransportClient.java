@@ -125,7 +125,7 @@ public class TransportClient extends AbstractClient {
                     .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                     .build();
 
-            PluginsService pluginsService = new PluginsService(settings, null, pluginClasses);
+            PluginsService pluginsService = new PluginsService(settings, null, null, pluginClasses);
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;

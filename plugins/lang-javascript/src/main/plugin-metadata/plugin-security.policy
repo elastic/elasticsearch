@@ -20,4 +20,15 @@
 grant {
   // needed to generate runtime classes
   permission java.lang.RuntimePermission "createClassLoader";
+  
+  // Standard set of classes
+  permission org.elasticsearch.script.ClassPermission "<<STANDARD>>";
+  // rhino runtime (TODO: clean these up if possible)
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.ContextFactory";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.Callable";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.NativeFunction";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.Script";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.ScriptRuntime";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.Undefined";
+  permission org.elasticsearch.script.ClassPermission "org.mozilla.javascript.optimizer.OptRuntime";
 };

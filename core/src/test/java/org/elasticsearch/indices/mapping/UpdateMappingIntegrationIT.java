@@ -140,7 +140,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                     .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}").execute().actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] of different type"));
+            assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [string] to [int]"));
         }
     }
 

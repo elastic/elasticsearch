@@ -37,6 +37,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup();
         assertNull(lookup.get("foo"));
         assertNull(lookup.getByIndexName("foo"));
+        assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
+        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
@@ -70,6 +72,14 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup2.getByIndexName("bar"));
         assertNull(lookup.getByIndexName("foo"));
+        assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
+        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("foo"));
+        assertEquals(Collections.emptySet(), lookup.getTypes("bar"));
+        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("bar"));
+        assertEquals(Collections.singleton("type"), lookup2.getTypes("foo"));
+        assertEquals(Collections.emptySet(), lookup2.getTypesByIndexName("foo"));
+        assertEquals(Collections.emptySet(), lookup2.getTypes("bar"));
+        assertEquals(Collections.singleton("type"), lookup2.getTypesByIndexName("bar"));
         assertEquals(1, size(lookup2.iterator()));
     }
 
@@ -144,7 +154,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testCheckCompatibilityNewField() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup.checkCompatibility(newList(f1), false);
+        lookup.checkCompatibility("type", newList(f1), false);
     }
 
     public void testCheckCompatibilityMismatchedTypes() {
@@ -155,14 +165,14 @@ public class FieldTypeLookupTests extends ESTestCase {
         MappedFieldType ft2 = FakeFieldMapper.makeOtherFieldType("foo", "foo");
         FieldMapper f2 = new FakeFieldMapper("foo", ft2);
         try {
-            lookup.checkCompatibility(newList(f2), false);
+            lookup.checkCompatibility("type2", newList(f2), false);
             fail("expected type mismatch");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
         }
         // fails even if updateAllTypes == true
         try {
-            lookup.checkCompatibility(newList(f2), true);
+            lookup.checkCompatibility("type2", newList(f2), true);
             fail("expected type mismatch");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
@@ -178,25 +188,27 @@ public class FieldTypeLookupTests extends ESTestCase {
         ft2.setBoost(2.0f);
         FieldMapper f2 = new FakeFieldMapper("foo", ft2);
         try {
-            lookup.checkCompatibility(newList(f2), false);
+            // different type
+            lookup.checkCompatibility("type2", newList(f2), false);
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("to update [boost] across all types"));
         }
-        lookup.checkCompatibility(newList(f2), true); // boost is updateable, so ok if forcing
+        lookup.checkCompatibility("type", newList(f2), false); // boost is updateable, so ok since we are implicitly updating all types
+        lookup.checkCompatibility("type2", newList(f2), true); // boost is updateable, so ok if forcing
         // now with a non changeable setting
         MappedFieldType ft3 = FakeFieldMapper.makeFieldType("foo", "bar");
         ft3.setStored(true);
         FieldMapper f3 = new FakeFieldMapper("foo", ft3);
         try {
-            lookup.checkCompatibility(newList(f3), false);
+            lookup.checkCompatibility("type2", newList(f3), false);
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("has different [store] values"));
         }
         // even with updateAllTypes == true, incompatible
         try {
-            lookup.checkCompatibility(newList(f3), true);
+            lookup.checkCompatibility("type2", newList(f3), true);
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("has different [store] values"));

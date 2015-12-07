@@ -30,7 +30,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -741,7 +741,7 @@ public class ElasticsearchAssertions {
 
         Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
-        PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
+        PluginsAndModules plugins = response.getNodesMap().get(nodeId).getPlugins();
         Assert.assertThat(plugins, notNullValue());
 
         List<String> pluginNames = filterAndMap(plugins, jvmPluginPredicate, nameFunction);
@@ -761,7 +761,7 @@ public class ElasticsearchAssertions {
 
         boolean anyHaveUrls =
                 plugins
-                        .getInfos()
+                        .getPluginInfos()
                         .stream()
                         .filter(jvmPluginPredicate.and(sitePluginPredicate.negate()))
                         .map(urlFunction)
@@ -791,8 +791,8 @@ public class ElasticsearchAssertions {
         }
     }
 
-    private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
-        return pluginsInfo.getInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
+    private static List<String> filterAndMap(PluginsAndModules pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
+        return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();

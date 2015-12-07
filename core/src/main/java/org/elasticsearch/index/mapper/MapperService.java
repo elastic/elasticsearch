@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -260,13 +261,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 assert result.hasConflicts() == false; // we already simulated
                 return oldMapper;
             } else {
-                List<ObjectMapper> newObjectMappers = new ArrayList<>();
-                List<FieldMapper> newFieldMappers = new ArrayList<>();
-                for (MetadataFieldMapper metadataMapper : mapper.mapping().metadataMappers) {
-                    newFieldMappers.add(metadataMapper);
-                }
-                MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
-                checkNewMappersCompatibility(newObjectMappers, newFieldMappers, updateAllTypes);
+                Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
+                        mapper.type(), mapper.mapping(), updateAllTypes);
+                Collection<ObjectMapper> newObjectMappers = newMappers.v1();
+                Collection<FieldMapper> newFieldMappers = newMappers.v2();
                 addMappers(mapper.type(), newObjectMappers, newFieldMappers);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
@@ -302,9 +300,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
-    protected void checkNewMappersCompatibility(Collection<ObjectMapper> newObjectMappers, Collection<FieldMapper> newFieldMappers, boolean updateAllTypes) {
+    protected void checkMappersCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        for (ObjectMapper newObjectMapper : newObjectMappers) {
+        for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
                 MergeResult result = new MergeResult(true, updateAllTypes);
@@ -315,7 +313,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
         }
-        fieldTypes.checkCompatibility(newFieldMappers, updateAllTypes);
+        fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
+    }
+
+    protected Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> checkMappersCompatibility(
+            String type, Mapping mapping, boolean updateAllTypes) {
+        List<ObjectMapper> objectMappers = new ArrayList<>();
+        List<FieldMapper> fieldMappers = new ArrayList<>();
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            fieldMappers.add(metadataMapper);
+        }
+        MapperUtils.collect(mapping.root, objectMappers, fieldMappers);
+        checkMappersCompatibility(type, objectMappers, fieldMappers, updateAllTypes);
+        return new Tuple<>(objectMappers, fieldMappers);
     }
 
     protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {

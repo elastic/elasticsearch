@@ -766,11 +766,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 return false;
             }
         }
-        int numberOfThreads = randomIntBetween(2, 256);
+        int numberOfThreads = randomIntBetween(2, 8);
         int tasksSubmittedPerThread = randomIntBetween(1, 1024);
 
         ConcurrentMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
-        CountDownLatch latch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
+        CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
         ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Throwable t) {
@@ -780,7 +780,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 counters.computeIfAbsent(source, key -> new AtomicInteger()).incrementAndGet();
-                latch.countDown();
+                updateLatch.countDown();
             }
         };
 
@@ -814,7 +814,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     clusterService.submitStateUpdateTask(
                             Thread.currentThread().getName(),
                             new Task(),
-                            ClusterStateTaskConfig.build(Priority.NORMAL),
+                            ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                             executor,
                             listener);
                 }
@@ -829,14 +829,16 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
 
         // wait until all the cluster state updates have been processed
-        latch.await();
+        updateLatch.await();
 
         // assert the number of executed tasks is correct
         assertEquals(numberOfThreads * tasksSubmittedPerThread, counter.get());
 
         // assert each executor executed the correct number of tasks
         for (TaskExecutor executor : executors) {
-            assertEquals((int)counts.get(executor), executor.counter.get());
+            if (counts.containsKey(executor)) {
+                assertEquals((int) counts.get(executor), executor.counter.get());
+            }
         }
 
         // assert the correct number of clusterStateProcessed events were triggered

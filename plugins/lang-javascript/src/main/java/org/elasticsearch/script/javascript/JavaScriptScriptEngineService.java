@@ -39,7 +39,10 @@ import org.mozilla.javascript.Script;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.AccessControlContext;
+import java.security.AccessController;
 import java.security.CodeSource;
+import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
@@ -54,18 +57,47 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     private static WrapFactory wrapFactory = new CustomWrapFactory();
 
-    private final int optimizationLevel;
-
     private Scriptable globalScope;
 
     // one time initialization of rhino security manager integration
     private static final CodeSource DOMAIN;
+    private static final int OPTIMIZATION_LEVEL = 1;
+    
     static {
         try {
             DOMAIN = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
+        ContextFactory factory = new ContextFactory() {
+            @Override
+            protected void onContextCreated(Context cx) {
+                cx.setWrapFactory(wrapFactory);
+                cx.setOptimizationLevel(OPTIMIZATION_LEVEL);
+            }
+        };
+        if (System.getSecurityManager() != null) {
+            factory.initApplicationClassLoader(AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                @Override
+                public ClassLoader run() {
+                    // snapshot our context (which has permissions for classes), since the script has none
+                    final AccessControlContext engineContext = AccessController.getContext();
+                    return new ClassLoader(JavaScriptScriptEngineService.class.getClassLoader()) {
+                        @Override
+                        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                            try {
+                                engineContext.checkPermission(new ClassPermission(name));
+                            } catch (SecurityException e) {
+                                throw new ClassNotFoundException(name, e);
+                            }
+                            return super.loadClass(name, resolve);
+                        }
+                    };
+                }
+            }));
+        }
+        factory.seal();
+        ContextFactory.initGlobal(factory);
         SecurityController.initGlobal(new PolicySecurityController() {
             @Override
             public GeneratedClassLoader createClassLoader(ClassLoader parent, Object securityDomain) {
@@ -78,6 +110,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
                 if (securityDomain != DOMAIN) {
                     throw new SecurityException("illegal securityDomain: " + securityDomain);
                 }
+                
                 return super.createClassLoader(parent, securityDomain);
             }
         });
@@ -90,11 +123,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
-        this.optimizationLevel = settings.getAsInt("script.javascript.optimization_level", 1);
-
         Context ctx = Context.enter();
         try {
-            ctx.setWrapFactory(wrapFactory);
             globalScope = ctx.initStandardObjects(null, true);
         } finally {
             Context.exit();
@@ -130,8 +160,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public Object compile(String script) {
         Context ctx = Context.enter();
         try {
-            ctx.setWrapFactory(wrapFactory);
-            ctx.setOptimizationLevel(optimizationLevel);
             return ctx.compileString(script, generateScriptName(), 1, DOMAIN);
         } finally {
             Context.exit();
@@ -142,8 +170,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         Context ctx = Context.enter();
         try {
-            ctx.setWrapFactory(wrapFactory);
-
             Scriptable scope = ctx.newObject(globalScope);
             scope.setPrototype(globalScope);
             scope.setParentScope(null);
@@ -161,8 +187,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         Context ctx = Context.enter();
         try {
-            ctx.setWrapFactory(wrapFactory);
-
             final Scriptable scope = ctx.newObject(globalScope);
             scope.setPrototype(globalScope);
             scope.setParentScope(null);
@@ -215,7 +239,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         public Object run() {
             Context ctx = Context.enter();
             try {
-                ctx.setWrapFactory(wrapFactory);
                 return ScriptValueConverter.unwrapValue(script.exec(ctx, scope));
             } finally {
                 Context.exit();
@@ -276,7 +299,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         public Object run() {
             Context ctx = Context.enter();
             try {
-                ctx.setWrapFactory(wrapFactory);
                 return ScriptValueConverter.unwrapValue(script.exec(ctx, scope));
             } finally {
                 Context.exit();

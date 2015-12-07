@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -30,9 +31,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -75,8 +77,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             } else {
                                 throw new IllegalArgumentException("Alias action [" + action + "] not supported");
                             }
-                            String index = null;
-                            String alias = null;
+                            String[] indices = null;
+                            String[] aliases = null;
                             Map<String, Object> filter = null;
                             String routing = null;
                             boolean routingSet = false;
@@ -90,9 +92,9 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if ("index".equals(currentFieldName)) {
-                                        index = parser.text();
+                                        indices = new String[] { parser.text() };
                                     } else if ("alias".equals(currentFieldName)) {
-                                        alias = parser.text();
+                                        aliases = new String[] { parser.text() };
                                     } else if ("routing".equals(currentFieldName)) {
                                         routing = parser.textOrNull();
                                         routingSet = true;
@@ -103,6 +105,23 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                         searchRouting = parser.textOrNull();
                                         searchRoutingSet = true;
                                     }
+                                } else if (token == XContentParser.Token.START_ARRAY) {
+                                    if ("indices".equals(currentFieldName)) {
+                                        List<String> indexNames = new ArrayList<>();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            String index = parser.text();
+                                            indexNames.add(index);
+                                        }
+                                        indices = indexNames.toArray(new String[indexNames.size()]);
+                                    }
+                                    if ("aliases".equals(currentFieldName)) {
+                                        List<String> aliasNames = new ArrayList<>();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            String alias = parser.text();
+                                            aliasNames.add(alias);
+                                        }
+                                        aliases = aliasNames.toArray(new String[aliasNames.size()]);
+                                    }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("filter".equals(currentFieldName)) {
                                         filter = parser.mapOrdered();
@@ -111,19 +130,19 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             }
 
                             if (type == AliasAction.Type.ADD) {
-                                AliasAction aliasAction = newAddAliasAction(index, alias).filter(filter);
+                                AliasActions aliasActions = new AliasActions(type, indices, aliases);
                                 if (routingSet) {
-                                    aliasAction.routing(routing);
+                                    aliasActions.routing(routing);
                                 }
                                 if (indexRoutingSet) {
-                                    aliasAction.indexRouting(indexRouting);
+                                    aliasActions.indexRouting(indexRouting);
                                 }
                                 if (searchRoutingSet) {
-                                    aliasAction.searchRouting(searchRouting);
+                                    aliasActions.searchRouting(searchRouting);
                                 }
-                                indicesAliasesRequest.addAliasAction(aliasAction);
+                                indicesAliasesRequest.addAliasAction(aliasActions);
                             } else if (type == AliasAction.Type.REMOVE) {
-                                indicesAliasesRequest.removeAlias(index, alias);
+                                indicesAliasesRequest.removeAlias(indices, aliases);
                             }
                         }
                     }

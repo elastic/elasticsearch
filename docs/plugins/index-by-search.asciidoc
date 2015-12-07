@@ -54,6 +54,10 @@ POST /_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
+WARNING: All operations this plugin performs work with a snapshot of the source
+data but they are not atomic. Their results become visible as the operation
+completes and if the operation fails halfway through are not rolled back.
+
 You can limit the copy to a single type. This will only copy `tweet`s
 from the `twitter` index:
 

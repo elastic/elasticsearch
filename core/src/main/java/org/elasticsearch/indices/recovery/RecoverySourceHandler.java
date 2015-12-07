@@ -36,7 +36,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -69,7 +71,7 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    private static final int CHUNK_SIZE = 512 * 1000; // 512KB
+    private static final int CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB).bytesAsInt();
     protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;

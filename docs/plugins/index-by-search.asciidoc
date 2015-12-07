@@ -416,7 +416,8 @@ The JSON response looks like this:
 {
   "took" : 639,
   "created": 123,
-  "indexed": 0,
+  "updated": 0,
+  "batches": 1,
   "version_conflicts": 2,
   "failures" : [ ]  // NOCOMMIT add this
 }
@@ -433,6 +434,10 @@ The number of documents that were successfully created.
 `updated`::
 
 The number of documents that were successfully updated.
+
+`batches`::
+
+The number of bulk updates sent as part of the request.
 
 `version_conflicts`::
 

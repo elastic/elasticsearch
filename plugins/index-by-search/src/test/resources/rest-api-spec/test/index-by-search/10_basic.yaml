@@ -21,6 +21,8 @@
   - match: {created: 1}
   - match: {updated: 0}
   - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
   - is_true: took
 
 ---
@@ -53,6 +55,8 @@
   - match: {created: 0}
   - match: {updated: 1}
   - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
   - is_true: took
 
 ---
@@ -85,6 +89,50 @@
   - match: {created: 0}
   - match: {updated: 0}
   - match: {version_conflicts: 1}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - is_true: took
+
+---
+"Response format for version conflict with save_version_conflict":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    bar
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          save_version_conflicts: true
+          source:
+            index:        test
+            type:         foo
+          index:
+            index:        test
+            type:         bar
+            version_type: external
+  - match: {created: 0}
+  - match: {updated: 0}
+  - match: {version_conflicts: 1}
+  - match: {batches: 1}
+  - match: {failures.0.index:  test}
+  - match: {failures.0.type:   bar}
+  - match: {failures.0.id:     "1"}
+  - match: {failures.0.status: CONFLICT}
+  - match: {failures.0.cause.type:   version_conflict_engine_exception}
+  - match: {failures.0.cause.reason: "[bar][1]: version conflict, current version [1] is higher or equal to the one provided [1]"}
+  - match: {failures.0.cause.shard:  /\d+/}
+  - match: {failures.0.cause.index:  test}
   - is_true: took
 
 ---

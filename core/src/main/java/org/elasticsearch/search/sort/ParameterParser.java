@@ -19,20 +19,21 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-public abstract class SortBuilder<S extends ToXContent> extends ToXContentToBytes implements NamedWriteable<S>, ParameterParser<S> {
+import java.io.IOException;
 
+public interface ParameterParser<T extends ToXContent> {
     /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
+     * Creates a new item from the json held by the {@link ParameterParser}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new item
      */
-    public abstract SortBuilder<S> order(SortOrder order);
-
-    /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
-     */
-    public abstract SortBuilder<S> missing(Object missing);
+    T fromXContent(XContentParser parser) throws IOException;
 }

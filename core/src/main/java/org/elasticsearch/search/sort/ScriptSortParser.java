@@ -57,7 +57,7 @@ import java.util.Map;
 /**
  *
  */
-public class ScriptSortParser implements SortParser {
+public class ScriptSortParser implements SortParserTemp {
 
     private static final String STRING_SORT_TYPE = "string";
     private static final String NUMBER_SORT_TYPE = "number";

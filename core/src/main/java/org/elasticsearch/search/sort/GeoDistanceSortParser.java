@@ -54,7 +54,7 @@ import java.util.List;
 /**
  *
  */
-public class GeoDistanceSortParser implements SortParser {
+public class GeoDistanceSortParser implements SortParserTemp {
 
     @Override
     public String[] names() {

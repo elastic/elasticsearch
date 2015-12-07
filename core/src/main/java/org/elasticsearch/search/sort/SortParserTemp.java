@@ -19,20 +19,16 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.internal.SearchContext;
 
-public abstract class SortBuilder<S extends ToXContent> extends ToXContentToBytes implements NamedWriteable<S>, ParameterParser<S> {
+/**
+ *
+ */
+public interface SortParserTemp {
 
-    /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
-     */
-    public abstract SortBuilder<S> order(SortOrder order);
+    String[] names();
 
-    /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
-     */
-    public abstract SortBuilder<S> missing(Object missing);
+    SortField parse(XContentParser parser, SearchContext context) throws Exception;
 }

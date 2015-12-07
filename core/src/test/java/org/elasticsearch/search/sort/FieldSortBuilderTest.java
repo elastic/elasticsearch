@@ -1,5 +1,5 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+x * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
@@ -19,16 +19,29 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
+import java.io.IOException;
 
-/**
- *
- */
-public interface SortParser {
+public class FieldSortBuilderTest extends AbstractSearchSourceItemTestCase<FieldSortBuilder> {
 
-    String[] names();
+    @Override
+    protected RegistryItem getPrototype() {
+        return new RegistryItem(FieldSortBuilder.class, FieldSortBuilder.PROTOTYPE);
+    }
 
-    SortField parse(XContentParser parser, SearchContext context) throws Exception;
+    @Override
+    protected FieldSortBuilder createTestItem() {
+        return null;
+    }
+
+    @Override
+    protected FieldSortBuilder mutate(FieldSortBuilder original) throws IOException {
+        return null;
+    }
+
+    @Override
+    protected ParameterParser<FieldSortBuilder> getItemParser() {
+        return null;
+    }
+
+
 }

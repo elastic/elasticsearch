@@ -45,9 +45,6 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class SortParseElement implements SearchParseElement {
 
     public static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
@@ -61,16 +58,16 @@ public class SortParseElement implements SearchParseElement {
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
 
-    private static final Map<String, SortParser> PARSERS;
+    private static final Map<String, SortParserTemp> PARSERS;
 
     static {
-        Map<String, SortParser> parsers = new HashMap<>();
+        Map<String, SortParserTemp> parsers = new HashMap<>();
         addParser(parsers, new ScriptSortParser());
         addParser(parsers, new GeoDistanceSortParser());
         PARSERS = unmodifiableMap(parsers);
     }
 
-    private static void addParser(Map<String, SortParser> parsers, SortParser parser) {
+    private static void addParser(Map<String, SortParserTemp> parsers, SortParserTemp parser) {
         for (String name : parser.names()) {
             parsers.put(name, parser);
         }

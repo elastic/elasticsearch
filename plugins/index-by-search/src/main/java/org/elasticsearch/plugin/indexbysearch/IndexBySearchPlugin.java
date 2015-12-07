@@ -20,11 +20,8 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
-import org.elasticsearch.action.indexbysearch.TransportIndexBySearchAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
-import org.elasticsearch.rest.action.indexbysearch.RestIndexBySearchAction;
 
 public class IndexBySearchPlugin extends Plugin {
     public static final String NAME = "index-by-search";

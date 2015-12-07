@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.indexbysearch;
+package org.elasticsearch.plugin.indexbysearch;
 
 import static java.lang.Math.max;
 import static java.util.Collections.unmodifiableList;
@@ -37,7 +37,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -49,6 +48,7 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.plugin.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
 import org.elasticsearch.search.SearchHit;
 
 /**

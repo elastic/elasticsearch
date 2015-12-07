@@ -29,8 +29,6 @@ import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
 import org.elasticsearch.index.VersionType;
 
 /**

@@ -32,8 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;

@@ -23,7 +23,6 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.get.GetField;
 

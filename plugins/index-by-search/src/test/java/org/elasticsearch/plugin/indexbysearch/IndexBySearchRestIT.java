@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.indexbysearch.test.rest;
+package org.elasticsearch.plugin.indexbysearch;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;

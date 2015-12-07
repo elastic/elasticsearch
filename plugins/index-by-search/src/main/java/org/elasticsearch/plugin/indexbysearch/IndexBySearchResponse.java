@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.indexbysearch;
+package org.elasticsearch.plugin.indexbysearch;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.BATCHES;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.CREATED;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.FAILURES;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.UPDATED;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.VERSION_CONFLICTS;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.BATCHES;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.CREATED;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.FAILURES;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.TOOK;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.UPDATED;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.VERSION_CONFLICTS;
 
 import java.io.IOException;
 import java.util.ArrayList;

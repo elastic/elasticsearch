@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.indexbysearch;
+package org.elasticsearch.plugin.indexbysearch;
 
-import static org.elasticsearch.action.indexbysearch.IndexBySearchAction.INSTANCE;
+import static org.elasticsearch.plugin.indexbysearch.IndexBySearchAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
@@ -27,7 +27,6 @@ import java.io.IOException;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;

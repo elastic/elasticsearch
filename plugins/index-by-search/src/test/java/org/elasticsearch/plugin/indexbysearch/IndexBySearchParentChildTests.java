@@ -26,7 +26,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**

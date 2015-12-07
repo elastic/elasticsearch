@@ -25,9 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 import java.util.Collection;
 
-import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;

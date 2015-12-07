@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.indexbysearch;
+package org.elasticsearch.plugin.indexbysearch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;

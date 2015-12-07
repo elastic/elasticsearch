@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 
 public class IndexBySearchBasicTests extends IndexBySearchTestCase {
     public void testBasicsIntoExistingIndex() throws Exception {

@@ -154,7 +154,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long,store=true", "tag", "type=string,index=not_analyzed"));
 
         for (int i = 0; i < 2000; i++) {
             singleVal = singleValues[i % numUniqueGeoPoints];
@@ -196,8 +196,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             SearchHitField hitField = searchHit.field(NUMBER_FIELD_NAME);
 
             assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
-            Integer value = hitField.getValue();
-            assertThat("Hit " + i + " has wrong value", value, equalTo(i));
+            Long value = hitField.getValue();
+            assertThat("Hit " + i + " has wrong value", value.intValue(), equalTo(i));
         }
         assertThat(totalHits, equalTo(2000l));
     }

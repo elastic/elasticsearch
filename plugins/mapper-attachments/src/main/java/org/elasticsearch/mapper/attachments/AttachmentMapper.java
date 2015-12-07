@@ -602,7 +602,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         // ignore this for now
     }
 
@@ -624,7 +624,7 @@ public class AttachmentMapper extends FieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
+        builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);
         if (indexCreatedBefore2x) {
             builder.field("path", pathType.name().toLowerCase(Locale.ROOT));

@@ -319,6 +319,9 @@ public class TypeParsers {
 
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
+                if (multiFieldName.contains(".")) {
+                    throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot contain '.'");
+                }
                 if (!(multiFieldEntry.getValue() instanceof Map)) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }

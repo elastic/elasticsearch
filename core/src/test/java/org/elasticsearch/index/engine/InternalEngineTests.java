@@ -1617,7 +1617,7 @@ public class InternalEngineTests extends ESTestCase {
         // now it should be OK.
         IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
                 Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build(),
-                Collections.EMPTY_LIST);
+                Collections.emptyList());
         engine = createEngine(indexSettings, store, primaryTranslogDir, new MergeSchedulerConfig(indexSettings), newMergePolicy());
     }
 
@@ -1901,8 +1901,8 @@ public class InternalEngineTests extends ESTestCase {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
+            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
             MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);

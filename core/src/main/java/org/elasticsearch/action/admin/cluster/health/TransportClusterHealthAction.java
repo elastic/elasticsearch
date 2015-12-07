@@ -74,7 +74,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
         if (request.waitForEvents() != null) {
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
-            clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", new ClusterStateUpdateTask(request.waitForEvents()) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;

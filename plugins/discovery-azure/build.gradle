@@ -23,18 +23,19 @@ esplugin {
 }
 
 versions << [
-  'azure': '0.7.0',
+  'azure': '0.9.0',
   'jersey': '1.13'
 ]
 
 dependencies {
-  compile "com.microsoft.azure:azure-management-compute:${versions.azure}"
-  compile "com.microsoft.azure:azure-management:${versions.azure}"
+  compile "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
   compile "com.microsoft.azure:azure-core:${versions.azure}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-lang:commons-lang:2.6"
+  compile "commons-io:commons-io:2.4"
   compile 'javax.mail:mail:1.4.5'
   compile 'javax.activation:activation:1.1'
   compile 'javax.inject:javax.inject:1'

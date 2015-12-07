@@ -170,12 +170,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                    @Override
+                    protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return new ClusterStateUpdateResponse(acknowledged);
+                    }
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -299,7 +299,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.EMPTY_LIST);
+                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());

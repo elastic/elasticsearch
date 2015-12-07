@@ -66,6 +66,10 @@ public class PluginManager {
             "plugin",
             "plugin.bat",
             "service.bat"));
+    
+    static final Set<String> MODULES = unmodifiableSet(newHashSet(
+            "lang-expression",
+            "lang-groovy"));
 
     static final Set<String> OFFICIAL_PLUGINS = unmodifiableSet(newHashSet(
             "analysis-icu",
@@ -78,8 +82,6 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
-            "lang-expression",
-            "lang-groovy",
             "lang-javascript",
             "lang-python",
             "mapper-attachments",
@@ -220,6 +222,12 @@ public class PluginManager {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
+
+        // don't let luser install plugin as a module... 
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(info.getName())) {
+            throw new IOException("plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+        }
 
         // update name in handle based on 'name' property found in descriptor file
         pluginHandle = new PluginHandle(info.getName(), pluginHandle.version, pluginHandle.user);

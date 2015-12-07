@@ -68,7 +68,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterRerouteResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", new AckedClusterStateUpdateTask<ClusterRerouteResponse>(Priority.IMMEDIATE, request, listener) {
 
             private volatile ClusterState clusterStateToSend;
             private volatile RoutingExplanations explanations;

@@ -104,8 +104,8 @@ public class IndexModuleTests extends ESTestCase {
         Set<ScriptEngineService> scriptEngines = new HashSet<>();
         scriptEngines.add(new MustacheScriptEngineService(settings));
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), new ScriptContextRegistry(Collections.EMPTY_LIST));
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, Collections.EMPTY_SET, new NamedWriteableRegistry());
+        ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), new ScriptContextRegistry(Collections.emptyList()));
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, Collections.emptySet(), new NamedWriteableRegistry());
         return new NodeServicesProvider(threadPool, indicesQueryCache, null, warmer, bigArrays, client, scriptService, indicesQueriesRegistry, indicesFieldDataCache, circuitBreakerService);
     }
 
@@ -251,7 +251,7 @@ public class IndexModuleTests extends ESTestCase {
             assertEquals("Unknown Similarity type [test_similarity] for [my_similarity]", ex.getMessage());
         }
     }
-  
+
     public void testSetupWithoutType() throws IOException {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.foo", "bar")

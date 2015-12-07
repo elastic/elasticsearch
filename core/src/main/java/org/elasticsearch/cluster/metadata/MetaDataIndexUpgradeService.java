@@ -218,8 +218,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         try {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList());
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
                 try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry)) {
@@ -256,7 +256,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         };
 
         public FakeAnalysisService(IndexSettings indexSettings) {
-            super(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+            super(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
         @Override

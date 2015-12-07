@@ -408,7 +408,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            highlightBuilder.innerXContent(builder, EMPTY_PARAMS);
+            highlightBuilder.innerXContent(builder);
             builder.endObject();
             this.highlightBuilder = builder.bytes();
             return this;

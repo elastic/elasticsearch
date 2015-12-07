@@ -123,7 +123,7 @@ public abstract class ExtensionPoint {
     public static final class SelectedType<T> extends ClassMap<T> {
 
         public SelectedType(String name, Class<T> extensionClass) {
-            super(name, extensionClass, Collections.EMPTY_SET);
+            super(name, extensionClass, Collections.emptySet());
         }
 
         /**

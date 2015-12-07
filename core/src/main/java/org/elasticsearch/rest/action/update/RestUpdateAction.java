@@ -105,7 +105,7 @@ public class RestUpdateAction extends BaseRestHandler {
                 upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
                 upsertRequest.timestamp(request.param("timestamp"));
                 if (request.hasParam("ttl")) {
-                    upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
+                    upsertRequest.ttl(request.param("ttl"));
                 }
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
@@ -116,7 +116,7 @@ public class RestUpdateAction extends BaseRestHandler {
                 doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
                 doc.timestamp(request.param("timestamp"));
                 if (request.hasParam("ttl")) {
-                    doc.ttl(request.paramAsTime("ttl", null).millis());
+                    doc.ttl(request.param("ttl"));
                 }
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));

@@ -128,7 +128,11 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (unit == null) {
             throw new IllegalArgumentException("distance unit must not be null");
         }
-        this.distance = DistanceUnit.parse(distance, unit, DistanceUnit.DEFAULT);
+        double newDistance = DistanceUnit.parse(distance, unit, DistanceUnit.DEFAULT);
+        if (newDistance <= 0.0) {
+            throw new IllegalArgumentException("distance must be greater than zero");
+        }
+        this.distance = newDistance;
         return this;
     }
 
@@ -172,7 +176,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      **/
     public GeoDistanceQueryBuilder optimizeBbox(String optimizeBbox) {
         if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBox must not be null");
+            throw new IllegalArgumentException("optimizeBbox must not be null");
         }
         switch (optimizeBbox) {
             case "none":

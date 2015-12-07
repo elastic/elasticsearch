@@ -25,8 +25,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -49,8 +51,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -164,7 +164,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
 
                 try {
                     // add the response
-                    final WriteResult<DeleteResponse> writeResult = shardDeleteOperation(request, deleteRequest, indexShard);
+                    final WriteResult<DeleteResponse> writeResult = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
                     DeleteResponse deleteResponse = writeResult.response();
                     location = locationToSync(location, writeResult.location);
                     setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
@@ -304,7 +304,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             assert preVersionTypes[requestIndex] != null;
         }
 
-        processAfter(request.refresh(), indexShard, location);
+        processAfterWrite(request.refresh(), indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
@@ -320,7 +320,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         }
     }
 
-    private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
+    private WriteResult<IndexResponse> shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
                                             IndexShard indexShard, boolean processed) throws Throwable {
 
         // validate, if routing is required, that we got routing
@@ -334,21 +334,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         if (!processed) {
             indexRequest.process(clusterState.metaData(), mappingMd, allowIdGeneration, request.index());
         }
-
-        return executeIndexRequestOnPrimary(indexRequest, indexShard);
-    }
-
-    private WriteResult<DeleteResponse> shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {
-        Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.PRIMARY);
-        indexShard.delete(delete);
-        // update the request with the version so it will go to the replicas
-        deleteRequest.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
-        deleteRequest.version(delete.version());
-
-        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
-
-        DeleteResponse deleteResponse = new DeleteResponse(request.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
-        return new WriteResult(deleteResponse, delete.getTranslogLocation());
+        return TransportIndexAction.executeIndexRequestOnPrimary(indexRequest, indexShard, mappingUpdatedAction);
     }
 
     static class UpdateResult {
@@ -424,7 +410,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             case DELETE:
                 DeleteRequest deleteRequest = translate.action();
                 try {
-                    WriteResult result = shardDeleteOperation(bulkShardRequest, deleteRequest, indexShard);
+                    WriteResult<DeleteResponse> result = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
                     return new UpdateResult(translate, deleteRequest, result);
                 } catch (Throwable t) {
                     t = ExceptionsHelper.unwrapCause(t);
@@ -457,15 +443,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
-                    SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, indexRequest.source()).index(shardId.getIndex()).type(indexRequest.type()).id(indexRequest.id())
-                            .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
-
-                    final Engine.Index operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
-                    Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-                    if (update != null) {
-                        throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
-                    }
-                    indexShard.index(operation);
+                    Engine.Index operation = TransportIndexAction.executeIndexRequestOnReplica(indexRequest, indexShard);
                     location = locationToSync(location, operation.getTranslogLocation());
                 } catch (Throwable e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
@@ -477,7 +455,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = TransportDeleteAction.executeDeleteRequestOnReplica(deleteRequest, indexShard);
                     indexShard.delete(delete);
                     location = locationToSync(location, delete.getTranslogLocation());
                 } catch (Throwable e) {
@@ -492,7 +470,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             }
         }
 
-        processAfter(request.refresh(), indexShard, location);
+        processAfterWrite(request.refresh(), indexShard, location);
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

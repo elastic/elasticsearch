@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.HandledProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
@@ -182,7 +183,7 @@ public class IngestActionFilterTests extends ESTestCase {
                 return null;
             }
         };
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(new HandledProcessor(processor))));
         executionService = new PipelineExecutionService(store, threadPool);
         PipelineStoreBootstrapper bootstrapper = mock(PipelineStoreBootstrapper.class);
         when(bootstrapper.getPipelineExecutionService()).thenReturn(executionService);

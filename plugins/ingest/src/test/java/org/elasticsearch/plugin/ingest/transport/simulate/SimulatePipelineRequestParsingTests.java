@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.HandledProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +43,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
 
     @Before
     public void init() throws IOException {
-        Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(Processor.class)));
+        Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(HandledProcessor.class)));
         Map<String, Processor.Factory> processorRegistry = new HashMap<>();
         processorRegistry.put("mock_processor", mock(Processor.Factory.class));
         store = mock(PipelineStore.class);

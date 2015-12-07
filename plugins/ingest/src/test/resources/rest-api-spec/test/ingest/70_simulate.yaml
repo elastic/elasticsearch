@@ -70,6 +70,48 @@
   - length: { docs: 1 }
 
 ---
+"Test simulate with provided pipeline definition with on_failure block":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "rename" : {
+                    "field" : "does_not_exist",
+                    "to" : "field2",
+                    "on_failure" : [
+                      {
+                        "set" : {
+                          "field" : "field2",
+                          "value" : "_value"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.field2: "_value" }
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
+
+---
 "Test simulate with no provided pipeline or pipeline_id":
   - do:
       catch: request

@@ -22,6 +22,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.HandledProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -43,7 +44,7 @@ class SimulateExecutionService {
             List<SimulateProcessorResult> processorResultList = new ArrayList<>();
             IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);
             for (int i = 0; i < pipeline.getProcessors().size(); i++) {
-                Processor processor = pipeline.getProcessors().get(i);
+                HandledProcessor processor = pipeline.getProcessors().get(i);
                 String processorId = "processor[" + processor.getType() + "]-" + i;
                 try {
                     processor.execute(currentIngestDocument);

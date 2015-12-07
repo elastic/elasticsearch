@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.HandledProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -39,7 +39,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private SimulateExecutionService executionService;
     private Pipeline pipeline;
-    private Processor processor;
+    private HandledProcessor processor;
     private IngestDocument ingestDocument;
 
     @Before
@@ -50,7 +50,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
                         .build()
         );
         executionService = new SimulateExecutionService(threadPool);
-        processor = mock(Processor.class);
+        processor = mock(HandledProcessor.class);
         when(processor.getType()).thenReturn("mock");
         pipeline = new Pipeline("_id", "_description", Arrays.asList(processor, processor));
         //ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));

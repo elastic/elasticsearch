@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.processor.HandledProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteSuccess() throws Exception {
-        Processor processor = mock(Processor.class);
+        HandledProcessor processor = mock(HandledProcessor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
@@ -79,7 +80,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
-        Processor processor = mock(Processor.class);
+        HandledProcessor processor = mock(HandledProcessor.class);
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
@@ -112,10 +113,42 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteFailure() throws Exception {
-        Processor processor = mock(Processor.class);
+        HandledProcessor processor = mock(HandledProcessor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        @SuppressWarnings("unchecked")
+        ActionListener<Void> listener = (ActionListener<Void>)mock(ActionListener.class);
+        executionService.execute(indexRequest, "_id", listener);
+        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(listener, times(0)).onResponse(null);
+        verify(listener).onFailure(any(RuntimeException.class));
+    }
+
+    public void testExecuteSuccessWithOnFailure() throws Exception {
+        Processor processor = mock(Processor.class);
+        Processor onFailureProcessor = mock(Processor.class);
+        HandledProcessor handledProcessor = new HandledProcessor(processor, Collections.singletonList(new HandledProcessor(onFailureProcessor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(handledProcessor)));
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        @SuppressWarnings("unchecked")
+        ActionListener<Void> listener = (ActionListener<Void>)mock(ActionListener.class);
+        executionService.execute(indexRequest, "_id", listener);
+        //TODO we remove metadata, this check is not valid anymore, what do we replace it with?
+        //verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(listener).onResponse(null);
+        verify(listener, times(0)).onFailure(any(Exception.class));
+    }
+
+    public void testExecuteFailureWithOnFailure() throws Exception {
+        Processor processor = mock(Processor.class);
+        Processor onFailureProcessor = mock(Processor.class);
+        HandledProcessor handledProcessor = new HandledProcessor(processor, Collections.singletonList(new HandledProcessor(onFailureProcessor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(handledProcessor)));
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         ActionListener<Void> listener = (ActionListener<Void>)mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
@@ -132,7 +165,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         config.put("field", "_ttl");
         config.put("value", "5d");
         Processor processor = metaProcessorFactory.create(config);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(new HandledProcessor(processor))));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         ActionListener<Void> listener = (ActionListener<Void>)mock(ActionListener.class);
@@ -148,7 +181,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         config.put("field", "_ttl");
         config.put("value", "abc");
         processor = metaProcessorFactory.create(config);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(new HandledProcessor(processor))));
 
         indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         listener = mock(ActionListener.class);

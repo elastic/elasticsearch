@@ -59,16 +59,39 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put("description", "_description");
         pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
+        Map<String, Processor.Factory> processorFactoryStore = new HashMap<>();
         Processor processor = mock(Processor.class);
         when(processor.getType()).thenReturn("test-processor");
         Processor.Factory processorFactory = mock(Processor.Factory.class);
         when(processorFactory.create(processorConfig)).thenReturn(processor);
-        processorRegistry.put("test", processorFactory);
+        processorFactoryStore.put("test", processorFactory);
         try {
-            factory.create("_id", pipelineConfig, processorRegistry);
+            factory.create("_id", pipelineConfig, processorFactoryStore);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
+    }
+
+    public void testCreateProcessorsWithOnFailureProperties() throws Exception {
+        Map<String, Object> processorConfig = new HashMap<>();
+        processorConfig.put("on_failure", Collections.singletonList(Collections.singletonMap("test", new HashMap<>())));
+
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("description", "_description");
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        Pipeline.Factory factory = new Pipeline.Factory();
+        Map<String, Processor.Factory> processorFactoryStore = new HashMap<>();
+        Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("test-processor");
+        Processor.Factory processorFactory = mock(Processor.Factory.class);
+        when(processorFactory.create(processorConfig)).thenReturn(processor);
+        processorFactoryStore.put("test", processorFactory);
+
+        Pipeline pipeline = factory.create("_id", pipelineConfig, processorFactoryStore);
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("_description"));
+        assertThat(pipeline.getProcessors().size(), equalTo(1));
+        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("test-processor"));
+        assertThat(pipeline.getProcessors().get(0).isHandled(), equalTo(true));
     }
 }

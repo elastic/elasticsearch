@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -230,7 +231,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             boolean changed = false;
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
-                if (shard.primary() || shard.allocatedPostIndexCreate() == false) {
+                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndex());
+                if (shard.primary() || shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
                 changed |= replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);

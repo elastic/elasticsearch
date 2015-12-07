@@ -285,4 +285,11 @@ public class CreateIndexIT extends ESIntegTestCase {
             assertThat(messages.toString(), containsString("mapper [text] is used by multiple types"));
         }
     }
+
+    public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get();
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
+        internalCluster().fullRestart();
+        ensureGreen("test");
+    }
 }

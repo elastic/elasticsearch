@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -82,8 +83,8 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).getSettings();
-        String enableIndexValue = indexSettings.get(INDEX_ROUTING_ALLOCATION_ENABLE);
+        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
+        String enableIndexValue = indexMetaData.getSettings().get(INDEX_ROUTING_ALLOCATION_ENABLE);
         final Allocation enable;
         if (enableIndexValue != null) {
             enable = Allocation.parse(enableIndexValue);
@@ -96,7 +97,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             case NONE:
                 return allocation.decision(Decision.NO, NAME, "no allocations are allowed");
             case NEW_PRIMARIES:
-                if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate() == false) {
+                if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
                     return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden");

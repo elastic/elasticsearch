@@ -70,11 +70,11 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
     private boolean saveVersionConflicts = false;
 
     /**
-     * How many failures to record before we abort? More than this many failures
-     * might be returned because we record all failures in the bulk batch and
-     * then abort.
+     * How many failures must be accumulated before the operation aborts?
+     * Defaults to 1. The response may contain more than this many failures
+     * because failure is checked after each bulk batch.
      */
-    private int failuresBeforeAbort = 0;
+    private int failuresCauseAbort = 1;
 
     public IndexBySearchRequest() {
     }
@@ -125,12 +125,12 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
     }
 
     @Override
-    public int failuresBeforeAbort() {
-        return failuresBeforeAbort;
+    public int failuresCauseAbort() {
+        return failuresCauseAbort;
     }
 
-    public IndexBySearchRequest failuresBeforeAbort(int failuresBeforeAbort) {
-        this.failuresBeforeAbort = failuresBeforeAbort;
+    public IndexBySearchRequest failuresCauseAbort(int failuresCauseAbort) {
+        this.failuresCauseAbort = failuresCauseAbort;
         return this;
     }
 

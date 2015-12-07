@@ -54,8 +54,29 @@ public class IndexBySearchRequestBuilder
         return index;
     }
 
+    /**
+     * The maximum number of documents to attempt.
+     */
     public IndexBySearchRequestBuilder size(int size) {
         request.size(size);
+        return this;
+    }
+
+    /**
+     * How many failures must be accumulated before the operation aborts?
+     * Defaults to 1. The response may contain more than this many failures
+     * because failure is checked after each bulk batch.
+     */
+    public IndexBySearchRequestBuilder failuresCauseAbort(int failuresCauseAbort) {
+        request.failuresCauseAbort(failuresCauseAbort);
+        return this;
+    }
+
+    /**
+     * Should we return version conflicts and count them against the failures before abort?
+     */
+    public IndexBySearchRequestBuilder saveVersionConflicts(boolean saveVersionConflicts) {
+        request.saveVersionConflicts(saveVersionConflicts);
         return this;
     }
 

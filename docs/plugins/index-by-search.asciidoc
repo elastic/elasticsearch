@@ -186,6 +186,50 @@ POST /_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
+By default the request is terminated the first time it hits an indexing error
+that isn't a version conflict. To make it more tolerant of errors set
+`failures_cause_abort` to something greater than 0. Note that aborting is done
+per bulk batch so the response might contain more than the number of failures
+you asked for. Below is an example of setting it. See the bottom of this page
+for the response format.
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "failures_cause_abort": 100,
+  "source": {
+    "index": "twitter"
+  },
+  "index": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+If you want version conflicts to count against `failures_cause_abort` then set
+`"save_version_conflicts": true` and they will be sent in the `failures`
+portion of the response. Here is an example that will abort after it sees ten
+failures, including version conflicts:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "failures_cause_abort": 100,
+  "save_version_conflicts": true,
+  "source": {
+    "index": "twitter"
+  },
+  "index": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+
 [float]
 === Query-string parameters
 
@@ -393,3 +437,9 @@ The number of documents that were successfully updated.
 `version_conflicts`::
 
 The number of version conflicts that the process hit.
+
+`failures`::
+
+Array of description of all indexing failures. By default version conflicts are
+not included in this list, only the counter is incremented. Set
+`"save_version_conflicts": true` to keep them.

@@ -153,8 +153,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
         @Override
         protected IndexBySearchResponse buildResponse(long took) {
-            // NOCOMMIT return the failures
-            return new IndexBySearchResponse(took, created(), updated(), versionConflicts());
+            return new IndexBySearchResponse(took, created(), updated(), batches(), versionConflicts(), failures());
         }
     }
 }

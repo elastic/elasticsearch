@@ -20,10 +20,12 @@
 package org.elasticsearch.action.indexbysearch;
 
 import static java.lang.Math.max;
+import static java.util.Collections.unmodifiableList;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -67,10 +69,11 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
          */
         boolean saveVersionConflicts();
         /**
-         * Maximum number of failures to save and not abort. Any more failures
-         * will cause an abort.
+         * How many failures must be accumulated before the operation aborts?
+         * Defaults to 1. This action may accumulate more than this many
+         * failures because failure is checked after each bulk batch.
          */
-        int failuresBeforeAbort();
+        int failuresCauseAbort();
     }
 
     protected final Request mainRequest;
@@ -80,6 +83,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
     private final AtomicLong updated = new AtomicLong(0);
     private final AtomicLong created = new AtomicLong(0);
     private final AtomicLong deleted = new AtomicLong(0);
+    private final AtomicInteger batches = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
     private final List<Failure> failures = new CopyOnWriteArrayList<>();
@@ -134,12 +138,23 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         return deleted.get();
     }
 
+    /**
+     * The number of bulk requests this request has completed.
+     */
+    public int batches() {
+        return batches.get();
+    }
+
     public long versionConflicts() {
         return versionConflicts.get();
     }
 
     public long successfullyProcessed() {
         return updated.get() + created.get() + deleted.get();
+    }
+
+    public List<Failure> failures() {
+        return unmodifiableList(failures);
     }
 
     void initialSearch() {
@@ -211,6 +226,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
 
     void onBulkResponse(BulkResponse response) {
         try {
+            batches.incrementAndGet();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
                     recordFailure(item.getFailure());
@@ -235,8 +251,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
                 }
             }
 
-            if (failures.size() > mainRequest.failuresBeforeAbort()) {
-                // We've accumulated too many failures
+            if (failures.size() >= mainRequest.failuresCauseAbort()) {
                 finishHim(null);
                 return;
             }
@@ -277,6 +292,15 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         }
     }
 
+    /**
+     * Finish the request.
+     *
+     * @param failure
+     *            the failure that caused the request to fail prematurely if not
+     *            null. If not null this doesn't mean the request was entirely
+     *            successful - it may have accumulated failures in the failures
+     *            list.
+     */
     void finishHim(final Throwable failure) {
         if (failure != null) {
             logger.warn("scrolling failed", failure);

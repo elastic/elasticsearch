@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 
 import java.util.Collection;
@@ -52,7 +53,9 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
     public static class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
         private Matcher<Long> updatedMatcher = equalTo(0l);
         private Matcher<Long> createdMatcher = equalTo(0l);
+        private Matcher<Integer> batchesMatcher = any(Integer.class);
         private Matcher<Long> versionConflictsMatcher = equalTo(0l);
+        private Matcher<Integer> failuresMatcher = equalTo(0);
 
         public IndexBySearchResponseMatcher updated(Matcher<Long> updatedMatcher) {
             this.updatedMatcher = updatedMatcher;
@@ -72,6 +75,20 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
             return created(equalTo(created));
         }
 
+        /**
+         * Set the matches for the number of batches. Defaults to matching any
+         * integer because we usually don't care about how many batches the job
+         * takes.
+         */
+        public IndexBySearchResponseMatcher batches(Matcher<Integer> batchesMatcher) {
+            this.batchesMatcher = batchesMatcher;
+            return this;
+        }
+
+        public IndexBySearchResponseMatcher batches(int batches) {
+            return batches(equalTo(batches));
+        }
+
         public IndexBySearchResponseMatcher versionConflicts(Matcher<Long> versionConflictsMatcher) {
             this.versionConflictsMatcher = versionConflictsMatcher;
             return this;
@@ -81,25 +98,40 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
             return versionConflicts(equalTo(versionConflicts));
         }
 
+        /**
+         * Set the matcher for the size of the failures list. For more in depth
+         * matching do it by hand. The type signatures required to match the
+         * actual failures list here just don't work.
+         */
+        public IndexBySearchResponseMatcher failures(Matcher<Integer> failuresMatcher) {
+            this.failuresMatcher = failuresMatcher;
+            return this;
+        }
+
+        /**
+         * Set the expected size of the failures list.
+         */
+        public IndexBySearchResponseMatcher failures(int failures) {
+            return failures(equalTo(failures));
+        }
+
+
         @Override
         protected boolean matchesSafely(IndexBySearchResponse item) {
-            if (updatedMatcher != null && updatedMatcher.matches(item.updated()) == false) {
-                return false;
-            }
-            if (createdMatcher != null && createdMatcher.matches(item.created()) == false) {
-                return false;
-            }
-            if (versionConflictsMatcher != null && versionConflictsMatcher.matches(item.versionConflicts()) == false) {
-                return false;
-            }
-            return true;
+            return updatedMatcher.matches(item.updated()) &&
+                createdMatcher.matches(item.created()) &&
+                batchesMatcher.matches(item.batches()) &&
+                versionConflictsMatcher.matches(item.versionConflicts()) &&
+                failuresMatcher.matches(item.failures().size());
         }
 
         @Override
         public void describeTo(Description description) {
             description.appendText("indexed matches ").appendDescriptionOf(updatedMatcher);
             description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
+            description.appendText(" and batches matches ").appendDescriptionOf(batchesMatcher);
             description.appendText(" and versionConflicts matches ").appendDescriptionOf(versionConflictsMatcher);
+            description.appendText(" and failures size matches ").appendDescriptionOf(failuresMatcher);
         }
     }
 }

@@ -80,6 +80,8 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.search(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);
         PARSER.declareInt(IndexBySearchRequest::size, new ParseField("size"));
+        PARSER.declareBoolean(IndexBySearchRequest::saveVersionConflicts, new ParseField("save_version_conflicts"));
+        PARSER.declareInt(IndexBySearchRequest::failuresCauseAbort, new ParseField("failures_cause_abort"));
     }
 
     private IndicesQueriesRegistry indicesQueriesRegistry;
@@ -111,6 +113,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
 
         internalRequest.fillInConditionalDefaults();
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
+        // NOCOMMIT status from failures!
     }
 
     private void badRequest(RestChannel channel, String message) {

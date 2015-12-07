@@ -144,7 +144,6 @@ public class ExternalNodeService {
         new ExternalNodeServiceClient(port).shutdownService();
     }
 
-    private final ExecutorService readLines = Executors.newCachedThreadPool(new DaemonizedThreadFactory("readlines"));
     /**
      * Running elasticsearch instances indexed by port.
      */
@@ -352,6 +351,9 @@ public class ExternalNodeService {
             Process process = null;
             String pid = null;
             try {
+                // we have to delete the pid file which might be leftover from previous tests in the same suite
+                // otherwise the ExternalNodeService reads the old pid file and later tries to stop the wrong process
+                Files.deleteIfExists(getPath(pidFile));
                 process = builder.start();
                 pid = getPid(pidFile);
                 message("process forked");
@@ -371,7 +373,7 @@ public class ExternalNodeService {
         }
 
         private String getPid(String pidFile) throws IOException {
-            Path pidPath = getPath(pidFile).toAbsolutePath();
+            Path pidPath = getPath(pidFile);
             long maxTimeInMillis = 10000;
             long startTime = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTime < maxTimeInMillis) {
@@ -383,6 +385,12 @@ public class ExternalNodeService {
                         return pid;
                     }
                 }
+                try {
+                    sleep(500);
+                } catch (InterruptedException e) {
+                    logger.info("Interrupted while waiting for pid file of external node.", e);
+                    break;
+                }
             }
             throw new ElasticsearchException("Could not start external node, pid was not found.");
         }
@@ -390,7 +398,7 @@ public class ExternalNodeService {
         public String getPidFile(Deque<String> commandLine) {
             for (String param: commandLine) {
                 if (param.contains("pidfile")) {
-                    return param.substring(13, param.length());
+                    return param.substring("-Des.pidfile=".length(), param.length());
                 }
             }
             throw new ElasticsearchException("Cannot start external node. pidfile parameter missing.");
@@ -398,7 +406,7 @@ public class ExternalNodeService {
 
         private void stop(Deque<String> commandLine) {
             if (commandLine.isEmpty()) {
-                message("no port sent!");
+                message("no pid sent!");
                 return;
             }
             String pid = commandLine.pop();

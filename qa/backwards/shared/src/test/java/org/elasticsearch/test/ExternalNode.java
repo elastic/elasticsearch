@@ -106,10 +106,6 @@ final class ExternalNode implements Closeable {
         externaNodeSettingsBuilder.put("path.data", dataPath());
         externaNodeSettingsBuilder.put("path.logs", logPath());
         externaNodeSettingsBuilder.put("pidfile", pidPath());
-        // we have to delete the pid file which might be leftover from previous tests in the same suite
-        // otherwise the ExternalNodeService reads the old pid file and later tries to stop the wrong process
-        Files.deleteIfExists(pidPath());
-
 
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             String found = externaNodeSettingsBuilder.get(entry.getKey());

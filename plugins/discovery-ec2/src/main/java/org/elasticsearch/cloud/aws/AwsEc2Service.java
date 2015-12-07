@@ -27,20 +27,32 @@ public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
         public static final String KEY = "cloud.aws.access_key";
         public static final String SECRET = "cloud.aws.secret_key";
         public static final String PROTOCOL = "cloud.aws.protocol";
-        public static final String PROXY_HOST = "cloud.aws.proxy_host";
-        public static final String PROXY_PORT = "cloud.aws.proxy_port";
+        public static final String PROXY_HOST = "cloud.aws.proxy.host";
+        public static final String PROXY_PORT = "cloud.aws.proxy.port";
+        public static final String PROXY_USERNAME = "cloud.aws.proxy.username";
+        public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
         public static final String SIGNER = "cloud.aws.signer";
         public static final String REGION = "cloud.aws.region";
+        @Deprecated
+        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
+        @Deprecated
+        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
     }
 
     final class CLOUD_EC2 {
         public static final String KEY = "cloud.aws.ec2.access_key";
         public static final String SECRET = "cloud.aws.ec2.secret_key";
         public static final String PROTOCOL = "cloud.aws.ec2.protocol";
-        public static final String PROXY_HOST = "cloud.aws.ec2.proxy_host";
-        public static final String PROXY_PORT = "cloud.aws.ec2.proxy_port";
+        public static final String PROXY_HOST = "cloud.aws.ec2.proxy.host";
+        public static final String PROXY_PORT = "cloud.aws.ec2.proxy.port";
+        public static final String PROXY_USERNAME = "cloud.aws.ec2.proxy.username";
+        public static final String PROXY_PASSWORD = "cloud.aws.ec2.proxy.password";
         public static final String SIGNER = "cloud.aws.ec2.signer";
         public static final String ENDPOINT = "cloud.aws.ec2.endpoint";
+        @Deprecated
+        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.ec2.proxy_host";
+        @Deprecated
+        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.ec2.proxy_port";
     }
 
     final class DISCOVERY_EC2 {

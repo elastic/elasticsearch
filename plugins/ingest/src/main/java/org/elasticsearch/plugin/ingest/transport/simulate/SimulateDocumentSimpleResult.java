@@ -23,16 +23,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.plugin.ingest.transport.WriteableIngestDocument;
 
 import java.io.IOException;
 
 public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
 
-    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult((IngestDocument)null);
+    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult();
 
     private WriteableIngestDocument ingestDocument;
     private Exception failure;
+
+    private SimulateDocumentSimpleResult() {
+        this.ingestDocument = null;
+    }
 
     public SimulateDocumentSimpleResult(IngestDocument ingestDocument) {
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);

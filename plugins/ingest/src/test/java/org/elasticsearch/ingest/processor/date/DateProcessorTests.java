@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -36,7 +37,7 @@ public class DateProcessorTests extends ESTestCase {
                 "date_as_string", Collections.singletonList("yyyy dd MM hh:mm:ss"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06 11:05:15");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
     }
@@ -51,25 +52,25 @@ public class DateProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "12/06/2010");
-        ingestDocument = new IngestDocument("index", "type", "id", document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "12-06-2010");
-        ingestDocument = new IngestDocument("index", "type", "id", document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "2010");
-        ingestDocument = new IngestDocument("index", "type", "id", document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         try {
             dateProcessor.execute(ingestDocument);
             fail("processor should have failed due to not supported date format");
@@ -83,7 +84,7 @@ public class DateProcessorTests extends ESTestCase {
                 "date_as_string", Collections.singletonList("yyyy dd MMM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 giugno");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
     }
@@ -93,7 +94,7 @@ public class DateProcessorTests extends ESTestCase {
                 "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "12/06");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(DateTime.now().getYear() + "-06-12T00:00:00.000+02:00"));
     }
@@ -104,7 +105,7 @@ public class DateProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         String dateAsString = (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024";
         document.put("date_as_string", dateAsString);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2012-12-22T03:00:46.767+02:00"));
     }
@@ -114,7 +115,7 @@ public class DateProcessorTests extends ESTestCase {
                 "date_as_string", Collections.singletonList(DateFormat.UnixMs.toString()), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000500");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
@@ -124,7 +125,7 @@ public class DateProcessorTests extends ESTestCase {
                 "date_as_string", Collections.singletonList(DateFormat.Unix.toString()), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000.5");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }

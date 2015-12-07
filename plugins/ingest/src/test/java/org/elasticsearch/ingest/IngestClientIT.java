@@ -142,7 +142,7 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("val", 123.42f);
         source.put("status", 400);
         source.put("msg", "foo");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", source);
+        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
         assertThat(simulateDocumentSimpleResult.getIngestDocument().getSource(), equalTo(ingestDocument.getSource()));
         assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }

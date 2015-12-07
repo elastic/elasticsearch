@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -46,7 +48,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(value);
         list.add(null);
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", document);
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
         assertThat(ingestDocument.isSourceModified(), equalTo(false));
     }
 
@@ -488,44 +490,53 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() throws Exception {
-        String index = randomAsciiOfLengthBetween(1, 10);
-        String type = randomAsciiOfLengthBetween(1, 10);
-        String id = randomAsciiOfLengthBetween(1, 10);
-        String fieldName = randomAsciiOfLengthBetween(1, 10);
-        String fieldValue = randomAsciiOfLengthBetween(1, 10);
-        IngestDocument ingestDocument = new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+        Map<String, String> esMetadata = new HashMap<>();
+        int numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
+        for (int i = 0; i < numFields; i++) {
+            esMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+        }
+        Map<String, String> ingestMetadata = new HashMap<>();
+        numFields = randomIntBetween(1, 5);
+        for (int i = 0; i < numFields; i++) {
+            ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
+        }
+        Map<String, Object> document = RandomDocumentPicks.randomDocument(random());
+        IngestDocument ingestDocument = new IngestDocument(esMetadata, document, ingestMetadata);
 
         boolean changed = false;
-        String otherIndex;
+        Map<String, String> otherEsMetadata;
         if (randomBoolean()) {
-            otherIndex = randomAsciiOfLengthBetween(1, 10);
+            otherEsMetadata = new HashMap<>();
+            numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
+            for (int i = 0; i < numFields; i++) {
+                otherEsMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+            }
             changed = true;
         } else {
-            otherIndex = index;
-        }
-        String otherType;
-        if (randomBoolean()) {
-            otherType = randomAsciiOfLengthBetween(1, 10);
-            changed = true;
-        } else {
-            otherType = type;
-        }
-        String otherId;
-        if (randomBoolean()) {
-            otherId = randomAsciiOfLengthBetween(1, 10);
-            changed = true;
-        } else {
-            otherId = id;
-        }
-        Map<String, Object> document;
-        if (randomBoolean()) {
-            document = Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
-            changed = true;
-        } else {
-            document = Collections.singletonMap(fieldName, fieldValue);
+            otherEsMetadata = Collections.unmodifiableMap(esMetadata);
         }
 
-        IngestDocument otherIngestDocument = new IngestDocument(otherIndex, otherType, otherId, document);
+        Map<String, String> otherIngestMetadata;
+        if (randomBoolean()) {
+            otherIngestMetadata = new HashMap<>();
+            numFields = randomIntBetween(1, 5);
+            for (int i = 0; i < numFields; i++) {
+                otherIngestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
+            }
+            changed = true;
+        } else {
+            otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
+        }
+
+        Map<String, Object> otherDocument;
+        if (randomBoolean()) {
+            otherDocument = RandomDocumentPicks.randomDocument(random());
+            changed = true;
+        } else {
+            otherDocument = Collections.unmodifiableMap(document);
+        }
+
+        IngestDocument otherIngestDocument = new IngestDocument(otherEsMetadata, otherDocument, otherIngestMetadata);
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -533,7 +544,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+            IngestDocument thirdIngestDocument = new IngestDocument(Collections.unmodifiableMap(esMetadata), Collections.unmodifiableMap(document), Collections.unmodifiableMap(ingestMetadata));
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -554,7 +565,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> myPreciousMap = new HashMap<>();
         myPreciousMap.put("field2", "value2");
 
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, new HashMap<>());
         ingestDocument.setFieldValue("field1", myPreciousMap);
         ingestDocument.removeField("field1.field2");
 
@@ -566,11 +577,32 @@ public class IngestDocumentTests extends ESTestCase {
         List<String> myPreciousList = new ArrayList<>();
         myPreciousList.add("value");
 
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, new HashMap<>());
         ingestDocument.setFieldValue("field1", myPreciousList);
         ingestDocument.removeField("field1.0");
 
         assertThat(myPreciousList.size(), equalTo(1));
         assertThat(myPreciousList.get(0), equalTo("value"));
+    }
+
+    public void testIngestCustomMetadata() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String metadata = randomAsciiOfLengthBetween(1, 10);
+        String value = randomAsciiOfLengthBetween(1, 10);
+        ingestDocument.setIngestMetadata(metadata, value);
+        assertThat(ingestDocument.getIngestMetadata(metadata), equalTo(value));
+    }
+
+    public void testIngestMetadataTimestamp() throws Exception {
+        long before = System.currentTimeMillis();
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        long after = System.currentTimeMillis();
+        String timestampString = ingestDocument.getIngestMetadata("timestamp");
+        assertThat(timestampString, notNullValue());
+        assertThat(timestampString, endsWith("+0000"));
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
+        Date timestamp = df.parse(timestampString);
+        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
+        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
     }
 }

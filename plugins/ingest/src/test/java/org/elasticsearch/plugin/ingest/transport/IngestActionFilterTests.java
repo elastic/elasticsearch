@@ -123,7 +123,8 @@ public class IngestActionFilterTests extends ESTestCase {
 
         Answer answer = invocationOnMock -> {
             ActionListener<IngestDocument> listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.sourceAsMap()));
+            listener.onResponse(new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing(), indexRequest.parent(),
+                indexRequest.timestamp(), indexRequest.ttl() == null ? null : indexRequest.ttl().toString(), indexRequest.sourceAsMap()));
             return null;
         };
         doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));

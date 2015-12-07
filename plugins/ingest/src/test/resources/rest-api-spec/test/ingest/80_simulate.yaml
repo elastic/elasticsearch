@@ -49,7 +49,8 @@
   - is_true: docs.0.doc.modified
   - match: { docs.0.doc._source.foo: "bar" }
   - match: { docs.0.doc._source.field2: "_value" }
-
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
 
 ---
 "Test simulate with provided pipeline definition":
@@ -158,10 +159,14 @@
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
+  - length: { docs.0.processor_results.0.doc._ingest: 1 }
+  - is_true: docs.0.processor_results.0.doc._ingest.timestamp
   - length: { docs.0.processor_results.1.doc._source: 3 }
   - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
   - match: { docs.0.processor_results.1.doc._source.field2: "_value" }
   - match: { docs.0.processor_results.1.doc._source..field3: "third_val" }
+  - length: { docs.0.processor_results.1.doc._ingest: 1 }
+  - is_true: docs.0.processor_results.1.doc._ingest.timestamp
 
 ---
 "Test simulate with exception thrown":
@@ -206,6 +211,8 @@
   - match: { docs.0.error.type: "illegal_argument_exception" }
   - is_true: docs.1.doc.modified
   - match: { docs.1.doc._source.foo: "BAR" }
+  - length: { docs.1.doc._ingest: 1 }
+  - is_true: docs.1.doc._ingest.timestamp
 
 ---
 "Test verbose simulate with exception thrown":
@@ -262,8 +269,15 @@
   - match: { docs.0.processor_results.1.doc._type: "type" }
   - match: { docs.0.processor_results.1.doc._id: "id" }
   - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
-  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
+  - match: { docs.0.processor_results.1.doc._source.bar: "HELLO" }
+  - length: { docs.0.processor_results.1.doc._ingest: 1 }
+  - is_true: docs.0.processor_results.1.doc._ingest.timestamp
   - match: { docs.1.processor_results.0.doc._source.foo: 5 }
   - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
+  - length: { docs.1.processor_results.0.doc._ingest: 1 }
+  - is_true: docs.1.processor_results.0.doc._ingest.timestamp
   - match: { docs.1.processor_results.1.doc._source.foo: 5 }
   - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
+  - length: { docs.1.processor_results.1.doc._ingest: 1 }
+  - is_true: docs.1.processor_results.1.doc._ingest.timestamp
+

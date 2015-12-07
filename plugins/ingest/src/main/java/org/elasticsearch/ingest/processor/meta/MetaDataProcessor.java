@@ -30,7 +30,7 @@ public final class MetaDataProcessor implements Processor {
         for (Map.Entry<MetaData, Mustache> entry : templates.entrySet()) {
             StringWriter writer = new StringWriter();
             entry.getValue().execute(writer, model);
-            ingestDocument.setMetaData(entry.getKey(), writer.toString());
+            ingestDocument.setEsMetadata(entry.getKey(), writer.toString());
         }
     }
 

@@ -32,7 +32,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testMatch() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        IngestDocument doc = new IngestDocument("index", "type", "id", new HashMap<>());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "1");
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
         GrokProcessor processor = new GrokProcessor(grok, fieldName);
@@ -42,7 +42,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testNoMatch() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        IngestDocument doc = new IngestDocument("index", "type", "id", new HashMap<>());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "23");
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
         GrokProcessor processor = new GrokProcessor(grok, fieldName);
@@ -56,7 +56,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testNotStringField() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        IngestDocument doc = new IngestDocument("index", "type", "id", new HashMap<>());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, 1);
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
         GrokProcessor processor = new GrokProcessor(grok, fieldName);
@@ -70,7 +70,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testMissingField() {
         String fieldName = "foo.bar";
-        IngestDocument doc = new IngestDocument("index", "type", "id", new HashMap<>());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
         GrokProcessor processor = new GrokProcessor(grok, fieldName);
         try {

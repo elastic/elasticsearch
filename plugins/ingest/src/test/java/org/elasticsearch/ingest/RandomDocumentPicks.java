@@ -132,7 +132,23 @@ public final class RandomDocumentPicks {
         String index = randomString(random);
         String type = randomString(random);
         String id = randomString(random);
-        return new IngestDocument(index, type, id, document);
+        String routing = null;
+        if (random.nextBoolean()) {
+            routing = randomString(random);
+        }
+        String parent = null;
+        if (random.nextBoolean()) {
+            parent = randomString(random);
+        }
+        String timestamp = null;
+        if (random.nextBoolean()) {
+            timestamp = randomString(random);
+        }
+        String ttl = null;
+        if (random.nextBoolean()) {
+            ttl = randomString(random);
+        }
+        return new IngestDocument(index, type, id, routing, parent, timestamp, ttl, document);
     }
 
     public static Map<String, Object> randomDocument(Random random) {

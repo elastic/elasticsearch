@@ -22,17 +22,15 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class SimulatePipelineResponseTests extends ESTestCase {
 
@@ -42,8 +40,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
             boolean isFailure = randomBoolean();
-            IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
-                    Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
             if (isVerbose) {
                 int numProcessors = randomIntBetween(1, 10);
                 List<SimulateProcessorResult> processorResults = new ArrayList<>(numProcessors);

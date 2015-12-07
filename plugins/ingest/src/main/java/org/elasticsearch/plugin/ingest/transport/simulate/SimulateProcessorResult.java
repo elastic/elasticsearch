@@ -26,17 +26,21 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.plugin.ingest.transport.WriteableIngestDocument;
 
 import java.io.IOException;
 
 public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
 
-    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult(null, (IngestDocument)null);
+    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult();
 
     private String processorId;
     private WriteableIngestDocument ingestDocument;
     private Exception failure;
+
+    private SimulateProcessorResult() {
+        this.processorId = null;
+        this.ingestDocument = null;
+    }
 
     public SimulateProcessorResult(String processorId, IngestDocument ingestDocument) {
         this.processorId = processorId;

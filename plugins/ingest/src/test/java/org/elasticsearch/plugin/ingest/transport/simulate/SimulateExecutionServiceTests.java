@@ -22,6 +22,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,7 +30,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
@@ -53,7 +53,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         processor = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         pipeline = new Pipeline("_id", "_description", Arrays.asList(processor, processor));
-        ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
+        //ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
     }
 
     @After

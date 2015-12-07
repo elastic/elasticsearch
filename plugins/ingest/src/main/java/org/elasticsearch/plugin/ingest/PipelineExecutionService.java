@@ -65,13 +65,13 @@ public class PipelineExecutionService {
                 if (ingestDocument.isSourceModified()) {
                     indexRequest.source(ingestDocument.getSource());
                 }
-                indexRequest.index(ingestDocument.getMetadata(IngestDocument.MetaData.INDEX));
-                indexRequest.type(ingestDocument.getMetadata(IngestDocument.MetaData.TYPE));
-                indexRequest.id(ingestDocument.getMetadata(IngestDocument.MetaData.ID));
-                indexRequest.routing(ingestDocument.getMetadata(IngestDocument.MetaData.ROUTING));
-                indexRequest.parent(ingestDocument.getMetadata(IngestDocument.MetaData.PARENT));
-                indexRequest.timestamp(ingestDocument.getMetadata(IngestDocument.MetaData.TIMESTAMP));
-                indexRequest.ttl(ingestDocument.getMetadata(IngestDocument.MetaData.TTL));
+                indexRequest.index(ingestDocument.getEsMetadata(IngestDocument.MetaData.INDEX));
+                indexRequest.type(ingestDocument.getEsMetadata(IngestDocument.MetaData.TYPE));
+                indexRequest.id(ingestDocument.getEsMetadata(IngestDocument.MetaData.ID));
+                indexRequest.routing(ingestDocument.getEsMetadata(IngestDocument.MetaData.ROUTING));
+                indexRequest.parent(ingestDocument.getEsMetadata(IngestDocument.MetaData.PARENT));
+                indexRequest.timestamp(ingestDocument.getEsMetadata(IngestDocument.MetaData.TIMESTAMP));
+                indexRequest.ttl(ingestDocument.getEsMetadata(IngestDocument.MetaData.TTL));
                 listener.onResponse(ingestDocument);
             } catch (Throwable e) {
                 listener.onFailure(e);

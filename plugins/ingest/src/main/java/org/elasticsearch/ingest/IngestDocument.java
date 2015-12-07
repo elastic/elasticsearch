@@ -21,6 +21,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -28,38 +30,54 @@ import java.util.*;
  */
 public final class IngestDocument {
 
-    private final Map<String, String> metaData;
+    static final String TIMESTAMP = "timestamp";
+
+    private final Map<String, String> esMetadata;
     private final Map<String, Object> source;
+    private final Map<String, String> ingestMetadata;
 
     private boolean sourceModified = false;
 
-    public IngestDocument(String index, String type, String id, Map<String, Object> source) {
-        this(index, type, id, null, null, null, null, source);
-    }
-
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp, String ttl, Map<String, Object> source) {
-        this.metaData = new HashMap<>();
-        this.metaData.put(MetaData.INDEX.getFieldName(), index);
-        this.metaData.put(MetaData.TYPE.getFieldName(), type);
-        this.metaData.put(MetaData.ID.getFieldName(), id);
+        this.esMetadata = new HashMap<>();
+        this.esMetadata.put(MetaData.INDEX.getFieldName(), index);
+        this.esMetadata.put(MetaData.TYPE.getFieldName(), type);
+        this.esMetadata.put(MetaData.ID.getFieldName(), id);
         if (routing != null) {
-            this.metaData.put(MetaData.ROUTING.getFieldName(), routing);
+            this.esMetadata.put(MetaData.ROUTING.getFieldName(), routing);
         }
         if (parent != null) {
-            this.metaData.put(MetaData.PARENT.getFieldName(), parent);
+            this.esMetadata.put(MetaData.PARENT.getFieldName(), parent);
         }
         if (timestamp != null) {
-            this.metaData.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
+            this.esMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
         }
         if (ttl != null) {
-            this.metaData.put(MetaData.TTL.getFieldName(), ttl);
+            this.esMetadata.put(MetaData.TTL.getFieldName(), ttl);
         }
         this.source = source;
+        this.ingestMetadata = new HashMap<>();
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
+        df.setTimeZone(TimeZone.getTimeZone("UTC"));
+        this.ingestMetadata.put(TIMESTAMP, df.format(new Date()));
     }
 
+    /**
+     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties of the one provided as argument
+     */
     public IngestDocument(IngestDocument other) {
-        this.metaData = new HashMap<>(other.metaData);
-        this.source = new HashMap<>(other.source);
+        this(other.esMetadata, other.source, other.ingestMetadata);
+    }
+
+    /**
+     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
+     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
+     * init time, which makes comparisons impossible in tests.
+     */
+    public IngestDocument(Map<String, String> esMetadata, Map<String, Object> source, Map<String, String> ingestMetadata) {
+        this.esMetadata = new HashMap<>(esMetadata);
+        this.source = new HashMap<>(source);
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
     }
 
     /**
@@ -335,12 +353,28 @@ public final class IngestDocument {
         }
     }
 
-    public String getMetadata(MetaData metaData) {
-        return this.metaData.get(metaData.getFieldName());
+    public String getEsMetadata(MetaData esMetadata) {
+        return this.esMetadata.get(esMetadata.getFieldName());
     }
 
-    public void setMetaData(MetaData metaData, String value) {
-        this.metaData.put(metaData.getFieldName(), value);
+    public Map<String, String> getEsMetadata() {
+        return Collections.unmodifiableMap(esMetadata);
+    }
+
+    public void setEsMetadata(MetaData metaData, String value) {
+        this.esMetadata.put(metaData.getFieldName(), value);
+    }
+
+    public String getIngestMetadata(String ingestMetadata) {
+        return this.ingestMetadata.get(ingestMetadata);
+    }
+
+    public Map<String, String> getIngestMetadata() {
+        return Collections.unmodifiableMap(this.ingestMetadata);
+    }
+
+    public void setIngestMetadata(String metadata, String value) {
+        this.ingestMetadata.put(metadata, value);
     }
 
     /**
@@ -391,19 +425,21 @@ public final class IngestDocument {
 
         IngestDocument other = (IngestDocument) obj;
         return Objects.equals(source, other.source) &&
-                Objects.equals(metaData, other.metaData);
+                Objects.equals(esMetadata, other.esMetadata) &&
+                Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(metaData, source);
+        return Objects.hash(esMetadata, source);
     }
 
     @Override
     public String toString() {
         return "IngestDocument{" +
-                "metaData=" + metaData +
+                "esMetadata=" + esMetadata +
                 ", source=" + source +
+                ", ingestMetadata=" + ingestMetadata +
                 '}';
     }
 
@@ -447,7 +483,5 @@ public final class IngestDocument {
                     throw new IllegalArgumentException("no valid metadata field name [" + value + "]");
             }
         }
-
     }
-
 }

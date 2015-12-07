@@ -4,6 +4,7 @@ import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -22,12 +23,11 @@ public class MetaDataProcessorTests extends ESTestCase {
         }
 
         MetaDataProcessor processor = new MetaDataProcessor(templates);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.singletonMap("field", "value"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", "value"));
         processor.execute(ingestDocument);
 
         for (MetaData metaData : MetaData.values()) {
-            assertThat(ingestDocument.getMetadata(metaData), Matchers.equalTo("some value"));
+            assertThat(ingestDocument.getEsMetadata(metaData), Matchers.equalTo("some value"));
         }
     }
-
 }

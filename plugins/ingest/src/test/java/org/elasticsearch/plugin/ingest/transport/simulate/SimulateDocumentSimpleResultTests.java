@@ -22,10 +22,10 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -38,8 +38,7 @@ public class SimulateDocumentSimpleResultTests extends ESTestCase {
         if (isFailure) {
             simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(new IllegalArgumentException("test"));
         } else {
-            IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
-                    Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
             simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(ingestDocument);
         }
 

@@ -82,9 +82,9 @@ public class PipelineExecutionServiceTests extends ESTestCase {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
                 if (metaData == IngestDocument.MetaData.TTL) {
-                    ingestDocument.setMetaData(IngestDocument.MetaData.TTL, "5w");
+                    ingestDocument.setEsMetadata(IngestDocument.MetaData.TTL, "5w");
                 } else {
-                    ingestDocument.setMetaData(metaData, "update" + metaData.getFieldName());
+                    ingestDocument.setEsMetadata(metaData, "update" + metaData.getFieldName());
                 }
 
             }
@@ -176,12 +176,18 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         public IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, source);
+            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, null, source);
         }
 
         @Override
         public boolean matches(Object o) {
-            return Objects.equals(ingestDocument, o);
+            if (o.getClass() == IngestDocument.class) {
+                IngestDocument otherIngestDocument = (IngestDocument) o;
+                //ingest metadata will not be the same (timestamp differs every time)
+                return Objects.equals(ingestDocument.getSource(), otherIngestDocument.getSource())
+                    && Objects.equals(ingestDocument.getEsMetadata(), otherIngestDocument.getEsMetadata());
+            }
+            return false;
         }
     }
 

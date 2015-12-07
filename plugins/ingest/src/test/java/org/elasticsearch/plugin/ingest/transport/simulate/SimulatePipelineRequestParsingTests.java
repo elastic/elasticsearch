@@ -84,9 +84,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
-            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));
@@ -137,9 +137,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
-            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
+            assertThat(ingestDocument.getEsMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));

@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.processor.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
@@ -39,7 +40,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
         assertThat(ingestDocument.getSource().size(), equalTo(2));
@@ -65,7 +66,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
         assertThat(ingestDocument.getSource().size(), equalTo(2));
@@ -85,7 +86,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "202.45.11.11");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");

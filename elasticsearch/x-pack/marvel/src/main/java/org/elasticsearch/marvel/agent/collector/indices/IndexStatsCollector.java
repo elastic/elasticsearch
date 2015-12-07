@@ -53,9 +53,17 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
         List<MarvelDoc> results = new ArrayList<>(1);
         try {
             IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                    .setRefresh(true)
                     .setIndices(marvelSettings.indices())
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .clear()
+                    .setDocs(true)
+                    .setFieldData(true)
+                    .setIndexing(true)
+                    .setMerge(true)
+                    .setSearch(true)
+                    .setSegments(true)
+                    .setStore(true)
+                    .setRefresh(true)
                     .get(marvelSettings.indexStatsTimeout());
 
             long timestamp = System.currentTimeMillis();

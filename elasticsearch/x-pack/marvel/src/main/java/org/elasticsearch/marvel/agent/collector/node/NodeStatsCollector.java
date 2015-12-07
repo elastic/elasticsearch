@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.collector.node;
 
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -69,7 +70,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
 
-        NodeStats nodeStats = nodeService.stats();
+        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.ALL, true, true, true, true, true, false, false, false,false, false);
 
         // Here we are calling directly the DiskThresholdDecider to retrieve the high watermark value
         // It would be nicer to use a settings API like documented in #6732

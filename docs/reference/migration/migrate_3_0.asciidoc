@@ -183,6 +183,22 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
+
+==== Recovery settings
+
+Recovery settings deprecated in 1.x have been removed:
+
+ * `index.shard.recovery.translog_size` is superseded by `indices.recovery.translog_size`
+ * `index.shard.recovery.translog_ops` is superseded by `indices.recovery.translog_ops`
+ * `index.shard.recovery.file_chunk_size` is superseded by `indices.recovery.file_chunk_size`
+ * `index.shard.recovery.concurrent_streams` is superseded by `indices.recovery.concurrent_streams`
+ * `index.shard.recovery.concurrent_small_file_streams` is superseded by `indices.recovery.concurrent_small_file_streams`
+ * `indices.recovery.max_size_per_sec` is superseded by `indices.recovery.max_bytes_per_sec`
+
+If you are using any of these settings please take the time and review their purpose. All of the settings above are considered
+_expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
+cluster settings please use the settings update API and set their superseded keys accordingly.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

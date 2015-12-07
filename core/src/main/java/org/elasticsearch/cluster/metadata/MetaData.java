@@ -748,8 +748,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
         RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
         RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC));
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC));
 
 
     /** All known time cluster settings. */

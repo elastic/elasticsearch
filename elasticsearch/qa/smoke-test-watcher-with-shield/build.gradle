@@ -1,0 +1,41 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+}
+
+// bring in watcher rest test suite
+task copyWatcherRestTests(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from project(':x-plugins:elasticsearch:x-pack').sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/test/watcher/**'
+}
+
+integTest {
+  dependsOn copyWatcherRestTests
+  systemProperty 'tests.rest.blacklist',
+    ['hijack/10_basic/*',
+     'array_compare_watch/10_basic/Basic array_compare watch'].join(',')
+
+  cluster {
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+    setupCommand 'setupTestAdminUser',
+                 'bin/x-pack/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupWatcherManagerUser',
+                 'bin/x-pack/esusers', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
+    setupCommand 'setupPowerlessUser',
+                 'bin/x-pack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crapy_role'
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://localhost:${node.httpPort()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

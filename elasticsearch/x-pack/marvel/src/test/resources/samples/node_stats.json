@@ -1,0 +1,80 @@
+{
+  "cluster_uuid": "dsFPzYRyQCe6cq48a0wxkQ",
+  "timestamp": "2015-07-22T15:54:02.979Z",
+  "node_stats": {
+    "node_id": "OB5Mr2NGQe6xYCFvMggReg",
+    "node_master": true,
+    "mlockall": false,
+    "disk_threshold_enabled": true,
+    "disk_threshold_watermark_high": 90.0,
+    "indices": {
+      "docs": {
+        "count": 0
+      },
+      "store": {
+        "size_in_bytes": 0,
+        "throttle_time_in_millis": 0
+      },
+      "indexing" : {
+        "index_total" : 1,
+        "index_time_in_millis" : 60,
+        "throttle_time_in_millis" : 0
+      },
+      "search" : {
+        "query_total" : 0,
+        "query_time_in_millis" : 0
+      },
+      "segments": {
+        "count": 0
+      }
+    },
+    "os": {
+      "cpu": {
+        "load_average": 0.66
+      }
+    },
+    "process": {
+      "open_file_descriptors": 235,
+      "max_file_descriptors": 4096,
+      "cpu": {
+        "percent": 47
+      }
+    },
+    "jvm": {
+      "mem": {
+        "heap_used_in_bytes": 58976328,
+        "heap_used_percent": 1
+      },
+      "gc": {
+        "collectors": {
+          "young": {
+            "collection_count": 4,
+            "collection_time_in_millis": 50
+          },
+          "old": {
+            "collection_count": 1,
+            "collection_time_in_millis": 42
+          }
+        }
+      }
+    },
+    "thread_pool": {
+      "bulk": {
+        "rejected": 0
+      },
+      "index": {
+        "rejected": 0
+      },
+      "search": {
+        "rejected": 0
+      }
+    },
+    "fs": {
+      "total": {
+        "total_in_bytes": 486599139328,
+        "free_in_bytes": 228134465536,
+        "available_in_bytes": 203393003520
+      }
+    }
+  }
+}

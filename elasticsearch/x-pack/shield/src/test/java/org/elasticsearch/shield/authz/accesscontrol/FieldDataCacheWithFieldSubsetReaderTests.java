@@ -1,0 +1,181 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.shield.authz.accesscontrol;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
+
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
+
+    private SortedSetDVOrdinalsIndexFieldData sortedSetDVOrdinalsIndexFieldData;
+    private PagedBytesIndexFieldData pagedBytesIndexFieldData;
+
+    private DirectoryReader ir;
+
+    private long numDocs;
+    private Directory dir;
+    private DummyAccountingFieldDataCache indexFieldDataCache;
+
+    @Before
+    public void setup() throws Exception {
+        IndexSettings indexSettings = createIndexSettings();
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        MappedFieldType.Names names = new MappedFieldType.Names("_field");
+        FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
+        indexFieldDataCache = new DummyAccountingFieldDataCache();
+        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  names, circuitBreakerService, fieldDataType);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, names, fieldDataType, indexFieldDataCache, circuitBreakerService);
+
+        dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        numDocs = scaledRandomIntBetween(32, 128);
+
+        for (int i = 1; i <= numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("_field", String.valueOf(i), Field.Store.NO));
+            doc.add(new SortedSetDocValuesField("_field", new BytesRef(String.valueOf(i))));
+            iw.addDocument(doc);
+            if (i % 24 == 0) {
+                iw.commit();
+            }
+        }
+        iw.close();
+        ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId(indexSettings.getIndex(), 0));
+    }
+
+    @After
+    public void destroy() throws Exception {
+        ir.close();
+        dir.close();
+    }
+
+    public void testSortedSetDVOrdinalsIndexFieldData_global() throws Exception {
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(0));
+        IndexOrdinalsFieldData global = sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
+        AtomicOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(numDocs));
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
+
+        DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
+        global = sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
+        atomic = global.load(ir.leaves().get(0));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
+    }
+
+    public void testSortedSetDVOrdinalsIndexFieldData_segment() throws Exception {
+        for (LeafReaderContext context : ir.leaves()) {
+            AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
+            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1l));
+        }
+
+        DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
+        for (LeafReaderContext context : ir.leaves()) {
+            AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
+            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        }
+        // dv based field data doesn't use index field data cache, so in the end noting should have been added
+        assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(0));
+    }
+
+    public void testPagedBytesIndexFieldData_global() throws Exception {
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(0));
+        IndexOrdinalsFieldData global = pagedBytesIndexFieldData.loadGlobal(ir);
+        AtomicOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(numDocs));
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
+
+        DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
+        global = pagedBytesIndexFieldData.loadGlobal(ir);
+        atomic = global.load(ir.leaves().get(0));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
+    }
+
+    public void testPagedBytesIndexFieldData_segment() throws Exception {
+        assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(0));
+        for (LeafReaderContext context : ir.leaves()) {
+            AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
+            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1l));
+        }
+        assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
+
+        DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
+        for (LeafReaderContext context : ir.leaves()) {
+            AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
+            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        }
+        assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
+    }
+
+    private IndexSettings createIndexSettings() {
+        Settings settings = Settings.EMPTY;
+        IndexMetaData indexMetaData = IndexMetaData.builder("_name")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build();
+        return new IndexSettings(indexMetaData, settings, Collections.emptyList());
+    }
+
+    private static class DummyAccountingFieldDataCache implements IndexFieldDataCache {
+
+        private int leafLevelBuilds = 0;
+        private int topLevelBuilds = 0;
+
+        @Override
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception {
+            leafLevelBuilds++;
+            return indexFieldData.loadDirect(context);
+        }
+
+        @Override
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData) throws Exception {
+            topLevelBuilds++;
+            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+        }
+
+        @Override
+        public void clear() {
+        }
+
+        @Override
+        public void clear(String fieldName) {
+        }
+
+    }
+
+}

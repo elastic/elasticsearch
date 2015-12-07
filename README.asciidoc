@@ -7,12 +7,6 @@ A set of Elastic's commercial plugins:
 - Watcher
 - Marvel
 
-= Testing with Elasticsearch
-Sometimes it is useful to use your local elasticsearch checkout with x-plugins. To do this, run the following commands:
-cd buildSrc
-gradle attach --name elasticsearch --path /path/to/elasticsearch/buildSrc
-cd ..
-gradle attach --name elasticsearch --path /path/to/elasticsearch
-
-This will cause building x-plugins to reflect any changes in your elasticsearch repo. For example, if you make a change to elasticsearch core, building x-plugins will first re-build elasticsearch core, and use that when building x-plugins.
-
+= Setup
+You must checkout x-plugins within an elasticsearch checkout. It must be
+called x-plugins, and must be inside the extra-plugins directory.

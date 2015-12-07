@@ -1,8 +1,0 @@
----
-"Test restart watcher api":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do: {watcher.restart: {}}
-  - match: { acknowledged: true }

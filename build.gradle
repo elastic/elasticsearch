@@ -1,37 +1,8 @@
-import org.elasticsearch.gradle.ElasticsearchProperties
-
-allprojects {
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
+if (project.projectDir.name != 'x-plugins') {
+  throw new GradleException('You must checkout x-plugins in a directory named x-plugins next to elasticsearch')
 }
 
-subprojects {
-  project.group = 'org.elasticsearch'
-  project.version = ElasticsearchProperties.version
-  project.ext.luceneVersion = ElasticsearchProperties.luceneVersion
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    if (luceneVersion.contains('-snapshot')) {
-      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
-      maven {
-        name 'lucene-snapshots'
-        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-      }
-    }
-  }
-
-}
-
-if (hasProperty('projectsPrefix') == false) {
-  allprojects {
-    project.ext['projectsPrefix'] = ''
-  }
-}
-
+/*
         <repository>
             <id>elasticsearch-releases</id>
             <url>http://maven.elasticsearch.org/releases</url>
@@ -71,22 +42,3 @@ subprojects {
   }
 }
 */
-
-// ================= Local Elasticsearch attachment ===============
-if (hasProperty('attachments') && 'elasticsearch' in attachments) {
-  subprojects {
-    configurations {
-      all {
-        resolutionStrategy {
-          dependencySubstitution {
-            substitute module("org.elasticsearch:rest-api-spec:${version}") with project(":elasticsearch:rest-api-spec")
-            substitute module("org.elasticsearch:elasticsearch:${version}") with project(":elasticsearch:core")
-            substitute module("org.elasticsearch:test-framework:${version}") with project(":elasticsearch:test-framework")
-            substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project(":elasticsearch:distribution:zip")
-            substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project(":elasticsearch:distribution:tar")
-          }
-        }
-      }
-    }
-  }
-}

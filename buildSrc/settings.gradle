@@ -1,13 +1,6 @@
-buildscript {
-  repositories {
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-  }
-  dependencies {
-    classpath 'org.elasticsearch.gradle:project-attachment-plugin:1.0.0-SNAPSHOT'
-  }
+File elasticsearchDir = new File(settingsDir, '../../elasticsearch')
+if (elasticsearchDir.exists() == false) {
+  throw new GradleException('Elasticsearch must be checked out as a sibling directory of x-plugins')
 }
-apply plugin: 'elasticsearch.project-settings-attachment'
 
+project(':').projectDir = new File(elasticsearchDir, 'buildSrc')

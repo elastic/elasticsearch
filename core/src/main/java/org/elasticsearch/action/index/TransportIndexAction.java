@@ -222,7 +222,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
             update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 throw new RetryOnPrimaryException(shardId,
-                    "Dynamics mappings are not available on the node that holds the primary yet");
+                    "Dynamic mappings are not available on the node that holds the primary yet");
             }
         }
         final boolean created = indexShard.index(operation);

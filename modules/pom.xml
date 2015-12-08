@@ -206,6 +206,15 @@
             <artifactId>httpclient</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- trying to outsmart maven: the result will likely be jar hell -->
+        <dependency>
+            <groupId>org.elasticsearch.distribution.test</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>zip</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- typical layout for plugins -->
@@ -379,7 +388,7 @@
                                 <skip>${skip.integ.tests}</skip>
                                 <artifactItems>
                                     <artifactItem>
-                                        <groupId>org.elasticsearch.distribution.zip</groupId>
+                                        <groupId>org.elasticsearch.distribution.test</groupId>
                                         <artifactId>elasticsearch</artifactId>
                                         <version>${elasticsearch.version}</version>
                                         <type>zip</type>

@@ -535,7 +535,7 @@ public class RecoverySourceHandler {
 
         @Override
         public final void write(int b) throws IOException {
-            write(new byte[]{(byte) b}, 0, 1);
+            throw new UnsupportedOperationException("we can't send single bytes over the wire");
         }
 
         @Override
@@ -546,13 +546,16 @@ public class RecoverySourceHandler {
                  * due to a corrupted file stream etc. the biggest issue is that we will turn into a loop of exceptions
                  * and we will always suppress the original one which might cause the recovery to retry over and over again.
                  * To prevent this we try to not send chunks again after we failed once.*/
+                boolean success = false;
                 try {
                     sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
                     position += length;
                     assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
-                } catch (Exception e) {
-                    failed = true;
-                    throw e;
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        failed = true;
+                    }
                 }
             }
         }

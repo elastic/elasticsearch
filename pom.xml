@@ -1499,6 +1499,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>core</module>
+        <module>modules</module>
         <module>distribution</module>
         <module>plugins</module>
         <module>qa</module>

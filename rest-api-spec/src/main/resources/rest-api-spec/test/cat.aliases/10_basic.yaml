@@ -148,7 +148,7 @@
                    index           \s+
                    filter          \s+
                    routing.index   \s+
-                   routing.search  \s+
+                   routing.search
                    \n
                    test_1          \s+
                    test            \s+
@@ -185,6 +185,6 @@
   - match:
       $body: |
             /^
-                index \s+ alias  \s+ \n
-                test  \s+ test_1 \s+ \n
+                index \s+ alias \n
+                test  \s+ test_1 \n
             $/

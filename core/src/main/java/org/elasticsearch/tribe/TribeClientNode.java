@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.stats;
 
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+package org.elasticsearch.tribe;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
+
+import java.util.Collections;
 
 /**
- *
+ * An internal node that connects to a remove cluster, as part of a tribe node.
  */
-public class StatsParser extends NumericValuesSourceMetricsAggregatorParser<InternalStats> {
-
-    public StatsParser() {
-        super(InternalStats.TYPE);
-    }
-
-    @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
-        return new StatsAggregator.Factory(aggregationName, config);
+class TribeClientNode extends Node {
+    TribeClientNode(Settings settings) {
+        super(new Environment(settings), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
     }
 }

@@ -20,12 +20,15 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,6 +45,8 @@ import java.util.Objects;
 public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Writeable<HighlightBuilder>, ToXContent  {
 
     public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
+
+    public static final String HIGHLIGHT_ELEMENT_NAME = "highlight";
 
     private final List<Field> fields = new ArrayList<>();
 
@@ -164,24 +169,140 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("highlight");
+        builder.startObject(HIGHLIGHT_ELEMENT_NAME);
         innerXContent(builder);
         builder.endObject();
         return builder;
     }
+
+    /**
+     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new {@link HighlightBuilder}
+     */
+    public static HighlightBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token;
+        String topLevelFieldName = null;
+
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                topLevelFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, PRE_TAGS_FIELD)) {
+                    List<String> preTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
+                    }
+                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, POST_TAGS_FIELD)) {
+                    List<String> postTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
+                    }
+                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
+                    highlightBuilder.useExplicitFieldOrder(true);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            String highlightFieldName = null;
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    if (highlightFieldName != null) {
+                                        throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
+                                    }
+                                    highlightFieldName = parser.currentName();
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                                }
+                            }
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
+                        }
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", topLevelFieldName);
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, ORDER_FIELD)) {
+                    highlightBuilder.order(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TAGS_SCHEMA_FIELD)) {
+                    highlightBuilder.tagsSchema(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                    highlightBuilder.highlightFilter(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENT_SIZE_FIELD)) {
+                    highlightBuilder.fragmentSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                    highlightBuilder.numOfFragments(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, ENCODER_FIELD)) {
+                    highlightBuilder.encoder(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                    highlightBuilder.requireFieldMatch(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                    highlightBuilder.boundaryMaxScan(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_CHARS_FIELD)) {
+                    highlightBuilder.boundaryChars(parser.text().toCharArray());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TYPE_FIELD)) {
+                    highlightBuilder.highlighterType(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENTER_FIELD)) {
+                    highlightBuilder.fragmenter(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NO_MATCH_SIZE_FIELD)) {
+                    highlightBuilder.noMatchSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FORCE_SOURCE_FIELD)) {
+                    highlightBuilder.forceSource(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, PHRASE_LIMIT_FIELD)) {
+                    highlightBuilder.phraseLimit(parser.intValue());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", topLevelFieldName);
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, OPTIONS_FIELD)) {
+                    highlightBuilder.options(parser.map());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
+                    String highlightFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            highlightFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                        }
+                    }
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", topLevelFieldName);
+                }
+            } else if (topLevelFieldName != null) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, topLevelFieldName);
+            }
+        }
+
+        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
+        }
+        return highlightBuilder;
+    }
+
+
 
     public void innerXContent(XContentBuilder builder) throws IOException {
         // first write common options
         commonOptionsToXContent(builder);
         // special options for top-level highlighter
         if (encoder != null) {
-            builder.field("encoder", encoder);
+            builder.field(ENCODER_FIELD.getPreferredName(), encoder);
         }
         if (fields.size() > 0) {
             if (useExplicitFieldOrder) {
-                builder.startArray("fields");
+                builder.startArray(FIELDS_FIELD.getPreferredName());
             } else {
-                builder.startObject("fields");
+                builder.startObject(FIELDS_FIELD.getPreferredName());
             }
             for (Field field : fields) {
                 if (useExplicitFieldOrder) {
@@ -205,7 +326,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            toXContent(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
@@ -286,12 +407,88 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             commonOptionsToXContent(builder);
             // write special field-highlighter options
             if (fragmentOffset != -1) {
-                builder.field("fragment_offset", fragmentOffset);
+                builder.field(FRAGMENT_OFFSET_FIELD.getPreferredName(), fragmentOffset);
             }
             if (matchedFields != null) {
-                builder.field("matched_fields", matchedFields);
+                builder.field(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
             }
             builder.endObject();
+        }
+
+        private static HighlightBuilder.Field fromXContent(String fieldname, QueryParseContext parseContext) throws IOException {
+            XContentParser parser = parseContext.parser();
+            XContentParser.Token token;
+
+            final HighlightBuilder.Field field = new HighlightBuilder.Field(fieldname);
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
+                        List<String> preTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            preTagsList.add(parser.text());
+                        }
+                        field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
+                        List<String> postTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            postTagsList.add(parser.text());
+                        }
+                        field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MATCHED_FIELDS_FIELD)) {
+                        List<String> matchedFields = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            matchedFields.add(parser.text());
+                        }
+                        field.matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
+                    }
+                } else if (token.isValue()) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
+                        field.fragmentSize(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                        field.numOfFragments(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_OFFSET_FIELD)) {
+                        field.fragmentOffset(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                        field.highlightFilter(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
+                        field.order(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                        field.requireFieldMatch(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                        field.boundaryMaxScan(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
+                        field.boundaryChars(parser.text().toCharArray());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                        field.highlighterType(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
+                        field.fragmenter(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
+                        field.noMatchSize(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
+                        field.forceSource(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
+                        field.phraseLimit(parser.intValue());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                        field.highlightQuery(parseContext.parseInnerQueryBuilder());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
+                        field.options(parser.map());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
+                    }
+                } else if (currentFieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
+                }
+            }
+            return field;
         }
 
         @Override

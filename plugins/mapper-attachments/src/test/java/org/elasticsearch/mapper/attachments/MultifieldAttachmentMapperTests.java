@@ -22,13 +22,13 @@ package org.elasticsearch.mapper.attachments;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -48,7 +48,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
     }
 
@@ -91,7 +91,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 

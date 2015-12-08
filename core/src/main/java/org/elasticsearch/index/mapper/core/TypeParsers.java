@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -184,11 +185,12 @@ public class TypeParsers {
     public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = builder.fieldType().indexAnalyzer();
         NamedAnalyzer searchAnalyzer = builder.fieldType().searchAnalyzer();
+        Version indexVersionCreated = parserContext.indexVersionCreated();
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
-            if (propName.equals("index_name") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+            if (propName.equals("index_name") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
                 builder.indexName(propNode.toString());
                 iterator.remove();
             } else if (propName.equals("store")) {
@@ -239,7 +241,7 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-                if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_0_0_RC2)) {
+                if (indexVersionCreated.onOrAfter(Version.V_1_0_0_RC2)) {
                     throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead");
                 }
                 // deprecated option for BW compat
@@ -249,8 +251,8 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
-                       propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                
+                       propName.equals("index_analyzer") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
+
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
@@ -267,10 +269,10 @@ public class TypeParsers {
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+            } else if (propName.equals("postings_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
                 // ignore for old indexes
                 iterator.remove();
-            } else if (propName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+            } else if (propName.equals("doc_values_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
                 // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {
@@ -281,7 +283,16 @@ public class TypeParsers {
                 builder.fieldDataSettings(settings);
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
-                parseCopyFields(propNode, builder);
+                if (parserContext.isWithinMultiField()) {
+                    if (indexVersionCreated.after(Version.V_2_1_0) ||
+                        (indexVersionCreated.after(Version.V_2_0_1) && indexVersionCreated.before(Version.V_2_1_0))) {
+                        throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] which is within a multi field.");
+                    } else {
+                        ESLoggerFactory.getLogger("mapping [" + parserContext.type() + "]").warn("Found a copy_to in field [" + name + "] which is within a multi field. This feature has been removed and the copy_to will be removed from the mapping.");
+                    }
+                } else {
+                    parseCopyFields(propNode, builder);
+                }
                 iterator.remove();
             }
         }
@@ -298,6 +309,7 @@ public class TypeParsers {
     }
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+        parserContext = parserContext.createMultiFieldContext(parserContext);
         if (propName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
             return true;

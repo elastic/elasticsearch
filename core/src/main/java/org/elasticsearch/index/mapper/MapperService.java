@@ -251,14 +251,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
             if (oldMapper != null) {
-                // simulate first
-                MergeResult result = oldMapper.merge(mapper.mapping(), true, updateAllTypes);
-                if (result.hasConflicts()) {
-                    throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(result.buildConflicts()) + "}");
-                }
-                // then apply for real
-                result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
-                assert result.hasConflicts() == false; // we already simulated
+                oldMapper.merge(mapper.mapping(), false, updateAllTypes);
                 return oldMapper;
             } else {
                 Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
@@ -305,12 +298,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
-                MergeResult result = new MergeResult(true, updateAllTypes);
-                existingObjectMapper.merge(newObjectMapper, result);
-                if (result.hasConflicts()) {
-                    throw new IllegalArgumentException("Mapper for [" + newObjectMapper.fullPath() + "] conflicts with existing mapping in other types" +
-                        Arrays.toString(result.buildConflicts()));
-                }
+                // simulate a merge and ignore the result, we are just interested
+                // in exceptions here
+                existingObjectMapper.merge(newObjectMapper, updateAllTypes);
             }
         }
         fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
@@ -320,9 +310,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             String type, Mapping mapping, boolean updateAllTypes) {
         List<ObjectMapper> objectMappers = new ArrayList<>();
         List<FieldMapper> fieldMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-            fieldMappers.add(metadataMapper);
-        }
+        Collections.addAll(fieldMappers, mapping.metadataMappers);
         MapperUtils.collect(mapping.root, objectMappers, fieldMappers);
         checkMappersCompatibility(type, objectMappers, fieldMappers, updateAllTypes);
         return new Tuple<>(objectMappers, fieldMappers);

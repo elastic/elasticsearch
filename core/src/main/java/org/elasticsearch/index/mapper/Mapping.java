@@ -47,19 +47,19 @@ public final class Mapping implements ToXContent {
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
-    volatile Map<String, Object> meta;
+    final Map<String, Object> meta;
 
     public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
-        this.root = rootObjectMapper;
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
             if (indexCreated.before(Version.V_2_0_0_beta1) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
-                root.putMapper(metadataMapper);
+                rootObjectMapper = rootObjectMapper.copyAndPutMapper(metadataMapper);
             }
             metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
         }
+        this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
         Arrays.sort(metadataMappers, new Comparator<Mapper>() {
             @Override
@@ -90,21 +90,20 @@ public final class Mapping implements ToXContent {
     }
 
     /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
-    public void merge(Mapping mergeWith, MergeResult mergeResult) {
-        assert metadataMappers.length == mergeWith.metadataMappers.length;
-
-        root.merge(mergeWith.root, mergeResult);
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.metadataMapper(metadataMapper.getClass());
-            if (mergeWithMetadataMapper != null) {
-                metadataMapper.merge(mergeWithMetadataMapper, mergeResult);
+    public Mapping merge(Mapping mergeWith, boolean updateAllTypes) {
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, updateAllTypes);
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
+        for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
+            MetadataFieldMapper mergeInto = mergedMetaDataMappers.get(metaMergeWith.getClass());
+            MetadataFieldMapper merged;
+            if (mergeInto == null) {
+                merged = metaMergeWith;
+            } else {
+                merged = mergeInto.merge(metaMergeWith, updateAllTypes);
             }
+            mergedMetaDataMappers.put(merged.getClass(), merged);
         }
-
-        if (mergeResult.simulate() == false) {
-            // let the merge with attributes to override the attributes
-            meta = mergeWith.meta;
-        }
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergeWith.meta);
     }
 
     @Override

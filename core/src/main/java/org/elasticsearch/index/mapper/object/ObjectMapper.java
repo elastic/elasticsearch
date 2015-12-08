@@ -160,7 +160,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             context.path().remove();
 
             ObjectMapper objectMapper = createMapper(name, context.path().fullPathAsText(name), enabled, nested, dynamic, pathType, mappers, context.indexSettings());
-            objectMapper.includeInAllIfNotSet(includeInAll);
+            objectMapper = objectMapper.includeInAllIfNotSet(includeInAll);
 
             return (Y) objectMapper;
         }
@@ -389,41 +389,53 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
     }
 
     @Override
-    public void includeInAll(Boolean includeInAll) {
+    public ObjectMapper includeInAll(Boolean includeInAll) {
         if (includeInAll == null) {
-            return;
+            return this;
         }
-        this.includeInAll = includeInAll;
+
+        ObjectMapper clone = clone();
+        clone.includeInAll = includeInAll;
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
+        for (Mapper mapper : clone.mappers.values()) {
             if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll);
+                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll));
             }
         }
+        return clone;
     }
 
     @Override
-    public void includeInAllIfNotSet(Boolean includeInAll) {
-        if (this.includeInAll == null) {
-            this.includeInAll = includeInAll;
+    public ObjectMapper includeInAllIfNotSet(Boolean includeInAll) {
+        if (includeInAll == null || this.includeInAll != null) {
+            return this;
         }
+
+        ObjectMapper clone = clone();
+        clone.includeInAll = includeInAll;
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
+        for (Mapper mapper : clone.mappers.values()) {
             if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
+                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll));
             }
         }
+        return clone;
     }
 
     @Override
-    public void unsetIncludeInAll() {
-        includeInAll = null;
+    public ObjectMapper unsetIncludeInAll() {
+        if (includeInAll == null) {
+            return this;
+        }
+        ObjectMapper clone = clone();
+        clone.includeInAll = null;
         // when called from outside, apply this on all the inner mappers
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
+                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll());
             }
         }
+        return clone;
     }
 
     public Nested nested() {
@@ -434,14 +446,9 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         return this.nestedTypeFilter;
     }
 
-    /**
-     * Put a new mapper.
-     * NOTE: this method must be called under the current {@link DocumentMapper}
-     * lock if concurrent updates are expected.
-     */
-    public void putMapper(Mapper mapper) {
+    protected void putMapper(Mapper mapper) {
         if (mapper instanceof AllFieldMapper.IncludeInAll) {
-            ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
+            mapper = ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
@@ -464,64 +471,43 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
     }
 
     @Override
-    public void merge(final Mapper mergeWith, final MergeResult mergeResult) {
+    public ObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
         if (!(mergeWith instanceof ObjectMapper)) {
-            mergeResult.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
-            return;
+            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
-
-        if (nested().isNested()) {
-            if (!mergeWithObject.nested().isNested()) {
-                mergeResult.addConflict("object mapping [" + name() + "] can't be changed from nested to non-nested");
-                return;
-            }
-        } else {
-            if (mergeWithObject.nested().isNested()) {
-                mergeResult.addConflict("object mapping [" + name() + "] can't be changed from non-nested to nested");
-                return;
-            }
-        }
-
-        if (!mergeResult.simulate()) {
-            if (mergeWithObject.dynamic != null) {
-                this.dynamic = mergeWithObject.dynamic;
-            }
-        }
-
-        doMerge(mergeWithObject, mergeResult);
-
-        List<Mapper> mappersToPut = new ArrayList<>();
-        List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper> newFieldMappers = new ArrayList<>();
-        for (Mapper mapper : mergeWithObject) {
-            Mapper mergeWithMapper = mapper;
-            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
-            if (mergeIntoMapper == null) {
-                // no mapping, simply add it if not simulating
-                if (!mergeResult.simulate()) {
-                    mappersToPut.add(mergeWithMapper);
-                    MapperUtils.collect(mergeWithMapper, newObjectMappers, newFieldMappers);
-                }
-            } else if (mergeIntoMapper instanceof MetadataFieldMapper == false) {
-                // root mappers can only exist here for backcompat, and are merged in Mapping
-                mergeIntoMapper.merge(mergeWithMapper, mergeResult);
-            }
-        }
-        if (!newFieldMappers.isEmpty()) {
-            mergeResult.addFieldMappers(newFieldMappers);
-        }
-        if (!newObjectMappers.isEmpty()) {
-            mergeResult.addObjectMappers(newObjectMappers);
-        }
-        // add the mappers only after the administration have been done, so it will not be visible to parser (which first try to read with no lock)
-        for (Mapper mapper : mappersToPut) {
-            putMapper(mapper);
-        }
+        ObjectMapper merged = clone();
+        merged.doMerge(mergeWithObject, updateAllTypes);
+        return merged;
     }
 
-    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(final ObjectMapper mergeWith, boolean updateAllTypes) {
+        if (nested().isNested()) {
+            if (!mergeWith.nested().isNested()) {
+                throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from nested to non-nested");
+            }
+        } else {
+            if (mergeWith.nested().isNested()) {
+                throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from non-nested to nested");
+            }
+        }
 
+        if (mergeWith.dynamic != null) {
+            this.dynamic = mergeWith.dynamic;
+        }
+
+        for (Mapper mergeWithMapper : mergeWith) {
+            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            Mapper merged;
+            if (mergeIntoMapper == null) {
+                // no mapping, simply add it
+                merged = mergeWithMapper;
+            } else {
+                // root mappers can only exist here for backcompat, and are merged in Mapping
+                merged = mergeIntoMapper.merge(mergeWithMapper, updateAllTypes);
+            }
+            putMapper(merged);
+        }
     }
 
     @Override

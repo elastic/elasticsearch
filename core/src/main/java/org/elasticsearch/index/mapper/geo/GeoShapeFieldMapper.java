@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -475,17 +474,12 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
 
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            if (gsfm.coerce.explicit()) {
-                this.coerce = gsfm.coerce;
-            }
+        if (gsfm.coerce.explicit()) {
+            this.coerce = gsfm.coerce;
         }
     }
 

@@ -77,8 +77,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
                     coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (ByteFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

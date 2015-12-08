@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -321,9 +319,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
-        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true, false);
-
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+        docMapperBefore.merge(docMapperAfter.mapping(), true, false);
 
         docMapperBefore.merge(docMapperAfter.mapping(), false, false);
 

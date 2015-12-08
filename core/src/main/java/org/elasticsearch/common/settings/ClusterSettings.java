@@ -48,10 +48,8 @@ public final class ClusterSettings {
 
     private final Map<String, Setting<?>> groupSettings = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
-    private final Settings defaults;
 
     public ClusterSettings(Set<Setting<?>> settingsSet) {
-        Settings.Builder builder = Settings.builder();
         for (Setting<?> entry : settingsSet) {
             if (entry.getScope() != Setting.Scope.Cluster) {
                 throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
@@ -61,9 +59,7 @@ public final class ClusterSettings {
             } else {
                 keySettings.put(entry.getKey(), entry);
             }
-            builder.put(entry.getKey(), entry.getDefault(Settings.EMPTY));
         }
-        this.defaults = builder.build();
     }
 
     public ClusterSettings() {
@@ -103,21 +99,15 @@ public final class ClusterSettings {
     }
 
     /**
-     * Returns the cluster settings defaults
-     */
-    public Settings getDefaults() {
-        return defaults;
-    }
-
-    /**
      * Returns a settings object that contains all clustersettings that are not
-     * already set in the given source.
+     * already set in the given source. The diff contains either the default value for each
+     * setting or the settings value in the given default settings.
      */
-    public Settings diff(Settings source) {
+    public Settings diff(Settings source, Settings defaultSettings) {
         Settings.Builder builder = Settings.builder();
         for (Setting<?> setting : keySettings.values()) {
             if (setting.exists(source) == false) {
-                builder.put(setting.getKey(), setting.getRaw(source));
+                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
             }
         }
         return builder.build();

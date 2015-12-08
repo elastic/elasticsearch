@@ -50,8 +50,12 @@ public class ClusterSettingsTests extends ESTestCase {
         Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.Cluster);
         Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
         ClusterSettings settings = new ClusterSettings(new HashSet<>(Arrays.asList(foobar, foobarbaz)));
-        Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build());
+        Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
         assertEquals(diff.getAsMap().size(), 1);
         assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(1));
+
+        diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
+        assertEquals(diff.getAsMap().size(), 1);
+        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
     }
 }

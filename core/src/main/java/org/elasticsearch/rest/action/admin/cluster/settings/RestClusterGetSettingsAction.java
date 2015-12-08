@@ -57,12 +57,12 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, renderResponse(clusterSettings, response.getState(), renderDefaults, builder, request));
+                return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
             }
         });
     }
 
-    private static XContentBuilder renderResponse(ClusterSettings settings, ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
 
         builder.startObject("persistent");
@@ -75,7 +75,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
         if (renderDefaults) {
             builder.startObject("defaults");
-            settings.diff(state.metaData().settings()).toXContent(builder, params);
+            clusterSettings.diff(state.metaData().settings(), this.settings).toXContent(builder, params);
             builder.endObject();
         }
 

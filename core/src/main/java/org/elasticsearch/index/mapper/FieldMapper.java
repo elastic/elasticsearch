@@ -340,9 +340,6 @@ public abstract class FieldMapper extends Mapper {
             throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
         }
         multiFields.parse(this, context);
-        if (copyTo() != null) {
-            DocumentParser.parseCopyFields(context, this, this.copyTo().copyToFields());
-        }
         return null;
     }
 

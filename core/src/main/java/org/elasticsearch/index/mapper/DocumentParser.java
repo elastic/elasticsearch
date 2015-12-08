@@ -312,6 +312,9 @@ class DocumentParser implements Closeable {
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
+            if (fieldMapper.copyTo() != null) {
+                parseCopyFields(context, fieldMapper, fieldMapper.copyTo().copyToFields());
+            }
             return update;
         }
     }
@@ -680,7 +683,7 @@ class DocumentParser implements Closeable {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    public static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, List<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, List<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {

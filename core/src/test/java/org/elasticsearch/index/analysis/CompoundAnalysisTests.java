@@ -52,7 +52,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         Settings settings = getJsonSettings();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
-                Collections.EMPTY_MAP,Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.EMPTY_MAP,Collections.EMPTY_MAP).build(idxSettings);
+                Collections.emptyMap(),Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.emptyMap(),Collections.emptyMap()).build(idxSettings);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("dict_dec");
         MatcherAssert.assertThat(filterFactory, instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
@@ -71,7 +71,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         Index index = new Index("test");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
-                Collections.EMPTY_MAP, Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.EMPTY_MAP,Collections.EMPTY_MAP).build(idxSettings);
+                Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.emptyMap(),Collections.emptyMap()).build(idxSettings);
 
         Analyzer analyzer = analysisService.analyzer(analyzerName).analyzer();
 

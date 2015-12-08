@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.lease;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.util.Arrays;
 
 /** Utility methods to work with {@link Releasable}s. */

@@ -554,7 +554,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class, org.elasticsearch.transport.NodeDisconnectedException::new, 84),
         ALREADY_EXPIRED_EXCEPTION(org.elasticsearch.index.AlreadyExpiredException.class, org.elasticsearch.index.AlreadyExpiredException::new, 85),
         AGGREGATION_EXECUTION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationExecutionException.class, org.elasticsearch.search.aggregations.AggregationExecutionException::new, 86),
-        MERGE_MAPPING_EXCEPTION(org.elasticsearch.index.mapper.MergeMappingException.class, org.elasticsearch.index.mapper.MergeMappingException::new, 87),
+        // 87 used to be for MergeMappingException
         INVALID_INDEX_TEMPLATE_EXCEPTION(org.elasticsearch.indices.InvalidIndexTemplateException.class, org.elasticsearch.indices.InvalidIndexTemplateException::new, 88),
         PERCOLATE_EXCEPTION(org.elasticsearch.percolator.PercolateException.class, org.elasticsearch.percolator.PercolateException::new, 89),
         REFRESH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RefreshFailedEngineException.class, org.elasticsearch.index.engine.RefreshFailedEngineException::new, 90),

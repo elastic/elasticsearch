@@ -34,5 +34,6 @@ grant {
   permission java.util.PropertyPermission "rhino.stack.style", "read";
 
   // needed IndyInterface selectMethod (setCallSiteTarget)
+  // TODO: clean this up / only give it to engines that really must have it
   permission java.lang.RuntimePermission "getClassLoader";
 };

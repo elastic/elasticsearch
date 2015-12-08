@@ -90,3 +90,12 @@ org.elasticsearch.common.io.PathUtils#get(java.net.URI)
 
 @defaultMessage Don't use deprecated Query#setBoost, wrap the query into a BoostQuery instead
 org.apache.lucene.search.Query#setBoost(float)
+
+@defaultMessage Constructing a DateTime without a time zone is dangerous
+org.joda.time.DateTime#<init>()
+org.joda.time.DateTime#<init>(long)
+org.joda.time.DateTime#<init>(int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
+org.joda.time.DateTime#now()
+org.joda.time.DateTimeZone#getDefault()

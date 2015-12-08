@@ -45,7 +45,7 @@ subprojects {
           }
         }
       }
-    }  
+    }
     extraArchive {
       javadoc = true
       tests = false
@@ -86,8 +86,8 @@ subprojects {
     tasks.withType(Jar) {
       into('META-INF') {
         from project.rootProject.rootDir
-        include 'LICENSE.txt'   
-        include 'NOTICE.txt'   
+        include 'LICENSE.txt'
+        include 'NOTICE.txt'
       }
     }
     // ignore missing javadocs
@@ -101,12 +101,19 @@ subprojects {
     }
   }
 
+  /* Sets up the dependencies that we build as part of this project but
+    register as thought they were external to resolve internally. We register
+    them as external dependencies so the build plugin that we use can be used
+    to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar'
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
@@ -232,7 +239,7 @@ class Run extends DefaultTask {
   )
   public void setDebug(boolean enabled) {
     project.project(':distribution').run.clusterConfig.debug = enabled
-  } 
+  }
 }
 task run(type: Run) {
   dependsOn ':distribution:run'
@@ -240,4 +247,3 @@ task run(type: Run) {
   group = 'Verification'
   impliesSubProjects = true
 }
-

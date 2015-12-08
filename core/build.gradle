@@ -62,12 +62,9 @@ dependencies {
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  compile "org.yaml:snakeyaml:1.15" // used by jackson yaml
 
   // network stack
   compile 'io.netty:netty:3.10.5.Final'
-  // compression of transport protocol
-  compile 'com.ning:compress-lzf:1.0.2'
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation
@@ -117,6 +114,9 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
+// dependency license are currently checked in distribution
+dependencyLicenses.enabled = false
+
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
@@ -129,8 +129,4 @@ if (isEclipse == false || project.path == ":core-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
-
-  RestSpecHack.configureDependencies(project)
-  Task copyRestSpec = RestSpecHack.configureTask(project, true)
-  integTest.dependsOn copyRestSpec
 }

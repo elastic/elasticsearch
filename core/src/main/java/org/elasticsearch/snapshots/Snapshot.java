@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.*;
-
 /**
  * Represent information about snapshot
  */
@@ -93,7 +91,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
      * Special constructor for the prototype object
      */
     private Snapshot() {
-        this("", (List<String>) EMPTY_LIST, 0);
+        this("", Collections.emptyList(), 0);
     }
 
     private static SnapshotState snapshotState(String reason, List<SnapshotShardFailure> shardFailures) {

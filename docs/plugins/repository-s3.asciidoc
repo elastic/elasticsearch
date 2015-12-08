@@ -198,7 +198,7 @@ The following settings are supported:
     request. Beyond this threshold, the S3 repository will use the
     http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
     to split the chunk into several parts, each of `buffer_size` length, and
-    to upload each part in its own request. Note that positioning a buffer
+    to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
     Multipart API and may result in upload errors. Defaults to `5mb`.
 
@@ -343,6 +343,14 @@ to your URL provider. Note that this setting will be used for all S3 repositorie
 Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis
 See <<repository-s3-repository>> for details.
 
+[[repository-s3-aws-vpc]]
+[float]
+==== AWS VPC Bandwidth Settings
+
+AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
+
+Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
 [[repository-s3-testing]]
 ==== Testing AWS
 
@@ -387,4 +395,3 @@ To run test:
 ----
 mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ----
-

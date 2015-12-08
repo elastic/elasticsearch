@@ -90,6 +90,9 @@ The search exists api has been removed in favour of using the search api with
 The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
 endpoint should be used in lieu of optimize.
 
+The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
+`POST` HTTP verb.
+
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
@@ -179,6 +182,22 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 `discovery.zen.ping.timeout` and `discovery.zen.ping_timeout`. The former two have been removed and
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
+
+
+==== Recovery settings
+
+Recovery settings deprecated in 1.x have been removed:
+
+ * `index.shard.recovery.translog_size` is superseded by `indices.recovery.translog_size`
+ * `index.shard.recovery.translog_ops` is superseded by `indices.recovery.translog_ops`
+ * `index.shard.recovery.file_chunk_size` is superseded by `indices.recovery.file_chunk_size`
+ * `index.shard.recovery.concurrent_streams` is superseded by `indices.recovery.concurrent_streams`
+ * `index.shard.recovery.concurrent_small_file_streams` is superseded by `indices.recovery.concurrent_small_file_streams`
+ * `indices.recovery.max_size_per_sec` is superseded by `indices.recovery.max_bytes_per_sec`
+
+If you are using any of these settings please take the time and review their purpose. All of the settings above are considered
+_expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
+cluster settings please use the settings update API and set their superseded keys accordingly.
 
 [[breaking_30_mapping_changes]]
 === Mapping changes
@@ -468,3 +487,7 @@ response is output by default.
 Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
 value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
 from `OsStats.Cpu#getPercent`.
+
+=== Fields option
+Only stored fields are retrievable with this option.
+The fields option won't be able to load non stored fields from _source anymore.

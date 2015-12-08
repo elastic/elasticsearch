@@ -55,7 +55,7 @@ public final class AnalysisRegistry implements Closeable {
     private final Environment environemnt;
 
     public AnalysisRegistry(HunspellService hunspellService, Environment environment) {
-        this(hunspellService, environment, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+        this(hunspellService, environment, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
     }
 
     public AnalysisRegistry(HunspellService hunspellService, Environment environment,

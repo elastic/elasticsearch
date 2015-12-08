@@ -23,7 +23,6 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.deflate.DeflateCompressor;
-import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +41,6 @@ public class CompressorFactory {
 
     static {
         compressors = new Compressor[] {
-                new LZFCompressor(),
                 new DeflateCompressor()
         };
         defaultCompressor = new DeflateCompressor();
@@ -82,10 +80,21 @@ public class CompressorFactory {
 
         XContentType contentType = XContentFactory.xContentType(bytes);
         if (contentType == null) {
+            if (isAncient(bytes)) {
+                throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
+            }
             throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
 
         return null;
+    }
+
+    /** true if the bytes were compressed with LZF: only used before elasticsearch 2.0 */
+    private static boolean isAncient(BytesReference bytes) {
+        return bytes.length() >= 3 &&
+               bytes.get(0) == 'Z' &&
+               bytes.get(1) == 'V' &&
+               (bytes.get(2) == 0 || bytes.get(2) == 1);
     }
 
     public static Compressor compressor(ChannelBuffer buffer) {

@@ -48,9 +48,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     /** Format line for JVM ID string. */
     String jvmIdFormat
 
-    /** Summarize the first N failures at the end. */
-    int showNumFailuresAtEnd = 3
-
     /** Output stream that logs messages to the given logger */
     LoggingOutputStream outStream
     LoggingOutputStream errStream
@@ -110,13 +107,13 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     @Subscribe
     void onQuit(AggregatedQuitEvent e) throws IOException {
-        if (showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
+        if (config.showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
             List<Description> sublist = this.failedTests
             StringBuilder b = new StringBuilder()
             b.append('Tests with failures')
-            if (sublist.size() > showNumFailuresAtEnd) {
-                sublist = sublist.subList(0, showNumFailuresAtEnd)
-                b.append(" (first " + showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
+            if (sublist.size() > config.showNumFailuresAtEnd) {
+                sublist = sublist.subList(0, config.showNumFailuresAtEnd)
+                b.append(" (first " + config.showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
             }
             b.append(':\n')
             for (Description description : sublist) {

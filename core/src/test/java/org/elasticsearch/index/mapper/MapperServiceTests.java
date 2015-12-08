@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -30,6 +32,11 @@ import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.concurrent.ExecutionException;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -81,5 +88,57 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .addMapping(type, field, "type=string")
                 .execute()
                 .actionGet();
+    }
+
+    public void testTypes() throws Exception {
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        assertEquals(Collections.emptySet(), mapperService.types());
+
+        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), true, false);
+        assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
+        assertEquals(Collections.singleton("type1"), mapperService.types());
+
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), true, false);
+        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
+        assertEquals(Collections.singleton("type1"), mapperService.types());
+
+        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), true, false);
+        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
+        assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
+    }
+
+    public void testIndexIntoDefaultMapping() throws Throwable {
+        // 1. test implicit index creation
+        try {
+            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{").execute().get();
+            fail();
+        } catch (Throwable t) {
+            if (t instanceof ExecutionException) {
+                t = ((ExecutionException) t).getCause();
+            }
+            if (t instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            } else {
+                throw t;
+            }
+        }
+
+        // 2. already existing index
+        IndexService indexService = createIndex("index2");
+        try {
+            client().prepareIndex("index2", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
+            fail();
+        } catch (Throwable t) {
+            if (t instanceof ExecutionException) {
+                t = ((ExecutionException) t).getCause();
+            }
+            if (t instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            } else {
+                throw t;
+            }
+        }
+        assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
 }

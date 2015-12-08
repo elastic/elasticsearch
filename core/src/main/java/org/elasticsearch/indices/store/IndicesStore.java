@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,6 +44,7 @@ import org.elasticsearch.transport.*;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -97,11 +99,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
 
         for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
+            IndexSettings indexSettings = new IndexSettings(event.state().getMetaData().index(indexRoutingTable.index()), settings, Collections.emptyList());
             // Note, closed indices will not have any routing information, so won't be deleted
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
                     ShardId shardId = indexShardRoutingTable.shardId();
-                    if (indicesService.canDeleteShardContent(shardId, event.state().getMetaData().index(shardId.getIndex()))) {
+                    if (indicesService.canDeleteShardContent(shardId, indexSettings)) {
                         deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                     }
                 }

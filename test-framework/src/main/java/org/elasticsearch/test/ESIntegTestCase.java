@@ -1035,7 +1035,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Sets the cluster's minimum master node and make sure the response is acknowledge.
-     * Note: this doesn't guaranty the new settings is in effect, just that it has been received bu all nodes.
+     * Note: this doesn't guarantee that the new setting has taken effect, just that it has been received by all nodes.
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(

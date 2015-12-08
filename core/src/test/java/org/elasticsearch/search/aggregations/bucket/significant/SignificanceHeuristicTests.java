@@ -103,13 +103,13 @@ public class SignificanceHeuristicTests extends ESTestCase {
         if (randomBoolean()) {
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
-                    Collections.EMPTY_LIST, null);
+                    Collections.emptyList(), null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.EMPTY_LIST,
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.emptyList(),
                     null);
             sTerms[1] = new SignificantStringTerms();
         }

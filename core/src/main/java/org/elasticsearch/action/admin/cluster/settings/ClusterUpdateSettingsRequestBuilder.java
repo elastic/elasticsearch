@@ -23,8 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Map;
 
 /**

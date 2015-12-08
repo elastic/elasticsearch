@@ -184,6 +184,12 @@ tasks.idea.doLast {
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
   throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
 }
+// add buildSrc itself as a groovy project
+task buildSrcIdea(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanIdea', 'ideaModule']
+}
+tasks.idea.dependsOn(buildSrcIdea)
 
 
 // eclipse configuration

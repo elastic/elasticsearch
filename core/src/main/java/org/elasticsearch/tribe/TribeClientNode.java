@@ -17,23 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor;
+package org.elasticsearch.tribe;
 
-import java.lang.management.OperatingSystemMXBean;
-import java.lang.reflect.Method;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 
-public class Probes {
-    public static short getLoadAndScaleToPercent(Method method, OperatingSystemMXBean osMxBean) {
-        if (method != null) {
-            try {
-                double load = (double) method.invoke(osMxBean);
-                if (load >= 0) {
-                    return (short) (load * 100);
-                }
-            } catch (Throwable t) {
-                return -1;
-            }
-        }
-        return -1;
+import java.util.Collections;
+
+/**
+ * An internal node that connects to a remove cluster, as part of a tribe node.
+ */
+class TribeClientNode extends Node {
+    TribeClientNode(Settings settings) {
+        super(new Environment(settings), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
     }
 }

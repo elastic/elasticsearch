@@ -21,6 +21,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
@@ -39,7 +40,7 @@ public class MockNode extends Node {
     private Collection<Class<? extends Plugin>> plugins;
 
     public MockNode(Settings settings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, version, classpathPlugins);
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null), version, classpathPlugins);
         this.version = version;
         this.plugins = classpathPlugins;
     }

@@ -25,9 +25,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequest.OpType;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -55,10 +52,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -1071,43 +1065,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    /** Utility method to create either an index or a create operation depending
-     *  on the {@link OpType} of the request. */
-    private Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard indexShard) {
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
-    }
-
-    /** Execute the given {@link IndexRequest} on a primary shard, throwing a
-     *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
-    protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard) throws Throwable {
-        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
-        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-        final ShardId shardId = indexShard.shardId();
-        if (update != null) {
-            final String indexName = shardId.getIndex();
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
-            operation = prepareIndexOperationOnPrimary(request, indexShard);
-            update = operation.parsedDoc().dynamicMappingsUpdate();
-            if (update != null) {
-                throw new RetryOnPrimaryException(shardId,
-                        "Dynamics mappings are not available on the node that holds the primary yet");
-            }
-        }
-        final boolean created = indexShard.index(operation);
-
-        // update the version on request so it will happen on the replicas
-        final long version = operation.version();
-        request.version(version);
-        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-
-        assert request.versionType().validateVersionForWrites(request.version());
-
-        return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
-    }
-
-    protected final void processAfter(boolean refresh, IndexShard indexShard, Translog.Location location) {
+    protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {
         if (refresh) {
             try {
                 indexShard.refresh("refresh_flag_index");

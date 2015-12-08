@@ -19,14 +19,29 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -35,8 +50,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -45,23 +62,26 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
     /**
      * setup for the whole base test class
      */
     @BeforeClass
     public static void init() {
-        if (namedWriteableRegistry == null) {
-            namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new MatchAllQueryBuilder());
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new IdsQueryBuilder());
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new TermQueryBuilder("field", "value"));
-        }
+        namedWriteableRegistry = new NamedWriteableRegistry();
+        @SuppressWarnings("rawtypes")
+        Set<QueryParser> injectedQueryParsers = new HashSet<>();
+        injectedQueryParsers.add(new MatchAllQueryParser());
+        injectedQueryParsers.add(new IdsQueryParser());
+        injectedQueryParsers.add(new TermQueryParser());
+        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), injectedQueryParsers, namedWriteableRegistry);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /**
@@ -108,6 +128,196 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
+     * Generic test that creates new highlighter from the test highlighter and checks both for equality
+     */
+    public void testFromXContent() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            builder.startObject();
+            highlightBuilder.innerXContent(builder);
+            builder.endObject();
+
+            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            context.reset(parser);
+            HighlightBuilder secondHighlightBuilder = HighlightBuilder.fromXContent(context);
+            assertNotSame(highlightBuilder, secondHighlightBuilder);
+            assertEquals(highlightBuilder, secondHighlightBuilder);
+            assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
+        }
+    }
+
+    /**
+     * test that unknown array fields cause exception
+     */
+    public void testUnknownArrayNameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : \"value\"\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : \"value\"\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownObjectFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : { \"field\" : \"value\" }\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * `tags_schema` is not produced by toXContent in the builder but should be parseable, so this
+     * adds a simple json test for this.
+     */
+    public void testParsingTagsSchema() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"tags_schema\" : \"styled\"\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
+        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlighterParseElement.STYLED_PRE_TAG,
+                highlightBuilder.preTags());
+        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlighterParseElement.STYLED_POST_TAGS,
+                highlightBuilder.postTags());
+
+        highlightElement = "{\n" +
+                "    \"tags_schema\" : \"default\"\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.fromXContent(context);
+        assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlighterParseElement.DEFAULT_PRE_TAGS,
+                highlightBuilder.preTags());
+        assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlighterParseElement.DEFAULT_POST_TAGS,
+                highlightBuilder.postTags());
+
+        highlightElement = "{\n" +
+                "    \"tags_schema\" : \"somthing_else\"\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            highlightBuilder = HighlightBuilder.fromXContent(context);
+            fail("setting unknown tag schema should throw exception");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unknown tag schema [somthing_else]", e.getMessage());
+        }
+    }
+
+    protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        highlight.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
+    }
+
+    /**
      * create random shape that is put under test
      */
     private static HighlightBuilder randomHighlighterBuilder() {
@@ -132,11 +342,11 @@ public class HighlightBuilderTests extends ESTestCase {
         return testHighlighter;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
+            // need to set this together, otherwise parsing will complain
             highlightBuilder.preTags(randomStringArray(0, 3));
-        }
-        if (randomBoolean()) {
             highlightBuilder.postTags(randomStringArray(0, 3));
         }
         if (randomBoolean()) {
@@ -213,7 +423,7 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         switch (randomIntBetween(1, 16)) {
         case 1:
@@ -242,6 +452,7 @@ public class HighlightBuilderTests extends ESTestCase {
             break;
         case 9:
             highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
+            break;
         case 10:
             highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
             break;
@@ -316,6 +527,7 @@ public class HighlightBuilderTests extends ESTestCase {
                             fieldToChange.matchedFields(randomStringArray(5, 10));
                         }
                     }
+                    break;
             }
         }
         return mutation;

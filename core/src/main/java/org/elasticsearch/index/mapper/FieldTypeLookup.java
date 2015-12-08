@@ -154,12 +154,9 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             MappedFieldTypeReference ref = fullNameToFieldType.get(fieldMapper.fieldType().names().fullName());
             if (ref != null) {
                 List<String> conflicts = new ArrayList<>();
-                ref.get().checkTypeName(fieldMapper.fieldType(), conflicts);
-                if (conflicts.isEmpty()) { // only check compat if they are the same type
-                    final Set<String> types = fullNameToTypes.get(fieldMapper.fieldType().names().fullName());
-                    boolean strict = beStrict(type, types, updateAllTypes);
-                    ref.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
-                }
+                final Set<String> types = fullNameToTypes.get(fieldMapper.fieldType().names().fullName());
+                boolean strict = beStrict(type, types, updateAllTypes);
+                ref.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 if (conflicts.isEmpty() == false) {
                     throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with existing mapping in other types:\n" + conflicts.toString());
                 }
@@ -169,12 +166,9 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             MappedFieldTypeReference indexNameRef = indexNameToFieldType.get(fieldMapper.fieldType().names().indexName());
             if (indexNameRef != null) {
                 List<String> conflicts = new ArrayList<>();
-                indexNameRef.get().checkTypeName(fieldMapper.fieldType(), conflicts);
-                if (conflicts.isEmpty()) { // only check compat if they are the same type
-                    final Set<String> types = indexNameToTypes.get(fieldMapper.fieldType().names().indexName());
-                    boolean strict = beStrict(type, types, updateAllTypes);
-                    indexNameRef.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
-                }
+                final Set<String> types = indexNameToTypes.get(fieldMapper.fieldType().names().indexName());
+                boolean strict = beStrict(type, types, updateAllTypes);
+                indexNameRef.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 if (conflicts.isEmpty() == false) {
                     throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with mapping with the same index name in other types" + conflicts.toString());
                 }

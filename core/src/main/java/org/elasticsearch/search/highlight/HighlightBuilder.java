@@ -278,6 +278,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", topLevelFieldName);
                 }
+            } else if (topLevelFieldName != null) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, topLevelFieldName);
             }
         }
 
@@ -482,6 +484,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
                     }
+                } else if (currentFieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
                 }
             }
             return field;

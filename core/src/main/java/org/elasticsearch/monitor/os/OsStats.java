@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.os;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,6 +37,8 @@ public class OsStats implements Streamable, ToXContent {
 
     long timestamp;
 
+    Short cpuPercent = null;
+
     double loadAverage = -1;
 
     Mem mem = null;
@@ -49,10 +52,13 @@ public class OsStats implements Streamable, ToXContent {
         return timestamp;
     }
 
+    public Short getCpuPercent() {
+        return cpuPercent;
+    }
+
     public double getLoadAverage() {
         return loadAverage;
     }
-
 
     public Mem getMem() {
         return mem;
@@ -65,6 +71,7 @@ public class OsStats implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString OS = new XContentBuilderString("os");
         static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString PERCENT = new XContentBuilderString("cpu_percent");
         static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
 
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
@@ -85,6 +92,9 @@ public class OsStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, getTimestamp());
+        if (getCpuPercent() != null) {
+            builder.field(Fields.PERCENT, getCpuPercent());
+        }
         builder.field(Fields.LOAD_AVERAGE, getLoadAverage());
 
         if (mem != null) {
@@ -120,6 +130,11 @@ public class OsStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (in.readBoolean()) {
+                cpuPercent = in.readShort();
+            }
+        }
         loadAverage = in.readDouble();
         if (in.readBoolean()) {
             mem = Mem.readMem(in);
@@ -132,6 +147,12 @@ public class OsStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeBoolean(cpuPercent != null);
+            if (cpuPercent != null) {
+                out.writeShort(cpuPercent);
+            }
+        }
         out.writeDouble(loadAverage);
         if (mem == null) {
             out.writeBoolean(false);
@@ -230,5 +251,4 @@ public class OsStats implements Streamable, ToXContent {
     private static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
-
 }

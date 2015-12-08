@@ -45,6 +45,7 @@ public class OsProbeTests extends ESTestCase {
         OsStats stats = probe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
+        assertThat(stats.getCpuPercent(), anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
         if (Constants.WINDOWS) {
             // Load average is always -1 on Windows platforms
             assertThat(stats.getLoadAverage(), equalTo((double) -1));

@@ -109,6 +109,20 @@ public final class ClusterSettings {
         return defaults;
     }
 
+    /**
+     * Returns a settings object that contains all clustersettings that are not
+     * already set in the given source.
+     */
+    public Settings diff(Settings source) {
+        Settings.Builder builder = Settings.builder();
+        for (Setting<?> setting : keySettings.values()) {
+            if (setting.exists(source) == false) {
+                builder.put(setting.getKey(), setting.getRaw(source));
+            }
+        }
+        return builder.build();
+    }
+
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
     AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
     BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
@@ -167,4 +181,5 @@ public final class ClusterSettings {
     TransportService.TRACE_LOG_INCLUDE_SETTING,
     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
     ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING)));
+
 }

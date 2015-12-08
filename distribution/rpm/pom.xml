@@ -27,6 +27,17 @@
         </filters>
 
         <plugins>
+            <!-- bundle modules -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-modules</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- No need to have some source jar for the RPM -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

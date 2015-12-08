@@ -132,11 +132,10 @@
                             <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
-                    <!-- prepare pre-bundled modules. this doesn't impact reactor order, because
-                         these aren't true project dependencies, and its disabled for the integ-test zip -->
+                    <!-- bundled modules. distributions that want them enable by setting phase: prepare-package -->
                     <execution>
                         <id>unpack-modules</id>
-                        <phase>prepare-package</phase>
+                        <phase>none</phase>
                         <goals>
                             <goal>unpack</goal>
                         </goals>

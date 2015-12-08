@@ -43,7 +43,7 @@ import java.util.Map;
 /**
  *
  */
-public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
+public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     final ValuesSource.Numeric valuesSource;
     final ValueFormatter formatter;
@@ -54,10 +54,10 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
     DoubleArray maxes;
 
 
-    public StatsAggegator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+    public StatsAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
+                           AggregationContext context,
+                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                           Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -164,14 +164,14 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new StatsAggegator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+            return new StatsAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
-            return new StatsAggegator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+            return new StatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }
     }
 

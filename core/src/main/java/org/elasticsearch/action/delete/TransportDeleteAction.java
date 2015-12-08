@@ -95,7 +95,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
 
     @Override
     protected void resolveRequest(final MetaData metaData, String concreteIndex, DeleteRequest request) {
-        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
+        request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
         if (metaData.hasIndex(concreteIndex)) {
             // check if routing is required, if so, do a broadcast delete
             MappingMetaData mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());

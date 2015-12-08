@@ -82,7 +82,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             request.request().preference(Preference.PRIMARY.type());
         }
         // update the routing (request#index here is possibly an alias)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());

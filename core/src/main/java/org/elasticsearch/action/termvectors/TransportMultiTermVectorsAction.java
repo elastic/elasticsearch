@@ -66,7 +66,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             termVectorsRequest.startTime = System.currentTimeMillis();
-            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
+            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.parent(), termVectorsRequest.routing(), termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
                         termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
@@ -88,12 +88,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             }
             shardRequest.add(i, termVectorsRequest);
         }
-        
+
         if (shardRequests.size() == 0) {
             // only failures..
             listener.onResponse(new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
         }
-        
+
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
             shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {

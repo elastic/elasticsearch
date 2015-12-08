@@ -438,16 +438,27 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /**
      * Returns indexing routing for the given index.
+     * If routing is not null then the value is returned, parent routing and alias routing are ignored.
+     * If routing is null and there is an alias routing then the value is returned and parent is ignored.
+     * If routing is null and a parent is defined then the parent is returned (unless an alias routing is defined, see above).
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
+            if (routing == null && parent != null) {
+                return parent;
+            }
+            // The routing is explicit, ignore the parent.
             return routing;
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
+            if (routing == null && parent != null) {
+                return parent;
+            }
+            // The routing is explicit, ignore the parent.
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -459,14 +470,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             }
             throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
         }
-        AliasMetaData aliasMd = alias.getFirstAliasMetaData();
-        if (aliasMd.indexRouting() != null) {
-            if (routing != null) {
-                if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
-                }
+        if (routing == null) {
+            AliasMetaData aliasMd = alias.getFirstAliasMetaData();
+            if (aliasMd != null) {
+                routing = aliasMd.indexRouting();
+            } else if (parent != null) {
+                routing = parent;
             }
-            routing = aliasMd.indexRouting();
         }
         if (routing != null) {
             if (routing.indexOf(',') != -1) {

@@ -65,6 +65,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private String routing;
 
+    private String parent;
+
     private VersionType versionType = VersionType.INTERNAL;
 
     private long version = Versions.MATCH_ANY;
@@ -162,6 +164,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
+        this.parent = other.parent();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
@@ -260,13 +263,18 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this
-     * value, as it is only used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    @Override
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public TermVectorsRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -506,6 +514,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             doc = in.readBytesReference();
         }
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -545,6 +554,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeBytesReference(doc);
         }
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {

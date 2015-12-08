@@ -113,14 +113,14 @@ public class SettingTests extends ESTestCase {
         assertEquals(defautlValue.millis() + "ms", aDefault);
         assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
 
-        Setting<String> secondaryDefault = new Setting<>("foo.bar", "_na_", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), Setting.Scope.Cluster);
+        Setting<String> secondaryDefault = new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), Setting.Scope.Cluster);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
 
     public void testComplexType() {
         AtomicReference<ComplexType> ref = new AtomicReference<>(null);
-        Setting<ComplexType> setting = new Setting<>("foo.bar", "", (s) -> "", (s) -> new ComplexType(s), true, Setting.Scope.Cluster);
+        Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s), true, Setting.Scope.Cluster);
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();

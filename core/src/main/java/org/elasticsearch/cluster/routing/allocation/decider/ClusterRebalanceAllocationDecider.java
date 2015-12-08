@@ -37,10 +37,10 @@ import java.util.Locale;
  * <ul>
  * <li><tt>indices_primaries_active</tt> - Re-balancing is allowed only once all
  * primary shards on all indices are active.</li>
- * 
+ *
  * <li><tt>indices_all_active</tt> - Re-balancing is allowed only once all
  * shards on all indices are active.</li>
- * 
+ *
  * <li><tt>always</tt> - Re-balancing is allowed once a shard replication group
  * is active</li>
  * </ul>
@@ -48,7 +48,7 @@ import java.util.Locale;
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_rebalance";
-    public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING = new Setting<>("cluster.routing.allocation.allow_rebalance", "_na_", ClusterRebalanceType.INDICES_ALL_ACTIVE.name().toLowerCase(Locale.ROOT), ClusterRebalanceType::parseString, true, Setting.Scope.Cluster);
+    public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING = new Setting<>("cluster.routing.allocation.allow_rebalance", ClusterRebalanceType.INDICES_ALL_ACTIVE.name().toLowerCase(Locale.ROOT), ClusterRebalanceType::parseString, true, Setting.Scope.Cluster);
 
     /**
      * An enum representation for the configured re-balance type.

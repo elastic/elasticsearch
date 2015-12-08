@@ -36,7 +36,7 @@ public class IndexStoreConfig{
     /**
      * Configures the node / cluster level throttle type. See {@link StoreRateLimiting.Type}.
      */
-    public static final Setting<StoreRateLimiting.Type> INDICES_STORE_THROTTLE_TYPE_SETTING = new Setting<>("indices.store.throttle.type", "_na_", StoreRateLimiting.Type.NONE.name(),StoreRateLimiting.Type::fromString, true, Setting.Scope.Cluster);
+    public static final Setting<StoreRateLimiting.Type> INDICES_STORE_THROTTLE_TYPE_SETTING = new Setting<>("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name(),StoreRateLimiting.Type::fromString, true, Setting.Scope.Cluster);
     /**
      * Configures the node / cluster level throttle intensity. The default is <tt>10240 MB</tt>
      */

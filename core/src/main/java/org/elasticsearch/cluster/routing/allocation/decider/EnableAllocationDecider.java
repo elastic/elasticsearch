@@ -59,10 +59,10 @@ public class EnableAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "enable";
 
-    public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING = new Setting<>("cluster.routing.allocation.enable", "_na_", Allocation.ALL.name(), Allocation::parse, true, Setting.Scope.Cluster);
+    public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING = new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse, true, Setting.Scope.Cluster);
     public static final String INDEX_ROUTING_ALLOCATION_ENABLE= "index.routing.allocation.enable";
 
-    public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING = new Setting<>("cluster.routing.rebalance.enable", "_na_", Rebalance.ALL.name(), Rebalance::parse, true, Setting.Scope.Cluster);
+    public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING = new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse, true, Setting.Scope.Cluster);
     public static final String INDEX_ROUTING_REBALANCE_ENABLE = "index.routing.rebalance.enable";
 
     private volatile Rebalance enableRebalance;

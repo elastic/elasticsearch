@@ -78,7 +78,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = new Setting<>("cluster.routing.allocation.awareness.attributes", "_na_", "", Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);
+    public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = new Setting<>("cluster.routing.allocation.awareness.attributes", "", Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);
     public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.awareness.force.", true, Setting.Scope.Cluster);
 
     private String[] awarenessAttributes;

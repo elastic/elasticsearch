@@ -87,8 +87,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final Setting<String[]> TRACE_LOG_INCLUDE_SETTING = new Setting<>("transport.tracer.include", "_na_", "", Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);
-    public static final Setting<String[]> TRACE_LOG_EXCLUDE_SETTING = new Setting<>("transport.tracer.exclude", "_na_", "internal:discovery/zen/fd*," + TransportLivenessAction.NAME, Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);;
+    public static final Setting<String[]> TRACE_LOG_INCLUDE_SETTING = new Setting<>("transport.tracer.include", "", Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);
+    public static final Setting<String[]> TRACE_LOG_EXCLUDE_SETTING = new Setting<>("transport.tracer.exclude", "internal:discovery/zen/fd*," + TransportLivenessAction.NAME, Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);;
 
     private final ESLogger tracerLog;
 

@@ -46,8 +46,8 @@ public class DiscoverySettings extends AbstractComponent {
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
      * to receive responses within this window will cause the cluster state change to be rejected.
      */
-    public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING = new Setting<>("discovery.zen.commit_timeout", "_na_", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s), (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"), true, Setting.Scope.Cluster);
-    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>("discovery.zen.no_master_block", "_na_", "write", DiscoverySettings::parseNoMasterBlock, true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING = new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s), (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"), true, Setting.Scope.Cluster);
+    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock, true, Setting.Scope.Cluster);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING = Setting.boolSetting("discovery.zen.publish_diff.enable", true, true, Setting.Scope.Cluster);
 
     public final static int NO_MASTER_BLOCK_ID = 2;

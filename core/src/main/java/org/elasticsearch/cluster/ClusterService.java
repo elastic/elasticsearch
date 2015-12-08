@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -101,12 +100,35 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void add(@Nullable TimeValue timeout, TimeoutClusterStateListener listener);
 
     /**
-     * Submits a task that will update the cluster state.
+     * Submits a cluster state update task; submitted updates will be
+     * batched across the same instance of executor. The exact batching
+     * semantics depend on the underlying implementation but a rough
+     * guideline is that if the update task is submitted while there
+     * are pending update tasks for the same executor, these update
+     * tasks will all be executed on the executor in a single batch
+     *
+     * @param source   the source of the cluster state update task
+     * @param task     the state needed for the cluster state update task
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param listener callback after the cluster state update task
+     *                 completes
+     * @param <T>      the type of the cluster state update task state
      */
-    void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask);
+    <T> void submitStateUpdateTask(final String source, final T task,
+                                   final ClusterStateTaskConfig config,
+                                   final ClusterStateTaskExecutor<T> executor,
+                                   final ClusterStateTaskListener listener);
 
     /**
-     * Submits a task that will update the cluster state (the task has a default priority of {@link Priority#NORMAL}).
+     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig, ClusterStateTaskExecutor, ClusterStateTaskListener)},
+     * submitted updates will not be batched.
+     *
+     * @param source     the source of the cluster state update task
+     * @param updateTask the full context for the cluster state update
+     *                   task
      */
     void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask);
 

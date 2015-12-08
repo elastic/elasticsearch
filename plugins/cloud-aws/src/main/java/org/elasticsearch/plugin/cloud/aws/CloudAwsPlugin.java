@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.cloud.aws;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -34,6 +35,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -41,6 +44,26 @@ import java.util.Collection;
  *
  */
 public class CloudAwsPlugin extends Plugin {
+  
+    // ClientConfiguration clinit has some classloader problems
+    // TODO: fix that
+    static {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    Class.forName("com.amazonaws.ClientConfiguration");
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                return null;
+            }
+        });
+    }
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(CloudAwsPlugin.class);

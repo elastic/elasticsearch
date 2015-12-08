@@ -36,7 +36,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -273,7 +273,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     private void updateClusterState(final ClusterStateUpdater updater) throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return updater.execute(currentState);
@@ -693,7 +693,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         if (clusterStateError.get() != null) {
             throw clusterStateError.get();
         }
-        
+
     }
 
     @Test

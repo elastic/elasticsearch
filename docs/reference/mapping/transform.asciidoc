@@ -11,7 +11,7 @@ This was deprecated in 2.0.0 because it made debugging very difficult. As of
 now there really isn't a feature to use in its place other than transforming
 the document in the client application.
 
-Deprecated or now, here is an example:
+Deprecated or no, here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -41,7 +41,7 @@ Its also possible to specify multiple transforms:
 {
     "example" : {
         "transform" : [
-            {"script": "ctx._source['suggest'] = ctx._source['content']"}
+            {"script": "ctx._source['suggest'] = ctx._source['content']"},
             {"script": "ctx._source['foo'] = ctx._source['bar'];"}
         ]
     }

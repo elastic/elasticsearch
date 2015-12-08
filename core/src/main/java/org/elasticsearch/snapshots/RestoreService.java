@@ -27,14 +27,8 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -201,7 +195,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
-            clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
                 RestoreInfo restoreInfo = null;
 
                 @Override
@@ -520,7 +514,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.trace("received updated snapshot restore state [{}]", request);
         updatedSnapshotStateQueue.add(request);
 
-        clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
             private final List<UpdateIndexShardRestoreStatusRequest> drainedRequests = new ArrayList<>();
             private Map<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
 

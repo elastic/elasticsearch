@@ -127,7 +127,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // we are the first master (and the master)
                 master = true;
                 final LocalDiscovery master = firstMaster;
-                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateNonMasterUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ClusterStateUpdateTask() {
+                    @Override
+                    public boolean runOnlyOnMaster() {
+                        return false;
+                    }
+
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -169,7 +174,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 // tell the master to send the fact that we are here
                 final LocalDiscovery master = firstMaster;
-                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateNonMasterUpdateTask() {
+                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ClusterStateUpdateTask() {
+                    @Override
+                    public boolean runOnlyOnMaster() {
+                        return false;
+                    }
+
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -355,7 +365,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     assert nodeSpecificClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                     assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
+                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ClusterStateUpdateTask() {
+                        @Override
+                        public boolean runOnlyOnMaster() {
+                            return false;
+                        }
+
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             if (nodeSpecificClusterState.version() < currentState.version() && Objects.equals(nodeSpecificClusterState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {

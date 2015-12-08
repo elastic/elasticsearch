@@ -1,6 +1,8 @@
 [[java-query-dsl-missing-query]]
 ==== Missing Query
 
+deprecated[2.2.0, Use `exists` query inside a `must_not` clause instead]
+
 See {ref}/query-dsl-missing-query.html[Missing Query]
 
 [source,java]

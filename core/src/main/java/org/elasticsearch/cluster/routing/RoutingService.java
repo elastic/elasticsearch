@@ -147,7 +147,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 return;
             }
             logger.trace("rerouting {}", reason);
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);

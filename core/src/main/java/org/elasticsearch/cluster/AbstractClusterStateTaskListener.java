@@ -17,11 +17,16 @@
  * under the License.
  */
 
-grant {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-  // needed by PySystemState init (TODO: see if we can avoid this)
-  permission java.lang.RuntimePermission "getClassLoader";
-  // Standard set of classes
-  permission org.elasticsearch.script.ClassPermission "<<STANDARD>>";
-};
+package org.elasticsearch.cluster;
+
+public abstract class AbstractClusterStateTaskListener implements ClusterStateTaskListener {
+    @Override
+    public void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    }
+
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+
+    }
+}

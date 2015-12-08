@@ -159,7 +159,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             fail();
         } catch (IllegalArgumentException e) {
             // expected
-            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         try {
@@ -167,7 +167,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             fail();
         } catch (IllegalArgumentException e) {
             // expected
-            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
@@ -194,7 +194,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             fail();
         } catch (IllegalArgumentException e) {
             // expected
-            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         try {
@@ -202,7 +202,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             fail();
         } catch (IllegalArgumentException e) {
             // expected
-            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);

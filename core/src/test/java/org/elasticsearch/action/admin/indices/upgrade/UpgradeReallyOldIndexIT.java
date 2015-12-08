@@ -60,7 +60,7 @@ public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT 
             internalCluster().startNode(nodeSettings);
             fail("Should have failed to start the node");
         } catch (Exception ex) {
-            assertThat(ex.getMessage(), containsString("conflicts with existing mapping in other types"));
+            assertThat(ex.getMessage(), containsString("mapper [foo] cannot be changed from type"));
         }
     }
 

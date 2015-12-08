@@ -19,15 +19,13 @@
 
 package org.elasticsearch.cluster;
 
-/**
- * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
- * the cluster state update has been processed.
- */
-public abstract class ProcessedClusterStateUpdateTask extends ClusterStateUpdateTask {
+public abstract class AbstractAckedClusterStateTaskListener implements AckedClusterStateTaskListener {
+    @Override
+    public void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    }
 
-    /**
-     * Called when the result of the {@link #execute(ClusterState)} have been processed
-     * properly by all listeners.
-     */
-    public abstract void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    }
 }

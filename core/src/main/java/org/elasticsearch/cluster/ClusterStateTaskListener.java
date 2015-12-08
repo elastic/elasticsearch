@@ -18,14 +18,23 @@
  */
 package org.elasticsearch.cluster;
 
-/**
- * A combination between {@link org.elasticsearch.cluster.ProcessedClusterStateUpdateTask} and
- * {@link org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask} to allow easy creation of anonymous classes
- */
-abstract public class ProcessedClusterStateNonMasterUpdateTask extends ProcessedClusterStateUpdateTask {
+import java.util.List;
 
-    @Override
-    public boolean runOnlyOnMaster() {
-        return false;
-    }
+public interface ClusterStateTaskListener {
+
+    /**
+     * A callback called when execute fails.
+     */
+    void onFailure(String source, Throwable t);
+
+    /**
+     * called when the task was rejected because the local node is no longer master
+     */
+    void onNoLongerMaster(String source);
+
+    /**
+     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
+     * properly by all listeners.
+     */
+    void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
 }

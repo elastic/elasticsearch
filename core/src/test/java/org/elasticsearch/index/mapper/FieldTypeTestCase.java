@@ -281,7 +281,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public void testCheckTypeName() {
         final MappedFieldType fieldType = createNamedDefaultFieldType();
         List<String> conflicts = new ArrayList<>();
-        fieldType.checkTypeName(fieldType, conflicts);
+        fieldType.checkCompatibility(fieldType, conflicts, random().nextBoolean()); // no exception
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
         MappedFieldType bogus = new MappedFieldType() {
@@ -291,7 +291,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             public String typeName() { return fieldType.typeName();}
         };
         try {
-            fieldType.checkTypeName(bogus, conflicts);
+            fieldType.checkCompatibility(bogus, conflicts, random().nextBoolean());
             fail("expected bad types exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("Type names equal"));
@@ -304,10 +304,13 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             @Override
             public String typeName() { return "othertype";}
         };
-        fieldType.checkTypeName(other, conflicts);
-        assertFalse(conflicts.isEmpty());
-        assertTrue(conflicts.get(0).contains("cannot be changed from type"));
-        assertEquals(1, conflicts.size());
+        try {
+            fieldType.checkCompatibility(other, conflicts, random().nextBoolean());
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
+        }
+        assertTrue(conflicts.toString(), conflicts.isEmpty());
     }
 
     public void testCheckCompatibility() {

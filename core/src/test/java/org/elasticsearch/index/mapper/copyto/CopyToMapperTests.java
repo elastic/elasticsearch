@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.copyto;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -360,21 +358,4 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertArrayEquals(expected, actual);
     }
 
-    @Test
-    public void testCopyToInMultiFields() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("copy_test")
-                .field("type", "string")
-                .startObject("fields")
-                .startObject("raw")
-                .field("type", "string")
-                .field("copy_to", "another_field")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        ParsedDocument doc = docMapper.parse("test", "type", "1", new BytesArray("{\"copy_test\":\"foo bar\"}"));
-        assertThat(doc.docs().get(0).getFields("another_field")[0].stringValue(), equalTo("foo bar"));
-    }
 }

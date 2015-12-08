@@ -15,6 +15,13 @@
     <name>Distribution: Parent POM</name>
 
     <properties>
+        <!-- Adding a module to the distribution:
+             1. modify packaging.module.list below
+             2. add the module dependency to unpack-modules  -->
+
+        <!-- pipe-separated list of modules. for license checking. -->
+        <packaging.module.list>lang-groovy|lang-expression</packaging.module.list>
+
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
         <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
@@ -32,6 +39,8 @@
         <!-- Properties for the license checker -->
         <project.licenses.dir>${project.basedir}/../licenses</project.licenses.dir>
         <project.licenses.check_target>${integ.scratch}</project.licenses.check_target>
+        <!-- license checker allows a perl regular expression for ignore -->
+        <project.licenses.ignore>(${project.build.finalName}|${packaging.module.list})</project.licenses.ignore>
 
         <!-- we expect packaging formats to have integration tests, but not unit tests -->
         <skip.unit.tests>true</skip.unit.tests>
@@ -132,6 +141,34 @@
                             <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
+                    <!-- bundled modules. distributions that want them enable by setting phase: prepare-package -->
+                    <execution>
+                        <id>unpack-modules</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.module</groupId>
+                                    <artifactId>lang-expression</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${project.build.directory}/modules/lang-expression</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.module</groupId>
+                                    <artifactId>lang-groovy</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${project.build.directory}/modules/lang-groovy</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -214,6 +251,7 @@
     </build>
 
     <modules>
+        <module>integ-test-zip</module>
         <module>tar</module>
         <module>zip</module>
         <module>deb</module>

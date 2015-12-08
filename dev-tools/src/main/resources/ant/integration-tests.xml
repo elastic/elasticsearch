@@ -105,6 +105,29 @@
     </sequential>
   </macrodef>
 
+  <!-- installs a module into elasticsearch -->
+  <macrodef name="install-module">
+      <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <attribute name="name"/>
+      <attribute name="file"/>
+    <sequential>
+      <!-- install module -->
+      <echo>Installing module @{name}...</echo>
+      <mkdir dir="@{home}/modules/@{name}"/>
+      <unzip src="@{file}" dest="@{home}/modules/@{name}"/>
+
+      <fail message="did not find module installed as @{name}">
+        <condition>
+          <not>
+            <resourceexists>
+              <file file="@{home}/modules/@{name}/plugin-descriptor.properties"/>
+            </resourceexists>
+          </not>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
   <!-- waits for elasticsearch to start -->
   <macrodef name="waitfor-elasticsearch">
       <attribute name="port"/>
@@ -293,13 +316,19 @@
                              jvm.args="${tests.jvm.argline} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
   </target>
 
-  <!-- unzip core release artifact, install plugin, then start ES -->
+  <!-- unzip integ test artifact, install module, then start ES -->
+  <target name="start-external-cluster-with-module" depends="setup-workspace">
+    <install-module name="${elasticsearch.plugin.name}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+    <startup-elasticsearch/>
+  </target>
+
+  <!-- unzip integ test artifact, install plugin, then start ES -->
   <target name="start-external-cluster-with-plugin" depends="setup-workspace">
     <install-plugin name="${elasticsearch.plugin.name}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
     <startup-elasticsearch/>
   </target>
 
-  <!-- unzip core release artifact then start ES -->
+  <!-- unzip integ test artifact then start ES -->
   <target name="start-external-cluster" depends="setup-workspace">
     <startup-elasticsearch/>
   </target>

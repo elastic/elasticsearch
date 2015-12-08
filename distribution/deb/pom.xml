@@ -31,6 +31,17 @@
         </filters>
 
         <plugins>
+            <!-- bundle modules -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-modules</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -189,6 +200,17 @@
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.home.dir}/lib</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <!-- Add modules -->
+                                <data>
+                                    <src>${project.build.directory}/../target/modules</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>${packaging.elasticsearch.home.dir}/modules</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>

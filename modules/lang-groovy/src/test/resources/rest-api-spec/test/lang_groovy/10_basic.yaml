@@ -10,5 +10,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: lang-groovy  }
-    - match:  { nodes.$master.plugins.0.jvm: true  }
+    - match:  { nodes.$master.modules.0.name: lang-groovy  }
+    - match:  { nodes.$master.modules.0.jvm: true  }

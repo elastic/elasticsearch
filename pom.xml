@@ -67,6 +67,7 @@
         <!-- Properties for the license checker -->
         <project.licenses.dir>${project.basedir}/licenses</project.licenses.dir>
         <project.licenses.check_target>${basedir}/target/releases/${project.build.finalName}.zip</project.licenses.check_target>
+        <project.licenses.ignore>${project.build.finalName}</project.licenses.ignore>
 
         <!-- Test properties -->
         <tests.jvms>auto</tests.jvms>
@@ -1242,7 +1243,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                         <arg value="--check"/>
                                         <arg value="${project.licenses.dir}"/>
                                         <arg value="${project.licenses.check_target}"/>
-                                        <arg value="${project.build.finalName}"/>
+                                        <arg value="${project.licenses.ignore}"/>
                                     </exec>
                                 </target>
                             </configuration>
@@ -1499,6 +1500,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>core</module>
+        <module>modules</module>
         <module>distribution</module>
         <module>plugins</module>
         <module>qa</module>

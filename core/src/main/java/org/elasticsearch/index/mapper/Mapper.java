@@ -171,5 +171,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
     public abstract String name();
 
-    public abstract void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
+    /** Return the merge of {@code mergeWith} into this.
+     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
+    public abstract Mapper merge(Mapper mergeWith, boolean updateAllTypes);
 }

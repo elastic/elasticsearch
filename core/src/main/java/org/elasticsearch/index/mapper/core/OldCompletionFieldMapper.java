@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.search.suggest.completion.old.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat;
@@ -560,12 +559,10 @@ public class OldCompletionFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.merge(mergeWith, updateAllTypes);
         OldCompletionFieldMapper fieldMergeWith = (OldCompletionFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            this.maxInputLength = fieldMergeWith.maxInputLength;
-        }
+        this.maxInputLength = fieldMergeWith.maxInputLength;
     }
 
     // this should be package private but our tests don't allow it.

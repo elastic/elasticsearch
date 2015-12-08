@@ -608,11 +608,9 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            this.maxInputLength = fieldMergeWith.maxInputLength;
-        }
+        this.maxInputLength = fieldMergeWith.maxInputLength;
     }
 }

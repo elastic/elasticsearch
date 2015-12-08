@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -59,11 +58,24 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     public interface IncludeInAll {
 
-        void includeInAll(Boolean includeInAll);
+        /**
+         * If {@code includeInAll} is not null then return a copy of this mapper
+         * that will include values in the _all field according to {@code includeInAll}.
+         */
+        Mapper includeInAll(Boolean includeInAll);
 
-        void includeInAllIfNotSet(Boolean includeInAll);
+        /**
+         * If {@code includeInAll} is not null and not set on this mapper yet, then
+         * return a copy of this mapper that will include values in the _all field
+         * according to {@code includeInAll}.
+         */
+        Mapper includeInAllIfNotSet(Boolean includeInAll);
 
-        void unsetIncludeInAll();
+        /**
+         * If {@code includeInAll} was already set on this mapper then return a copy
+         * of this mapper that has {@code includeInAll} not set.
+         */
+        Mapper unsetIncludeInAll();
     }
 
     public static final String NAME = "_all";
@@ -310,11 +322,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
-        super.merge(mergeWith, mergeResult);
+        super.doMerge(mergeWith, updateAllTypes);
     }
 
     @Override

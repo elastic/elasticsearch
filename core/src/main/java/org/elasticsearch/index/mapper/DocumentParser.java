@@ -275,7 +275,7 @@ class DocumentParser implements Closeable {
                 if (update == null) {
                     update = newUpdate;
                 } else {
-                    MapperUtils.merge(update, newUpdate);
+                    update = update.merge(newUpdate, false);
                 }
             }
         }
@@ -764,7 +764,7 @@ class DocumentParser implements Closeable {
     private static <M extends Mapper> M parseAndMergeUpdate(M mapper, ParseContext context) throws IOException {
         final Mapper update = parseObjectOrField(context, mapper);
         if (update != null) {
-            MapperUtils.merge(mapper, update);
+            mapper = (M) mapper.merge(update, false);
         }
         return mapper;
     }

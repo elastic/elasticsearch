@@ -123,8 +123,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             fieldType.setNullValue(nullValue);
             DateFieldMapper fieldMapper = new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
                 coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (DateFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

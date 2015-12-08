@@ -1200,8 +1200,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                     .startObject("_parent").field("type", "parent").endObject()
                     .endObject().endObject()).get();
             fail();
-        } catch (MergeMappingException e) {
-            assertThat(e.toString(), containsString("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
         }
     }
 

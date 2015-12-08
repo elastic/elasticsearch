@@ -45,13 +45,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -442,25 +442,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        if (mergeResult.simulate()) {
-            if (this.enabled != sourceMergeWith.enabled) {
-                mergeResult.addConflict("Cannot update enabled setting for [_source]");
-            }
-            if (Arrays.equals(includes(), sourceMergeWith.includes()) == false) {
-                mergeResult.addConflict("Cannot update includes setting for [_source]");
-            }
-            if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
-                mergeResult.addConflict("Cannot update excludes setting for [_source]");
-            }
-        } else {
-            if (sourceMergeWith.compress != null) {
-                this.compress = sourceMergeWith.compress;
-            }
-            if (sourceMergeWith.compressThreshold != -1) {
-                this.compressThreshold = sourceMergeWith.compressThreshold;
-            }
+        List<String> conflicts = new ArrayList<>();
+        if (this.enabled != sourceMergeWith.enabled) {
+            conflicts.add("Cannot update enabled setting for [_source]");
+        }
+        if (Arrays.equals(includes(), sourceMergeWith.includes()) == false) {
+            conflicts.add("Cannot update includes setting for [_source]");
+        }
+        if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
+            conflicts.add("Cannot update excludes setting for [_source]");
+        }
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
+        }
+        if (sourceMergeWith.compress != null) {
+            this.compress = sourceMergeWith.compress;
+        }
+        if (sourceMergeWith.compressThreshold != -1) {
+            this.compressThreshold = sourceMergeWith.compressThreshold;
         }
     }
 }

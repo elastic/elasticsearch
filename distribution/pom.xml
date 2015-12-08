@@ -132,6 +132,35 @@
                             <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
+                    <!-- prepare pre-bundled modules. this doesn't impact reactor order, because
+                         these aren't true project dependencies, and its disabled for the integ-test zip -->
+                    <execution>
+                        <id>unpack-modules</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.module</groupId>
+                                    <artifactId>lang-expression</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${project.build.directory}/modules/lang-expression</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.module</groupId>
+                                    <artifactId>lang-groovy</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${project.build.directory}/modules/lang-groovy</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>

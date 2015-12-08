@@ -194,6 +194,15 @@
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Add modules -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.home.dir}/modules</directory>
+                            <sources>
+                                <source>
+                                    <location>target/modules/</location>
+                                </source>
+                            </sources>
+                        </mapping>
                         <!-- Add init.d files  -->
                         <mapping>
                             <directory>/etc/init.d</directory>

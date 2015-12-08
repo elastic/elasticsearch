@@ -193,6 +193,17 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <!-- Add modules -->
+                                <data>
+                                    <src>${project.build.directory}/../target/modules</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>${packaging.elasticsearch.home.dir}/modules</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
                                 <!-- Add init.d files  -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/init.d/</src>

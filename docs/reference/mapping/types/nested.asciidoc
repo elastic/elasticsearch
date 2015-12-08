@@ -66,7 +66,7 @@ GET my_index/_search
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
-each object in the array, you should used the `nested` datatype instead of the
+each object in the array, you should use the `nested` datatype instead of the
 <<object,`object`>> datatype.  Internally, nested objects index each object in
 the array as a separate hidden document, meaning that each nested object can be
 queried independently of the others, with the <<query-dsl-nested-query,`nested` query>>:

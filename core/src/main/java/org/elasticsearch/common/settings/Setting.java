@@ -241,7 +241,6 @@ public class Setting<T> extends ToXContentToBytes {
                 if (accept.test(inst) == false) {
                     throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + getRaw(settings) + "]");
                 }
-                logger.info("update [{}] from [{}] to [{}]", key, value, getRaw(settings));
                 pendingValue = newValue;
                 valueInstance = inst;
                 commitPending = true;
@@ -254,6 +253,7 @@ public class Setting<T> extends ToXContentToBytes {
 
         public void apply() {
             if (commitPending) {
+                logger.info("update [{}] from [{}] to [{}]", key, value, pendingValue);
                 value = pendingValue;
                 consumer.accept(valueInstance);
             }
@@ -283,6 +283,16 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, "_na_", (s) -> Float.toString(defaultValue), Float::parseFloat, dynamic, scope);
     }
 
+    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, "_na_", (s) -> Float.toString(defaultValue), (s) -> {
+            float value = Float.parseFloat(s);
+            if (value < minValue) {
+                throw new ElasticsearchParseException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            }
+            return value;
+        }, dynamic, scope);
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, boolean dynamic, Scope scope) {
         return new Setting<>(key, "_na_", (s) -> Integer.toString(defaultValue), Integer::parseInt, dynamic, scope);
     }
@@ -304,7 +314,9 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
-        String prefix = key.endsWith(".") ? key : key  + ".";
+        if (key.endsWith(".") == false) {
+            throw new IllegalArgumentException("key must end with a '.'");
+        }
         return new Setting<Settings>(key, "_na_", "", (s) -> null, dynamic, scope) {
 
             @Override
@@ -314,12 +326,12 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public Settings get(Settings settings) {
-                return settings.getByPrefix(prefix);
+                return settings.getByPrefix(key);
             }
 
             @Override
             public boolean match(String toTest) {
-                return Regex.simpleMatch(prefix + "*", toTest);
+                return Regex.simpleMatch(key + "*", toTest);
             }
 
             @Override
@@ -387,8 +399,14 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, "_na_", (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, defaultValue, key), dynamic, scope);
     }
 
-    public static Setting<Double> nonNegativeDouble(String key, double defaultValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, "_na_", (s) -> Double.toString(defaultValue), Double::parseDouble, dynamic, scope);
+    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, "_na_", (s) -> Double.toString(defaultValue), (s) -> {
+            final double d = Double.parseDouble(s);
+            if (d < minValue) {
+                throw new ElasticsearchParseException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            }
+            return d;
+        }, dynamic, scope);
     }
 
 }

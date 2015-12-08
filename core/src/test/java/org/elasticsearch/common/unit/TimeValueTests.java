@@ -164,12 +164,12 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testToStringRep() {
-        assertThat("-1", equalTo(new TimeValue(-1).getStringRep()));
-        assertThat("10ms", equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep()));
-        assertThat("1533ms", equalTo(new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep()));
-        assertThat("90s", equalTo(new TimeValue(90, TimeUnit.SECONDS).getStringRep()));
-        assertThat("90m", equalTo(new TimeValue(90, TimeUnit.MINUTES).getStringRep()));
-        assertThat("36h", equalTo(new TimeValue(36, TimeUnit.HOURS).getStringRep()));
-        assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).getStringRep()));
+        assertEquals("-1", new TimeValue(-1).getStringRep());
+        assertEquals("10ms", new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("1533ms", new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("90s", new TimeValue(90, TimeUnit.SECONDS).getStringRep());
+        assertEquals("90m", new TimeValue(90, TimeUnit.MINUTES).getStringRep());
+        assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
+        assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
     }
 }

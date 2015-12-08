@@ -66,7 +66,7 @@ public abstract class SettingsService extends AbstractComponent {
                 try {
                     settingUpdater.rollback();
                 } catch (Exception e) {
-                    logger.warn("failed to rollback settings for [{}]", e, settingUpdater);
+                    logger.error("failed to rollback settings for [{}]", e, settingUpdater);
                 }
             }
         }
@@ -77,15 +77,15 @@ public abstract class SettingsService extends AbstractComponent {
      * Applies the given settings to all the settings consumers or to none of them. The settings
      * will be merged with the node settings before they are applied while given settings override existing node
      * settings.
-     * @param settings the settings to apply
+     * @param newSettings the settings to apply
      * @return the unmerged applied settings
     */
-    public synchronized Settings applySettings(Settings settings) {
-        if (lastSettingsApplied != null && settings.equals(lastSettingsApplied)) {
+    public synchronized Settings applySettings(Settings newSettings) {
+        if (lastSettingsApplied != null && newSettings.equals(lastSettingsApplied)) {
             // nothing changed in the settings, ignore
-            return settings;
+            return newSettings;
         }
-        final Settings build = Settings.builder().put(this.settings).put(settings).build();
+        final Settings build = Settings.builder().put(this.settings).put(newSettings).build();
         boolean success = false;
         try {
             for (SettingUpdater settingUpdater : settingUpdaters) {
@@ -109,14 +109,14 @@ public abstract class SettingsService extends AbstractComponent {
                     try {
                         settingUpdater.rollback();
                     } catch (Exception e) {
-                        logger.warn("failed to refresh settings for [{}]", e, settingUpdater);
+                        logger.error("failed to refresh settings for [{}]", e, settingUpdater);
                     }
                 }
             }
         }
 
         try {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
                 if (entry.getKey().startsWith("logger.")) {
                     String component = entry.getKey().substring("logger.".length());
                     if ("_root".equals(component)) {
@@ -130,7 +130,7 @@ public abstract class SettingsService extends AbstractComponent {
             logger.warn("failed to refresh settings for [{}]", e, "logger");
         }
 
-        return lastSettingsApplied = settings;
+        return lastSettingsApplied = newSettings;
     }
 
     /**

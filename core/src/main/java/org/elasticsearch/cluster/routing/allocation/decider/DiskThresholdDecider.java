@@ -84,7 +84,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, true, Setting.Scope.Cluster);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>("cluster.routing.allocation.disk.watermark.low", "_na_", "85%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"), true, Setting.Scope.Cluster);
-    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>("cluster.routing.allocation.disk.watermark.high", "_na_", "90%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"), true, Setting.Scope.Cluster);
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>("cluster.routing.allocation.disk.watermark.high", "_na_", "90%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"), true, Setting.Scope.Cluster);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING = Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true, true, Setting.Scope.Cluster);;
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING = Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.Cluster);
 

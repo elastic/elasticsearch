@@ -20,10 +20,11 @@
 package org.elasticsearch.plugin.ingest.transport.put;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
-public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, PutPipelineResponse, PutPipelineRequestBuilder> {
+public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, IndexResponse, PutPipelineRequestBuilder> {
 
     public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
         super(client, action, new PutPipelineRequest());

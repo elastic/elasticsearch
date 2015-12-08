@@ -20,9 +20,10 @@
 package org.elasticsearch.plugin.ingest.transport.put;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutPipelineAction extends Action<PutPipelineRequest, PutPipelineResponse, PutPipelineRequestBuilder> {
+public class PutPipelineAction extends Action<PutPipelineRequest, IndexResponse, PutPipelineRequestBuilder> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
@@ -37,7 +38,7 @@ public class PutPipelineAction extends Action<PutPipelineRequest, PutPipelineRes
     }
 
     @Override
-    public PutPipelineResponse newResponse() {
-        return new PutPipelineResponse();
+    public IndexResponse newResponse() {
+        return new IndexResponse();
     }
 }

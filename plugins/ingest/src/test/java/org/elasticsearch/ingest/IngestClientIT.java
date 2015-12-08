@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequestBuilder;
-import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineResponse;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineResponse;
@@ -199,16 +199,13 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endArray()
                         .endObject().bytes())
                 .get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                        .setIds("_id")
-                        .get();
-                assertThat(response.isFound(), is(true));
-                assertThat(response.pipelines().size(), equalTo(1));
-                assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
-            }
+        assertBusy(() -> {
+            GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                    .setIds("_id")
+                    .get();
+            assertThat(response.isFound(), is(true));
+            assertThat(response.pipelines().size(), equalTo(1));
+            assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
         });
 
         createIndex("test");
@@ -224,45 +221,36 @@ public class IngestClientIT extends ESIntegTestCase {
                 .putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id")
                 .get();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                Map<String, Object> doc = client().prepareGet("test", "type", "1")
-                        .get().getSourceAsMap();
-                assertThat(doc.get("val"), equalTo(123.42));
-                assertThat(doc.get("status"), equalTo(400));
-                assertThat(doc.get("msg"), equalTo("foo"));
-            }
+        assertBusy(() -> {
+            Map<String, Object> doc = client().prepareGet("test", "type", "1")
+                    .get().getSourceAsMap();
+            assertThat(doc.get("val"), equalTo(123.42));
+            assertThat(doc.get("status"), equalTo(400));
+            assertThat(doc.get("msg"), equalTo("foo"));
         });
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field1", "123.42 400 <foo>")
         ).putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id").get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
-                assertThat(doc.get("val"), equalTo(123.42));
-                assertThat(doc.get("status"), equalTo(400));
-                assertThat(doc.get("msg"), equalTo("foo"));
-            }
+        assertBusy(() -> {
+            Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
+            assertThat(doc.get("val"), equalTo(123.42));
+            assertThat(doc.get("status"), equalTo(400));
+            assertThat(doc.get("msg"), equalTo("foo"));
         });
 
-        DeletePipelineResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
+        DeleteResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
                 .setId("_id")
                 .get();
-        assertThat(response.found(), is(true));
-        assertThat(response.id(), equalTo("_id"));
+        assertThat(response.isFound(), is(true));
+        assertThat(response.getId(), equalTo("_id"));
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                        .setIds("_id")
-                        .get();
-                assertThat(response.isFound(), is(false));
-                assertThat(response.pipelines().size(), equalTo(0));
-            }
+        assertBusy(() -> {
+            GetPipelineResponse response1 = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                    .setIds("_id")
+                    .get();
+            assertThat(response1.isFound(), is(false));
+            assertThat(response1.pipelines().size(), equalTo(0));
         });
     }
 

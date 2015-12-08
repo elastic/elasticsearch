@@ -71,7 +71,7 @@
               (
                 \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
-                UNASSIGNED             \s+
+                UNASSIGNED
                 \n
               )?
             $/
@@ -134,7 +134,7 @@
                (
                  \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
-                 UNASSIGNED             \s+
+                 UNASSIGNED
                  \n
                )?
              $/

@@ -525,6 +525,7 @@ public class RecoverySourceHandler {
         private final AtomicLong bytesSinceLastPause;
         private final Translog.View translogView;
         private long position = 0;
+        private boolean failed = false;
 
         RecoveryOutputStream(StoreFileMetaData md, AtomicLong bytesSinceLastPause, Translog.View translogView) {
             this.md = md;
@@ -539,9 +540,21 @@ public class RecoverySourceHandler {
 
         @Override
         public final void write(byte[] b, int offset, int length) throws IOException {
-            sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
-            position += length;
-            assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
+            if (failed == false) {
+                /* since we are an outputstream a wrapper might get flushed on close after we threw an exception.
+                 * that might cause another exception from the other side of the recovery since we are in a bad state
+                 * due to a corrupted file stream etc. the biggest issue is that we will turn into a loop of exceptions
+                 * and we will always suppress the original one which might cause the recovery to retry over and over again.
+                 * To prevent this we try to not send chunks again after we failed once.*/
+                try {
+                    sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
+                    position += length;
+                    assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
+                } catch (Exception e) {
+                    failed = true;
+                    throw e;
+                }
+            }
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {

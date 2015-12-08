@@ -22,6 +22,9 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -112,7 +115,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /** Aggregation mode for sub aggregations. */
-    public enum SubAggCollectionMode {
+    public enum SubAggCollectionMode implements Writeable<SubAggCollectionMode> {
 
         /**
          * Creates buckets and delegates to child aggregators in a single pass over
@@ -147,6 +150,20 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                 }
             }
             throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
+        }
+
+        @Override
+        public SubAggCollectionMode readFrom(StreamInput in) throws IOException {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= values().length) {
+                throw new IOException("Unknown SubAggCollectionMode ordinal [" + ordinal + "]");
+            }
+            return values()[ordinal];
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(ordinal());
         }
     }
 }

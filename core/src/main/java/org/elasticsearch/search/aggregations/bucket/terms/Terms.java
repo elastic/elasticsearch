@@ -82,7 +82,7 @@ public interface Terms extends MultiBucketsAggregation {
      * Get the bucket for the given term, or null if there is no such bucket.
      */
     Bucket getBucketByKey(String term);
-    
+
     /**
      * Get an upper bound of the error on document counts in this aggregation.
      */
@@ -165,6 +165,12 @@ public interface Terms extends MultiBucketsAggregation {
         protected abstract Comparator<Bucket> comparator(Aggregator aggregator);
 
         abstract byte id();
+
+        @Override
+        public abstract int hashCode();
+
+        @Override
+        public abstract boolean equals(Object obj);
 
     }
 }

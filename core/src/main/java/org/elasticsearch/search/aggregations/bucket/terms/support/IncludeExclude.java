@@ -34,12 +34,22 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -48,7 +58,16 @@ import java.util.TreeSet;
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
-public class IncludeExclude {
+public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
+
+    private static final IncludeExclude PROTOTYPE = new IncludeExclude(Collections.emptySortedSet(), Collections.emptySortedSet());
+    private static final ParseField INCLUDE_FIELD = new ParseField("include");
+    private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    private static final ParseField PATTERN_FIELD = new ParseField("pattern");
+
+    public static IncludeExclude readFromStream(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
 
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
@@ -283,18 +302,14 @@ public class IncludeExclude {
 
     public static class Parser {
 
-        String include = null;
-        String exclude = null;
-        SortedSet<BytesRef> includeValues;
-        SortedSet<BytesRef> excludeValues;
-
-        public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
+        public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser,
+                ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
 
             if (token == XContentParser.Token.VALUE_STRING) {
-                if ("include".equals(currentFieldName)) {
-                    include = parser.text();
-                } else if ("exclude".equals(currentFieldName)) {
-                    exclude = parser.text();
+                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
+                    otherOptions.put(INCLUDE_FIELD, parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
+                    otherOptions.put(EXCLUDE_FIELD, parser.text());
                 } else {
                     return false;
                 }
@@ -302,35 +317,35 @@ public class IncludeExclude {
             }
 
             if (token == XContentParser.Token.START_ARRAY) {
-                if ("include".equals(currentFieldName)) {
-                     includeValues = new TreeSet<>(parseArrayToSet(parser));
+                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
+                    otherOptions.put(INCLUDE_FIELD, new TreeSet<>(parseArrayToSet(parser)));
                      return true;
                 }
-                if ("exclude".equals(currentFieldName)) {
-                      excludeValues = new TreeSet<>(parseArrayToSet(parser));
+                if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
+                    otherOptions.put(EXCLUDE_FIELD, new TreeSet<>(parseArrayToSet(parser)));
                       return true;
                 }
                 return false;
             }
 
             if (token == XContentParser.Token.START_OBJECT) {
-                if ("include".equals(currentFieldName)) {
+                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                include = parser.text();
+                            if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
+                                otherOptions.put(INCLUDE_FIELD, parser.text());
                             }
                         }
                     }
-                } else if ("exclude".equals(currentFieldName)) {
+                } else if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                exclude = parser.text();
+                            if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
+                                otherOptions.put(EXCLUDE_FIELD, parser.text());
                             }
                         }
                     }
@@ -342,6 +357,7 @@ public class IncludeExclude {
 
             return false;
         }
+
         private Set<BytesRef> parseArrayToSet(XContentParser parser) throws IOException {
             final Set<BytesRef> set = new HashSet<>();
             if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
@@ -356,7 +372,27 @@ public class IncludeExclude {
             return set;
         }
 
-        public IncludeExclude includeExclude() {
+        public IncludeExclude createIncludeExclude(Map<ParseField, Object> otherOptions) {
+            Object includeObject = otherOptions.get(INCLUDE_FIELD);
+            String include = null;
+            SortedSet<BytesRef> includeValues = null;
+            if (includeObject != null) {
+                if (includeObject instanceof String) {
+                    include = (String) includeObject;
+                } else if (includeObject instanceof SortedSet) {
+                    includeValues = (SortedSet<BytesRef>) includeObject;
+                }
+            }
+            Object excludeObject = otherOptions.get(EXCLUDE_FIELD);
+            String exclude = null;
+            SortedSet<BytesRef> excludeValues = null;
+            if (excludeObject != null) {
+                if (excludeObject instanceof String) {
+                    exclude = (String) excludeObject;
+                } else if (excludeObject instanceof SortedSet) {
+                    excludeValues = (SortedSet<BytesRef>) excludeObject;
+                }
+            }
             RegExp includePattern =  include != null ? new RegExp(include) : null;
             RegExp excludePattern = exclude != null ? new RegExp(exclude) : null;
             if (includePattern != null || excludePattern != null) {
@@ -442,6 +478,113 @@ public class IncludeExclude {
             }
         }
         return result;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (include != null) {
+            builder.field(INCLUDE_FIELD.getPreferredName(), include.getOriginalString());
+        }
+        if (includeValues != null) {
+            builder.startArray(INCLUDE_FIELD.getPreferredName());
+            for (BytesRef value : includeValues) {
+                builder.value(value.utf8ToString());
+            }
+            builder.endArray();
+        }
+        if (exclude != null) {
+            builder.field(EXCLUDE_FIELD.getPreferredName(), exclude.getOriginalString());
+        }
+        if (excludeValues != null) {
+            builder.startArray(EXCLUDE_FIELD.getPreferredName());
+            for (BytesRef value : excludeValues) {
+                builder.value(value.utf8ToString());
+            }
+            builder.endArray();
+        }
+        return builder;
+    }
+
+    @Override
+    public IncludeExclude readFrom(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            String includeString = in.readOptionalString();
+            RegExp include = null;
+            if (includeString != null) {
+                include = new RegExp(includeString);
+            }
+            String excludeString = in.readOptionalString();
+            RegExp exclude = null;
+            if (excludeString != null) {
+                exclude = new RegExp(excludeString);
+            }
+            return new IncludeExclude(include, exclude);
+        } else {
+            SortedSet<BytesRef> includes = null;
+            if (in.readBoolean()) {
+                int size = in.readVInt();
+                includes = new TreeSet<>();
+                for (int i = 0; i < size; i++) {
+                    includes.add(in.readBytesRef());
+                }
+            }
+            SortedSet<BytesRef> excludes = null;
+            if (in.readBoolean()) {
+                int size = in.readVInt();
+                excludes = new TreeSet<>();
+                for (int i = 0; i < size; i++) {
+                    excludes.add(in.readBytesRef());
+                }
+            }
+            return new IncludeExclude(includes, excludes);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        boolean regexBased = isRegexBased();
+        out.writeBoolean(regexBased);
+        if (regexBased) {
+            out.writeOptionalString(include == null ? null : include.getOriginalString());
+            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
+        } else {
+            boolean hasIncludes = includeValues != null;
+            out.writeBoolean(hasIncludes);
+            if (hasIncludes) {
+                out.writeVInt(includeValues.size());
+                for (BytesRef value : includeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+            boolean hasExcludes = excludeValues != null;
+            out.writeBoolean(hasExcludes);
+            if (hasExcludes) {
+                out.writeVInt(excludeValues.size());
+                for (BytesRef value : excludeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(include == null ? null : include.getOriginalString(), exclude == null ? null : exclude.getOriginalString(),
+                includeValues, excludeValues);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        } if (getClass() != obj.getClass()) {
+            return false;
+        }
+        IncludeExclude other = (IncludeExclude) obj;
+        return Objects.equals(include == null ? null : include.getOriginalString(), other.include == null ? null : other.include.getOriginalString())
+                && Objects.equals(exclude == null ? null : exclude.getOriginalString(), other.exclude == null ? null : other.exclude.getOriginalString())
+                && Objects.equals(includeValues, other.includeValues)
+                && Objects.equals(excludeValues, other.excludeValues);
     }
 
 }

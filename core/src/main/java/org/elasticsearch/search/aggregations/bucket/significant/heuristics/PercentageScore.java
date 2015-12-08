@@ -22,38 +22,42 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class PercentageScore extends SignificanceHeuristic {
 
-    public static final PercentageScore INSTANCE = new PercentageScore();
+    public static final PercentageScore PROTOTYPE = new PercentageScore();
 
-    protected static final String[] NAMES = {"percentage"};
+    protected static final ParseField NAMES_FIELD = new ParseField("percentage");
 
     private PercentageScore() {}
 
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return readFrom(in);
-        }
+    @Override
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
+    }
 
-        @Override
-        public String getName() {
-            return NAMES[0];
-        }
-    };
+    @Override
+    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
+        return PROTOTYPE;
+    }
 
-    public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return INSTANCE;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+        return builder;
     }
 
     /**
@@ -70,26 +74,21 @@ public class PercentageScore extends SignificanceHeuristic {
         return (double) subsetFreq / (double) supersetFreq;
    }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-    }
-
     public static class PercentageScoreParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
                 throws IOException, QueryShardException {
             // move to the closing bracket
             if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
                 throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
             }
-            return new PercentageScore();
+            return PROTOTYPE;
         }
 
         @Override
         public String[] getNames() {
-            return NAMES;
+            return NAMES_FIELD.getAllNamesIncludedDeprecated();
         }
     }
 
@@ -97,7 +96,7 @@ public class PercentageScore extends SignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName()).endObject();
+            builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
             return builder;
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,8 +45,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
+
+    static final ScriptHeuristic PROTOTYPE = new ScriptHeuristic(null);
 
     protected static final ParseField NAMES_FIELD = new ParseField("script_heuristic");
     private final LongAccessor subsetSizeHolder;
@@ -55,31 +59,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     ExecutableScript searchScript = null;
     Script script;
 
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            Script script = Script.readScript(in);
-            return new ScriptHeuristic(null, script);
-        }
-
-        @Override
-        public String getName() {
-            return NAMES_FIELD.getPreferredName();
-        }
-    };
-
-    public ScriptHeuristic(ExecutableScript searchScript, Script script) {
+    public ScriptHeuristic(Script script) {
         subsetSizeHolder = new LongAccessor();
         supersetSizeHolder = new LongAccessor();
         subsetDfHolder = new LongAccessor();
         supersetDfHolder = new LongAccessor();
-        this.searchScript = searchScript;
-        if (searchScript != null) {
-            searchScript.setNextVar("_subset_freq", subsetDfHolder);
-            searchScript.setNextVar("_subset_size", subsetSizeHolder);
-            searchScript.setNextVar("_superset_freq", supersetDfHolder);
-            searchScript.setNextVar("_superset_size", supersetSizeHolder);
-        }
         this.script = script;
 
 
@@ -87,7 +71,16 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
+        initialize(context.scriptService(), context);
+    }
+
+    @Override
+    public void initialize(SearchContext context) {
+        initialize(context.scriptService(), context);
+    }
+
+    public void initialize(ScriptService scriptService, HasContextAndHeaders hasContextAndHeaders) {
+        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, hasContextAndHeaders, Collections.emptyMap());
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -121,9 +114,45 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
+    }
+
+    @Override
+    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
+        Script script = Script.readScript(in);
+        return new ScriptHeuristic(script);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
         script.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName());
+        builder.field(ScriptField.SCRIPT.getPreferredName());
+        script.toXContent(builder, builderParams);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(script);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        ScriptHeuristic other = (ScriptHeuristic) obj;
+        return Objects.equals(script, other.script);
     }
 
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
@@ -134,7 +163,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
                 throws IOException, QueryShardException {
             String heuristicName = parser.currentName();
             Script script = null;
@@ -173,13 +202,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (script == null) {
                 throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
             }
-            ExecutableScript searchScript;
-            try {
-                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
-            } catch (Exception e) {
-                throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. the script [{}] could not be loaded", e, script, heuristicName);
-            }
-            return new ScriptHeuristic(searchScript, script);
+            return new ScriptHeuristic(script);
         }
 
         @Override
@@ -199,7 +222,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-            builder.startObject(STREAM.getName());
+            builder.startObject(NAMES_FIELD.getPreferredName());
             builder.field(ScriptField.SCRIPT.getPreferredName());
             script.toXContent(builder, builderParams);
             builder.endObject();

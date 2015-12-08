@@ -97,7 +97,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         this.includePattern = regex;
         return this;
     }
-    
+
     /**
      * Define a set of terms that should be aggregated.
      */
@@ -107,8 +107,8 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         this.includeTerms = terms;
         return this;
-    }    
-    
+    }
+
     /**
      * Define a set of terms that should be aggregated.
      */
@@ -118,16 +118,16 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         this.includeTerms = longsArrToStringArr(terms);
         return this;
-    }     
-    
+    }
+
     private String[] longsArrToStringArr(long[] terms) {
         String[] termsAsString = new String[terms.length];
         for (int i = 0; i < terms.length; i++) {
             termsAsString[i] = Long.toString(terms[i]);
         }
         return termsAsString;
-    }      
-    
+    }
+
 
     /**
      * Define a set of terms that should be aggregated.
@@ -146,7 +146,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
             termsAsString[i] = Double.toString(terms[i]);
         }
         return termsAsString;
-    }    
+    }
 
     /**
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
@@ -161,7 +161,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         this.excludePattern = regex;
         return this;
     }
-    
+
     /**
      * Define a set of terms that should not be aggregated.
      */
@@ -171,9 +171,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         this.excludeTerms = terms;
         return this;
-    }    
-    
-    
+    }
+
+
     /**
      * Define a set of terms that should not be aggregated.
      */
@@ -194,9 +194,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         this.excludeTerms = doubleArrToStringArr(terms);
         return this;
-    }    
-    
-    
+    }
+
+
 
     /**
      * When using scripts, the value type indicates the types of the values the script is generating.
@@ -241,13 +241,13 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
 
-        bucketCountThresholds.toXContent(builder);
+        bucketCountThresholds.toXContent(builder, params);
 
         if (showTermDocCountError != null) {
-            builder.field(AbstractTermsParametersParser.SHOW_TERM_DOC_COUNT_ERROR.getPreferredName(), showTermDocCountError);
+            builder.field(TermsAggregatorFactory.SHOW_TERM_DOC_COUNT_ERROR.getPreferredName(), showTermDocCountError);
         }
         if (executionHint != null) {
-            builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+            builder.field(TermsAggregatorFactory.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         if (valueType != null) {
             builder.field("value_type", valueType.name().toLowerCase(Locale.ROOT));

@@ -133,6 +133,8 @@ public class OsStats implements Streamable, ToXContent {
         if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
             if (in.readBoolean()) {
                 cpuPercent = in.readShort();
+            } else {
+                cpuPercent = null;
             }
         }
         loadAverage = in.readDouble();

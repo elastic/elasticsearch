@@ -129,7 +129,7 @@ public class MasterFaultDetection extends FaultDetection {
         threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
     }
 
-    private void stop(String reason) {
+    public void stop(String reason) {
         synchronized (masterNodeMutex) {
             if (masterNode != null) {
                 if (logger.isDebugEnabled()) {

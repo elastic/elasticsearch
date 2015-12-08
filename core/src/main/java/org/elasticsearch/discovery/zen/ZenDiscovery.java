@@ -655,14 +655,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
                 final DiscoveryNode localNode = currentState.nodes().localNode();
                 if (localNode.equals(electedMaster)) {
-                    masterFD.close("got elected as new master since master left (reason = " + reason + ")");
+                    masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
                     discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
                     ClusterState newState = ClusterState.builder(currentState).nodes(discoveryNodes).build();
                     nodesFD.updateNodesAndPing(newState);
                     return newState;
 
                 } else {
-                    nodesFD.close();
+                    nodesFD.stop();
                     if (electedMaster != null) {
                         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(electedMaster.id()).build();
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
@@ -951,8 +951,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
 
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
-        nodesFD.close();
-        masterFD.close(reason);
+        nodesFD.stop();
+        masterFD.stop(reason);
 
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())

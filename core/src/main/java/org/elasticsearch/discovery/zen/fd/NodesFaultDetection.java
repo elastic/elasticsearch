@@ -107,10 +107,14 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
+    public void stop() {
+        nodesFD.clear();
+    }
+
     @Override
     public void close() {
         super.close();
-        nodesFD.clear();
+        stop();
     }
 
     @Override

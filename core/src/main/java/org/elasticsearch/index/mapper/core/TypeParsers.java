@@ -197,9 +197,6 @@ public class TypeParsers {
             } else if (propName.equals("index")) {
                 parseIndex(name, propNode.toString(), builder);
                 iterator.remove();
-            } else if (propName.equals("tokenized")) {
-                builder.tokenized(nodeBooleanValue(propNode));
-                iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
                 builder.docValues(nodeBooleanValue(propNode));
                 iterator.remove();

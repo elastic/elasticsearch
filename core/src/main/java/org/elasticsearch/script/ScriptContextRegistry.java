@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -86,4 +87,6 @@ public final class ScriptContextRegistry {
         builder.add("script").add("engine");
         return builder.build();
     }
+
+    public static final ScriptContextRegistry EMPTY = new ScriptContextRegistry(new ArrayList<ScriptContext.Plugin>());
 }

@@ -81,6 +81,8 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
         return null;
     }
 
+    public abstract boolean allParamsConsumed();
+
     public abstract boolean hasParam(String key);
 
     @Override

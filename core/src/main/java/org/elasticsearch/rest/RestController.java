@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.http.HttpException;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     /**
-     * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
+     * Controls which REST headers get copied over from a {@link RestRequest} to
      * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
      *
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
@@ -92,7 +93,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     /**
-     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
+     * Returns the REST headers that get copied over from a {@link RestRequest} to
      * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
      */
@@ -209,7 +210,13 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     void executeHandler(RestRequest request, RestChannel channel) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
-            handler.handleRequest(request, channel);
+                handler.handleRequest(request, channel);
+
+            //Just validate params to READ operations
+            if(RestRequest.Method.GET.equals(request.method()) && !request.allParamsConsumed()){
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "There are wrong parameters"));
+            }
+
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)

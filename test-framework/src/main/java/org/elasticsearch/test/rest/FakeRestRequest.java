@@ -23,13 +23,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
 
     private final Map<String, String> params;
+
+    private final Set<String> consumedParams;
 
     public FakeRestRequest() {
         this(new HashMap<String, String>(), new HashMap<String, String>());
@@ -41,6 +45,7 @@ public class FakeRestRequest extends RestRequest {
             putInContext(entry.getKey(), entry.getValue());
         }
         this.params = new HashMap<>();
+        this.consumedParams = new HashSet<>(params().size());
     }
 
     @Override
@@ -85,17 +90,25 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public String param(String key) {
+        this.consumedParams.add(key);
         return params.get(key);
     }
 
     @Override
     public String param(String key, String defaultValue) {
+        this.consumedParams.add(key);
         String value = params.get(key);
         if (value == null) {
             return defaultValue;
         }
         return value;
     }
+
+    @Override
+    public boolean allParamsConsumed() {
+        return this.consumedParams.containsAll(this.params().keySet());
+    }
+
 
     @Override
     public Map<String, String> params() {

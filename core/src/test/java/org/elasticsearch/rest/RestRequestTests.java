@@ -95,6 +95,11 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
+        public boolean allParamsConsumed() {
+            return true;
+        }
+
+        @Override
         public Map<String, String> params() {
             return null;
         }

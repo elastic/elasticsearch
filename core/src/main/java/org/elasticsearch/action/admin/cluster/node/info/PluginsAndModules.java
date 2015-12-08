@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -48,7 +49,12 @@ public class PluginsAndModules implements Streamable, ToXContent {
      */
     public List<PluginInfo> getPluginInfos() {
         List<PluginInfo> plugins = new ArrayList<>(this.plugins);
-        Collections.sort(plugins, (p1, p2) -> p1.getName().compareTo(p2.getName()));
+        Collections.sort(plugins, new Comparator<PluginInfo>() {
+            @Override
+            public int compare(PluginInfo p1, PluginInfo p2) {
+                return p1.getName().compareTo(p2.getName());
+            }
+        });
         return plugins;
     }
     
@@ -57,7 +63,12 @@ public class PluginsAndModules implements Streamable, ToXContent {
      */
     public List<PluginInfo> getModuleInfos() {
         List<PluginInfo> modules = new ArrayList<>(this.modules);
-        Collections.sort(modules, (p1, p2) -> p1.getName().compareTo(p2.getName()));
+        Collections.sort(modules, new Comparator<PluginInfo>() {
+            @Override
+            public int compare(PluginInfo p1, PluginInfo p2) {
+                return p1.getName().compareTo(p2.getName());
+            }
+        });
         return modules;
     }
 

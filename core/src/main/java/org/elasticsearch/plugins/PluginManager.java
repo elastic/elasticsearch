@@ -66,9 +66,9 @@ public class PluginManager {
                     "plugin.bat",
                     "service.bat").build();
 
-    static final Set<String> MODULES = unmodifiableSet(newHashSet(
+    static final Set<String> MODULES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "lang-expression",
-            "lang-groovy"));
+            "lang-groovy")));
 
     static final ImmutableSet<String> OFFICIAL_PLUGINS = ImmutableSet.<String>builder()
             .add(

@@ -280,7 +280,7 @@ public class PluginInfoTests extends ESTestCase {
         pluginsInfo.addPlugin(new PluginInfo("a", "foo", true, "dummy", true, "dummyclass", true));
         pluginsInfo.addPlugin(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
 
-        final List<PluginInfo> infos = pluginsInfo.getInfos();
+        final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
         List<String> names = eagerTransform(infos, new Function<PluginInfo, String>() {
             @Override
             public String apply(PluginInfo input) {

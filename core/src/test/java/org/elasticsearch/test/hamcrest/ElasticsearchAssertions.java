@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -739,44 +738,44 @@ public class ElasticsearchAssertions {
         PluginsAndModules plugins = response.getNodesMap().get(nodeId).getPlugins();
         Assert.assertThat(plugins, notNullValue());
 
-        List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
+        List<String> pluginNames = FluentIterable.from(plugins.getPluginInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
         for (String expectedJvmPluginName : expectedJvmPluginNames) {
             Assert.assertThat(pluginNames, hasItem(expectedJvmPluginName));
         }
 
-        List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
+        List<String> pluginDescriptions = FluentIterable.from(plugins.getPluginInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
         for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
             Assert.assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
         }
 
-        List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
+        List<String> jvmPluginVersions = FluentIterable.from(plugins.getPluginInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
         for (String pluginVersion : expectedJvmVersions) {
             Assert.assertThat(jvmPluginVersions, hasItem(pluginVersion));
         }
 
-        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
+        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getPluginInfos())
                 .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
                 .transform(urlFunction)
                 .filter(notNull());
         Assert.assertThat(Iterables.size(jvmUrls), is(0));
 
-        List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
+        List<String> sitePluginNames = FluentIterable.from(plugins.getPluginInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
         Assert.assertThat(sitePluginNames.isEmpty(), is(expectedSitePluginNames.isEmpty()));
         for (String expectedSitePluginName : expectedSitePluginNames) {
             Assert.assertThat(sitePluginNames, hasItem(expectedSitePluginName));
         }
 
-        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
+        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getPluginInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
         Assert.assertThat(sitePluginDescriptions.isEmpty(), is(expectedSitePluginDescriptions.isEmpty()));
         for (String sitePluginDescription : expectedSitePluginDescriptions) {
             Assert.assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
         }
 
-        List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
+        List<String> sitePluginUrls = FluentIterable.from(plugins.getPluginInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
         Assert.assertThat(sitePluginUrls, not(contains(nullValue())));
 
 
-        List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
+        List<String> sitePluginVersions = FluentIterable.from(plugins.getPluginInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
         Assert.assertThat(sitePluginVersions.isEmpty(), is(expectedSiteVersions.isEmpty()));
         for (String pluginVersion : expectedSiteVersions) {
             Assert.assertThat(sitePluginVersions, hasItem(pluginVersion));
@@ -789,12 +788,6 @@ public class ElasticsearchAssertions {
             return pluginInfo.isJvm();
         }
     };
-
-    private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
-        return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
-    }
-
-    private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
         @Override

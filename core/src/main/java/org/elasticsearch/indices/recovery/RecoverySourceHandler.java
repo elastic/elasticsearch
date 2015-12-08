@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
@@ -525,7 +526,7 @@ public class RecoverySourceHandler {
         private final AtomicLong bytesSinceLastPause;
         private final Translog.View translogView;
         private long position = 0;
-        private boolean failed = false;
+        private final AtomicBoolean failed = new AtomicBoolean(false);
 
         RecoveryOutputStream(StoreFileMetaData md, AtomicLong bytesSinceLastPause, Translog.View translogView) {
             this.md = md;
@@ -540,7 +541,7 @@ public class RecoverySourceHandler {
 
         @Override
         public final void write(byte[] b, int offset, int length) throws IOException {
-            if (failed == false) {
+            if (failed.get() == false) {
                 /* since we are an outputstream a wrapper might get flushed on close after we threw an exception.
                  * that might cause another exception from the other side of the recovery since we are in a bad state
                  * due to a corrupted file stream etc. the biggest issue is that we will turn into a loop of exceptions
@@ -554,7 +555,7 @@ public class RecoverySourceHandler {
                     success = true;
                 } finally {
                     if (success == false) {
-                        failed = true;
+                        failed.compareAndSet(false, true);
                     }
                 }
             }

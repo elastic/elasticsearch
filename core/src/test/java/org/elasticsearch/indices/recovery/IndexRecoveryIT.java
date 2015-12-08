@@ -138,7 +138,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = shardSize.bytes() / 10;
+        long chunkSize = shardSize.bytes() / 5;
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..

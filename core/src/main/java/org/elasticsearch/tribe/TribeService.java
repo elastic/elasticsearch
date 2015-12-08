@@ -135,7 +135,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             sb.put("name", settings.get("name") + "/" + entry.getKey());
             sb.put("path.home", settings.get("path.home")); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
-            sb.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }

@@ -206,6 +206,13 @@ cluster settings please use the settings update API and set their superseded key
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
 
+==== Default number mappings
+
+When a floating-point number is encountered, it is now dynamically mapped as a
+float by default instead of a double. The reasoning is that floats should be
+more than enough for most cases but would decrease storage requirements
+significantly.
+
 [[breaking_30_plugins]]
 === Plugin changes
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.mapper.attachments;
+package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -44,37 +44,39 @@ import java.nio.file.Path;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) {
-        return newMapperService(new Index("test"), Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", tempDir)
-                .put(indexSettings)
-                .build());
-    }
-
-    private static MapperService newMapperService(Index index, Settings indexSettings) {
         IndicesModule indicesModule = new IndicesModule();
-        indicesModule.registerMapper(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
-        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        return new MapperService(index,
-                                 indexSettings, 
-                                 newAnalysisService(indexSettings),
-                                 newSimilarityLookupService(indexSettings), 
-                                 null,
-                                 mapperRegistry);
+        return newMapperService(tempDir, indexSettings, indicesModule);
     }
 
-    private  static AnalysisService newAnalysisService(Settings indexSettings) {
+    public static MapperService newMapperService(Path tempDir, Settings indexSettings, IndicesModule indicesModule) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put("path.home", tempDir)
+            .put(indexSettings);
+        if (indexSettings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
+            settingsBuilder.put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        }
+        Settings settings = settingsBuilder.build();
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+        return new MapperService(new Index("test"),
+            settings,
+            newAnalysisService(settings),
+            newSimilarityLookupService(settings),
+            null,
+            mapperRegistry);
+    }
+
+    private static AnalysisService newAnalysisService(Settings indexSettings) {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(indexSettings))).createInjector();
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, indexSettings),
-                new IndexNameModule(index),
-                new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
+            new IndexSettingsModule(index, indexSettings),
+            new IndexNameModule(index),
+            new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }
 
-    private  static SimilarityLookupService newSimilarityLookupService(Settings indexSettings) {
+    private static SimilarityLookupService newSimilarityLookupService(Settings indexSettings) {
         return new SimilarityLookupService(new Index("test"), indexSettings);
     }
 }

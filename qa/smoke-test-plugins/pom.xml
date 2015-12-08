@@ -311,22 +311,6 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>lang-expression</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>lang-groovy</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>lang-javascript</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>

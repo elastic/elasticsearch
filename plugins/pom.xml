@@ -20,10 +20,9 @@
         <relativePath>../modules/pom.xml</relativePath>
     </parent>
 
-    <!-- typical layout for plugins -->
     <build>
         <plugins>
-           <!-- integration tests -->
+           <!-- integration tests: install artifact as plugin -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
@@ -41,20 +40,6 @@
                                     <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin">
                                         <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
                                     </ant>
-                                </target>
-                            </configuration>
-                        </execution>
-                        <!-- shut down external cluster -->
-                        <execution>
-                            <id>integ-teardown</id>
-                            <phase>post-integration-test</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                                 </target>
                             </configuration>
                         </execution>

@@ -49,6 +49,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         private String type;
         private String id;
         private String routing;
+        private String parent;
         private String[] fields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
@@ -116,10 +117,15 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         }
 
         public Item parent(String parent) {
-            if (routing == null) {
-                this.routing = parent;
-            }
+            this.parent = parent;
             return this;
+        }
+
+        /**
+         * @return The parent for this request.
+         */
+        public String parent() {
+            return parent;
         }
 
         public Item fields(String... fields) {
@@ -173,6 +179,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
+            parent = in.readOptionalString();
             int size = in.readVInt();
             if (size > 0) {
                 fields = new String[size];
@@ -192,6 +199,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
+            out.writeOptionalString(parent);
             if (fields == null) {
                 out.writeVInt(0);
             } else {
@@ -221,6 +229,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             if (!id.equals(item.id)) return false;
             if (!index.equals(item.index)) return false;
             if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
+            if (parent != null ? !parent.equals(item.parent) : item.parent != null) return false;
             if (type != null ? !type.equals(item.type) : item.type != null) return false;
             if (versionType != item.versionType) return false;
 
@@ -233,6 +242,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             result = 31 * result + (type != null ? type.hashCode() : 0);
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
+            result = 31 * result + (parent != null ? parent.hashCode() : 0);
             result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
             result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();

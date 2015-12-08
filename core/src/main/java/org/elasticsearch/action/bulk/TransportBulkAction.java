@@ -239,7 +239,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 } else {
                     concreteIndices.resolveIfAbsent(req);
-                    req.routing(clusterState.metaData().resolveIndexRouting(req.routing(), req.index()));
+                    req.routing(clusterState.metaData().resolveIndexRouting(req.parent(), req.routing(), req.index()));
                 }
             }
         }

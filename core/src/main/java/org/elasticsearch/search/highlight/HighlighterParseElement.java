@@ -58,7 +58,7 @@ public class HighlighterParseElement implements SearchParseElement {
     public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
     /** default for whether <tt>fvh</tt> should provide highlighting on filter clauses */
     public static final boolean DEFAULT_HIGHLIGHT_FILTER = false;
-    /** default for highlight fragments being ordered by score */ 
+    /** default for highlight fragments being ordered by score */
     public static final boolean DEFAULT_SCORE_ORDERED = false;
     /** the default encoder setting */
     public static final String DEFAULT_ENCODER = "default";
@@ -74,7 +74,7 @@ public class HighlighterParseElement implements SearchParseElement {
     public static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
     /** the default closing tag  */
     public static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
-    
+
     /** the default opening tags when <tt>tag_schema = "styled"</tt>  */
     public static final String[] STYLED_PRE_TAG = {
             "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
@@ -211,7 +211,7 @@ public class HighlighterParseElement implements SearchParseElement {
         return new SearchContextHighlight(fields);
     }
 
-    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+    private static SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
 
         final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();

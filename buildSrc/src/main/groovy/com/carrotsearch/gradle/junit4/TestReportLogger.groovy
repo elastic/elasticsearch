@@ -15,7 +15,14 @@ import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger
 import org.junit.runner.Description
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.Line;
+import javax.sound.sampled.LineEvent;
+import javax.sound.sampled.LineListener;
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
 import static com.carrotsearch.gradle.junit4.TestLoggingConfiguration.OutputMode
@@ -102,7 +109,34 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
                 formatTime(e.getCurrentTime()) + ", stalled for " +
                 formatDurationInSeconds(e.getNoEventDuration()) + " at: " +
                 (e.getDescription() == null ? "<unknown>" : formatDescription(e.getDescription())))
+        try {
+            playBeat();
+        } catch (Exception nosound) { /* handling exceptions with style */ }
         slowTestsFound = true
+    }
+
+    void playBeat() throws Exception {
+        Clip clip = (Clip)AudioSystem.getLine(new Line.Info(Clip.class));
+        final AtomicBoolean stop = new AtomicBoolean();
+        clip.addLineListener(new LineListener() {
+            @Override
+            public void update(LineEvent event) {
+                if (event.getType() == LineEvent.Type.STOP) {
+                    stop.set(true);
+                }
+            }
+        });
+        InputStream stream = getClass().getResourceAsStream("/beat.wav");
+        try {
+            clip.open(AudioSystem.getAudioInputStream(stream));
+            clip.start();
+            while (!stop.get()) {
+                Thread.sleep(20);
+            }
+            clip.close();
+        } finally {
+            stream.close();
+        }
     }
 
     @Subscribe

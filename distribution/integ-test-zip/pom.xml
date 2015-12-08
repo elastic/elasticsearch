@@ -96,6 +96,12 @@
                             </target>
                         </configuration>
                     </execution>
+                    <!-- disable license checker for the integ-test zip, because we in fact contain less stuff -->
+                    <!-- TODO: figure out a scheme to license check test dependencies etc? -->
+                    <execution>
+                        <id>check-license</id>
+                        <phase>none</phase>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>

@@ -24,8 +24,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 
 import java.io.IOException;
 
@@ -88,7 +88,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
-    
+
     /**
      * Set the background filter to compare to. Defaults to the whole index.
      */
@@ -96,7 +96,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.filterBuilder = filter;
         return this;
     }
-    
+
     /**
      * Expert: set the minimum number of documents that a term should match to
      * be retrieved from a shard.
@@ -138,7 +138,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.includeFlags = flags;
         return this;
     }
-    
+
     /**
      * Define a set of terms that should be aggregated.
      */
@@ -148,8 +148,8 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         this.includeTerms = terms;
         return this;
-    }    
-    
+    }
+
     /**
      * Define a set of terms that should be aggregated.
      */
@@ -159,16 +159,16 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         this.includeTerms = longsArrToStringArr(terms);
         return this;
-    }     
-    
+    }
+
     private String[] longsArrToStringArr(long[] terms) {
         String[] termsAsString = new String[terms.length];
         for (int i = 0; i < terms.length; i++) {
             termsAsString[i] = Long.toString(terms[i]);
         }
         return termsAsString;
-    }      
-    
+    }
+
 
     /**
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
@@ -194,7 +194,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.excludeFlags = flags;
         return this;
     }
-    
+
     /**
      * Define a set of terms that should not be aggregated.
      */
@@ -204,9 +204,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         this.excludeTerms = terms;
         return this;
-    }    
-    
-    
+    }
+
+
     /**
      * Define a set of terms that should not be aggregated.
      */
@@ -224,9 +224,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (field != null) {
             builder.field("field", field);
         }
-        bucketCountThresholds.toXContent(builder);
+        bucketCountThresholds.toXContent(builder, params);
         if (executionHint != null) {
-            builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+            builder.field(TermsAggregatorFactory.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         if (includePattern != null) {
             if (includeFlags == 0) {
@@ -241,7 +241,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (includeTerms != null) {
             builder.array("include", includeTerms);
         }
-        
+
         if (excludePattern != null) {
             if (excludeFlags == 0) {
                 builder.field("exclude", excludePattern);
@@ -255,10 +255,10 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (excludeTerms != null) {
             builder.array("exclude", excludeTerms);
         }
-        
+
         if (filterBuilder != null) {
-            builder.field(SignificantTermsParametersParser.BACKGROUND_FILTER.getPreferredName());
-            filterBuilder.toXContent(builder, params); 
+            builder.field(SignificantTermsAggregatorFactory.BACKGROUND_FILTER.getPreferredName());
+            filterBuilder.toXContent(builder, params);
         }
         if (significanceHeuristicBuilder != null) {
             significanceHeuristicBuilder.toXContent(builder, params);

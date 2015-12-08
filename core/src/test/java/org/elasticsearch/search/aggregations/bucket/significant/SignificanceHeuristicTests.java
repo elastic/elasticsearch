@@ -22,11 +22,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -49,10 +52,19 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  *
@@ -118,7 +130,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
-        heuristics.add(JLHScore.INSTANCE);
+        heuristics.add(JLHScore.PROTOTYPE);
         heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
         heuristics.add(new GND(randomBoolean()));
         heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
@@ -218,11 +230,14 @@ public class SignificanceHeuristicTests extends ESTestCase {
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
     }
 
-    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
+    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext,
+            String faultyHeuristicDefinition, String expectedError) throws IOException {
+
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", stParser, searchContext);
             fail();
         } catch (ElasticsearchParseException e) {
             assertTrue(e.getMessage().contains(expectedError));
@@ -238,9 +253,12 @@ public class SignificanceHeuristicTests extends ESTestCase {
         return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
     }
 
-    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, XContentParser stParser) throws IOException {
+    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
+            SearchContext searchContext, XContentParser stParser) throws IOException {
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
         stParser.nextToken();
-        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(
+                heuristicParserMapper, registry).parse("testagg", stParser, searchContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
         assertThat(stParser.currentToken(), equalTo(null));
@@ -356,14 +374,14 @@ public class SignificanceHeuristicTests extends ESTestCase {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
-        testAssertions(PercentageScore.INSTANCE);
-        testAssertions(JLHScore.INSTANCE);
+        testAssertions(PercentageScore.PROTOTYPE);
+        testAssertions(JLHScore.PROTOTYPE);
     }
 
     public void testBasicScoreProperties() {
-        basicScoreProperties(JLHScore.INSTANCE, true);
+        basicScoreProperties(JLHScore.PROTOTYPE, true);
         basicScoreProperties(new GND(true), true);
-        basicScoreProperties(PercentageScore.INSTANCE, true);
+        basicScoreProperties(PercentageScore.PROTOTYPE, true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }

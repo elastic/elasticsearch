@@ -343,7 +343,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected final void doWriteTo(StreamOutput out) throws IOException {
         valuesSourceType.writeTo(out);
         boolean hasTargetValueType = targetValueType != null;
         out.writeBoolean(hasTargetValueType);
@@ -376,7 +376,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<VS> doReadFrom(String name, StreamInput in) throws IOException {
+    protected final ValuesSourceAggregatorFactory<VS> doReadFrom(String name, StreamInput in) throws IOException {
         ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
         ValueType targetValueType = null;
         if (in.readBoolean()) {
@@ -433,7 +433,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public int doHashCode() {
+    public final int doHashCode() {
         return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
                 innerHashCode());
     }
@@ -446,7 +446,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public boolean doEquals(Object obj) {
+    public final boolean doEquals(Object obj) {
         ValuesSourceAggregatorFactory<?> other = (ValuesSourceAggregatorFactory<?>) obj;
         if (!Objects.equals(field, other.field))
             return false;

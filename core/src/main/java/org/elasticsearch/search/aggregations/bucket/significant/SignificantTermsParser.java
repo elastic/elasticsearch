@@ -18,31 +18,43 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
+import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class SignificantTermsParser implements Aggregator.Parser {
-
+public class SignificantTermsParser extends AbstractTermsParser {
     private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
+    private final IndicesQueriesRegistry queriesRegistry;
 
     @Inject
-    public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper) {
+    public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper,
+            IndicesQueriesRegistry queriesRegistry) {
         this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
+        this.queriesRegistry = queriesRegistry;
     }
 
     @Override
@@ -51,39 +63,59 @@ public class SignificantTermsParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        SignificantTermsParametersParser aggParser = new SignificantTermsParametersParser(significanceHeuristicParserMapper);
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
-                .scriptable(false)
-                .formattable(true)
-                .build();
-        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser();
-        aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
-
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if (bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
-            //The user has not made a shardSize selection .
-            //Use default heuristic to avoid any wrong-ranking caused by distributed counting
-            //but request double the usual amount.
-            //We typically need more than the number of "top" terms requested by other aggregations
-            //as the significance algorithm is in less of a position to down-select at shard-level -
-            //some of the things we want to find have only one occurrence on each shard and as
-            // such are impossible to differentiate from non-significant terms at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(), context.numberOfShards()));
+    protected ValuesSourceAggregatorFactory<ValuesSource> doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
+            IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
+        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(aggregationName, valuesSourceType,
+                targetValueType);
+        if (bucketCountThresholds != null) {
+            factory.bucketCountThresholds(bucketCountThresholds);
         }
-
-        bucketCountThresholds.ensureValidity();
-        SignificanceHeuristic significanceHeuristic = aggParser.getSignificanceHeuristic();
-        if (significanceHeuristic == null) {
-            significanceHeuristic = JLHScore.INSTANCE;
+        if (executionHint != null) {
+            factory.executionHint(executionHint);
         }
-        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.input(), bucketCountThresholds,
-                aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
+        if (incExc != null) {
+            factory.includeExclude(incExc);
+        }
+        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorFactory.BACKGROUND_FILTER);
+        if (backgroundFilter != null) {
+            factory.backgroundFilter(backgroundFilter);
+        }
+        SignificanceHeuristic significanceHeuristic = (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregatorFactory.HEURISTIC);
+        if (significanceHeuristic != null) {
+            factory.significanceHeuristic(significanceHeuristic);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
+            String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token == XContentParser.Token.START_OBJECT) {
+            SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
+            if (significanceHeuristicParser != null) {
+                SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(parser, parseFieldMatcher);
+                otherOptions.put(SignificantTermsAggregatorFactory.HEURISTIC, significanceHeuristic);
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorFactory.BACKGROUND_FILTER)) {
+                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
+                queryParseContext.reset(parser);
+                queryParseContext.parseFieldMatcher(parseFieldMatcher);
+                QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                otherOptions.put(SignificantTermsAggregatorFactory.BACKGROUND_FILTER, filter);
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new SignificantTermsAggregatorFactory(null, null, null) };
+    }
+
+    @Override
+    protected BucketCountThresholds getDefaultBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregatorFactory.DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

@@ -79,8 +79,9 @@ public class RestTable {
         if (verbose) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
-                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out);
-                if (col != lastHeader) {
+                boolean isLastColumn = col == lastHeader;
+                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
+                if (!isLastColumn) {
                     out.append(" ");
                 }
             }
@@ -89,8 +90,9 @@ public class RestTable {
         for (int row = 0; row < table.getRows().size(); row++) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
-                pad(table.getAsMap().get(header.name).get(row), width[col], request, out);
-                if (col != lastHeader) {
+                boolean isLastColumn = col == lastHeader;
+                pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
+                if (!isLastColumn) {
                     out.append(" ");
                 }
             }
@@ -240,6 +242,10 @@ public class RestTable {
     }
 
     public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
+      pad(cell, width, request, out, false);
+    }
+
+    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);
@@ -258,8 +264,11 @@ public class RestTable {
             if (sValue != null) {
                 out.append(sValue);
             }
-            for (byte i = 0; i < leftOver; i++) {
-                out.append(" ");
+            // Ignores the leftover spaces if the cell is the last of the column.
+            if (!isLast) {
+                for (byte i = 0; i < leftOver; i++) {
+                    out.append(" ");
+                }
             }
         }
     }

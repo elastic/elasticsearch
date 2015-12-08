@@ -19,7 +19,7 @@
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0  \n$/
 
   - do:
       index:
@@ -72,5 +72,4 @@
   - match:
       $body: |
                /^  epoch  \s+  timestamp          \s+  count  \n
-                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+  \s+  \n  $/
-
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+ \n  $/

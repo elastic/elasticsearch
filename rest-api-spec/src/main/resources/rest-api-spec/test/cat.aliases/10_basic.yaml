@@ -185,6 +185,6 @@
   - match:
       $body: |
             /^
-                index \s+ alias  \s+ \n
+                index \s+ alias \n
                 test  \s+ test_1 \n
             $/

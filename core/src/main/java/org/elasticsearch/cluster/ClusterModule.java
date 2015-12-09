@@ -108,7 +108,6 @@ public class ClusterModule extends AbstractModule {
             SnapshotInProgressAllocationDecider.class));
 
     private final Settings settings;
-    private final Map<String, Setting<?>> clusterDynamicSettings = new HashMap<>();
     private final DynamicSettings.Builder indexDynamicSettings = new DynamicSettings.Builder();
     private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
     private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
@@ -120,7 +119,6 @@ public class ClusterModule extends AbstractModule {
     public ClusterModule(Settings settings) {
         this.settings = settings;
 
-        registerBuiltinClusterSettings();
         registerBuiltinIndexSettings();
 
         for (Class<? extends AllocationDecider> decider : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
@@ -128,12 +126,6 @@ public class ClusterModule extends AbstractModule {
         }
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
-    }
-
-    private void registerBuiltinClusterSettings() {
-        for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
-            registerSetting(setting);
-        }
     }
 
     private void registerBuiltinIndexSettings() {
@@ -204,18 +196,6 @@ public class ClusterModule extends AbstractModule {
         indexDynamicSettings.addSetting(setting, validator);
     }
 
-    public void registerSetting(Setting<?> setting) {
-        switch (setting.getScope()) {
-            case Cluster:
-                if (clusterDynamicSettings.containsKey(setting.getKey())) {
-                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
-                }
-                clusterDynamicSettings.put(setting.getKey(), setting);
-                break;
-            case Index:
-                throw new UnsupportedOperationException("not yet implemented");
-        }
-    }
 
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
         allocationDeciders.registerExtension(allocationDecider);
@@ -261,9 +241,5 @@ public class ClusterModule extends AbstractModule {
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
-        bind(ClusterSettings.class).toInstance(clusterSettings);
-
-
     }
 }

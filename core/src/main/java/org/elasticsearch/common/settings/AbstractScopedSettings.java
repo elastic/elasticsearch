@@ -21,13 +21,11 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
@@ -152,7 +150,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Adds a settings consumer with a predicate that is only evaluated at update time.
      * <p>
-     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> predicate) {
@@ -165,7 +163,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Adds a settings consumer that accepts the values for two settings. The consumer if only notified if one or both settings change.
      * <p>
-     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      * This method registers a compound updater that is useful if two settings are depending on each other. The consumer is always provided
      * with both values even if only one of the two changes.

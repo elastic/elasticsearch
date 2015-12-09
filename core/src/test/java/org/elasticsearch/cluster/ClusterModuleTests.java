@@ -34,9 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.*;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 public class ClusterModuleTests extends ModuleTestCase {
@@ -74,7 +72,8 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
         try {
             module.registerSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
@@ -83,7 +82,8 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSetting() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
         module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }

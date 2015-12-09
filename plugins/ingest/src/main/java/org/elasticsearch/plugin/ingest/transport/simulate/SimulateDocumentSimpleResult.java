@@ -25,17 +25,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
 
-    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult();
+    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())));
 
     private WriteableIngestDocument ingestDocument;
     private Exception failure;
-
-    private SimulateDocumentSimpleResult() {
-        this.ingestDocument = null;
-    }
 
     public SimulateDocumentSimpleResult(IngestDocument ingestDocument) {
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);

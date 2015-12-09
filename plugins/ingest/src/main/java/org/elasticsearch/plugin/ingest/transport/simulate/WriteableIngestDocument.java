@@ -28,18 +28,15 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
 final class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
 
-    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument();
+    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
 
     private final IngestDocument ingestDocument;
-
-    private WriteableIngestDocument() {
-        this.ingestDocument = null;
-    }
 
     WriteableIngestDocument(IngestDocument ingestDocument) {
         assert ingestDocument != null;

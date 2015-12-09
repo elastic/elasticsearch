@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,20 +68,21 @@ import org.elasticsearch.test.ESBackcompatTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -712,5 +714,56 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     private void createIndexWithAlias() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+    }
+
+    public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
+
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                        .startObject("type1")
+                        .startObject("properties")
+                        .startObject("text")
+                        .field("type", "string")
+                        .endObject()
+                        .startObject("loc")
+                        .field("type", "geo_point")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()).setSettings("number_of_shards", 1));
+        ensureYellow();
+
+        int numDocs = 10;
+        String[] ids = new String[numDocs];
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            indexBuilders.add(client().prepareIndex()
+                    .setType("type1").setId(id).setIndex("test")
+                    .setSource(
+                            jsonBuilder().startObject()
+                                    .field("text", "value " + (i < 5 ? "boosted" : ""))
+                                    .startObject("loc")
+                                    .field("lat", 10 + i)
+                                    .field("lon", 20)
+                                    .endObject()
+                                    .field("num_field", 5)
+                                    .endObject()));
+            ids[i] = id;
+        }
+        indexRandom(true, indexBuilders);
+        Map<String, Object> params = new HashMap<>();
+        params.put("param", 5);
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(termQuery("text", "value"))
+                                        .add(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km"))
+                                        .add(fieldValueFactorFunction("num_field"))
+                                        .add(termQuery("text", "boosted"), weightFactorFunction(5))
+                        ))).actionGet();
+        assertSearchResponse(response);
+        assertOrderedSearchHits(response, ids);
     }
 }

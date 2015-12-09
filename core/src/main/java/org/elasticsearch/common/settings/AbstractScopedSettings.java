@@ -155,7 +155,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
      * </p>
      */
-    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Predicate<T> predicate) {
+    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> predicate) {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
@@ -167,6 +167,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * <p>
      * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
      * </p>
+     * This method registers a compound updater that is useful if two settings are depending on each other. The consumer is always provided
+     * with both values even if only one of the two changes.
      */
     public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
         if (a != get(a.getKey())) {
@@ -185,7 +187,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * </p>
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
-       addSettingsUpdateConsumer(setting, consumer, (s) -> true);
+       addSettingsUpdateConsumer(setting, consumer, (s) -> {});
     }
 
     /**
@@ -238,7 +240,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Returns a settings object that contains all clustersettings that are not
+     * Returns a settings object that contains all settings that are not
      * already set in the given source. The diff contains either the default value for each
      * setting or the settings value in the given default settings.
      */

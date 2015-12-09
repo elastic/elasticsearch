@@ -66,7 +66,7 @@ public class ScopedSettingsTests extends ESTestCase {
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);
         AtomicInteger consumer2 = new AtomicInteger();
-        service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> s > 0);
+        service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> assertTrue(s > 0));
 
         AtomicInteger aC = new AtomicInteger();
         AtomicInteger bC = new AtomicInteger();

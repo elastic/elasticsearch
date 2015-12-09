@@ -209,7 +209,7 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY, (s) -> false);
+        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY, (s) -> assertFalse(true));
         try {
             predicateSettingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build());
             fail("not accepted");
@@ -273,10 +273,4 @@ public class SettingTests extends ESTestCase {
         assertEquals(1, c.b.intValue());
 
     }
-
-
-
-
-
-
 }

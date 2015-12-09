@@ -150,10 +150,10 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
-        return newUpdater(consumer, logger, settings, (s) -> true);
+        return newUpdater(consumer, logger, settings, (s) -> {});
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings, Predicate<T> accept) {
+    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings, Consumer<T> accept) {
         if (isDynamic()) {
             return new Updater(consumer, logger, settings, accept);
         } else {
@@ -207,13 +207,13 @@ public class Setting<T> extends ToXContentToBytes {
     private class Updater implements AbstractScopedSettings.SettingUpdater {
         private final Consumer<T> consumer;
         private final ESLogger logger;
-        private final Predicate<T> accept;
+        private final Consumer<T> accept;
         private String value;
         private boolean commitPending;
         private String pendingValue;
         private T valueInstance;
 
-        public Updater(Consumer<T> consumer, ESLogger logger, Settings settings, Predicate<T> accept) {
+        public Updater(Consumer<T> consumer, ESLogger logger, Settings settings,  Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             value = getRaw(settings);
@@ -228,8 +228,10 @@ public class Setting<T> extends ToXContentToBytes {
             }
             if (value.equals(newValue) == false) {
                 T inst = get(settings);
-                if (accept.test(inst) == false) {
-                    throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + getRaw(settings) + "]");
+                try {
+                    accept.accept(inst);
+                } catch (Exception | AssertionError e) {
+                    throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + getRaw(settings) + "]", e);
                 }
                 pendingValue = newValue;
                 valueInstance = inst;
@@ -325,7 +327,7 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater newUpdater(Consumer<Settings> consumer, ESLogger logger, Settings settings, Predicate<Settings> accept) {
+            public AbstractScopedSettings.SettingUpdater newUpdater(Consumer<Settings> consumer, ESLogger logger, Settings settings, Consumer<Settings> accept) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
                 }
@@ -338,8 +340,10 @@ public class Setting<T> extends ToXContentToBytes {
                     public boolean prepareApply(Settings settings) {
                         Settings currentSettings = get(settings);
                         if (currentSettings.equals(committedSettings) == false) {
-                            if (accept.test(currentSettings) == false) {
-                                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + committedSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]");
+                            try {
+                                accept.accept(currentSettings);
+                            } catch (Exception | AssertionError e) {
+                                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + committedSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
                             }
                             pendingSettings = currentSettings;
                             return true;

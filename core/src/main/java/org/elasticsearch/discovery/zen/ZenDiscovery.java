@@ -178,7 +178,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             if (value > masterNodes) {
                 throw new IllegalArgumentException("cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current master nodes count [" + masterNodes + "]");
             }
-            return true;
         });
         clusterSettings.addSettingsUpdateConsumer(REJOIN_ON_MASTER_GONE_SETTING, this::setRejoingOnMasterGone);
 

@@ -252,7 +252,7 @@ public class ThreadPool extends AbstractComponent {
 
     public void setNodeSettingsService(ClusterSettings clusterSettings) {
         if(settingsListenerIsSet.compareAndSet(false, true)) {
-            clusterSettings.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> {validate(s.getAsGroups()); return true;});
+            clusterSettings.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> validate(s.getAsGroups()));
         } else {
             throw new IllegalStateException("the node settings listener was set more then once");
         }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -103,15 +103,9 @@ public class RestIndexAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion());
-                shardInfo.toXContent(builder, request);
-                builder.field(Fields.CREATED, response.isCreated());
+                response.toXContent(builder, request);
                 builder.endObject();
-                RestStatus status = shardInfo.status();
+                RestStatus status = response.getShardInfo().status();
                 if (response.isCreated()) {
                     status = CREATED;
                 }
@@ -119,13 +113,4 @@ public class RestIndexAction extends BaseRestHandler {
             }
         });
     }
-
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
-    }
-
 }

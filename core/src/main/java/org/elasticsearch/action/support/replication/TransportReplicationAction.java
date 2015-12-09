@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilters;
@@ -78,7 +78,7 @@ import java.util.function.Supplier;
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
  */
-public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
     public static final String SHARD_FAILURE_TIMEOUT = "action.support.replication.shard.failure_timeout";
 
@@ -214,7 +214,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return false;
     }
 
-    protected static class WriteResult<T extends ActionWriteResponse> {
+    protected static class WriteResult<T extends ReplicationResponse> {
 
         public final T response;
         public final Translog.Location location;
@@ -225,10 +225,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends ActionWriteResponse> T response() {
+        public <T extends ReplicationResponse> T response() {
             // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
             // request and not use it
-            response.setShardInfo(new ActionWriteResponse.ShardInfo());
+            response.setShardInfo(new ReplicationResponse.ShardInfo());
             return (T) response;
         }
 
@@ -908,20 +908,20 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private void doFinish() {
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
-                final ActionWriteResponse.ShardInfo.Failure[] failuresArray;
+                final ReplicationResponse.ShardInfo.Failure[] failuresArray;
                 if (!shardReplicaFailures.isEmpty()) {
                     int slot = 0;
-                    failuresArray = new ActionWriteResponse.ShardInfo.Failure[shardReplicaFailures.size()];
+                    failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                     for (Map.Entry<String, Throwable> entry : shardReplicaFailures.entrySet()) {
                         RestStatus restStatus = ExceptionsHelper.status(entry.getValue());
-                        failuresArray[slot++] = new ActionWriteResponse.ShardInfo.Failure(
+                        failuresArray[slot++] = new ReplicationResponse.ShardInfo.Failure(
                                 shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
                         );
                     }
                 } else {
-                    failuresArray = ActionWriteResponse.EMPTY;
+                    failuresArray = ReplicationResponse.EMPTY;
                 }
-                finalResponse.setShardInfo(new ActionWriteResponse.ShardInfo(
+                finalResponse.setShardInfo(new ReplicationResponse.ShardInfo(
                                 totalShards,
                                 success.get(),
                                 failuresArray

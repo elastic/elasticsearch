@@ -140,7 +140,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
 
         assert request.versionType().validateVersionForWrites(request.version());
         return new WriteResult<>(
-            new DeleteResponse(indexShard.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found()),
+            new DeleteResponse(indexShard.shardId(), request.type(), request.id(), delete.version(), delete.found()),
             delete.getTranslogLocation());
     }
 

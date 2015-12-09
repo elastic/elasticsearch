@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.update;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -127,34 +127,14 @@ public class RestUpdateAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion());
-
-                shardInfo.toXContent(builder, request);
-                if (response.getGetResult() != null) {
-                    builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
-                    builder.endObject();
-                }
-
+                response.toXContent(builder, request);
                 builder.endObject();
-                RestStatus status = shardInfo.status();
+                RestStatus status = response.getShardInfo().status();
                 if (response.isCreated()) {
                     status = CREATED;
                 }
                 return new BytesRestResponse(status, builder);
             }
         });
-    }
-
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 }

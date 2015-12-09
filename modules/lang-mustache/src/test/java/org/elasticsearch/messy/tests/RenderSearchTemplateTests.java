@@ -22,6 +22,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,7 +32,10 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.support.FileUtils;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +45,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase @ESIntegTestCase.AwaitsFix(bugUrl = "nopush")
+@ESIntegTestCase.SuiteScopeTestCase
 public class RenderSearchTemplateTests extends ESIntegTestCase {
     private static final String TEMPLATE_CONTENTS = "{\"size\":\"{{size}}\",\"query\":{\"match\":{\"foo\":\"{{value}}\"}},\"aggs\":{\"objects\":{\"terms\":{\"field\":\"{{value}}\",\"size\":\"{{size}}\"}}}}";
 
@@ -49,7 +53,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MustachePlugin.class);
     }
-    
+
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "index_template_1", "{ \"template\": " + TEMPLATE_CONTENTS + " }").get();
@@ -57,9 +61,16 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        //Set path so ScriptService will pick up the test scripts
+        Path configDir = createTempDir();
+        Path scriptsDir = configDir.resolve("scripts");
+        try {
+            Files.createDirectories(scriptsDir);
+            Files.write(scriptsDir.resolve("file_template_1.mustache"), TEMPLATE_CONTENTS.getBytes("UTF-8"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getDataPath("config")).build();
+                .put("path.conf", configDir).build();
     }
 
     public void testInlineTemplate() {

@@ -19,16 +19,11 @@
 
 package org.elasticsearch.rest.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -96,52 +91,7 @@ public class RestBulkAction extends BaseRestHandler {
                 builder.startArray(Fields.ITEMS);
                 for (BulkItemResponse itemResponse : response) {
                     builder.startObject();
-                    builder.startObject(itemResponse.getOpType());
-                    builder.field(Fields._INDEX, itemResponse.getIndex());
-                    builder.field(Fields._TYPE, itemResponse.getType());
-                    builder.field(Fields._ID, itemResponse.getId());
-                    long version = itemResponse.getVersion();
-                    if (version != -1) {
-                        builder.field(Fields._VERSION, itemResponse.getVersion());
-                    }
-                    if (itemResponse.isFailed()) {
-                        builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
-                        builder.startObject(Fields.ERROR);
-                        ElasticsearchException.toXContent(builder, request, itemResponse.getFailure().getCause());
-                        builder.endObject();
-                    } else {
-                        ActionWriteResponse.ShardInfo shardInfo = itemResponse.getResponse().getShardInfo();
-                        shardInfo.toXContent(builder, request);
-                        if (itemResponse.getResponse() instanceof DeleteResponse) {
-                            DeleteResponse deleteResponse = itemResponse.getResponse();
-                            if (deleteResponse.isFound()) {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
-                            }
-                            builder.field(Fields.FOUND, deleteResponse.isFound());
-                        } else if (itemResponse.getResponse() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.getResponse();
-                            if (indexResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            }
-                        } else if (itemResponse.getResponse() instanceof UpdateResponse) {
-                            UpdateResponse updateResponse = itemResponse.getResponse();
-                            if (updateResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            }
-                            if (updateResponse.getGetResult() != null) {
-                                builder.startObject(Fields.GET);
-                                updateResponse.getGetResult().toXContentEmbedded(builder, request);
-                                builder.endObject();
-                            }
-                        }
-                    }
-                    builder.endObject();
+                    itemResponse.toXContent(builder, request);
                     builder.endObject();
                 }
                 builder.endArray();
@@ -155,15 +105,7 @@ public class RestBulkAction extends BaseRestHandler {
     static final class Fields {
         static final XContentBuilderString ITEMS = new XContentBuilderString("items");
         static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 
 }

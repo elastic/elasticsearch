@@ -19,7 +19,7 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -117,11 +117,11 @@ public class ShardInfoIT extends ESIntegTestCase {
         }
     }
 
-    private void assertShardInfo(ActionWriteResponse response) {
+    private void assertShardInfo(ReplicationResponse response) {
         assertShardInfo(response, numCopies, numNodes);
     }
 
-    private void assertShardInfo(ActionWriteResponse response, int expectedTotal, int expectedSuccessful) {
+    private void assertShardInfo(ReplicationResponse response, int expectedTotal, int expectedSuccessful) {
         assertThat(response.getShardInfo().getTotal(), greaterThanOrEqualTo(expectedTotal));
         assertThat(response.getShardInfo().getSuccessful(), greaterThanOrEqualTo(expectedSuccessful));
     }

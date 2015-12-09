@@ -560,44 +560,13 @@ class DocumentParser implements Closeable {
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
-            if (numberType == XContentParser.NumberType.INT) {
-                if (context.parser().estimatedNumberType()) {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
-                    if (builder == null) {
-                        builder = MapperBuilders.longField(currentFieldName);
-                    }
-                    return builder;
-                } else {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
-                    if (builder == null) {
-                        builder = MapperBuilders.integerField(currentFieldName);
-                    }
-                    return builder;
-                }
-            } else if (numberType == XContentParser.NumberType.LONG) {
+            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
                     builder = MapperBuilders.longField(currentFieldName);
                 }
                 return builder;
-            } else if (numberType == XContentParser.NumberType.FLOAT) {
-                if (context.parser().estimatedNumberType()) {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
-                    if (builder == null) {
-                        // no templates are defined, we use float by default instead of double
-                        // since this is much more space-efficient and should be enough most of
-                        // the time
-                        builder = MapperBuilders.floatField(currentFieldName);
-                    }
-                    return builder;
-                } else {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
-                    if (builder == null) {
-                        builder = MapperBuilders.floatField(currentFieldName);
-                    }
-                    return builder;
-                }
-            } else if (numberType == XContentParser.NumberType.DOUBLE) {
+            } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
                     // no templates are defined, we use float by default instead of double

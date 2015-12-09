@@ -18,6 +18,10 @@ Commonly used network settings:
 Be careful with network configuration! Never expose an unprotected instance
 to the public internet.
 
+[float]
+[[special-values]]
+=== Special values for `network.host`
+
 [cols="<,<",options="header",]
 |=======================================================================
 |Special Host Value |Description

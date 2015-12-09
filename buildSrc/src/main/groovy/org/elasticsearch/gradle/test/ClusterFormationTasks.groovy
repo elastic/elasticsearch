@@ -525,7 +525,7 @@ class ClusterFormationTasks {
         }
     }
 
-    static String pluginTaskName(String action, String name, String suffix) {
+    public static String pluginTaskName(String action, String name, String suffix) {
         // replace every dash followed by a character with just the uppercase character
         String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
         return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix

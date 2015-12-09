@@ -34,11 +34,12 @@
  * </ul>
  */
 /* List of renames that took place:  
-renamed:    core/src/test/java/org/elasticsearch/index/query/TemplateQueryBuilderTests.java -> modules/lang-mustache/src/test/java/org/elasticsearch/index/query/TemplateQueryBuilderTests.java
 renamed:    core/src/test/java/org/elasticsearch/validate/RenderSearchTemplateIT.java -> modules/lang-mustache/src/test/java/org/elasticsearch/messy/tests/RenderSearchTemplateTests.java
 renamed:    core/src/test/java/org/elasticsearch/search/suggest/SuggestSearchIT.java -> modules/lang-mustache/src/test/java/org/elasticsearch/messy/tests/SuggestSearchTests.java
 renamed:    core/src/test/java/org/elasticsearch/index/query/TemplateQueryParserTests.java -> modules/lang-mustache/src/test/java/org/elasticsearch/messy/tests/TemplateQueryParserTests.java
 renamed:    core/src/test/java/org/elasticsearch/index/query/TemplateQueryIT.java -> modules/lang-mustache/src/test/java/org/elasticsearch/messy/tests/TemplateQueryTests.java
+renamed:    core/src/test/java/org/elasticsearch/transport/ContextAndHeaderTransportIT.java -> module/lang-mustache/src/test/java/org/elasticsearch/messy/tests/ContextAndHeaderTransportTests.java
+  ^^^^^ note: just the methods from this test using mustache were moved here, the others use groovy and are in the groovy module under its messy tests package.
  */
 
 package org.elasticsearch.messy.tests;

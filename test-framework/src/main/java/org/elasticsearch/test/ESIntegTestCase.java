@@ -450,7 +450,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     .setOrder(0)
                     .setSettings(randomSettingsBuilder);
             if (mappings != null) {
-                logger.info("test using _default_ mappings: [{}]", mappings.bytesStream().bytes().toUtf8());
+                logger.info("test using _default_ mappings: [{}]", mappings.bytes().toUtf8());
                 putTemplate.addMapping("_default_", mappings);
             }
             assertAcked(putTemplate.execute().actionGet());

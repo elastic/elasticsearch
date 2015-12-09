@@ -65,17 +65,12 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8));
+        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os);
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(writer));
+        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, filters);
     }
 
     @Override

@@ -169,7 +169,7 @@ public class ThreadPool extends AbstractComponent {
         }
     }
 
-    public static final Setting<Settings> THREADPOOL_GROUP_SETTING = Setting.groupSetting("threadpool.", true, Setting.Scope.Cluster);
+    public static final Setting<Settings> THREADPOOL_GROUP_SETTING = Setting.groupSetting("threadpool.", true, Setting.Scope.CLUSTER);
 
     private volatile Map<String, ExecutorHolder> executors;
 

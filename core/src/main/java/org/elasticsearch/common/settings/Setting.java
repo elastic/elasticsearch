@@ -145,8 +145,8 @@ public class Setting<T> extends ToXContentToBytes {
      * The settings scope - settings can either be cluster settings or per index settings.
      */
     public enum Scope {
-        Cluster,
-        Index;
+        CLUSTER,
+        INDEX;
     }
 
     AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {

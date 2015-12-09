@@ -40,37 +40,37 @@ import java.util.concurrent.TimeUnit;
  */
 public class RecoverySettings extends AbstractComponent implements Closeable {
 
-    public static final Setting<ByteSizeValue> INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.Cluster);
-    public static final Setting<Integer> INDICES_RECOVERY_TRANSLOG_OPS_SETTING = Setting.intSetting("indices.recovery.translog_ops", 1000, true, Setting.Scope.Cluster);
-    public static final Setting<ByteSizeValue> INDICES_RECOVERY_TRANSLOG_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.Cluster);
-    public static final Setting<Boolean> INDICES_RECOVERY_COMPRESS_SETTING = Setting.boolSetting("indices.recovery.compress", true, true, Setting.Scope.Cluster);
-    public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_streams", 3, true, Setting.Scope.Cluster);
-    public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_small_file_streams", 2, true, Setting.Scope.Cluster);
-    public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting("indices.recovery.max_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB), true, Setting.Scope.Cluster);
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> INDICES_RECOVERY_TRANSLOG_OPS_SETTING = Setting.intSetting("indices.recovery.translog_ops", 1000, true, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_TRANSLOG_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> INDICES_RECOVERY_COMPRESS_SETTING = Setting.boolSetting("indices.recovery.compress", true, true, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_streams", 3, true, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_small_file_streams", 2, true, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting("indices.recovery.max_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB), true, Setting.Scope.CLUSTER);
 
     /**
      * how long to wait before retrying after issues cause by cluster state syncing between nodes
      * i.e., local node is not yet known on remote node, remote shard not yet started etc.
      */
-    public static final Setting<TimeValue> INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING = Setting.positiveTimeSetting("indices.recovery.retry_delay_state_sync", TimeValue.timeValueMillis(500), true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING = Setting.positiveTimeSetting("indices.recovery.retry_delay_state_sync", TimeValue.timeValueMillis(500), true, Setting.Scope.CLUSTER);
 
     /** how long to wait before retrying after network related issues */
-    public static final Setting<TimeValue> INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING = Setting.positiveTimeSetting("indices.recovery.retry_delay_network", TimeValue.timeValueSeconds(5), true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING = Setting.positiveTimeSetting("indices.recovery.retry_delay_network", TimeValue.timeValueSeconds(5), true, Setting.Scope.CLUSTER);
 
     /** timeout value to use for requests made as part of the recovery process */
-    public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.recovery.internal_action_timeout", TimeValue.timeValueMinutes(15), true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.recovery.internal_action_timeout", TimeValue.timeValueMinutes(15), true, Setting.Scope.CLUSTER);
 
     /**
      * timeout value to use for requests made as part of the recovery process that are expected to take long time.
      * defaults to twice `indices.recovery.internal_action_timeout`.
      */
-    public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING = Setting.timeSetting("indices.recovery.internal_action_long_timeout", (s) -> TimeValue.timeValueMillis(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(s).millis() * 2).toString(), TimeValue.timeValueSeconds(0), true,  Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING = Setting.timeSetting("indices.recovery.internal_action_long_timeout", (s) -> TimeValue.timeValueMillis(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(s).millis() * 2).toString(), TimeValue.timeValueSeconds(0), true,  Setting.Scope.CLUSTER);
 
     /**
      * recoveries that don't show any activity for more then this interval will be failed.
      * defaults to `indices.recovery.internal_action_long_timeout`
      */
-    public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING = Setting.timeSetting("indices.recovery.recovery_activity_timeout", (s) -> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getRaw(s) , TimeValue.timeValueSeconds(0), true,  Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING = Setting.timeSetting("indices.recovery.recovery_activity_timeout", (s) -> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getRaw(s) , TimeValue.timeValueSeconds(0), true,  Setting.Scope.CLUSTER);
 
     public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb", "SMALL_FILE_CUTOFF_BYTES").bytes();
 

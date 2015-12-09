@@ -45,7 +45,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
-    public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING = Setting.boolSetting("cluster.indices.close.enable", true, true, Setting.Scope.Cluster);
+    public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING = Setting.boolSetting("cluster.indices.close.enable", true, true, Setting.Scope.CLUSTER);
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,

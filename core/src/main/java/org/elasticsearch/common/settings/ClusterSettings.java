@@ -45,7 +45,7 @@ import java.util.*;
 public final class ClusterSettings extends AbstractScopedSettings {
 
     public ClusterSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Setting.Scope.Cluster);
+        super(settings, settingsSet, Setting.Scope.CLUSTER);
     }
 
     /**

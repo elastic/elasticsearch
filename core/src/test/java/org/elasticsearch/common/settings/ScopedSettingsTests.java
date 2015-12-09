@@ -31,8 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testAddConsumer() {
-        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
-        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.Cluster);
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.CLUSTER);
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, Collections.singleton(testSetting));
 
         AtomicInteger consumer = new AtomicInteger();
@@ -59,8 +59,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testApply() {
-        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
-        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.Cluster);
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.CLUSTER);
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
 
         AtomicInteger consumer = new AtomicInteger();
@@ -120,15 +120,15 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testIsDynamic(){
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster), Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.Cluster))));
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER), Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.CLUSTER))));
         assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
         assertTrue(settings.hasDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
     }
 
     public void testDiff() throws IOException {
-        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.Cluster);
-        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
+        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.CLUSTER);
+        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
         assertEquals(diff.getAsMap().size(), 1);

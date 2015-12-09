@@ -41,7 +41,7 @@ import java.util.concurrent.TimeoutException;
  */
 public class MappingUpdatedAction extends AbstractComponent {
 
-    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30), true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
 
     private IndicesAdminClient client;
     private volatile TimeValue dynamicMappingUpdateTimeout;

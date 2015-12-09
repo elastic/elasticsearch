@@ -55,13 +55,13 @@ public class SettingsModule extends AbstractModule {
 
     public void registerSetting(Setting<?> setting) {
         switch (setting.getScope()) {
-            case Cluster:
+            case CLUSTER:
                 if (clusterDynamicSettings.containsKey(setting.getKey())) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 clusterDynamicSettings.put(setting.getKey(), setting);
                 break;
-            case Index:
+            case INDEX:
                 throw new UnsupportedOperationException("not yet implemented");
         }
     }

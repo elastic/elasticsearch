@@ -112,7 +112,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
-    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.Cluster);
+    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
 
 
     private final ThreadPool threadPool;

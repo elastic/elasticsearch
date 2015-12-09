@@ -84,7 +84,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterClusterDynamicSetting() {
         final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
         SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 

@@ -54,13 +54,12 @@ public class TribeUnitTests extends ESTestCase {
     @BeforeClass
     public static void createTribes() {
         Settings baseSettings = Settings.builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put("http.enabled", false)
             .put("node.mode", NODE_MODE)
             .put("path.home", createTempDir()).build();
 
-        tribe1 = NodeBuilder.nodeBuilder().settings(Settings.builder().put(baseSettings).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
-        tribe2 = NodeBuilder.nodeBuilder().settings(Settings.builder().put(baseSettings).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
+        tribe1 = new TribeClientNode(Settings.builder().put(baseSettings).put("cluster.name", "tribe1").put("name", "tribe1_node").build()).start();
+        tribe2 = new TribeClientNode(Settings.builder().put(baseSettings).put("cluster.name", "tribe2").put("name", "tribe2_node").build()).start();
     }
 
     @AfterClass

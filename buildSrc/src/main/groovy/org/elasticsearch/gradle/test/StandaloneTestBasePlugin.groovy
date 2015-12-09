@@ -46,6 +46,8 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
 
         project.eclipse.classpath.sourceSets = [project.sourceSets.test]
         project.eclipse.classpath.plusConfigurations = [project.configurations.testRuntime]
+        project.idea.module.testSourceDirs += project.sourceSets.test.java.srcDirs
+        project.idea.module.scopes['TEST'] = [plus: [project.configurations.testRuntime]]
 
         PrecommitTasks.create(project, false)
         project.check.dependsOn(project.precommit)

@@ -584,7 +584,10 @@ class DocumentParser implements Closeable {
                 if (context.parser().estimatedNumberType()) {
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
-                        builder = MapperBuilders.doubleField(currentFieldName);
+                        // no templates are defined, we use float by default instead of double
+                        // since this is much more space-efficient and should be enough most of
+                        // the time
+                        builder = MapperBuilders.floatField(currentFieldName);
                     }
                     return builder;
                 } else {
@@ -597,7 +600,10 @@ class DocumentParser implements Closeable {
             } else if (numberType == XContentParser.NumberType.DOUBLE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
-                    builder = MapperBuilders.doubleField(currentFieldName);
+                    // no templates are defined, we use float by default instead of double
+                    // since this is much more space-efficient and should be enough most of
+                    // the time
+                    builder = MapperBuilders.floatField(currentFieldName);
                 }
                 return builder;
             }

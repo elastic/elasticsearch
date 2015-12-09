@@ -370,15 +370,6 @@ public abstract class FieldMapper extends Mapper {
             return;
         }
         FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
-        List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
-        fieldType().checkTypeName(fieldMergeWith.fieldType(), subConflicts);
-        if (subConflicts.isEmpty() == false) {
-            // return early if field types don't match
-            assert subConflicts.size() == 1;
-            mergeResult.addConflict(subConflicts.get(0));
-            return;
-        }
-
         multiFields.merge(mergeWith, mergeResult);
 
         if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {

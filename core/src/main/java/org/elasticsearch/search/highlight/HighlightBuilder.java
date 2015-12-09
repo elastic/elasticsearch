@@ -33,11 +33,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions.Builder;
-import org.elasticsearch.search.internal.SearchContext;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,14 +81,14 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     public static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
 
     /** the default opening tags when <tt>tag_schema = "styled"</tt>  */
-    public static final String[] STYLED_PRE_TAG = {
+    public static final String[] DEFAULT_STYLED_PRE_TAG = {
             "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
             "<em class=\"hlt4\">", "<em class=\"hlt5\">", "<em class=\"hlt6\">",
             "<em class=\"hlt7\">", "<em class=\"hlt8\">", "<em class=\"hlt9\">",
             "<em class=\"hlt10\">"
     };
     /** the default closing tags when <tt>tag_schema = "styled"</tt>  */
-    public static final String[] STYLED_POST_TAGS = {"</em>"};
+    public static final String[] DEFAULT_STYLED_POST_TAGS = {"</em>"};
 
     /**
      * a {@link FieldOptions.Builder} with default settings
@@ -181,8 +178,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             postTags(DEFAULT_POST_TAGS);
             break;
         case "styled":
-            preTags(STYLED_PRE_TAG);
-            postTags(STYLED_POST_TAGS);
+            preTags(DEFAULT_STYLED_PRE_TAG);
+            postTags(DEFAULT_STYLED_POST_TAGS);
             break;
         default:
             throw new IllegalArgumentException("Unknown tag schema ["+ schemaName +"]");
@@ -346,15 +343,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return highlightBuilder;
     }
 
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
-        try {
-            context.highlight(build(context.indexShard().getQueryShardContext()));
-        } catch (IllegalArgumentException ex) {
-            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
-        }
-    }
-
-    SearchContextHighlight build(QueryShardContext context) throws IOException {
+    public SearchContextHighlight build(QueryShardContext context) throws IOException {
         // create template global options that are later merged with any partial field options
         final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
         globalOptionsBuilder.encoder(this.encoder);

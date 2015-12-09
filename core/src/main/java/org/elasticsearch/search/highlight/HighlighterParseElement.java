@@ -108,8 +108,8 @@ public class HighlighterParseElement implements SearchParseElement {
                 } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
                     String schema = parser.text();
                     if ("styled".equals(schema)) {
-                        globalOptionsBuilder.preTags(HighlightBuilder.STYLED_PRE_TAG);
-                        globalOptionsBuilder.postTags(HighlightBuilder.STYLED_POST_TAGS);
+                        globalOptionsBuilder.preTags(HighlightBuilder.DEFAULT_STYLED_PRE_TAG);
+                        globalOptionsBuilder.postTags(HighlightBuilder.DEFAULT_STYLED_POST_TAGS);
                     }
                 } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
                     globalOptionsBuilder.highlightFilter(parser.booleanValue());

@@ -36,6 +36,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,6 +50,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
@@ -79,6 +87,8 @@ public class HighlightBuilderTests extends ESTestCase {
         @SuppressWarnings("rawtypes")
         Set<QueryParser> injectedQueryParsers = new HashSet<>();
         injectedQueryParsers.add(new MatchAllQueryParser());
+        injectedQueryParsers.add(new IdsQueryParser());
+        injectedQueryParsers.add(new TermQueryParser());
         indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), injectedQueryParsers, namedWriteableRegistry);
     }
 
@@ -277,7 +287,14 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10));
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, null, indicesQueriesRegistry);
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, null, indicesQueriesRegistry) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+        mockShardContext.setMapUnmappedFieldAsString(true);
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
@@ -338,9 +355,9 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
-        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.STYLED_PRE_TAG,
+        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
-        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.STYLED_POST_TAGS,
+        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
                 highlightBuilder.postTags());
 
         highlightElement = "{\n" +
@@ -423,9 +440,20 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.fragmenter(randomAsciiOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
-            QueryBuilder highlightQuery = new MatchAllQueryBuilder();
+            QueryBuilder highlightQuery;
+            switch (randomInt(2)) {
+            case 0:
+                highlightQuery = new MatchAllQueryBuilder();
+                break;
+            case 1:
+                highlightQuery = new IdsQueryBuilder();
+                break;
+            default:
+            case 2:
+                highlightQuery = new TermQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+                break;
+            }
             highlightQuery.boost((float) randomDoubleBetween(0, 10, false));
-            highlightQuery.queryName(randomAsciiOfLength(10));
             highlightBuilder.highlightQuery(highlightQuery);
         }
         if (randomBoolean()) {

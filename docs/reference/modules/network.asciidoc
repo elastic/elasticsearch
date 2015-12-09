@@ -1,15 +1,52 @@
 [[modules-network]]
-== Network Settings
+== Basic Settings
 
-There are several modules within a Node that use network based
-configuration, for example, the
-<<modules-transport,transport>> and
-<<modules-http,http>> modules. Node level
-network settings allows to set common settings that will be shared among
-all network based modules (unless explicitly overridden in each module).
+Commonly used network settings:
 
-Be careful with host configuration! Never expose an unprotected instance
+[cols="<,<",options="header",]
+|=======================================================================
+|Name |Description
+|`network.host` |Host to bind and publish to other nodes. Can be set to an IP address, hostname, or special value (see table below). Defaults to `_local_`.
+
+|`discovery.zen.ping.unicast.hosts`|Initial list other nodes. Can be set to IP addresses or hostnames. Defaults to `["127.0.0.1", "[::1]"]`.
+
+|`http.port` |Port to bind for incoming http requests. Can be set to a single value or a range. Defaults to `9200-9300`.
+
+|`transport.tcp.port` |Port to bind for communication between nodes. Can be set to a single value or a range. Defaults to `9300-9400`.
+
+Be careful with network configuration! Never expose an unprotected instance
 to the public internet.
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Special Host Value |Description
+|`_[networkInterface]_` |Resolves to the addresses of the provided
+network interface. For example `_en0_`.
+
+|`_local_` |Will be resolved to loopback addresses (e.g. 127.0.0.1)
+
+|`_site_` |Will be resolved to site-local addresses (e.g. 192.168.0.1)
+
+|`_global_` |Will be resolved to globally-scoped addresses (e.g. 8.8.8.8)
+
+These special values will work over both IPv4 and IPv6 by default,
+but you can also limit this with the use of `:ipv4` of `:ipv6` specifiers, for 
+example `_en0:ipv4_` would only bind to the ipv4 addresses of interface `en0`.
+
+|=======================================================================
+
+When the `discovery-ec2` plugin is installed, you can use
+{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].
+
+When the `discovery-gce` plugin is installed, you can use
+{plugins}/discovery-gce-network-host.html[gce specific host settings].
+
+[float]
+[[advanced]]
+=== Advanced network settings
+
+`network.bind_host` and `network.publish_host` can be set instead of `network.host` 
+for advanced cases such as when behind a proxy server.
 
 The `network.bind_host` setting allows to control the host different network
 components will bind on. By default, the bind host will be `_local_`
@@ -21,54 +58,13 @@ Currently an elasticsearch node may be bound to multiple addresses, but only
 publishes one.  If not specified, this defaults to the "best" address from 
 `network.bind_host`, sorted by IPv4/IPv6 stack preference, then by reachability.
 
-The `network.host` setting is a simple setting to automatically set both
-`network.bind_host` and `network.publish_host` to the same host value.
-
 Both settings allows to be configured with either explicit host address(es)
 or host name(s). The settings also accept logical setting value(s) explained
 in the following table:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Logical Host Setting Value |Description
-|`_local_` |Will be resolved to loopback addresses
-
-|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses (e.g. 127.0.0.1)
-
-|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses (e.g. ::1)
-
-|`_site_` |Will be resolved to site-local addresses ("private network")
-
-|`_site:ipv4_` |Will be resolved to site-local IPv4 addresses (e.g. 192.168.0.1)
-
-|`_site:ipv6_` |Will be resolved to site-local IPv6 addresses (e.g. fec0::1)
-
-|`_global_` |Will be resolved to globally-scoped addresses ("publicly reachable")
-
-|`_global:ipv4_` |Will be resolved to globally-scoped IPv4 addresses (e.g. 8.8.8.8)
-
-|`_global:ipv6_` |Will be resolved to globally-scoped IPv6 addresses (e.g. 2001:4860:4860::8888)
-
-|`_[networkInterface]_` |Resolves to the addresses of the provided
-network interface. For example `_en0_`.
-
-|`_[networkInterface]:ipv4_` |Resolves to the ipv4 addresses of the
-provided network interface. For example `_en0:ipv4_`.
-
-|`_[networkInterface]:ipv6_` |Resolves to the ipv6 addresses of the
-provided network interface. For example `_en0:ipv6_`.
-|=======================================================================
-
-When the `discovery-ec2` plugin is installed, you can use
-{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].
-
-When the `discovery-gce` plugin is installed, you can use
-{plugins}/discovery-gce-network-host.html[gce specific host settings].
-
-
 [float]
 [[tcp-settings]]
-=== TCP Settings
+=== Advanced TCP Settings
 
 Any component that uses TCP (like the HTTP, Transport and Memcached)
 share the following allowed settings:
@@ -91,4 +87,15 @@ Defaults to `true` on non-windows machines.
 |`network.tcp.receive_buffer_size` |The size of the tcp receive buffer
 size (in size setting format). By default not explicitly set.
 |=======================================================================
+
+[float]
+[[module-settings]]
+=== Module-specific Settings
+
+There are several modules within a Node that use network based
+configuration, for example, the
+<<modules-transport,transport>> and
+<<modules-http,http>> modules. Node level
+network settings allows to set common settings that will be shared among
+all network based modules (unless explicitly overridden in each module).
 

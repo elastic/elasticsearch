@@ -20,17 +20,19 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements ToXContent {
+public abstract class DocWriteResponse extends ReplicationResponse implements StatusToXContent {
 
     private ShardId shardId;
     private String id;
@@ -83,6 +85,12 @@ public abstract class DocWriteResponse extends ReplicationResponse implements To
     public long getVersion() {
         return this.version;
     }
+
+    /** returns the rest status for this response (based on {@link ShardInfo#status()} */
+    public RestStatus status() {
+        return getShardInfo().status();
+    }
+
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

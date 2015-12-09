@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.delete;
 
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,14 +26,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 
 /**
  *
@@ -62,18 +60,6 @@ public class RestDeleteAction extends BaseRestHandler {
             deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
 
-        client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                result.toXContent(builder, request);
-                builder.endObject();
-                RestStatus status = result.getShardInfo().status();
-                if (!result.isFound()) {
-                    status = NOT_FOUND;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        client.delete(deleteRequest, new RestStatusToXContentListener<>(channel));
     }
 }

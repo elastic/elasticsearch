@@ -21,15 +21,11 @@ package org.elasticsearch.rest.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -109,23 +105,7 @@ public class RestBulkAction extends BaseRestHandler {
                     } else {
                         final DocWriteResponse docResponse = itemResponse.getResponse();
                         docResponse.toXContent(builder, request);
-                        RestStatus status = docResponse.getShardInfo().status();
-                        if (docResponse instanceof DeleteResponse) {
-                            DeleteResponse deleteResponse = (DeleteResponse) docResponse;
-                            if (deleteResponse.isFound() == false) {
-                                status = RestStatus.NOT_FOUND;
-                            }
-                        } else if (docResponse instanceof IndexResponse) {
-                            IndexResponse indexResponse = (IndexResponse) docResponse;
-                            if (indexResponse.isCreated()) {
-                                status = RestStatus.CREATED;
-                            }
-                        } else if (docResponse instanceof UpdateResponse) {
-                            UpdateResponse updateResponse = (UpdateResponse) docResponse;
-                            if (updateResponse.isCreated()) {
-                                status = RestStatus.CREATED;
-                            }
-                        }
+                        RestStatus status = docResponse.status();
                         builder.field(Fields.STATUS, status.getStatus());
                     }
                     builder.endObject();

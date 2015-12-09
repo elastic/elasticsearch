@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -45,6 +45,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -74,6 +76,7 @@ import static org.hamcrest.Matchers.containsString;
  * Test parsing and executing a template request.
  */
 // NOTE: this can't be migrated to ESSingleNodeTestCase because of the custom path.conf
+@ESTestCase.AwaitsFix(bugUrl = "nopush")
 public class TemplateQueryParserTests extends ESTestCase {
 
     private Injector injector;
@@ -89,7 +92,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .build();
         final Client proxy = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
-                new Class[]{Client.class}, (proxy1, method, args) -> {
+                new Class<?>[]{Client.class}, (proxy1, method, args) -> {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
         Index index = new Index("test");

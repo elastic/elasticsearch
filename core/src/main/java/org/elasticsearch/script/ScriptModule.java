@@ -22,9 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,13 +73,6 @@ public class ScriptModule extends AbstractModule {
 
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
-        
-        try {
-            Class.forName("com.github.mustachejava.Mustache");
-            multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
-        }
 
         for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
             multibinder.addBinding().to(scriptEngine).asEagerSingleton();

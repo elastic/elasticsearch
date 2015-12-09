@@ -74,9 +74,6 @@ dependencies {
   compile "com.spatial4j:spatial4j:${versions.spatial4j}", optional
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
-  // templating
-  compile "com.github.spullara.mustache.java:compiler:${versions.mustache}", optional
-
   // logging
   compile "log4j:log4j:${versions.log4j}", optional
   compile "log4j:apache-log4j-extras:${versions.log4j}", optional

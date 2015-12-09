@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.validate;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -25,11 +25,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,10 +41,15 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class RenderSearchTemplateIT extends ESIntegTestCase {
+@ESIntegTestCase.SuiteScopeTestCase @ESIntegTestCase.AwaitsFix(bugUrl = "nopush")
+public class RenderSearchTemplateTests extends ESIntegTestCase {
     private static final String TEMPLATE_CONTENTS = "{\"size\":\"{{size}}\",\"query\":{\"match\":{\"foo\":\"{{value}}\"}},\"aggs\":{\"objects\":{\"terms\":{\"field\":\"{{value}}\",\"size\":\"{{size}}\"}}}}";
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(MustachePlugin.class);
+    }
+    
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "index_template_1", "{ \"template\": " + TEMPLATE_CONTENTS + " }").get();

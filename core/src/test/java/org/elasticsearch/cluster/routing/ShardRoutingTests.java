@@ -99,12 +99,18 @@ public class ShardRoutingTests extends ESTestCase {
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "node1", randomBoolean(), ShardRoutingState.INITIALIZING, 1);
         ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 1, "node1", randomBoolean(), ShardRoutingState.INITIALIZING, 1);
         ShardRouting startedShard0 = new ShardRouting(initializingShard0);
+        assertFalse(startedShard0.isRelocationTarget());
         startedShard0.moveToStarted();
+        assertFalse(startedShard0.isRelocationTarget());
         ShardRouting startedShard1 = new ShardRouting(initializingShard1);
+        assertFalse(startedShard1.isRelocationTarget());
         startedShard1.moveToStarted();
+        assertFalse(startedShard1.isRelocationTarget());
         ShardRouting sourceShard0a = new ShardRouting(startedShard0);
         sourceShard0a.relocate("node2", -1);
+        assertFalse(sourceShard0a.isRelocationTarget());
         ShardRouting targetShard0a = sourceShard0a.buildTargetRelocatingShard();
+        assertTrue(targetShard0a.isRelocationTarget());
         ShardRouting sourceShard0b = new ShardRouting(startedShard0);
         sourceShard0b.relocate("node2", -1);
         ShardRouting sourceShard1 = new ShardRouting(startedShard1);

@@ -42,7 +42,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -131,46 +130,40 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+        final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, result.location);
+        return new Tuple<>(result.response, shardRequest.request);
+    }
+
+    public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
+        return new WriteResult<>(new DeleteResponse(indexShard.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found()), delete.getTranslogLocation());
 
-        processAfter(request, indexShard, delete.getTranslogLocation());
-
-        DeleteResponse response = new DeleteResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), delete.version(), delete.found());
-        return new Tuple<>(response, shardRequest.request);
     }
+
+    public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
+        indexShard.delete(delete);
+        return delete;
+    }
+
 
     @Override
     protected void shardOperationOnReplica(ShardId shardId, DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).shardSafe(shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
-
-        indexShard.delete(delete);
-        processAfter(request, indexShard, delete.getTranslogLocation());
+        Engine.Delete delete = executeDeleteRequestOnReplica(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         return clusterService.operationRouting()
                 .deleteShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    private void processAfter(DeleteRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_delete");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -88,7 +89,7 @@ public class CompositeTestCluster extends TestCluster {
         this.client = new ExternalClient();
         if (size() > 0) {
             logger.debug("Waiting for {} nodes", size());
-            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
+            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).setTimeout(TimeValue.timeValueSeconds(60)).get();
         }
     }
 

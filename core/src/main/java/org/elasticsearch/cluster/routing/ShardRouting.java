@@ -215,7 +215,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     public ShardRouting buildTargetRelocatingShard() {
         assert relocating();
         return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, version, unassignedInfo,
-                AllocationId.newTargetRelocation(allocationId), true, expectedShardSize);
+            AllocationId.newTargetRelocation(allocationId), true, expectedShardSize);
     }
 
     /**
@@ -538,29 +538,36 @@ public final class ShardRouting implements Streamable, ToXContent {
         return b;
     }
 
+    /**
+     * Returns <code>true</code> if this shard is a relocation target for another shard (i.e., was created with {@link #buildTargetRelocatingShard()}
+     */
+    public boolean isRelocationTarget() {
+        return state == ShardRoutingState.INITIALIZING && relocatingNodeId != null;
+    }
+
     /** returns true if the routing is the relocation target of the given routing */
     public boolean isRelocationTargetOf(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && this.state == ShardRoutingState.INITIALIZING &&
-                this.allocationId.getId().equals(other.allocationId.getRelocationId());
+            this.allocationId.getId().equals(other.allocationId.getRelocationId());
 
         assert b == false || other.state == ShardRoutingState.RELOCATING :
-                "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
 
         assert b == false || other.allocationId.getId().equals(this.allocationId.getRelocationId()) :
-                "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
 
         assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
-                "ShardRouting is a relocation target but source current node id isn't equal to target relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but source current node id isn't equal to target relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
-                "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || isSameShard(other) :
-                "ShardRouting is a relocation target but both routings are not of the same shard. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but both routings are not of the same shard. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.primary == other.primary :
-                "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;
     }
@@ -568,26 +575,26 @@ public final class ShardRouting implements Streamable, ToXContent {
     /** returns true if the routing is the relocation source for the given routing */
     public boolean isRelocationSourceOf(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && other.state == ShardRoutingState.INITIALIZING &&
-                other.allocationId.getId().equals(this.allocationId.getRelocationId());
+            other.allocationId.getId().equals(this.allocationId.getRelocationId());
 
         assert b == false || this.state == ShardRoutingState.RELOCATING :
-                "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
 
         assert b == false || this.allocationId.getId().equals(other.allocationId.getRelocationId()) :
-                "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
-                "ShardRouting is a relocation source but current node isn't equal to other's relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but current node isn't equal to other's relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
-                "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
 
         assert b == false || isSameShard(other) :
-                "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
 
         assert b == false || this.primary == other.primary :
-                "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;
     }
@@ -701,14 +708,14 @@ public final class ShardRouting implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .field("state", state())
-                .field("primary", primary())
-                .field("node", currentNodeId())
-                .field("relocating_node", relocatingNodeId())
-                .field("shard", shardId().id())
-                .field("index", shardId().index().name())
-                .field("version", version);
-        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE){
+            .field("state", state())
+            .field("primary", primary())
+            .field("node", currentNodeId())
+            .field("relocating_node", relocatingNodeId())
+            .field("shard", shardId().id())
+            .field("index", shardId().index().name())
+            .field("version", version);
+        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             builder.field("expected_shard_size_in_bytes", expectedShardSize);
         }
         if (restoreSource() != null) {

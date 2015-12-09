@@ -42,7 +42,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,40 +126,34 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     @Override
     protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(MetaData metaData, DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+        final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, result.location);
+        return new Tuple<>(result.response, request);
+    }
+
+    public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
+        return new WriteResult<>(new DeleteResponse(indexShard.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found()), delete.getTranslogLocation());
 
-        processAfter(request, indexShard, delete.getTranslogLocation());
-
-        DeleteResponse response = new DeleteResponse(request.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found());
-        return new Tuple<>(response, request);
     }
+
+    public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
+        indexShard.delete(delete);
+        return delete;
+    }
+
 
     @Override
     protected void shardOperationOnReplica(DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
-
-        indexShard.delete(delete);
-        processAfter(request, indexShard, delete.getTranslogLocation());
-    }
-
-    private void processAfter(DeleteRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_delete");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
+        Engine.Delete delete = executeDeleteRequestOnReplica(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 }

@@ -36,7 +36,7 @@ to the public internet.
 
 These special values will work over both IPv4 and IPv6 by default,
 but you can also limit this with the use of `:ipv4` of `:ipv6` specifiers. For 
-example, `_en0:ipv4_` would only bind to the ipv4 addresses of interface `en0`.
+example, `_en0:ipv4_` would only bind to the IPv4 addresses of interface `en0`.
 
 When the `discovery-ec2` plugin is installed, you can use
 {plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].

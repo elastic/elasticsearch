@@ -21,6 +21,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -71,12 +73,17 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public Object compile(String script) {
-        return Integer.parseInt(script);
+        return script;
     }
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        return null;
+        return new AbstractExecutableScript() {
+            @Override
+            public Object run() {
+                return new BytesArray((String)compiledScript.compiled());
+            }
+        };
     }
 
     @Override

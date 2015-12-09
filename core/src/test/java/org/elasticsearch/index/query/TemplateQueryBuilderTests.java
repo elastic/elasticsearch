@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
-@ESTestCase.AwaitsFix(bugUrl = "nopush")
 public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQueryBuilder> {
 
     /**
@@ -52,7 +51,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public static void setupClass() {
         templateBase = createQuery(getRandom());
     }
-    
+
     static QueryBuilder<?> createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 2)) {
             case 0:
@@ -73,7 +72,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(new Template(templateBase.toString()));
+        return new TemplateQueryBuilder(new Template(templateBase.toString(), ScriptType.INLINE, "mockscript", null, null));
     }
 
     @Override

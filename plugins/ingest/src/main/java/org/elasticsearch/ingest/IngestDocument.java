@@ -467,12 +467,12 @@ public final class IngestDocument {
                 newPath = path.substring(8, path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                newPath = path;
+                if (path.startsWith("_source.")) {
+                    newPath = path.substring(8, path.length());
+                } else {
+                    newPath = path;
+                }
             }
-            if (newPath.startsWith("_source.")) {
-                newPath = newPath.substring(8, path.length());
-            }
-
             this.pathElements = Strings.splitStringToArray(newPath, '.');
             if (pathElements.length == 0) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");

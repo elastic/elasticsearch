@@ -366,6 +366,12 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("_ingest"), equalTo("value"));
     }
 
+    public void testSetIngestSourceObject() {
+        //test that we don't strip out the _source prefix when _ingest is used
+        ingestDocument.setFieldValue("_ingest._source", "value");
+        assertThat(ingestDocument.getIngestMetadata().get("_source"), equalTo("value"));
+    }
+
     public void testSetEmptyPathAfterStrippingOutPrefix() {
         try {
             ingestDocument.setFieldValue("_source.", "value");

@@ -20,8 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 import java.util.*;
 
@@ -330,7 +328,7 @@ public final class IngestDocument {
             if (index < 0 || index >= list.size()) {
                 throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
             }
-            list.add(index, value);
+            list.set(index, value);
             this.sourceModified = true;
         } else {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with parent object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");

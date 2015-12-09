@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -303,10 +302,9 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
-        assertThat(list.size(), equalTo(3));
+        assertThat(list.size(), equalTo(2));
         assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
         assertThat(list.get(1), equalTo("value"));
-        assertThat(list.get(2), nullValue());
     }
 
     public void testSetFieldValueListAsPartOfPath() {

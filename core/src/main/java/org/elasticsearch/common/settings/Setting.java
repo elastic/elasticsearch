@@ -226,10 +226,7 @@ public class Setting<T> extends ToXContentToBytes {
 
 
         public boolean prepareApply(Settings settings) {
-            String newValue = settings.get(key);
-            if (newValue == null) {
-                newValue = getRaw(settings);
-            }
+            final String newValue = getRaw(settings);
             if (value.equals(newValue) == false) {
                 T inst = get(settings);
                 try {

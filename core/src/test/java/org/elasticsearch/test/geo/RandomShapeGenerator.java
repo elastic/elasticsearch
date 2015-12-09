@@ -31,7 +31,6 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.geo.builders.BaseLineStringBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PointCollection;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
 
 import java.util.Random;
@@ -155,7 +155,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link org.elasticsearch.search.geo.GeoShapeIntegrationIT#testShapeFilterWithRandomGeoCollection}
+     * see: {@link GeoShapeQueryTests#testShapeFilterWithRandomGeoCollection}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point
@@ -197,7 +197,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
                 for (int i=0; i<RandomInts.randomIntBetween(r, 1, 10); ++i) {
-                    mlsb.linestring((BaseLineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
+                    mlsb.linestring((LineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
                 }
                 return mlsb;
             case POLYGON:

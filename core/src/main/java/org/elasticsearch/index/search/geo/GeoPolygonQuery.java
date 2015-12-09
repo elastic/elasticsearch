@@ -103,7 +103,7 @@ public class GeoPolygonQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder("GeoPolygonFilter(");
+        StringBuilder sb = new StringBuilder("GeoPolygonQuery(");
         sb.append(indexFieldData.getFieldNames().indexName());
         sb.append(", ").append(Arrays.toString(points)).append(')');
         return sb.toString();

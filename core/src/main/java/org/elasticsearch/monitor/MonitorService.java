@@ -20,13 +20,16 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
 
 /**
  *
@@ -43,16 +46,13 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final FsService fsService;
 
-    @Inject
-    public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
-                          OsService osService, ProcessService processService, JvmService jvmService,
-                          FsService fsService) {
+    public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
         super(settings);
-        this.jvmMonitorService = jvmMonitorService;
-        this.osService = osService;
-        this.processService = processService;
-        this.jvmService = jvmService;
-        this.fsService = fsService;
+        this.jvmMonitorService = new JvmMonitorService(settings, threadPool);
+        this.osService = new OsService(settings);
+        this.processService = new ProcessService(settings);
+        this.jvmService = new JvmService(settings);
+        this.fsService = new FsService(settings, nodeEnvironment);
     }
 
     public OsService osService() {

@@ -54,6 +54,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -102,12 +103,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         QueryCache queryCache,
                         IndexStore indexStore,
                         IndexEventListener eventListener,
-                        IndexModule.IndexSearcherWrapperFactory wrapperFactory) throws IOException {
+                        IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+                        MapperRegistry mapperRegistry) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService);
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
         this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
         this.eventListener = eventListener;
@@ -216,7 +218,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
     }
 
-    public synchronized IndexShard createShard(int sShardId, ShardRouting routing) throws IOException {
+    public synchronized IndexShard createShard(ShardRouting routing) throws IOException {
         final boolean primary = routing.primary();
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -224,10 +226,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
          * keep it synced.
          */
         if (closed.get()) {
-            throw new IllegalStateException("Can't create shard [" + index().name() + "][" + sShardId + "], closed");
+            throw new IllegalStateException("Can't create shard " + routing.shardId() + ", closed");
         }
         final Settings indexSettings = this.indexSettings.getSettings();
-        final ShardId shardId = new ShardId(index(), sShardId);
+        final ShardId shardId = routing.shardId();
         boolean success = false;
         Store store = null;
         IndexShard indexShard = null;
@@ -285,6 +287,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
+            indexShard.updateRoutingEntry(routing, true);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;

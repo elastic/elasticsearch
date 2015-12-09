@@ -35,7 +35,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -169,8 +168,8 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         try {
             client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtlDisabled).setType("type").get();
             fail();
-        } catch (MergeMappingException mme) {
-            assertThat(mme.getDetailedMessage(), containsString("_ttl cannot be disabled once it was enabled."));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("_ttl cannot be disabled once it was enabled."));
         }
         GetMappingsResponse mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
         assertThat(mappingsBeforeUpdateResponse.getMappings().get("testindex").get("type").source(), equalTo(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").source()));
@@ -295,7 +294,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         request.process(MetaData.builder().build(), mappingMetaData, true, "test");
 
         // _ttl in a document never worked, so backcompat is ignoring the field
-        assertEquals(-1, request.ttl());
+        assertNull(request.ttl());
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 

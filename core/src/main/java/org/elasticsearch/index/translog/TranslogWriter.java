@@ -123,9 +123,9 @@ public class TranslogWriter extends TranslogReader {
      * add the given bytes to the translog and return the location they were written at
      */
     public Translog.Location add(BytesReference data) throws IOException {
-        ensureOpen();
         final long position;
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             position = writtenOffset;
             data.writeTo(channel);
             writtenOffset = writtenOffset + data.length();
@@ -200,9 +200,9 @@ public class TranslogWriter extends TranslogReader {
      * returns a new immutable reader which only exposes the current written operation *
      */
     public ImmutableTranslogReader immutableReader() throws TranslogException {
-        ensureOpen();
         if (channelReference.tryIncRef()) {
             try (ReleasableLock lock = writeLock.acquire()) {
+                ensureOpen();
                 flush();
                 ImmutableTranslogReader reader = new ImmutableTranslogReader(this.generation, channelReference, firstOperationOffset, writtenOffset, operationCounter);
                 channelReference.incRef(); // for new reader

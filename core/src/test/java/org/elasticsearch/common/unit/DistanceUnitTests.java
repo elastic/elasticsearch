@@ -57,4 +57,20 @@ public class DistanceUnitTests extends ESTestCase {
             assertThat("Value can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
         }
     }
+
+    /**
+     * This test ensures that we are aware of accidental reordering in the distance unit ordinals,
+     * since equality in e.g. CircleShapeBuilder, hashCode and serialization rely on them
+     */
+    public void testDistanceUnitNames() {
+        assertEquals(0, DistanceUnit.INCH.ordinal());
+        assertEquals(1, DistanceUnit.YARD.ordinal());
+        assertEquals(2, DistanceUnit.FEET.ordinal());
+        assertEquals(3, DistanceUnit.KILOMETERS.ordinal());
+        assertEquals(4, DistanceUnit.NAUTICALMILES.ordinal());
+        assertEquals(5, DistanceUnit.MILLIMETERS.ordinal());
+        assertEquals(6, DistanceUnit.CENTIMETERS.ordinal());
+        assertEquals(7, DistanceUnit.MILES.ordinal());
+        assertEquals(8, DistanceUnit.METERS.ordinal());
+    }
 }

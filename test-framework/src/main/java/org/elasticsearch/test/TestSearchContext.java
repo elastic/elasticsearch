@@ -651,7 +651,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public Set<String> getHeaders() {
-        return Collections.EMPTY_SET;
+        return Collections.emptySet();
     }
 
     @Override

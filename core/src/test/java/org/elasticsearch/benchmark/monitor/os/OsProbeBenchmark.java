@@ -19,10 +19,12 @@
 
 package org.elasticsearch.benchmark.monitor.os;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.monitor.os.OsProbe;
 
+@SuppressForbidden(reason = "not really source code or a test")
 public class OsProbeBenchmark {
 
     private static final int ITERATIONS = 100_000;
@@ -41,11 +43,9 @@ public class OsProbeBenchmark {
             probe.getTotalSwapSpaceSize();
             probe.getFreeSwapSpaceSize();
             probe.getSystemLoadAverage();
+            probe.getSystemCpuPercent();
         }
         logger.info("--> warmed up");
-
-
-
 
         logger.info("--> testing 'getTotalPhysicalMemorySize' method...");
         long start = System.currentTimeMillis();
@@ -83,6 +83,14 @@ public class OsProbeBenchmark {
         start = System.currentTimeMillis();
         for (int i = 0; i < ITERATIONS; i++) {
             probe.getSystemLoadAverage();
+        }
+        elapsed = System.currentTimeMillis() - start;
+        logger.info("--> total [{}] ms, avg [{}] ms", elapsed, (elapsed / (double)ITERATIONS));
+
+        logger.info("--> testing 'getSystemCpuPercent' method...");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < ITERATIONS; i++) {
+            probe.getSystemCpuPercent();
         }
         elapsed = System.currentTimeMillis() - start;
         logger.info("--> total [{}] ms, avg [{}] ms", elapsed, (elapsed / (double)ITERATIONS));

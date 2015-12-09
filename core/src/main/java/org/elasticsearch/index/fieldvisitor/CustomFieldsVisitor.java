@@ -19,22 +19,32 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
- * A field visitor that allows to load a selection of the stored fields.
+ * A field visitor that allows to load a selection of the stored fields by exact name or by pattern.
+ * Supported pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy".
  * The Uid field is always loaded.
  * The class is optimized for source loading as it is a common use case.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
 
     private final Set<String> fields;
+    private final List<String> patterns;
 
-    public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
+    public CustomFieldsVisitor(Set<String> fields, List<String> patterns, boolean loadSource) {
         super(loadSource);
         this.fields = fields;
+        this.patterns = patterns;
+    }
+
+    public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
+        this(fields, Collections.emptyList(), loadSource);
     }
 
     @Override
@@ -42,7 +52,14 @@ public class CustomFieldsVisitor extends FieldsVisitor {
         if (super.needsField(fieldInfo) == Status.YES) {
             return Status.YES;
         }
-
-        return fields.contains(fieldInfo.name) ? Status.YES : Status.NO;
+        if (fields.contains(fieldInfo.name)) {
+            return Status.YES;
+        }
+        for (String pattern : patterns) {
+            if (Regex.simpleMatch(pattern, fieldInfo.name)) {
+                return Status.YES;
+            }
+        }
+        return Status.NO;
     }
 }

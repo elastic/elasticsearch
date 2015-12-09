@@ -188,7 +188,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     private static Predicate<ShardRouting> ACTIVE_PREDICATE = shardRouting -> shardRouting.active();
     private static Predicate<ShardRouting> ASSIGNED_PREDICATE = shardRouting -> shardRouting.assignedToNode();
 
-    // TODO: replace with JDK 8 native java.util.function.Predicate
     private GroupShardsIterator allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets, Predicate<ShardRouting> predicate) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
@@ -222,7 +221,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, true);
     }
 
-    // TODO: replace with JDK 8 native java.util.function.Predicate
     private ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate, boolean includeRelocationTargets) {
         // use list here since we need to maintain identity across shards
         List<ShardRouting> shards = new ArrayList<>();
@@ -316,12 +314,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         public RoutingTableDiff(RoutingTable before, RoutingTable after) {
             version = after.version;
-            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting);
+            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting, DiffableUtils.getStringKeySerializer());
         }
 
         public RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
-            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, IndexRoutingTable.PROTO);
+            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable.PROTO);
         }
 
         @Override

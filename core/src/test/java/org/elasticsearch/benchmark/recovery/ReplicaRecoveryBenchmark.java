@@ -23,6 +23,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +47,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 /**
  *
  */
+@SuppressForbidden(reason = "not really source code or a test")
 public class ReplicaRecoveryBenchmark {
 
     private static final String INDEX_NAME = "index";

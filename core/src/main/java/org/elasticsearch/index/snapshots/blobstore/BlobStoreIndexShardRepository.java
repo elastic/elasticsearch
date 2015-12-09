@@ -191,7 +191,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
-                throw new IndexShardSnapshotFailedException(shardId, e.getMessage(), e);
+                throw new IndexShardSnapshotFailedException(shardId, e);
             }
         }
     }
@@ -373,7 +373,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             } catch (IOException e) {
                 // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
                 // with references to non-existing files
-                throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup, reason: " + e.getMessage(), e);
+                throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup", e);
             }
 
             blobsToDelete = new ArrayList<>();

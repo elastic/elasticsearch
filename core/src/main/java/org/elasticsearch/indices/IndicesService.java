@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
@@ -91,13 +92,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
+    private final MapperRegistry mapperRegistry;
 
     @Override
     protected void doStart() {
     }
 
     @Inject
-    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry, IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
+            NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry,
+            IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+            ClusterService clusterService, MapperRegistry mapperRegistry) {
         super(settings);
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -107,6 +112,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.mapperRegistry = mapperRegistry;
         nodeSettingsService.addListener(indexStoreConfig);
     }
 
@@ -258,7 +264,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         final String indexName = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST, indexNameMatcher);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList(), indexNameMatcher);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
@@ -277,7 +283,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indexModule.addIndexEventListener(oldShardsStats);
         final IndexEventListener listener = indexModule.freeze();
         listener.beforeIndexCreated(index, idxSettings.getSettings());
-        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider);
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry);
         boolean success = false;
         try {
             assert indexService.getIndexEventListener() == listener;
@@ -455,7 +461,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     /**
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
-     * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
+     * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
@@ -523,18 +529,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * </ul>
      *
      * @param shardId the shard to delete.
-     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
-    public boolean canDeleteShardContent(ShardId shardId, IndexMetaData metaData) {
-        // we need the metadata here since we have to build the complete settings
-        // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
-        // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
-        assert shardId.getIndex().equals(metaData.getIndex());
-        final IndexSettings indexSettings = buildIndexSettings(metaData);
-        return canDeleteShardContent(shardId, indexSettings);
-    }
-
-    private boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+    public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+        assert shardId.getIndex().equals(indexSettings.getIndex().name());
         final IndexService indexService = this.indices.get(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {
@@ -556,7 +554,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         // play safe here and make sure that we take node level settings into account.
         // we might run on nodes where we use shard FS and then in the future don't delete
         // actual content.
-        return new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
+        return new IndexSettings(metaData, settings, Collections.emptyList());
     }
 
     /**
@@ -643,7 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
@@ -695,14 +693,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                     if (remove.isEmpty() == false) {
                         logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
-                        try {
-                            Thread.sleep(sleepTime);
-                            sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
-                            logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
-                        } catch (InterruptedException e) {
-                            Thread.interrupted();
-                            return;
-                        }
+                        Thread.sleep(sleepTime);
+                        sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
+                        logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
                 } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }

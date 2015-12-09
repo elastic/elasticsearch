@@ -129,11 +129,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     };
 
 
-
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
      * a non-null {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}. If the generation is null this method
      * us destructive and will delete all files in the translog path given.
+     *
      * @see TranslogConfig#getTranslogPath()
      */
     public Translog(TranslogConfig config) throws IOException {
@@ -141,7 +141,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.config = config;
         TranslogGeneration translogGeneration = config.getTranslogGeneration();
 
-        if (translogGeneration == null ||  translogGeneration.translogUUID == null) { // legacy case
+        if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
             translogUUID = Strings.randomBase64UUID();
         } else {
             translogUUID = translogGeneration.translogUUID;
@@ -166,7 +166,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(checkpoint.generation + 1);
                 this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
             } else {
-                this.recoveredTranslogs = Collections.EMPTY_LIST;
+                this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
@@ -190,6 +190,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         boolean success = false;
         ArrayList<ImmutableTranslogReader> foundTranslogs = new ArrayList<>();
         final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX); // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
+        boolean tempFileRenamed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
@@ -215,6 +216,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
                 IOUtils.fsync(tempFile, false);
                 Files.move(tempFile, commitCheckpoint, StandardCopyOption.ATOMIC_MOVE);
+                tempFileRenamed = true;
                 // we only fsync the directory the tempFile was already fsynced
                 IOUtils.fsync(commitCheckpoint.getParent(), true);
             }
@@ -223,10 +225,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (success == false) {
                 IOUtils.closeWhileHandlingException(foundTranslogs);
             }
-            try {
-                Files.delete(tempFile);
-            } catch (IOException ex) {
-                logger.warn("failed to delete temp file {}", ex, tempFile);
+            if (tempFileRenamed == false) {
+                try {
+                    Files.delete(tempFile);
+                } catch (IOException ex) {
+                    logger.warn("failed to delete temp file {}", ex, tempFile);
+                }
             }
         }
         return foundTranslogs;
@@ -253,7 +257,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Extracts the translog generation from a file name.
      *
-     * @throw IllegalArgumentException if the path doesn't match the expected pattern.
+     * @throws IllegalArgumentException if the path doesn't match the expected pattern.
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();
@@ -347,7 +351,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-
     TranslogWriter createWriter(long fileGeneration) throws IOException {
         TranslogWriter newFile;
         try {
@@ -404,6 +407,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
                 Location location = current.add(bytes);
                 if (config.isSyncOnEachOperation()) {
                     current.sync();
@@ -411,6 +415,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert current.assertBytesAtLocation(location, bytes);
                 return location;
             }
+        } catch (AlreadyClosedException ex) {
+            throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
@@ -508,6 +514,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Ensures that the given location has be synced / written to the underlying storage.
+     *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
     public boolean ensureSynced(Location location) throws IOException {
@@ -575,7 +582,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * and updated with any future translog.
      */
     public static final class View implements Closeable {
-        public static final Translog.View EMPTY_VIEW = new View(Collections.EMPTY_LIST, null);
+        public static final Translog.View EMPTY_VIEW = new View(Collections.emptyList(), null);
 
         boolean closed;
         // last in this list is always FsTranslog.current
@@ -749,13 +756,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Location location = (Location) o;
 
-            if (generation != location.generation) return false;
-            if (translogLocation != location.translogLocation) return false;
+            if (generation != location.generation) {
+                return false;
+            }
+            if (translogLocation != location.translogLocation) {
+                return false;
+            }
             return size == location.size;
 
         }
@@ -1089,7 +1104,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public Source getSource(){
+        public Source getSource() {
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -1198,7 +1213,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // to prevent this unfortunately.
                 in.mark(opSize);
 
-                in.skip(opSize-4);
+                in.skip(opSize - 4);
                 verifyChecksum(in);
                 in.reset();
             }
@@ -1250,7 +1265,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeByte(op.opType().id());
         op.writeTo(out);
         long checksum = out.getChecksum();
-        out.writeInt((int)checksum);
+        out.writeInt((int) checksum);
     }
 
     /**
@@ -1273,8 +1288,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void prepareCommit() throws IOException {
-        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog != null) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
@@ -1306,9 +1321,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void commit() throws IOException {
-        ensureOpen();
         ImmutableTranslogReader toClose = null;
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog == null) {
                 prepareCommit();
             }

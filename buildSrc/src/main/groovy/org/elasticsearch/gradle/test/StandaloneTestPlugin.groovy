@@ -25,11 +25,11 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
 
-/** Configures the build to have only unit tests.  */
-class StandaloneTestPlugin implements Plugin<Project> {
+/** A plugin to add tests only. Used for QA tests that run arbitrary unit tests. */
+public class StandaloneTestPlugin implements Plugin<Project> {
 
     @Override
-    void apply(Project project) {
+    public void apply(Project project) {
         project.pluginManager.apply(StandaloneTestBasePlugin)
 
         Map testOptions = [
@@ -41,10 +41,9 @@ class StandaloneTestPlugin implements Plugin<Project> {
         ]
         RandomizedTestingTask test = project.tasks.create(testOptions)
         test.configure(BuildPlugin.commonTestConfig(project))
-        test.configure {
-            classpath = project.sourceSets.test.runtimeClasspath
-            testClassesDir project.sourceSets.test.output.classesDir
-        }
+        test.classpath = project.sourceSets.test.runtimeClasspath
+        test.testClassesDir project.sourceSets.test.output.classesDir
+        test.mustRunAfter(project.precommit)
         project.check.dependsOn(test)
     }
 }

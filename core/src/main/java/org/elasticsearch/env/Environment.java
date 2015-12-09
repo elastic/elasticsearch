@@ -58,6 +58,8 @@ public class Environment {
 
     private final Path pluginsFile;
 
+    private final Path modulesFile;
+
     private final Path sharedDataFile;
 
     /** location of bin/, used by plugin manager */
@@ -157,6 +159,7 @@ public class Environment {
 
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
+        modulesFile = homeFile.resolve("modules");
     }
 
     /**
@@ -273,6 +276,10 @@ public class Environment {
 
     public Path libFile() {
         return libFile;
+    }
+
+    public Path modulesFile() {
+        return modulesFile;
     }
 
     public Path logsFile() {

@@ -199,10 +199,10 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
+        builder.field(HasParentQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field("parent_type", type);
-        builder.field("score", score);
+        builder.field(HasParentQueryParser.TYPE_FIELD.getPreferredName(), type);
+        builder.field(HasParentQueryParser.SCORE_FIELD.getPreferredName(), score);
         printBoostAndQueryName(builder);
         if (innerHit != null) {
            innerHit.toXContent(builder, params);

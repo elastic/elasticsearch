@@ -154,7 +154,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public Map<String, BoundTransportAddress> profileBoundAddresses() {
-        return Collections.EMPTY_MAP;
+        return Collections.emptyMap();
     }
 
     @Override

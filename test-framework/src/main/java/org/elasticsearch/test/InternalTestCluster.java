@@ -910,7 +910,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
         super.beforeTest(random, transportClientRatio);
         reset(true);
     }

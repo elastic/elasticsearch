@@ -48,6 +48,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -107,9 +108,10 @@ public class CodecTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_na"), nodeSettings);
-        SimilarityService similarityService = new SimilarityService(settings, Collections.EMPTY_MAP);
+        SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(settings);
-        MapperService service = new MapperService(settings, analysisService, similarityService);
+        MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
+        MapperService service = new MapperService(settings, analysisService, similarityService, mapperRegistry);
         return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 

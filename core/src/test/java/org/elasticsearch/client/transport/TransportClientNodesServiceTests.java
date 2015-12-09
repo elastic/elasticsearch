@@ -63,7 +63,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transport = new FailAndRetryMockTransport<TestResponse>(getRandom()) {
                 @Override
                 public List<String> getLocalAddresses() {
-                    return Collections.EMPTY_LIST;
+                    return Collections.emptyList();
                 }
 
                 @Override

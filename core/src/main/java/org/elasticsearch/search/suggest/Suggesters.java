@@ -35,7 +35,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     private final Map<String, Suggester> parsers;
 
     public Suggesters() {
-        this(Collections.EMPTY_MAP);
+        this(Collections.emptyMap());
     }
 
     public Suggesters(Map<String, Suggester> suggesters) {

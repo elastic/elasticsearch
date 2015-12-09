@@ -22,13 +22,13 @@ package org.elasticsearch.mapper.attachments;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -48,8 +48,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
     }
 
@@ -87,14 +86,12 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testExternalValues() throws Exception {
         String originalText = "This is an elasticsearch mapper attachment test.";
-        String contentType = "text/plain; charset=ISO-8859-1";
         String forcedName = "dummyname.txt";
 
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
-        mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
@@ -110,9 +107,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 
@@ -133,9 +130,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 

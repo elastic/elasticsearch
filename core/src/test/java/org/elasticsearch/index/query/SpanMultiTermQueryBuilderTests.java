@@ -92,4 +92,27 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
         assertThat(query, instanceOf(SpanQuery.class));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_multi\" : {\n" + 
+                "    \"match\" : {\n" + 
+                "      \"prefix\" : {\n" + 
+                "        \"user\" : {\n" + 
+                "          \"value\" : \"ki\",\n" + 
+                "          \"boost\" : 1.08\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki", ((PrefixQueryBuilder) parsed.innerQuery()).value());
+        assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
+    }
 }

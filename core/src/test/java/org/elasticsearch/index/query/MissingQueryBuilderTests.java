@@ -85,4 +85,23 @@ public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQuery
             assertThat(e.getMessage(), containsString("missing must have either existence, or null_value"));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+            "{\n" + 
+                "  \"missing\" : {\n" + 
+                "    \"field\" : \"user\",\n" + 
+                "    \"null_value\" : false,\n" + 
+                "    \"existence\" : true,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        MissingQueryBuilder parsed = (MissingQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, false, parsed.nullValue());
+        assertEquals(json, true, parsed.existence());
+        assertEquals(json, "user", parsed.fieldPattern());
+    }
 }

@@ -31,12 +31,13 @@ import java.util.List;
 
 public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
+
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.field(FIELD_COORDINATES);
         super.coordinatesToXcontent(builder, false);
         builder.endObject();

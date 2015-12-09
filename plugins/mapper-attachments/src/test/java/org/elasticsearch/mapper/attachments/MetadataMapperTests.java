@@ -21,11 +21,11 @@ package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import java.io.IOException;
 
@@ -44,8 +44,7 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
                                              .put(this.testSettings)
                                              .put(otherSettings)
                                              .build();
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings).documentMapperParser();
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/metadata/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
@@ -70,8 +69,12 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.author").fieldType().names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
-        assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), is(expectedLength));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("text/html;"));
+        if (expectedLength == null) {
+          assertNull(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue());
+        } else {
+          assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), greaterThan(0L));
+        }
     }
 
     public void testIgnoreWithoutDate() throws Exception {

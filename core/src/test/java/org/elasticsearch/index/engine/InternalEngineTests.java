@@ -75,6 +75,8 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -1615,7 +1617,7 @@ public class InternalEngineTests extends ESTestCase {
         // now it should be OK.
         IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
                 Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build(),
-                Collections.EMPTY_LIST);
+                Collections.emptyList());
         engine = createEngine(indexSettings, store, primaryTranslogDir, new MergeSchedulerConfig(indexSettings), newMergePolicy());
     }
 
@@ -1899,11 +1901,12 @@ public class InternalEngineTests extends ESTestCase {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
-            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService);
+            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+            MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
+            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(indexSettings, mapperService, analysisService, similarityService);
+            DocumentMapperParser parser = mapperService.documentMapperParser();
             this.docMapper = b.build(mapperService, parser);
         }
 

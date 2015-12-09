@@ -63,6 +63,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -351,10 +352,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         internalRequest.concreteIndex(shardId.index().name());
         Releasable reference = getOrCreateIndexShardOperationsCounter();
         assertIndexShardCounter(2);
+        // TODO: set a default timeout
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener, reference);
+                        primaryShard, internalRequest, listener, reference, null);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -368,10 +370,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         int pending = replicationPhase.pending();
         int criticalFailures = 0; // failures that should fail the shard
         int successful = 1;
+        List<CapturingTransport.CapturedRequest> failures = new ArrayList<>();
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
             if (randomBoolean()) {
                 Throwable t;
-                if (randomBoolean()) {
+                boolean criticalFailure = randomBoolean();
+                if (criticalFailure) {
                     t = new CorruptIndexException("simulated", (String) null);
                     criticalFailures++;
                 } else {
@@ -379,6 +383,14 @@ public class TransportReplicationActionTests extends ESTestCase {
                 }
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
                 transport.handleResponse(capturedRequest.requestId, t);
+                if (criticalFailure) {
+                    CapturingTransport.CapturedRequest[] shardFailedRequests = transport.capturedRequests();
+                    transport.clear();
+                    assertEquals(1, shardFailedRequests.length);
+                    CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
+                    failures.add(shardFailedRequest);
+                    transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                }
             } else {
                 successful++;
                 transport.handleResponse(capturedRequest.requestId, TransportResponse.Empty.INSTANCE);
@@ -395,7 +407,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(shardInfo.getSuccessful(), equalTo(successful));
         assertThat(shardInfo.getTotal(), equalTo(totalShards));
 
-        assertThat("failed to see enough shard failures", transport.capturedRequests().length, equalTo(criticalFailures));
+        assertThat("failed to see enough shard failures", failures.size(), equalTo(criticalFailures));
         for (CapturingTransport.CapturedRequest capturedRequest : transport.capturedRequests()) {
             assertThat(capturedRequest.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
         }
@@ -464,9 +476,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         primaryPhase = action.new PrimaryPhase(request, listener);
         primaryPhase.run();
         assertIndexShardCounter(2);
-        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest[] replicationRequests = transport.capturedRequests();
+        transport.clear();
+        assertThat(replicationRequests.length, equalTo(1));
         // try with failure response
-        transport.handleResponse(transport.capturedRequests()[0].requestId, new CorruptIndexException("simulated", (String) null));
+        transport.handleResponse(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
+        CapturingTransport.CapturedRequest[] shardFailedRequests = transport.capturedRequests();
+        transport.clear();
+        assertEquals(1, shardFailedRequests.length);
+        transport.handleResponse(shardFailedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
         assertIndexShardCounter(1);
     }
 

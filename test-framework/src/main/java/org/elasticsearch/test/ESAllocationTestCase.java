@@ -25,10 +25,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -36,16 +39,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.ReplicaShardAllocator;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -56,32 +58,32 @@ import static org.hamcrest.CoreMatchers.is;
  */
 public abstract class ESAllocationTestCase extends ESTestCase {
 
-    public static AllocationService createAllocationService() {
+    public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
     }
 
-    public static AllocationService createAllocationService(Settings settings) {
+    public static MockAllocationService createAllocationService(Settings settings) {
         return createAllocationService(settings, getRandom());
     }
 
-    public static AllocationService createAllocationService(Settings settings, Random random) {
+    public static MockAllocationService createAllocationService(Settings settings, Random random) {
         return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
-    public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, nodeSettingsService, random),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
-    public static AllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
     }
 
-    public static AllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
                 new ShardsAllocators(settings, allocator), EmptyClusterInfoService.INSTANCE);
     }
@@ -177,6 +179,62 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
             return decision;
+        }
+    }
+
+    /** A lock {@link AllocationService} allowing tests to override time */
+    protected static class MockAllocationService extends AllocationService {
+
+        private Long nanoTimeOverride = null;
+
+        public MockAllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService) {
+            super(settings, allocationDeciders, shardsAllocators, clusterInfoService);
+        }
+
+        public void setNanoTimeOverride(long nanoTime) {
+            this.nanoTimeOverride = nanoTime;
+        }
+
+        @Override
+        protected long currentNanoTime() {
+            return nanoTimeOverride == null ? super.currentNanoTime() : nanoTimeOverride;
+        }
+    }
+
+    /**
+     * Mocks behavior in ReplicaShardAllocator to remove delayed shards from list of unassigned shards so they don't get reassigned yet.
+     */
+    protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
+        private final ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator(Settings.EMPTY) {
+            @Override
+            protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return new AsyncShardFetch.FetchResult<>(shard.shardId(), null, Collections.<String>emptySet(), Collections.<String>emptySet());
+            }
+        };
+
+
+        public DelayedShardsMockGatewayAllocator() {
+            super(Settings.EMPTY, null, null);
+        }
+
+        @Override
+        public void applyStartedShards(StartedRerouteAllocation allocation) {}
+
+        @Override
+        public void applyFailedShards(FailedRerouteAllocation allocation) {}
+
+        @Override
+        public boolean allocateUnassigned(RoutingAllocation allocation) {
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
+            boolean changed = false;
+            while (unassignedIterator.hasNext()) {
+                ShardRouting shard = unassignedIterator.next();
+                if (shard.primary() || shard.allocatedPostIndexCreate() == false) {
+                    continue;
+                }
+                changed |= replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);
+            }
+            return changed;
         }
     }
 }

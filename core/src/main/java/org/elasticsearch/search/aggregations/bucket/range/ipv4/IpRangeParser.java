@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
+import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -124,13 +126,15 @@ public class IpRangeParser implements Aggregator.Parser {
     }
 
     private static void parseMaskRange(String cidr, RangeAggregator.Range range, String aggregationName, SearchContext ctx) {
-        long[] fromTo = IPv4RangeBuilder.cidrMaskToMinMax(cidr);
-        if (fromTo == null) {
+        long[] fromTo;
+        try {
+            fromTo = Cidrs.cidrMaskToMinMax(cidr);
+        } catch (IllegalArgumentException e) {
             throw new SearchParseException(ctx, "invalid CIDR mask [" + cidr + "] in aggregation [" + aggregationName + "]",
-                    null);
+                    null, e);
         }
-        range.from = fromTo[0] < 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
-        range.to = fromTo[1] < 0 ? Double.POSITIVE_INFINITY : fromTo[1];
+        range.from = fromTo[0] == 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
+        range.to = fromTo[1] == InternalIPv4Range.MAX_IP ? Double.POSITIVE_INFINITY : fromTo[1];
         if (range.key == null) {
             range.key = cidr;
         }

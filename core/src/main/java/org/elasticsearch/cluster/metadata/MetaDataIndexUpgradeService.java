@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.Collections;
 import java.util.Set;
@@ -48,9 +48,13 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * are restored from a repository.
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
+
+    private final MapperRegistry mapperRegistry;
+
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings) {
+    public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry) {
         super(settings);
+        this.mapperRegistry = mapperRegistry;
     }
 
     /**
@@ -214,11 +218,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         try {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList());
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
-                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService)) {
+                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
@@ -227,7 +231,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "], reason: [" + ex.getMessage() + "]", ex);
+            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "]", ex);
         }
     }
 
@@ -252,7 +256,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         };
 
         public FakeAnalysisService(IndexSettings indexSettings) {
-            super(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+            super(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
         @Override

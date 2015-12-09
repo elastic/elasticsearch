@@ -192,7 +192,7 @@ import static org.hamcrest.Matchers.startsWith;
  * should be used, here is an example:
  * <pre>
  *
- * @ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
+ * {@literal @}ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
@@ -203,7 +203,7 @@ import static org.hamcrest.Matchers.startsWith;
  * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
  *  <pre>
- * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
+ * {@literal @}ClusterScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
@@ -1035,7 +1035,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Sets the cluster's minimum master node and make sure the response is acknowledge.
-     * Note: this doesn't guaranty the new settings is in effect, just that it has been received bu all nodes.
+     * Note: this doesn't guarantee that the new setting has taken effect, just that it has been received by all nodes.
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(

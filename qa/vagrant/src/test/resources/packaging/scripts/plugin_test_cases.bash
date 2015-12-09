@@ -223,20 +223,16 @@ fi
     install_and_check_plugin discovery multicast
 }
 
-@test "[$GROUP] install lang-expression plugin" {
-    install_and_check_plugin lang expression
-}
-
-@test "[$GROUP] install lang-groovy plugin" {
-    install_and_check_plugin lang groovy
-}
-
 @test "[$GROUP] install javascript plugin" {
     install_and_check_plugin lang javascript rhino-*.jar
 }
 
 @test "[$GROUP] install python plugin" {
     install_and_check_plugin lang python jython-standalone-*.jar
+}
+
+@test "[$GROUP] install mapper-attachments plugin" {
+    install_and_check_plugin mapper attachments
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {
@@ -327,20 +323,16 @@ fi
     remove_plugin discovery-multicast
 }
 
-@test "[$GROUP] remove lang-expression plugin" {
-    remove_plugin lang-expression
-}
-
-@test "[$GROUP] remove lang-groovy plugin" {
-    remove_plugin lang-groovy
-}
-
 @test "[$GROUP] remove javascript plugin" {
     remove_plugin lang-javascript
 }
 
 @test "[$GROUP] remove python plugin" {
     remove_plugin lang-python
+}
+
+@test "[$GROUP] remove mapper-attachments plugin" {
+    remove_plugin mapper-attachments
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {
@@ -423,4 +415,3 @@ fi
     fi
     remove_jvm_example
 }
-

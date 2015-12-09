@@ -209,16 +209,16 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("value", convertToStringIfBytesRef(this.value));
+        builder.field(FuzzyQueryParser.VALUE_FIELD.getPreferredName(), convertToStringIfBytesRef(this.value));
         fuzziness.toXContent(builder, params);
-        builder.field("prefix_length", prefixLength);
-        builder.field("max_expansions", maxExpansions);
-        builder.field("transpositions", transpositions);
+        builder.field(FuzzyQueryParser.PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        builder.field(FuzzyQueryParser.MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        builder.field(FuzzyQueryParser.TRANSPOSITIONS_FIELD.getPreferredName(), transpositions);
         if (rewrite != null) {
-            builder.field("rewrite", rewrite);
+            builder.field(FuzzyQueryParser.REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -231,7 +231,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
         String rewrite = this.rewrite;
         if (rewrite == null && context.isFilter()) {
@@ -253,7 +253,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public FuzzyQueryBuilder doReadFrom(StreamInput in) throws IOException {
+    protected FuzzyQueryBuilder doReadFrom(StreamInput in) throws IOException {
         FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(in.readString(), in.readGenericValue());
         fuzzyQueryBuilder.fuzziness = Fuzziness.readFuzzinessFrom(in);
         fuzzyQueryBuilder.prefixLength = in.readVInt();
@@ -264,7 +264,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);
         out.writeGenericValue(this.value);
         this.fuzziness.writeTo(out);
@@ -275,12 +275,12 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(fieldName, value, fuzziness, prefixLength, maxExpansions, transpositions, rewrite);
     }
 
     @Override
-    public boolean doEquals(FuzzyQueryBuilder other) {
+    protected boolean doEquals(FuzzyQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
                 Objects.equals(fuzziness, other.fuzziness) &&

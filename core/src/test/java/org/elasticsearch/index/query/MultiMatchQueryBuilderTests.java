@@ -216,4 +216,30 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"multi_match\" : {\n" + 
+                "    \"query\" : \"quick brown fox\",\n" + 
+                "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ],\n" + 
+                "    \"type\" : \"most_fields\",\n" + 
+                "    \"operator\" : \"OR\",\n" + 
+                "    \"slop\" : 0,\n" + 
+                "    \"prefix_length\" : 0,\n" + 
+                "    \"max_expansions\" : 50,\n" + 
+                "    \"lenient\" : false,\n" + 
+                "    \"zero_terms_query\" : \"NONE\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        MultiMatchQueryBuilder parsed = (MultiMatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "quick brown fox", parsed.value());
+        assertEquals(json, 3, parsed.fields().size());
+        assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
+        assertEquals(json, Operator.OR, parsed.operator());
+    }
 }

@@ -44,7 +44,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -143,9 +142,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -193,6 +192,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new SourceFieldMapper(indexSettings);
         }
     }
 
@@ -248,11 +252,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private XContentType formatContentType;
 
-    public SourceFieldMapper(Settings indexSettings) {
+    private SourceFieldMapper(Settings indexSettings) {
         this(Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
     }
 
-    protected SourceFieldMapper(boolean enabled, String format, Boolean compress, long compressThreshold,
+    private SourceFieldMapper(boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes, Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE.clone(), Defaults.FIELD_TYPE, indexSettings); // Only stored.
         this.enabled = enabled;
@@ -437,7 +441,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
         if (mergeResult.simulate()) {
             if (this.enabled != sourceMergeWith.enabled) {

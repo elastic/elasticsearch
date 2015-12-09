@@ -90,7 +90,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.EMPTY_LIST, metaData());
+        return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.emptyList(), metaData());
     }
 
     public static class Factory extends PipelineAggregatorFactory {

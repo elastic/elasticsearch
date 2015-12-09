@@ -58,6 +58,10 @@ public final class Message implements Serializable, Element {
         this(Collections.singletonList(source), message, null);
     }
 
+    public Message(Object source, Throwable cause) {
+        this(Collections.singletonList(source), null, cause);
+    }
+
     public Message(String message) {
         this(Collections.emptyList(), message, null);
     }

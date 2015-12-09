@@ -202,21 +202,21 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("query", text);
-        builder.field("disable_coord", disableCoord);
-        builder.field("high_freq_operator", highFreqOperator.toString());
-        builder.field("low_freq_operator", lowFreqOperator.toString());
+        builder.field(CommonTermsQueryParser.QUERY_FIELD.getPreferredName(), text);
+        builder.field(CommonTermsQueryParser.DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
+        builder.field(CommonTermsQueryParser.HIGH_FREQ_OPERATOR_FIELD.getPreferredName(), highFreqOperator.toString());
+        builder.field(CommonTermsQueryParser.LOW_FREQ_OPERATOR_FIELD.getPreferredName(), lowFreqOperator.toString());
         if (analyzer != null) {
-            builder.field("analyzer", analyzer);
+            builder.field(CommonTermsQueryParser.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field("cutoff_frequency", cutoffFrequency);
+        builder.field(CommonTermsQueryParser.CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         if (lowFreqMinimumShouldMatch != null || highFreqMinimumShouldMatch != null) {
-            builder.startObject("minimum_should_match");
+            builder.startObject(CommonTermsQueryParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName());
             if (lowFreqMinimumShouldMatch != null) {
-                builder.field("low_freq", lowFreqMinimumShouldMatch);
+                builder.field(CommonTermsQueryParser.LOW_FREQ_FIELD.getPreferredName(), lowFreqMinimumShouldMatch);
             }
             if (highFreqMinimumShouldMatch != null) {
-                builder.field("high_freq", highFreqMinimumShouldMatch);
+                builder.field(CommonTermsQueryParser.HIGH_FREQ_FIELD.getPreferredName(), highFreqMinimumShouldMatch);
             }
             builder.endObject();
         }

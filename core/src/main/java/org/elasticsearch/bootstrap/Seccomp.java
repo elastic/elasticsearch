@@ -47,7 +47,7 @@ import java.util.Map;
  * Installs a limited form of secure computing mode,
  * to filters system calls to block process execution.
  * <p>
- * This is only supported on the Linux, Solaris, and Mac OS X operating systems.
+ * This is supported on Linux, Solaris, FreeBSD, OpenBSD, Mac OS X, and Windows.
  * <p>
  * On Linux it currently supports amd64 and i386 architectures, requires Linux kernel 3.5 or above, and requires
  * {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER} compiled into the kernel.
@@ -71,12 +71,16 @@ import java.util.Map;
  *   <li>{@code PRIV_PROC_EXEC}</li>
  * </ul>
  * <p>
+ * On BSD systems, process creation is restricted with {@code setrlimit(RLIMIT_NPROC)}.
+ * <p>
  * On Mac OS X Leopard or above, a custom {@code sandbox(7)} ("Seatbelt") profile is installed that
  * denies the following rules:
  * <ul>
  *   <li>{@code process-fork}</li>
  *   <li>{@code process-exec}</li>
  * </ul>
+ * <p>
+ * On Windows, process creation is restricted with {@code SetInformationJobObject/ActiveProcessLimit}.
  * <p>
  * This is not intended as a sandbox. It is another level of security, mostly intended to annoy
  * security researchers and make their lives more difficult in achieving "remote execution" exploits.
@@ -327,7 +331,8 @@ final class Seccomp {
             case 1: break; // already set by caller
             default:
                 int errno = Native.getLastError();
-                if (errno == ENOSYS) {
+                if (errno == EINVAL) {
+                    // friendly error, this will be the typical case for an old kernel
                     throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
@@ -534,6 +539,73 @@ final class Seccomp {
         logger.debug("Solaris priv_set initialization successful");
     }
 
+    // BSD implementation via setrlimit(2)
+
+    // TODO: add OpenBSD to Lucene Constants
+    // TODO: JNA doesn't have netbsd support, but this mechanism should work there too.
+    static final boolean OPENBSD = Constants.OS_NAME.startsWith("OpenBSD");
+
+    // not a standard limit, means something different on linux, etc!
+    static final int RLIMIT_NPROC = 7;
+
+    static void bsdImpl() {
+        boolean supported = Constants.FREE_BSD || OPENBSD || Constants.MAC_OS_X;
+        if (supported == false) {
+            throw new IllegalStateException("bug: should not be trying to initialize RLIMIT_NPROC for an unsupported OS");
+        }
+
+        JNACLibrary.Rlimit limit = new JNACLibrary.Rlimit();
+        limit.rlim_cur.setValue(0);
+        limit.rlim_max.setValue(0);
+        if (JNACLibrary.setrlimit(RLIMIT_NPROC, limit) != 0) {
+            throw new UnsupportedOperationException("RLIMIT_NPROC unavailable: " + JNACLibrary.strerror(Native.getLastError()));
+        }
+
+        logger.debug("BSD RLIMIT_NPROC initialization successful");
+    }
+
+    // windows impl via job ActiveProcessLimit
+
+    static void windowsImpl() {
+        if (!Constants.WINDOWS) {
+            throw new IllegalStateException("bug: should not be trying to initialize ActiveProcessLimit for an unsupported OS");
+        }
+
+        JNAKernel32Library lib = JNAKernel32Library.getInstance();
+
+        // create a new Job
+        Pointer job = lib.CreateJobObjectW(null, null);
+        if (job == null) {
+            throw new UnsupportedOperationException("CreateJobObject: " + Native.getLastError());
+        }
+
+        try {
+            // retrieve the current basic limits of the job
+            int clazz = JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
+            JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION limits = new JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION();
+            limits.write();
+            if (!lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null)) {
+                throw new UnsupportedOperationException("QueryInformationJobObject: " + Native.getLastError());
+            }
+            limits.read();
+            // modify the number of active processes to be 1 (exactly the one process we will add to the job).
+            limits.ActiveProcessLimit = 1;
+            limits.LimitFlags = JNAKernel32Library.JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+            limits.write();
+            if (!lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size())) {
+                throw new UnsupportedOperationException("SetInformationJobObject: " + Native.getLastError());
+            }
+            // assign ourselves to the job
+            if (!lib.AssignProcessToJobObject(job, lib.GetCurrentProcess())) {
+                throw new UnsupportedOperationException("AssignProcessToJobObject: " + Native.getLastError());
+            }
+        } finally {
+            lib.CloseHandle(job);
+        }
+
+        logger.debug("Windows ActiveProcessLimit initialization successful");
+    }
+
     /**
      * Attempt to drop the capability to execute for the process.
      * <p>
@@ -544,10 +616,18 @@ final class Seccomp {
         if (Constants.LINUX) {
             return linuxImpl();
         } else if (Constants.MAC_OS_X) {
+            // try to enable both mechanisms if possible
+            bsdImpl();
             macImpl(tmpFile);
             return 1;
         } else if (Constants.SUN_OS) {
             solarisImpl();
+            return 1;
+        } else if (Constants.FREE_BSD || OPENBSD) {
+            bsdImpl();
+            return 1;
+        } else if (Constants.WINDOWS) {
+            windowsImpl();
             return 1;
         } else {
             throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");

@@ -19,16 +19,22 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.apache.lucene.search.highlight.SimpleFragmenter;
-import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * A builder for search highlighting. Settings can control how large fields
@@ -36,45 +42,15 @@ import java.util.Map;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder implements ToXContent {
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Writeable<HighlightBuilder>, ToXContent  {
 
-    private List<Field> fields;
+    public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
 
-    private String tagsSchema;
+    public static final String HIGHLIGHT_ELEMENT_NAME = "highlight";
 
-    private Boolean highlightFilter;
-
-    private Integer fragmentSize;
-
-    private Integer numOfFragments;
-
-    private String[] preTags;
-
-    private String[] postTags;
-
-    private String order;
+    private final List<Field> fields = new ArrayList<>();
 
     private String encoder;
-
-    private Boolean requireFieldMatch;
-
-    private Integer boundaryMaxScan;
-
-    private char[] boundaryChars;
-
-    private String highlighterType;
-
-    private String fragmenter;
-
-    private QueryBuilder highlightQuery;
-
-    private Integer noMatchSize;
-
-    private Integer phraseLimit;
-
-    private Map<String, Object> options;
-
-    private Boolean forceSource;
 
     private boolean useExplicitFieldOrder = false;
 
@@ -85,13 +61,8 @@ public class HighlightBuilder implements ToXContent {
      * @param name The field to highlight
      */
     public HighlightBuilder field(String name) {
-        if (fields == null) {
-            fields = new ArrayList<>();
-        }
-        fields.add(new Field(name));
-        return this;
+        return field(new Field(name));
     }
-
 
     /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
@@ -101,11 +72,7 @@ public class HighlightBuilder implements ToXContent {
      * @param fragmentSize The size of a fragment in characters
      */
     public HighlightBuilder field(String name, int fragmentSize) {
-        if (fields == null) {
-            fields = new ArrayList<>();
-        }
-        fields.add(new Field(name).fragmentSize(fragmentSize));
-        return this;
+        return field(new Field(name).fragmentSize(fragmentSize));
     }
 
 
@@ -118,13 +85,8 @@ public class HighlightBuilder implements ToXContent {
      * @param numberOfFragments The (maximum) number of fragments
      */
     public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments) {
-        if (fields == null) {
-            fields = new ArrayList<>();
-        }
-        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments));
-        return this;
+        return field(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments));
     }
-
 
     /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
@@ -136,56 +98,38 @@ public class HighlightBuilder implements ToXContent {
      * @param fragmentOffset    The offset from the start of the fragment to the start of the highlight
      */
     public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments, int fragmentOffset) {
-        if (fields == null) {
-            fields = new ArrayList<>();
-        }
-        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments)
+        return field(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments)
                 .fragmentOffset(fragmentOffset));
-        return this;
     }
 
     public HighlightBuilder field(Field field) {
-        if (fields == null) {
-            fields = new ArrayList<>();
-        }
         fields.add(field);
         return this;
     }
 
+    public List<Field> fields() {
+        return this.fields;
+    }
+
     /**
-     * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
+     * Set a tag scheme that encapsulates a built in pre and post tags. The allowed schemes
      * are <tt>styled</tt> and <tt>default</tt>.
      *
      * @param schemaName The tag scheme name
      */
     public HighlightBuilder tagsSchema(String schemaName) {
-        this.tagsSchema = schemaName;
-        return this;
-    }
-
-    /**
-     * Set this to true when using the highlighterType <tt>fvh</tt>
-     * and you want to provide highlighting on filter clauses in your
-     * query. Default is <tt>false</tt>.
-     */
-    public HighlightBuilder highlightFilter(boolean highlightFilter) {
-        this.highlightFilter = highlightFilter;
-        return this;
-    }
-
-    /**
-     * Sets the size of a fragment in characters (defaults to 100)
-     */
-    public HighlightBuilder fragmentSize(Integer fragmentSize) {
-        this.fragmentSize = fragmentSize;
-        return this;
-    }
-
-    /**
-     * Sets the maximum number of fragments returned
-     */
-    public HighlightBuilder numOfFragments(Integer numOfFragments) {
-        this.numOfFragments = numOfFragments;
+        switch (schemaName) {
+        case "default":
+            preTags(HighlighterParseElement.DEFAULT_PRE_TAGS);
+            postTags(HighlighterParseElement.DEFAULT_POST_TAGS);
+            break;
+        case "styled":
+            preTags(HighlighterParseElement.STYLED_PRE_TAG);
+            postTags(HighlighterParseElement.STYLED_POST_TAGS);
+            break;
+        default:
+            throw new IllegalArgumentException("Unknown tag schema ["+ schemaName +"]");
+        }
         return this;
     }
 
@@ -201,125 +145,10 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * Explicitly set the pre tags that will be used for highlighting.
+     * Getter for {@link #encoder(String)}
      */
-    public HighlightBuilder preTags(String... preTags) {
-        this.preTags = preTags;
-        return this;
-    }
-
-    /**
-     * Explicitly set the post tags that will be used for highlighting.
-     */
-    public HighlightBuilder postTags(String... postTags) {
-        this.postTags = postTags;
-        return this;
-    }
-
-    /**
-     * The order of fragments per field. By default, ordered by the order in the
-     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
-     */
-    public HighlightBuilder order(String order) {
-        this.order = order;
-        return this;
-    }
-
-    /**
-     * Set to true to cause a field to be highlighted only if a query matches that field.
-     * Default is false meaning that terms are highlighted on all requested fields regardless
-     * if the query matches specifically on them.
-     */
-    public HighlightBuilder requireFieldMatch(boolean requireFieldMatch) {
-        this.requireFieldMatch = requireFieldMatch;
-        return this;
-    }
-
-    /**
-     * When using the highlighterType <tt>fvh</tt> this setting
-     * controls how far to look for boundary characters, and defaults to 20.
-     */
-    public HighlightBuilder boundaryMaxScan(Integer boundaryMaxScan) {
-        this.boundaryMaxScan = boundaryMaxScan;
-        return this;
-    }
-
-    /**
-     * When using the highlighterType <tt>fvh</tt> this setting
-     * defines what constitutes a boundary for highlighting. It’s a single string with
-     * each boundary character defined in it. It defaults to .,!? \t\n
-     */
-    public HighlightBuilder boundaryChars(char[] boundaryChars) {
-        this.boundaryChars = boundaryChars;
-        return this;
-    }
-
-    /**
-     * Set type of highlighter to use. Out of the box supported types
-     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-     * The default option selected is dependent on the mappings defined for your index.
-     * Details of the different highlighter types are covered in the reference guide.
-     */
-    public HighlightBuilder highlighterType(String highlighterType) {
-        this.highlighterType = highlighterType;
-        return this;
-    }
-
-    /**
-     * Sets what fragmenter to use to break up text that is eligible for highlighting.
-     * This option is only applicable when using the plain highlighterType <tt>highlighter</tt>.
-     * Permitted values are "simple" or "span" relating to {@link SimpleFragmenter} and
-     * {@link SimpleSpanFragmenter} implementations respectively with the default being "span"
-     */
-    public HighlightBuilder fragmenter(String fragmenter) {
-        this.fragmenter = fragmenter;
-        return this;
-    }
-
-    /**
-     * Sets a query to be used for highlighting all fields instead of the search query.
-     */
-    public HighlightBuilder highlightQuery(QueryBuilder highlightQuery) {
-        this.highlightQuery = highlightQuery;
-        return this;
-    }
-
-    /**
-     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-     * highlight and the field doesn't also define noMatchSize.
-     * @param noMatchSize integer to set or null to leave out of request.  default is null.
-     * @return this for chaining
-     */
-    public HighlightBuilder noMatchSize(Integer noMatchSize) {
-        this.noMatchSize = noMatchSize;
-        return this;
-    }
-
-    /**
-     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
-     * @param phraseLimit maximum number of phrases the fvh will consider
-     * @return this for chaining
-     */
-    public HighlightBuilder phraseLimit(Integer phraseLimit) {
-        this.phraseLimit = phraseLimit;
-        return this;
-    }
-
-    /**
-     * Allows to set custom options for custom highlighters.
-     */
-    public HighlightBuilder options(Map<String, Object> options) {
-        this.options = options;
-        return this;
-    }
-
-    /**
-     * Forces the highlighting to highlight fields based on the source even if fields are stored separately.
-     */
-    public HighlightBuilder forceSource(boolean forceSource) {
-        this.forceSource = forceSource;
-        return this;
+    public String encoder() {
+        return this.encoder;
     }
 
     /**
@@ -331,137 +160,155 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Gets value set with {@link #useExplicitFieldOrder(boolean)}
+     */
+    public Boolean useExplicitFieldOrder() {
+        return this.useExplicitFieldOrder;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("highlight");
-        innerXContent(builder, params);
+        builder.startObject(HIGHLIGHT_ELEMENT_NAME);
+        innerXContent(builder);
         builder.endObject();
         return builder;
     }
 
+    /**
+     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new {@link HighlightBuilder}
+     */
+    public static HighlightBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token;
+        String topLevelFieldName = null;
 
-    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
-        if (tagsSchema != null) {
-            builder.field("tags_schema", tagsSchema);
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                topLevelFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, PRE_TAGS_FIELD)) {
+                    List<String> preTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
+                    }
+                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, POST_TAGS_FIELD)) {
+                    List<String> postTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
+                    }
+                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
+                    highlightBuilder.useExplicitFieldOrder(true);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            String highlightFieldName = null;
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    if (highlightFieldName != null) {
+                                        throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
+                                    }
+                                    highlightFieldName = parser.currentName();
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                                }
+                            }
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
+                        }
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", topLevelFieldName);
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, ORDER_FIELD)) {
+                    highlightBuilder.order(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TAGS_SCHEMA_FIELD)) {
+                    highlightBuilder.tagsSchema(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                    highlightBuilder.highlightFilter(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENT_SIZE_FIELD)) {
+                    highlightBuilder.fragmentSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                    highlightBuilder.numOfFragments(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, ENCODER_FIELD)) {
+                    highlightBuilder.encoder(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                    highlightBuilder.requireFieldMatch(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                    highlightBuilder.boundaryMaxScan(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_CHARS_FIELD)) {
+                    highlightBuilder.boundaryChars(parser.text().toCharArray());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TYPE_FIELD)) {
+                    highlightBuilder.highlighterType(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENTER_FIELD)) {
+                    highlightBuilder.fragmenter(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NO_MATCH_SIZE_FIELD)) {
+                    highlightBuilder.noMatchSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FORCE_SOURCE_FIELD)) {
+                    highlightBuilder.forceSource(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, PHRASE_LIMIT_FIELD)) {
+                    highlightBuilder.phraseLimit(parser.intValue());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", topLevelFieldName);
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, OPTIONS_FIELD)) {
+                    highlightBuilder.options(parser.map());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
+                    String highlightFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            highlightFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                        }
+                    }
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", topLevelFieldName);
+                }
+            } else if (topLevelFieldName != null) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, topLevelFieldName);
+            }
         }
-        if (preTags != null) {
-            builder.array("pre_tags", preTags);
+
+        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
         }
-        if (postTags != null) {
-            builder.array("post_tags", postTags);
-        }
-        if (order != null) {
-            builder.field("order", order);
-        }
-        if (highlightFilter != null) {
-            builder.field("highlight_filter", highlightFilter);
-        }
-        if (fragmentSize != null) {
-            builder.field("fragment_size", fragmentSize);
-        }
-        if (numOfFragments != null) {
-            builder.field("number_of_fragments", numOfFragments);
-        }
+        return highlightBuilder;
+    }
+
+
+
+    public void innerXContent(XContentBuilder builder) throws IOException {
+        // first write common options
+        commonOptionsToXContent(builder);
+        // special options for top-level highlighter
         if (encoder != null) {
-            builder.field("encoder", encoder);
+            builder.field(ENCODER_FIELD.getPreferredName(), encoder);
         }
-        if (requireFieldMatch != null) {
-            builder.field("require_field_match", requireFieldMatch);
-        }
-        if (boundaryMaxScan != null) {
-            builder.field("boundary_max_scan", boundaryMaxScan);
-        }
-        if (boundaryChars != null) {
-            builder.field("boundary_chars", boundaryChars);
-        }
-        if (highlighterType != null) {
-            builder.field("type", highlighterType);
-        }
-        if (fragmenter != null) {
-            builder.field("fragmenter", fragmenter);
-        }
-        if (highlightQuery != null) {
-            builder.field("highlight_query", highlightQuery);
-        }
-        if (noMatchSize != null) {
-            builder.field("no_match_size", noMatchSize);
-        }
-        if (phraseLimit != null) {
-            builder.field("phrase_limit", phraseLimit);
-        }
-        if (options != null && options.size() > 0) {
-            builder.field("options", options);
-        }
-        if (forceSource != null) {
-            builder.field("force_source", forceSource);
-        }
-        if (fields != null) {
+        if (fields.size() > 0) {
             if (useExplicitFieldOrder) {
-                builder.startArray("fields");
+                builder.startArray(FIELDS_FIELD.getPreferredName());
             } else {
-                builder.startObject("fields");
+                builder.startObject(FIELDS_FIELD.getPreferredName());
             }
             for (Field field : fields) {
                 if (useExplicitFieldOrder) {
                     builder.startObject();
                 }
-                builder.startObject(field.name());
-                if (field.preTags != null) {
-                    builder.field("pre_tags", field.preTags);
-                }
-                if (field.postTags != null) {
-                    builder.field("post_tags", field.postTags);
-                }
-                if (field.fragmentSize != -1) {
-                    builder.field("fragment_size", field.fragmentSize);
-                }
-                if (field.numOfFragments != -1) {
-                    builder.field("number_of_fragments", field.numOfFragments);
-                }
-                if (field.fragmentOffset != -1) {
-                    builder.field("fragment_offset", field.fragmentOffset);
-                }
-                if (field.highlightFilter != null) {
-                    builder.field("highlight_filter", field.highlightFilter);
-                }
-                if (field.order != null) {
-                    builder.field("order", field.order);
-                }
-                if (field.requireFieldMatch != null) {
-                    builder.field("require_field_match", field.requireFieldMatch);
-                }
-                if (field.boundaryMaxScan != -1) {
-                    builder.field("boundary_max_scan", field.boundaryMaxScan);
-                }
-                if (field.boundaryChars != null) {
-                    builder.field("boundary_chars", field.boundaryChars);
-                }
-                if (field.highlighterType != null) {
-                    builder.field("type", field.highlighterType);
-                }
-                if (field.fragmenter != null) {
-                    builder.field("fragmenter", field.fragmenter);
-                }
-                if (field.highlightQuery != null) {
-                    builder.field("highlight_query", field.highlightQuery);
-                }
-                if (field.noMatchSize != null) {
-                    builder.field("no_match_size", field.noMatchSize);
-                }
-                if (field.matchedFields != null) {
-                    builder.field("matched_fields", field.matchedFields);
-                }
-                if (field.phraseLimit != null) {
-                    builder.field("phrase_limit", field.phraseLimit);
-                }
-                if (field.options != null && field.options.size() > 0) {
-                    builder.field("options", field.options);
-                }
-                if (field.forceSource != null) {
-                    builder.field("force_source", field.forceSource);
-                }
-
-                builder.endObject();
+                field.innerXContent(builder);
                 if (useExplicitFieldOrder) {
                     builder.endObject();
                 }
@@ -474,26 +321,62 @@ public class HighlightBuilder implements ToXContent {
         }
     }
 
-    public static class Field {
-        final String name;
-        String[] preTags;
-        String[] postTags;
-        int fragmentSize = -1;
+    @Override
+    public final String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+        }
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(encoder, useExplicitFieldOrder, fields);
+    }
+
+    @Override
+    protected boolean doEquals(HighlightBuilder other) {
+        return Objects.equals(encoder, other.encoder) &&
+                Objects.equals(useExplicitFieldOrder, other.useExplicitFieldOrder) &&
+                Objects.equals(fields, other.fields);
+    }
+
+    @Override
+    public HighlightBuilder readFrom(StreamInput in) throws IOException {
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        highlightBuilder.readOptionsFrom(in)
+                .encoder(in.readOptionalString())
+                .useExplicitFieldOrder(in.readBoolean());
+        int fields = in.readVInt();
+        for (int i = 0; i < fields; i++) {
+            highlightBuilder.field(Field.PROTOTYPE.readFrom(in));
+        }
+        return highlightBuilder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeOptionsTo(out);
+        out.writeOptionalString(encoder);
+        out.writeBoolean(useExplicitFieldOrder);
+        out.writeVInt(fields.size());
+        for (int i = 0; i < fields.size(); i++) {
+            fields.get(i).writeTo(out);
+        }
+    }
+
+    public static class Field extends AbstractHighlighterBuilder<Field> implements Writeable<Field> {
+        static final Field PROTOTYPE = new Field("_na_");
+
+        private final String name;
+
         int fragmentOffset = -1;
-        int numOfFragments = -1;
-        Boolean highlightFilter;
-        String order;
-        Boolean requireFieldMatch;
-        int boundaryMaxScan = -1;
-        char[] boundaryChars;
-        String highlighterType;
-        String fragmenter;
-        QueryBuilder highlightQuery;
-        Integer noMatchSize;
+
         String[] matchedFields;
-        Integer phraseLimit;
-        Map<String, Object> options;
-        Boolean forceSource;
 
         public Field(String name) {
             this.name = name;
@@ -503,115 +386,8 @@ public class HighlightBuilder implements ToXContent {
             return name;
         }
 
-        /**
-         * Explicitly set the pre tags for this field that will be used for highlighting.
-         * This overrides global settings set by {@link HighlightBuilder#preTags(String...)}.
-         */
-        public Field preTags(String... preTags) {
-            this.preTags = preTags;
-            return this;
-        }
-
-        /**
-         * Explicitly set the post tags for this field that will be used for highlighting.
-         * This overrides global settings set by {@link HighlightBuilder#postTags(String...)}.
-         */
-        public Field postTags(String... postTags) {
-            this.postTags = postTags;
-            return this;
-        }
-
-        public Field fragmentSize(int fragmentSize) {
-            this.fragmentSize = fragmentSize;
-            return this;
-        }
-
         public Field fragmentOffset(int fragmentOffset) {
             this.fragmentOffset = fragmentOffset;
-            return this;
-        }
-
-        public Field numOfFragments(int numOfFragments) {
-            this.numOfFragments = numOfFragments;
-            return this;
-        }
-
-        public Field highlightFilter(boolean highlightFilter) {
-            this.highlightFilter = highlightFilter;
-            return this;
-        }
-
-        /**
-         * The order of fragments per field. By default, ordered by the order in the
-         * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-         * by score of the fragments.
-         * This overrides global settings set by {@link HighlightBuilder#order(String)}.
-         */
-        public Field order(String order) {
-            this.order = order;
-            return this;
-        }
-
-        public Field requireFieldMatch(boolean requireFieldMatch) {
-            this.requireFieldMatch = requireFieldMatch;
-            return this;
-        }
-
-        public Field boundaryMaxScan(int boundaryMaxScan) {
-            this.boundaryMaxScan = boundaryMaxScan;
-            return this;
-        }
-
-        public Field boundaryChars(char[] boundaryChars) {
-            this.boundaryChars = boundaryChars;
-            return this;
-        }
-
-        /**
-         * Set type of highlighter to use. Out of the box supported types
-         * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-         * This overrides global settings set by {@link HighlightBuilder#highlighterType(String)}.
-         */
-        public Field highlighterType(String highlighterType) {
-            this.highlighterType = highlighterType;
-            return this;
-        }
-
-        /**
-         * Sets what fragmenter to use to break up text that is eligible for highlighting.
-         * This option is only applicable when using plain / normal highlighter.
-         * This overrides global settings set by {@link HighlightBuilder#fragmenter(String)}.
-         */
-        public Field fragmenter(String fragmenter) {
-            this.fragmenter = fragmenter;
-            return this;
-        }
-
-        /**
-         * Sets a query to use for highlighting this field instead of the search query.
-         */
-        public Field highlightQuery(QueryBuilder highlightQuery) {
-            this.highlightQuery = highlightQuery;
-            return this;
-        }
-
-        /**
-         * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-         * highlight.
-         * @param noMatchSize integer to set or null to leave out of request.  default is null.
-         * @return this for chaining
-         */
-        public Field noMatchSize(Integer noMatchSize) {
-            this.noMatchSize = noMatchSize;
-            return this;
-        }
-
-        /**
-         * Allows to set custom options for custom highlighters.
-         * This overrides global settings set by {@link HighlightBuilder#options(Map)}.
-         */
-        public Field options(Map<String, Object> options) {
-            this.options = options;
             return this;
         }
 
@@ -625,24 +401,123 @@ public class HighlightBuilder implements ToXContent {
             return this;
         }
 
-        /**
-         * Sets the maximum number of phrases the fvh will consider.
-         * @param phraseLimit maximum number of phrases the fvh will consider
-         * @return this for chaining
-         */
-        public Field phraseLimit(Integer phraseLimit) {
-            this.phraseLimit = phraseLimit;
-            return this;
+        public void innerXContent(XContentBuilder builder) throws IOException {
+            builder.startObject(name);
+            // write common options
+            commonOptionsToXContent(builder);
+            // write special field-highlighter options
+            if (fragmentOffset != -1) {
+                builder.field(FRAGMENT_OFFSET_FIELD.getPreferredName(), fragmentOffset);
+            }
+            if (matchedFields != null) {
+                builder.field(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
+            }
+            builder.endObject();
         }
 
+        private static HighlightBuilder.Field fromXContent(String fieldname, QueryParseContext parseContext) throws IOException {
+            XContentParser parser = parseContext.parser();
+            XContentParser.Token token;
 
-        /**
-         * Forces the highlighting to highlight this field based on the source even if this field is stored separately.
-         */
-        public Field forceSource(boolean forceSource) {
-            this.forceSource = forceSource;
-            return this;
+            final HighlightBuilder.Field field = new HighlightBuilder.Field(fieldname);
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
+                        List<String> preTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            preTagsList.add(parser.text());
+                        }
+                        field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
+                        List<String> postTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            postTagsList.add(parser.text());
+                        }
+                        field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MATCHED_FIELDS_FIELD)) {
+                        List<String> matchedFields = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            matchedFields.add(parser.text());
+                        }
+                        field.matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
+                    }
+                } else if (token.isValue()) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
+                        field.fragmentSize(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                        field.numOfFragments(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_OFFSET_FIELD)) {
+                        field.fragmentOffset(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                        field.highlightFilter(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
+                        field.order(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                        field.requireFieldMatch(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                        field.boundaryMaxScan(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
+                        field.boundaryChars(parser.text().toCharArray());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                        field.highlighterType(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
+                        field.fragmenter(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
+                        field.noMatchSize(parser.intValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
+                        field.forceSource(parser.booleanValue());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
+                        field.phraseLimit(parser.intValue());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                        field.highlightQuery(parseContext.parseInnerQueryBuilder());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
+                        field.options(parser.map());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
+                    }
+                } else if (currentFieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
+                }
+            }
+            return field;
         }
 
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(name, fragmentOffset, Arrays.hashCode(matchedFields));
+        }
+
+        @Override
+        protected boolean doEquals(Field other) {
+            return Objects.equals(name, other.name) &&
+                    Objects.equals(fragmentOffset, other.fragmentOffset) &&
+                    Arrays.equals(matchedFields, other.matchedFields);
+        }
+
+        @Override
+        public Field readFrom(StreamInput in) throws IOException {
+            Field field = new Field(in.readString());
+            field.fragmentOffset(in.readVInt());
+            field.matchedFields(in.readOptionalStringArray());
+            field.readOptionsFrom(in);
+            return field;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeVInt(fragmentOffset);
+            out.writeOptionalStringArray(matchedFields);
+            writeOptionsTo(out);
+        }
     }
 }

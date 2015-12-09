@@ -22,6 +22,7 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.Input
 import org.gradle.util.ConfigureUtil
@@ -30,61 +31,55 @@ import org.gradle.util.ConfigureUtil
  * Runs integration tests, but first starts an ES cluster,
  * and passes the ES cluster info as parameters to the tests.
  */
-class RestIntegTestTask extends RandomizedTestingTask {
+public class RestIntegTestTask extends RandomizedTestingTask {
 
     ClusterConfiguration clusterConfig = new ClusterConfiguration()
 
+    /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
     boolean includePackaged = false
 
-    static RestIntegTestTask configure(Project project) {
-        Map integTestOptions = [
-            name: 'integTest',
-            type: RestIntegTestTask,
-            dependsOn: 'testClasses',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs rest tests against an elasticsearch cluster.'
-        ]
-        RestIntegTestTask integTest = project.tasks.create(integTestOptions)
-        integTest.configure(BuildPlugin.commonTestConfig(project))
-        integTest.configure {
-            include '**/*IT.class'
-            systemProperty 'tests.rest.load_packaged', 'false'
-        }
-        RandomizedTestingTask test = project.tasks.findByName('test')
-        if (test != null) {
-            integTest.classpath = test.classpath
-            integTest.testClassesDir = test.testClassesDir
-            integTest.mustRunAfter(test)
-        }
-        project.check.dependsOn(integTest)
+    public RestIntegTestTask() {
+        description = 'Runs rest tests against an elasticsearch cluster.'
+        group = JavaBasePlugin.VERIFICATION_GROUP
+        dependsOn(project.testClasses)
+        classpath = project.sourceSets.test.runtimeClasspath
+        testClassesDir = project.sourceSets.test.output.classesDir
+
+        // start with the common test configuration
+        configure(BuildPlugin.commonTestConfig(project))
+        // override/add more for rest tests
+        parallelism = '1'
+        include('**/*IT.class')
+        systemProperty('tests.rest.load_packaged', 'false')
+
+        // copy the rest spec/tests into the test resources
         RestSpecHack.configureDependencies(project)
         project.afterEvaluate {
-            integTest.dependsOn(RestSpecHack.configureTask(project, integTest.includePackaged))
+            dependsOn(RestSpecHack.configureTask(project, includePackaged))
+            systemProperty('tests.cluster', "localhost:${clusterConfig.baseTransportPort}")
         }
-        return integTest
+        // this must run after all projects have been configured, so we know any project
+        // references can be accessed as a fully configured
+        project.gradle.projectsEvaluated {
+            ClusterFormationTasks.setup(project, this, clusterConfig)
+        }
     }
 
-    RestIntegTestTask() {
-        project.afterEvaluate {
-            Task test = project.tasks.findByName('test')
-            if (test != null) {
-                mustRunAfter(test)
-            }
-            ClusterFormationTasks.setup(project, this, clusterConfig)
-            configure {
-                parallelism '1'
-                systemProperty 'tests.cluster', "localhost:${clusterConfig.transportPort}"
-            }
-        }
+    @Option(
+        option = "debug-jvm",
+        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+    )
+    public void setDebug(boolean enabled) {
+        clusterConfig.debug = enabled;
     }
 
     @Input
-    void cluster(Closure closure) {
+    public void cluster(Closure closure) {
         ConfigureUtil.configure(closure, clusterConfig)
     }
 
-    ClusterConfiguration getCluster() {
+    public ClusterConfiguration getCluster() {
         return clusterConfig
     }
 }

@@ -19,9 +19,11 @@
 package org.elasticsearch.gradle.precommit
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.OutputFiles
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
@@ -32,11 +34,19 @@ import java.util.regex.Pattern
 /**
  * Checks for patterns in source files for the project which are forbidden.
  */
-class ForbiddenPatternsTask extends DefaultTask {
-    Map<String,String> patterns = new LinkedHashMap<>()
-    PatternFilterable filesFilter = new PatternSet()
+public class ForbiddenPatternsTask extends DefaultTask {
 
-    ForbiddenPatternsTask() {
+    /** The rules: a map from the rule name, to a rule regex pattern. */
+    private Map<String,String> patterns = new LinkedHashMap<>()
+    /** A pattern set of which files should be checked. */
+    private PatternFilterable filesFilter = new PatternSet()
+
+    @OutputFile
+    File outputMarker = new File(project.buildDir, "markers/forbiddenPatterns")
+
+    public ForbiddenPatternsTask() {
+        description = 'Checks source files for invalid patterns like nocommits or tabs'
+
         // we always include all source files, and exclude what should not be checked
         filesFilter.include('**')
         // exclude known binary extensions
@@ -48,23 +58,28 @@ class ForbiddenPatternsTask extends DefaultTask {
         filesFilter.exclude('**/*.crt')
         filesFilter.exclude('**/*.png')
 
-        // TODO: add compile and test compile outputs as this tasks outputs, so we don't rerun when source files haven't changed
+        // add mandatory rules
+        patterns.put('nocommit', /nocommit/)
+        patterns.put('tab', /\t/)
     }
 
     /** Adds a file glob pattern to be excluded */
-    void exclude(String... excludes) {
+    public void exclude(String... excludes) {
         this.filesFilter.exclude(excludes)
     }
 
-    /** Adds pattern to forbid */
+    /** Adds a pattern to forbid. T */
     void rule(Map<String,String> props) {
-        String name = props.get('name')
+        String name = props.remove('name')
         if (name == null) {
-            throw new IllegalArgumentException('Missing [name] for invalid pattern rule')
+            throw new InvalidUserDataException('Missing [name] for invalid pattern rule')
         }
-        String pattern = props.get('pattern')
+        String pattern = props.remove('pattern')
         if (pattern == null) {
-            throw new IllegalArgumentException('Missing [pattern] for invalid pattern rule')
+            throw new InvalidUserDataException('Missing [pattern] for invalid pattern rule')
+        }
+        if (props.isEmpty() == false) {
+            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: ${props.keySet()}")
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern)
@@ -85,15 +100,16 @@ class ForbiddenPatternsTask extends DefaultTask {
         Pattern allPatterns = Pattern.compile('(' + patterns.values().join(')|(') + ')')
         List<String> failures = new ArrayList<>()
         for (File f : files()) {
-            f.eachLine('UTF-8') { line, lineNumber ->
+            f.eachLine('UTF-8') { String line, int lineNumber ->
                 if (allPatterns.matcher(line).find()) {
-                    addErrorMessages(failures, f, (String)line, (int)lineNumber)
+                    addErrorMessages(failures, f, line, lineNumber)
                 }
             }
         }
         if (failures.isEmpty() == false) {
-            throw new IllegalArgumentException('Found invalid patterns:\n' + failures.join('\n'))
+            throw new GradleException('Found invalid patterns:\n' + failures.join('\n'))
         }
+        outputMarker.setText('done', 'UTF-8')
     }
 
     // iterate through patterns to find the right ones for nice error messages

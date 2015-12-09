@@ -190,7 +190,7 @@ public class RestoreInfo implements ToXContent, Streamable {
      * @return restore info
      */
     public static RestoreInfo readOptionalRestoreInfo(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(new RestoreInfo());
+        return in.readOptionalStreamable(RestoreInfo::new);
     }
 
 }

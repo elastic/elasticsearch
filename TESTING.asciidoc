@@ -149,17 +149,23 @@ gradle test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 
 === Load balancing and caches.
 
-By default, the tests run sequentially on a single forked JVM.
-
-To run with more forked JVMs than the default use:
+By default the tests run on up to 4 JVMs based on the number of cores. If you
+want to explicitly specify the number of JVMs you can do so on the command
+line:
 
 ----------------------------
 gradle test -Dtests.jvms=8
 ----------------------------
 
-Don't count hypercores for CPU-intense tests and leave some slack
-for JVM-internal threads (like the garbage collector). Make sure there is
-enough RAM to handle child JVMs.
+Or in `~/.gradle/gradle.properties`:
+
+----------------------------
+systemProp.tests.jvms=8
+----------------------------
+
+Its difficult to pick the "right" number here. Hypercores don't count for CPU
+intensive tests and you should leave some slack for JVM-interal threads like
+the garbage collector. And you have to have enough RAM to handle each JVM.
 
 === Test compatibility.
 
@@ -280,11 +286,20 @@ The REST layer is tested through specific tests that are shared between all
 the elasticsearch official clients and consist of YAML files that describe the
 operations to be executed and the obtained results that need to be tested.
 
-The REST tests are run automatically when executing the maven test command. To run only the
+The REST tests are run automatically when executing the "gradle check" command. To run only the
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-gradle integTest -Dtests.filter="@Rest"
+gradle :distribution:tar:integTest   \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT
+---------------------------------------------------------------------------
+
+A specific test case can be run with
+
+---------------------------------------------------------------------------
+gradle :distribution:tar:integTest \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the
@@ -424,7 +439,7 @@ sudo bats $BATS/*rpm*.bats
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle copyDepsToTestRoot
+gradle prepareTestRoot
 vagrant up trusty --provider virtualbox && vagrant ssh trusty
 cd $TESTROOT
 sudo bats $BATS/*.bats
@@ -455,5 +470,22 @@ mvn -Dtests.coverage verify jacoco:report
 
 == Debugging from an IDE
 
-If you want to run elasticsearch from your IDE, you should execute gradle run
-It opens a remote debugging port that you can connect with your IDE.
+If you want to run elasticsearch from your IDE, the `gradle run` task
+supports a remote debugging option:
+
+---------------------------------------------------------------------------
+gradle run --debug-jvm
+---------------------------------------------------------------------------
+
+== Building with extra plugins
+Additional plugins may be built alongside elasticsearch, where their
+dependency on elasticsearch will be substituted with the local elasticsearch
+build. To add your plugin, create a directory called x-plugins as a sibling
+of elasticsearch. Checkout your plugin underneath x-plugins and the build
+will automatically pick it up. You can verify the plugin is included as part
+of the build by checking the projects of the build.
+
+---------------------------------------------------------------------------
+gradle projects
+---------------------------------------------------------------------------
+

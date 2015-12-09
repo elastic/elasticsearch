@@ -103,21 +103,33 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     private final Reason reason;
-    private final long timestamp;
+    private final long unassignedTimeMillis; // used for display and log messages, in milliseconds
+    private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
+    private volatile long lastComputedLeftDelayNanos = 0l; // how long to delay shard allocation, not serialized (always positive, 0 means no delay)
     private final String message;
     private final Throwable failure;
 
+    /**
+     * creates an UnassingedInfo object based **current** time
+     *
+     * @param reason  the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message more information about cause.
+     **/
     public UnassignedInfo(Reason reason, String message) {
-        this(reason, System.currentTimeMillis(), message, null);
+        this(reason, message, null, System.nanoTime(), System.currentTimeMillis());
     }
 
-    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure) {
-        this(reason, System.currentTimeMillis(), message, failure);
-    }
-
-    private UnassignedInfo(Reason reason, long timestamp, String message, Throwable failure) {
+    /**
+     * @param reason               the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message              more information about cause.
+     * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
+     * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
+     * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
+     */
+    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure, long unassignedTimeNanos, long unassignedTimeMillis) {
         this.reason = reason;
-        this.timestamp = timestamp;
+        this.unassignedTimeMillis = unassignedTimeMillis;
+        this.unassignedTimeNanos = unassignedTimeNanos;
         this.message = message;
         this.failure = failure;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
@@ -125,14 +137,18 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     UnassignedInfo(StreamInput in) throws IOException {
         this.reason = Reason.values()[(int) in.readByte()];
-        this.timestamp = in.readLong();
+        this.unassignedTimeMillis = in.readLong();
+        // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
+        // This means that in master failover situations, elapsed delay time is forgotten.
+        this.unassignedTimeNanos = System.nanoTime();
         this.message = in.readOptionalString();
         this.failure = in.readThrowable();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte((byte) reason.ordinal());
-        out.writeLong(timestamp);
+        out.writeLong(unassignedTimeMillis);
+        // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeOptionalString(message);
         out.writeThrowable(failure);
     }
@@ -149,13 +165,20 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * The timestamp in milliseconds since epoch. Note, we use timestamp here since
-     * we want to make sure its preserved across node serializations. Extra care need
-     * to be made if its used to calculate diff (handle negative values) in case of
-     * time drift.
+     * The timestamp in milliseconds when the shard became unassigned, based on System.currentTimeMillis().
+     * Note, we use timestamp here since we want to make sure its preserved across node serializations.
      */
-    public long getTimestampInMillis() {
-        return this.timestamp;
+    public long getUnassignedTimeInMillis() {
+        return this.unassignedTimeMillis;
+    }
+
+    /**
+     * The timestamp in nanoseconds when the shard became unassigned, based on System.nanoTime().
+     * Used to calculate the delay for delayed shard allocation.
+     * ONLY EXPOSED FOR TESTS!
+     */
+    public long getUnassignedTimeInNanos() {
+        return this.unassignedTimeNanos;
     }
 
     /**
@@ -186,42 +209,50 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * The allocation delay value associated with the index (defaulting to node settings if not set).
+     * The allocation delay value in nano seconds associated with the index (defaulting to node settings if not set).
      */
-    public long getAllocationDelayTimeoutSetting(Settings settings, Settings indexSettings) {
+    public long getAllocationDelayTimeoutSettingNanos(Settings settings, Settings indexSettings) {
         if (reason != Reason.NODE_LEFT) {
             return 0;
         }
         TimeValue delayTimeout = indexSettings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, settings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
-        return Math.max(0l, delayTimeout.millis());
+        return Math.max(0l, delayTimeout.nanos());
     }
 
     /**
-     * The time in millisecond until this unassigned shard can be reassigned.
+     * The delay in nanoseconds until this unassigned shard can be reassigned. This value is cached and might be slightly out-of-date.
+     * See also the {@link #updateDelay(long, Settings, Settings)} method.
      */
-    public long getDelayAllocationExpirationIn(long unassignedShardsAllocatedTimestamp, Settings settings, Settings indexSettings) {
-        long delayTimeout = getAllocationDelayTimeoutSetting(settings, indexSettings);
-        if (delayTimeout == 0) {
-            return 0;
-        }
-        long delta = unassignedShardsAllocatedTimestamp - timestamp;
-        // account for time drift, treat it as no timeout
-        if (delta < 0) {
-            return 0;
-        }
-        return delayTimeout - delta;
+    public long getLastComputedLeftDelayNanos() {
+        return lastComputedLeftDelayNanos;
     }
 
+    /**
+     * Updates delay left based on current time (in nanoseconds) and index/node settings.
+     *
+     * @return updated delay in nanoseconds
+     */
+    public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
+        long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
+        final long newComputedLeftDelayNanos;
+        if (delayTimeoutNanos == 0l) {
+            newComputedLeftDelayNanos = 0l;
+        } else {
+            assert nanoTimeNow >= unassignedTimeNanos;
+            newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+        }
+        lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
+        return newComputedLeftDelayNanos;
+    }
 
     /**
      * Returns the number of shards that are unassigned and currently being delayed.
      */
-    public static int getNumberOfDelayedUnassigned(long unassignedShardsAllocatedTimestamp, Settings settings, ClusterState state) {
+    public static int getNumberOfDelayedUnassigned(ClusterState state) {
         int count = 0;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
-                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
-                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(unassignedShardsAllocatedTimestamp, settings, indexMetaData.getSettings());
+                long delay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
                 if (delay > 0) {
                     count++;
                 }
@@ -231,32 +262,32 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * Finds the smallest delay expiration setting of an unassigned shard. Returns 0 if there are none.
+     * Finds the smallest delay expiration setting in nanos of all unassigned shards that are still delayed. Returns 0 if there are none.
      */
-    public static long findSmallestDelayedAllocationSetting(Settings settings, ClusterState state) {
-        long nextDelaySetting = Long.MAX_VALUE;
+    public static long findSmallestDelayedAllocationSettingNanos(Settings settings, ClusterState state) {
+        long minDelaySetting = Long.MAX_VALUE;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
                 IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
-                long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSetting(settings, indexMetaData.getSettings());
-                if (delayTimeoutSetting > 0 && delayTimeoutSetting < nextDelaySetting) {
-                    nextDelaySetting = delayTimeoutSetting;
+                boolean delayed = shard.unassignedInfo().getLastComputedLeftDelayNanos() > 0;
+                long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSettingNanos(settings, indexMetaData.getSettings());
+                if (delayed && delayTimeoutSetting > 0 && delayTimeoutSetting < minDelaySetting) {
+                    minDelaySetting = delayTimeoutSetting;
                 }
             }
         }
-        return nextDelaySetting == Long.MAX_VALUE ? 0l : nextDelaySetting;
+        return minDelaySetting == Long.MAX_VALUE ? 0l : minDelaySetting;
     }
 
 
     /**
-     * Finds the next (closest) delay expiration of an unassigned shard. Returns 0 if there are none.
+     * Finds the next (closest) delay expiration of an unassigned shard in nanoseconds. Returns 0 if there are none.
      */
-    public static long findNextDelayedAllocationIn(long unassignedShardsAllocatedTimestamp, Settings settings, ClusterState state) {
+    public static long findNextDelayedAllocationIn(ClusterState state) {
         long nextDelay = Long.MAX_VALUE;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
-                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
-                long nextShardDelay = shard.unassignedInfo().getDelayAllocationExpirationIn(unassignedShardsAllocatedTimestamp, settings, indexMetaData.getSettings());
+                long nextShardDelay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
                 if (nextShardDelay > 0 && nextShardDelay < nextDelay) {
                     nextDelay = nextShardDelay;
                 }
@@ -268,7 +299,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     public String shortSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
-        sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(timestamp)).append("]");
+        sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis)).append("]");
         String details = getDetails();
         if (details != null) {
             sb.append(", details[").append(details).append("]");
@@ -285,7 +316,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
-        builder.field("at", DATE_TIME_FORMATTER.printer().print(timestamp));
+        builder.field("at", DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
         String details = getDetails();
         if (details != null) {
             builder.field("details", details);
@@ -296,14 +327,24 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         UnassignedInfo that = (UnassignedInfo) o;
 
-        if (timestamp != that.timestamp) return false;
-        if (reason != that.reason) return false;
-        if (message != null ? !message.equals(that.message) : that.message != null) return false;
+        if (unassignedTimeMillis != that.unassignedTimeMillis) {
+            return false;
+        }
+        if (reason != that.reason) {
+            return false;
+        }
+        if (message != null ? !message.equals(that.message) : that.message != null) {
+            return false;
+        }
         return !(failure != null ? !failure.equals(that.failure) : that.failure != null);
 
     }
@@ -311,7 +352,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     @Override
     public int hashCode() {
         int result = reason != null ? reason.hashCode() : 0;
-        result = 31 * result + Long.hashCode(timestamp);
+        result = 31 * result + Long.hashCode(unassignedTimeMillis);
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         return result;

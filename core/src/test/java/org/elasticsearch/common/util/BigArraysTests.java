@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -339,7 +338,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
                     Settings.builder()
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), size - 1, ByteSizeUnit.BYTES)
                             .build(),
-                    new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             try {
@@ -359,7 +358,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
                     Settings.builder()
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .build(),
-                    new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(1, 20);

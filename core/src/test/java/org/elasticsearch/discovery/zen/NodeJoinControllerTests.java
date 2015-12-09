@@ -39,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -68,7 +67,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         // make sure we have a master
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
-                new DiscoverySettings(Settings.EMPTY, new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))), Settings.EMPTY);
+                new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {

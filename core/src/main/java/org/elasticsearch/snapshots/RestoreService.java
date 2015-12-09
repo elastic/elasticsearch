@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,12 +124,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     private final BlockingQueue<UpdateIndexShardRestoreStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
-    private final ClusterSettingsService clusterSettingsService;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
                           AllocationService allocationService, MetaDataCreateIndexService createIndexService, ClusterSettings dynamicSettings,
-                          MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettingsService clusterSettingsService) {
+                          MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -141,7 +140,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         transportService.registerRequestHandler(UPDATE_RESTORE_ACTION_NAME, UpdateIndexShardRestoreStatusRequest::new, ThreadPool.Names.SAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
-        this.clusterSettingsService = clusterSettingsService;
+        this.clusterSettings = clusterSettings;
     }
 
     /**
@@ -392,7 +391,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
                             Settings settings = metaData.persistentSettings();
-                            clusterSettingsService.dryRun(settings);
+                            clusterSettings.dryRun(settings);
                             mdBuilder.persistentSettings(settings);
                         }
                         if (metaData.templates() != null) {

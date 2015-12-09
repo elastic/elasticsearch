@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -57,14 +56,14 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      * @param settings {@link org.elasticsearch.common.settings.Settings} to use
      */
     public SnapshotInProgressAllocationDecider(Settings settings) {
-        this(settings, new ClusterSettingsService(settings, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     @Inject
-    public SnapshotInProgressAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public SnapshotInProgressAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         enableRelocation = CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING, this::setEnableRelocation);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING, this::setEnableRelocation);
     }
 
     private void setEnableRelocation(boolean enableRelocation) {

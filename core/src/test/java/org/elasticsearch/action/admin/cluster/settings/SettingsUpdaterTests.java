@@ -20,11 +20,9 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +35,7 @@ public class SettingsUpdaterTests extends ESTestCase {
         AtomicReference<Float> index = new AtomicReference<>();
         AtomicReference<Float> shard = new AtomicReference<>();
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("foo"));
-        ClusterSettingsService settingsService = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings settingsService = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
         SettingsUpdater updater = new SettingsUpdater(settingsService);
@@ -75,7 +73,7 @@ public class SettingsUpdaterTests extends ESTestCase {
 
     public void testAllOrNothing() {
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("foo"));
-        ClusterSettingsService settingsService = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings settingsService = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<Float> index = new AtomicReference<>();
         AtomicReference<Float> shard = new AtomicReference<>();
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);
@@ -101,7 +99,7 @@ public class SettingsUpdaterTests extends ESTestCase {
 
     public void testClusterBlock() {
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("foo"));
-        ClusterSettingsService settingsService = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings settingsService = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<Float> index = new AtomicReference<>();
         AtomicReference<Float> shard = new AtomicReference<>();
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);

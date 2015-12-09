@@ -21,9 +21,9 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
@@ -37,10 +37,10 @@ public final class DestructiveOperations extends AbstractComponent {
     private volatile boolean destructiveRequiresName;
 
     @Inject
-    public DestructiveOperations(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
+        clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
     }
 
     private void setDestructiveRequiresName(boolean destructiveRequiresName) {

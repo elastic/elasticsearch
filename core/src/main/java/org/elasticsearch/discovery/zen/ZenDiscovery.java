@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -56,7 +57,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -140,7 +140,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                        TransportService transportService, final ClusterService clusterService, ClusterSettingsService clusterSettingsService,
+                        TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
                         ZenPingService pingService, ElectMasterService electMasterService,
                         DiscoverySettings discoverySettings) {
         super(settings);
@@ -172,7 +172,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping_timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", this.pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
-        clusterSettingsService.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING, this::handleMinimumMasterNodesChanged, (value) -> {
+        clusterSettings.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING, this::handleMinimumMasterNodesChanged, (value) -> {
             final ClusterState clusterState = clusterService.state();
             int masterNodes = clusterState.nodes().masterNodes().size();
             if (value > masterNodes) {
@@ -180,7 +180,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
             return true;
         });
-        clusterSettingsService.addSettingsUpdateConsumer(REJOIN_ON_MASTER_GONE_SETTING, this::setRejoingOnMasterGone);
+        clusterSettings.addSettingsUpdateConsumer(REJOIN_ON_MASTER_GONE_SETTING, this::setRejoingOnMasterGone);
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());

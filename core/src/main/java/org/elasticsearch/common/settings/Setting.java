@@ -149,11 +149,11 @@ public class Setting<T> extends ToXContentToBytes {
         Index;
     }
 
-    SettingsService.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
+    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
         return newUpdater(consumer, logger, settings, (s) -> true);
     }
 
-    SettingsService.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings, Predicate<T> accept) {
+    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings, Predicate<T> accept) {
         if (isDynamic()) {
             return new Updater(consumer, logger, settings, accept);
         } else {
@@ -161,12 +161,12 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-    static <A, B> SettingsService.SettingUpdater compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger, Settings settings) {
+    static <A, B> AbstractScopedSettings.SettingUpdater compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger, Settings settings) {
         final AtomicReference<A> aRef = new AtomicReference<>();
         final AtomicReference<B> bRef = new AtomicReference<>();
-        final SettingsService.SettingUpdater aSettingUpdater = aSettting.newUpdater(aRef::set, logger, settings);
-        final SettingsService.SettingUpdater bSettingUpdater = bSetting.newUpdater(bRef::set, logger, settings);
-        return new SettingsService.SettingUpdater() {
+        final AbstractScopedSettings.SettingUpdater aSettingUpdater = aSettting.newUpdater(aRef::set, logger, settings);
+        final AbstractScopedSettings.SettingUpdater bSettingUpdater = bSetting.newUpdater(bRef::set, logger, settings);
+        return new AbstractScopedSettings.SettingUpdater() {
             boolean aHasChanged = false;
             boolean bHasChanged = false;
             @Override
@@ -204,7 +204,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    private class Updater implements SettingsService.SettingUpdater {
+    private class Updater implements AbstractScopedSettings.SettingUpdater {
         private final Consumer<T> consumer;
         private final ESLogger logger;
         private final Predicate<T> accept;
@@ -325,12 +325,12 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public SettingsService.SettingUpdater newUpdater(Consumer<Settings> consumer, ESLogger logger, Settings settings, Predicate<Settings> accept) {
+            public AbstractScopedSettings.SettingUpdater newUpdater(Consumer<Settings> consumer, ESLogger logger, Settings settings, Predicate<Settings> accept) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
                 }
                 final Setting<?> setting = this;
-                return new SettingsService.SettingUpdater() {
+                return new AbstractScopedSettings.SettingUpdater() {
                     private Settings pendingSettings;
                     private Settings committedSettings = get(settings);
 

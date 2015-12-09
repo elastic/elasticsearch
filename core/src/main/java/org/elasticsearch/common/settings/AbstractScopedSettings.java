@@ -24,9 +24,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -35,12 +33,30 @@ import java.util.function.Predicate;
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
  */
-public abstract class SettingsService extends AbstractComponent {
+public abstract class AbstractScopedSettings extends AbstractComponent {
     private Settings lastSettingsApplied;
     private final List<SettingUpdater> settingUpdaters = new ArrayList<>();
+    private final Map<String, Setting<?>> groupSettings = new HashMap<>();
+    private final Map<String, Setting<?>> keySettings = new HashMap<>();
+    private final Setting.Scope scope;
 
-    protected SettingsService(Settings settings) {
+    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
         super(settings);
+        for (Setting<?> entry : settingsSet) {
+            if (entry.getScope() != scope) {
+                throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
+            }
+            if (entry.isGroupSetting()) {
+                groupSettings.put(entry.getKey(), entry);
+            } else {
+                keySettings.put(entry.getKey(), entry);
+            }
+        }
+        this.scope = scope;
+    }
+
+    public Setting.Scope getScope() {
+        return this.scope;
     }
 
     /**
@@ -140,7 +156,7 @@ public abstract class SettingsService extends AbstractComponent {
      * </p>
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Predicate<T> predicate) {
-        if (setting != getSetting(setting.getKey())) {
+        if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         this.settingUpdaters.add(setting.newUpdater(consumer, logger, settings, predicate));
@@ -153,10 +169,10 @@ public abstract class SettingsService extends AbstractComponent {
      * </p>
      */
     public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
-        if (a != getSetting(a.getKey())) {
+        if (a != get(a.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + a.getKey() + "]");
         }
-        if (b != getSetting(b.getKey())) {
+        if (b != get(b.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
         }
         this.settingUpdaters.add(Setting.compoundUpdater(consumer, a, b, logger, settings));
@@ -171,8 +187,6 @@ public abstract class SettingsService extends AbstractComponent {
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
        addSettingsUpdateConsumer(setting, consumer, (s) -> true);
     }
-
-    protected abstract Setting<?> getSetting(String key);
 
     /**
      * Transactional interface to update settings.
@@ -196,6 +210,46 @@ public abstract class SettingsService extends AbstractComponent {
          * Rolls back to the state before {@link #prepareApply(Settings)} was called. All internal prepared state is cleared after this call.
          */
         void rollback();
+    }
+
+    /**
+     * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
+     */
+    public Setting get(String key) {
+        Setting<?> setting = keySettings.get(key);
+        if (setting == null) {
+            for (Map.Entry<String, Setting<?>> entry : groupSettings.entrySet()) {
+                if (entry.getValue().match(key)) {
+                    return entry.getValue();
+                }
+            }
+        } else {
+            return setting;
+        }
+        return null;
+    }
+
+    /**
+     * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
+     */
+    public boolean hasDynamicSetting(String key) {
+        final Setting setting = get(key);
+        return setting != null && setting.isDynamic();
+    }
+
+    /**
+     * Returns a settings object that contains all clustersettings that are not
+     * already set in the given source. The diff contains either the default value for each
+     * setting or the settings value in the given default settings.
+     */
+    public Settings diff(Settings source, Settings defaultSettings) {
+        Settings.Builder builder = Settings.builder();
+        for (Setting<?> setting : keySettings.values()) {
+            if (setting.exists(source) == false) {
+                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
+            }
+        }
+        return builder.build();
     }
 
 }

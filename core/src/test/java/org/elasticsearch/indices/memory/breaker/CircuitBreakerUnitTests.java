@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +66,7 @@ public class CircuitBreakerUnitTests extends ESTestCase {
     }
 
     public void testRegisterCustomBreaker() throws Exception {
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         String customName = "custom";
         BreakerSettings settings = new BreakerSettings(customName, 20, 1.0);
         service.registerBreaker(settings);

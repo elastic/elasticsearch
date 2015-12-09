@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -283,7 +282,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
-        ClusterSettingsService service = new ClusterSettingsService(settingsBuilder().build(), new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings service = new ClusterSettings(settingsBuilder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
@@ -312,7 +311,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
-                new ClusterSettingsService(Settings.Builder.EMPTY_SETTINGS, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), getRandom()), new ShardsAllocators(settings.build(),
+                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
                 NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
 
             @Override

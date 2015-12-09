@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.io.IOException;
 import java.util.*;
@@ -250,9 +250,9 @@ public class ThreadPool extends AbstractComponent {
         this.estimatedTimeThread.start();
     }
 
-    public void setNodeSettingsService(ClusterSettingsService clusterSettingsService) {
+    public void setNodeSettingsService(ClusterSettings clusterSettings) {
         if(settingsListenerIsSet.compareAndSet(false, true)) {
-            clusterSettingsService.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> {validate(s.getAsGroups()); return true;});
+            clusterSettings.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> {validate(s.getAsGroups()); return true;});
         } else {
             throw new IllegalStateException("the node settings listener was set more then once");
         }

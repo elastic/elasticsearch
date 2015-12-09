@@ -43,7 +43,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -238,7 +237,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     protected MockPublishAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, DiscoveryNodesProvider nodesProvider,
                                                                PublishClusterStateAction.NewPendingClusterStateListener listener) {
-        DiscoverySettings discoverySettings = new DiscoverySettings(settings, new ClusterSettingsService(settings, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        DiscoverySettings discoverySettings = new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 

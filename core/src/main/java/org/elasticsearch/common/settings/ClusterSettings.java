@@ -26,8 +26,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.*;
 import org.elasticsearch.cluster.service.InternalClusterService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -44,51 +42,10 @@ import java.util.*;
 /**
  * Encapsulates all valid cluster level settings.
  */
-public final class ClusterSettings {
+public final class ClusterSettings extends AbstractScopedSettings {
 
-    private final Map<String, Setting<?>> groupSettings = new HashMap<>();
-    private final Map<String, Setting<?>> keySettings = new HashMap<>();
-
-    public ClusterSettings(Set<Setting<?>> settingsSet) {
-        for (Setting<?> entry : settingsSet) {
-            if (entry.getScope() != Setting.Scope.Cluster) {
-                throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
-            }
-            if (entry.isGroupSetting()) {
-                groupSettings.put(entry.getKey(), entry);
-            } else {
-                keySettings.put(entry.getKey(), entry);
-            }
-        }
-    }
-
-    public ClusterSettings() {
-        this(BUILT_IN_CLUSTER_SETTINGS);
-    }
-
-    /**
-     * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
-     */
-    public Setting get(String key) {
-        Setting<?> setting = keySettings.get(key);
-        if (setting == null) {
-            for (Map.Entry<String, Setting<?>> entry : groupSettings.entrySet()) {
-                if (entry.getValue().match(key)) {
-                    return entry.getValue();
-                }
-            }
-        } else {
-            return setting;
-        }
-        return null;
-    }
-
-    /**
-     * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
-     */
-    public boolean hasDynamicSetting(String key) {
-        final Setting setting = get(key);
-        return setting != null && setting.isDynamic();
+    public ClusterSettings(Settings settings, Set<Setting<?>> settingsSet) {
+        super(settings, settingsSet, Setting.Scope.Cluster);
     }
 
     /**
@@ -98,20 +55,6 @@ public final class ClusterSettings {
         return key.startsWith("logger.");
     }
 
-    /**
-     * Returns a settings object that contains all clustersettings that are not
-     * already set in the given source. The diff contains either the default value for each
-     * setting or the settings value in the given default settings.
-     */
-    public Settings diff(Settings source, Settings defaultSettings) {
-        Settings.Builder builder = Settings.builder();
-        for (Setting<?> setting : keySettings.values()) {
-            if (setting.exists(source) == false) {
-                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
-            }
-        }
-        return builder.build();
-    }
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
@@ -171,5 +114,4 @@ public final class ClusterSettings {
         TransportService.TRACE_LOG_INCLUDE_SETTING,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING)));
-
 }

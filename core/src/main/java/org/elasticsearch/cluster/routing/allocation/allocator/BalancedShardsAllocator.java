@@ -41,7 +41,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -82,16 +81,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     private volatile float threshold;
 
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettingsService(settings, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         weightFunction = new WeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
-        clusterSettingsService.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
-        clusterSettingsService.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
+        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
     }
 
     public void setWeightFunction(float indexBalance, float shardBalanceFactor) {

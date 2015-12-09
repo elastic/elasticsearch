@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  *

@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -62,12 +62,12 @@ public class DiscoverySettings extends AbstractComponent {
     private volatile boolean publishDiff;
 
     @Inject
-    public DiscoverySettings(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public DiscoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
-        clusterSettingsService.addSettingsUpdateConsumer(PUBLISH_DIFF_ENABLE_SETTING, this::setPublishDiff);
-        clusterSettingsService.addSettingsUpdateConsumer(COMMIT_TIMEOUT_SETTING, this::setCommitTimeout);
-        clusterSettingsService.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
+        clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_DIFF_ENABLE_SETTING, this::setPublishDiff);
+        clusterSettings.addSettingsUpdateConsumer(COMMIT_TIMEOUT_SETTING, this::setCommitTimeout);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
         this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.commitTimeout = COMMIT_TIMEOUT_SETTING.get(settings);

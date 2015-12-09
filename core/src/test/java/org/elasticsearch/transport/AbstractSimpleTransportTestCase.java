@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -652,7 +651,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             includeSettings = "test";
             excludeSettings = "DOESN'T_MATCH";
         }
-        ClusterSettingsService service = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         serviceA.setDynamicSettings(service);
         service.applySettings(Settings.builder()
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings, TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)

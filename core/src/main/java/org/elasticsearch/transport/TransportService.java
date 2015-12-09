@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -132,9 +132,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // These need to be optional as they don't exist in the context of a transport client
     @Inject(optional = true)
-    public void setDynamicSettings(ClusterSettingsService clusterSettingsService) {
-        clusterSettingsService.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
-        clusterSettingsService.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracelLogExclude);
+    public void setDynamicSettings(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
+        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracelLogExclude);
     }
 
     void setTracerLogInclude(String[] tracerLogInclude) {

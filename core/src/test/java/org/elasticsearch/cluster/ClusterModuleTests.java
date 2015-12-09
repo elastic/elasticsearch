@@ -31,11 +31,10 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.ClusterSettingsService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
@@ -86,7 +85,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterClusterDynamicSetting() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
         module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster));
-        assertInstanceBinding(module, ClusterSettingsService.class, service -> service.getClusterSettings().hasDynamicSetting("foo.bar"));
+        assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {

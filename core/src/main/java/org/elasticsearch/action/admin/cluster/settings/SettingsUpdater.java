@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashSet;
@@ -40,12 +39,10 @@ import static org.elasticsearch.cluster.ClusterState.builder;
 final class SettingsUpdater {
     final Settings.Builder transientUpdates = Settings.settingsBuilder();
     final Settings.Builder persistentUpdates = Settings.settingsBuilder();
-    private final ClusterSettings dynamicSettings;
-    private final ClusterSettingsService clusterSettingsService;
+    private final ClusterSettings clusterSettings;
 
-    SettingsUpdater(ClusterSettingsService clusterSettingsService) {
-        this.dynamicSettings = clusterSettingsService.getClusterSettings();
-        this.clusterSettingsService = clusterSettingsService;
+    SettingsUpdater(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
     }
 
     synchronized Settings getTransientUpdates() {
@@ -85,7 +82,7 @@ final class SettingsUpdater {
         Settings settings = build.metaData().settings();
         // now we try to apply things and if they are invalid we fail
         // this dryRun will validate & parse settings but won't actually apply them.
-        clusterSettingsService.dryRun(settings);
+        clusterSettings.dryRun(settings);
         return build;
     }
 
@@ -96,7 +93,7 @@ final class SettingsUpdater {
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null) {
                 toRemove.add(entry.getKey());
-            } else if (dynamicSettings.isLoggerSetting(entry.getKey()) || dynamicSettings.hasDynamicSetting(entry.getKey())) {
+            } else if (clusterSettings.isLoggerSetting(entry.getKey()) || clusterSettings.hasDynamicSetting(entry.getKey())) {
                 settingsBuilder.put(entry.getKey(), entry.getValue());
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;

@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RecoverySourceHandlerTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("index"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
-    private final ClusterSettingsService service = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     public void testSendFiles() throws Throwable {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).

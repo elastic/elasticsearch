@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -98,16 +97,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
      * @param settings {@link Settings} to use
      */
     public AwarenessAllocationDecider(Settings settings) {
-        this(settings, new ClusterSettingsService(settings, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     @Inject
-    public AwarenessAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
         setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING, this::setForcedAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING, this::setForcedAwarenessAttributes);
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {

@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
@@ -59,13 +59,13 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentRecoveries;
 
     @Inject
-    public ThrottlingAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
         this.concurrentRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.get(settings);
         logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING, this::setPrimariesInitialRecoveries);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING, this::setConcurrentRecoveries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING, this::setPrimariesInitialRecoveries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING, this::setConcurrentRecoveries);
     }
 
     private void setConcurrentRecoveries(int concurrentRecoveries) {

@@ -18,23 +18,22 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SettingsServiceTests extends ESTestCase {
+public class ScopedSettingsTests extends ESTestCase {
 
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.Cluster);
-        SettingsService service = new SettingsService(Settings.EMPTY) {
-            @Override
-            protected Setting<?> getSetting(String key) {
-                if (key.equals(testSetting.getKey())) {
-                    return testSetting;
-                }
-                return null;
-            }
-        };
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, Collections.singleton(testSetting));
 
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);
@@ -45,7 +44,6 @@ public class SettingsServiceTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("Setting is not registered for key [foo.bar.baz]", ex.getMessage());
         }
-
 
         try {
             service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {consumer.set(a); consumer2.set(b);});
@@ -63,17 +61,7 @@ public class SettingsServiceTests extends ESTestCase {
     public void testApply() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.Cluster);
-        SettingsService service = new SettingsService(Settings.EMPTY) {
-            @Override
-            protected Setting<?> getSetting(String key) {
-                if (key.equals(testSetting.getKey())) {
-                    return testSetting;
-                } else if (key.equals(testSetting2.getKey())) {
-                    return testSetting2;
-                }
-                return null;
-            }
-        };
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
 
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);
@@ -120,5 +108,34 @@ public class SettingsServiceTests extends ESTestCase {
         assertEquals(15, consumer2.get());
         assertEquals(2, aC.get());
         assertEquals(15, bC.get());
+    }
+
+    public void testGet() {
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Setting setting = settings.get("cluster.routing.allocation.require.value");
+        assertEquals(setting, FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING);
+
+        setting = settings.get("cluster.routing.allocation.total_shards_per_node");
+        assertEquals(setting, ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
+    }
+
+    public void testIsDynamic(){
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster), Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.Cluster))));
+        assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
+        assertTrue(settings.hasDynamicSetting("foo.bar"));
+        assertNotNull(settings.get("foo.bar.baz"));
+    }
+
+    public void testDiff() throws IOException {
+        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.Cluster);
+        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, true, Setting.Scope.Cluster);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
+        Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
+        assertEquals(diff.getAsMap().size(), 1);
+        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(1));
+
+        diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
+        assertEquals(diff.getAsMap().size(), 1);
+        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
     }
 }

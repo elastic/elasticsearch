@@ -26,12 +26,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.concurrent.TimeoutException;
 
@@ -47,10 +47,10 @@ public class MappingUpdatedAction extends AbstractComponent {
     private volatile TimeValue dynamicMappingUpdateTimeout;
 
     @Inject
-    public MappingUpdatedAction(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public MappingUpdatedAction(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.dynamicMappingUpdateTimeout = INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING, this::setDynamicMappingUpdateTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING, this::setDynamicMappingUpdateTimeout);
     }
 
     private void setDynamicMappingUpdateTimeout(TimeValue dynamicMappingUpdateTimeout) {

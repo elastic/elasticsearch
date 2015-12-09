@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
@@ -47,7 +48,6 @@ import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -75,7 +75,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
-    private final ClusterSettingsService clusterSettingsService;
+    private final ClusterSettings clusterSettings;
     private final DiscoveryNodeService discoveryNodeService;
     private final Version version;
 
@@ -108,20 +108,20 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  ClusterSettingsService clusterSettingsService, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
+                                  ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-        this.clusterSettingsService = clusterSettingsService;
+        this.clusterSettings = clusterSettings;
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
 
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
-        this.clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
 
         this.reconnectInterval = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL, TimeValue.timeValueSeconds(10));
 
@@ -525,7 +525,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
                 if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
                     final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
-                    clusterSettingsService.applySettings(incomingSettings);
+                    clusterSettings.applySettings(incomingSettings);
                 }
             } catch (Exception ex) {
                 logger.warn("failed to apply cluster settings", ex);

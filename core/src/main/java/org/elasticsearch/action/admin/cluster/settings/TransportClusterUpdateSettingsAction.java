@@ -36,8 +36,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -50,14 +50,14 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private final AllocationService allocationService;
 
-    private final ClusterSettingsService clusterSettingsService;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettingsService clusterSettingsService) {
+                                                AllocationService allocationService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
         super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
-        this.clusterSettingsService = clusterSettingsService;
+        this.clusterSettings = clusterSettings;
     }
 
     @Override
@@ -83,7 +83,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     @Override
     protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state, final ActionListener<ClusterUpdateSettingsResponse> listener) {
-        final SettingsUpdater updater = new SettingsUpdater(clusterSettingsService);
+        final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask("cluster_update_settings",
                 new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.IMMEDIATE, request, listener) {
 

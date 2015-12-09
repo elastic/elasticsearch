@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -71,7 +72,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -152,7 +152,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public SearchService(Settings settings, ClusterSettingsService clusterSettingsService, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
@@ -187,7 +187,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.indicesWarmer.addListener(new SearchWarmer());
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
+        clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
     }
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {

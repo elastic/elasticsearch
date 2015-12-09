@@ -23,13 +23,13 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -95,7 +95,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
 
     @Inject
-    public RecoverySettings(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.fileChunkSize = INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.get(settings);
         this.translogOps = INDICES_RECOVERY_TRANSLOG_OPS_SETTING.get(settings);
@@ -130,18 +130,18 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
                 maxBytesPerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
 
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING, this::setFileChunkSize);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_OPS_SETTING, this::setTranslogOps);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_SIZE_SETTING, this::setTranslogSize);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_COMPRESS_SETTING, this::setCompress);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING, this::setConcurrentStreams);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING, this::setConcurrentSmallFileStreams);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING, this::setInternalActionLongTimeout);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING, this::setFileChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_OPS_SETTING, this::setTranslogOps);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_SIZE_SETTING, this::setTranslogSize);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_COMPRESS_SETTING, this::setCompress);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING, this::setConcurrentStreams);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING, this::setConcurrentSmallFileStreams);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING, this::setInternalActionLongTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
     }
 
     @Override

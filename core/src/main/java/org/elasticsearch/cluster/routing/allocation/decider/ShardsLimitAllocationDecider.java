@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
@@ -68,10 +68,10 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
 
     @Inject
-    public ShardsLimitAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }
 
     private void setClusterShardLimit(int clusterShardLimit) {

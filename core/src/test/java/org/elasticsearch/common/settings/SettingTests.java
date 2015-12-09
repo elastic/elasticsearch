@@ -42,7 +42,7 @@ public class SettingTests extends ESTestCase {
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-        ClusterSettingsService.SettingUpdater settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger, Settings.EMPTY);
         try {
             settingUpdater.prepareApply(Settings.builder().put("a.byte.size", 12).build());
             fail("no unit");
@@ -58,7 +58,7 @@ public class SettingTests extends ESTestCase {
     public void testSimpleUpdate() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
-        ClusterSettingsService.SettingUpdater settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger, Settings.EMPTY);
         Settings build = Settings.builder().put("foo.bar", false).build();
         settingUpdater.prepareApply(build);
         assertNull(atomicBoolean.get());
@@ -96,7 +96,7 @@ public class SettingTests extends ESTestCase {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster);
         AtomicReference<Boolean> ab1 = new AtomicReference<>(null);
         AtomicReference<Boolean> ab2 = new AtomicReference<>(null);
-        ClusterSettingsService.SettingUpdater settingUpdater = booleanSetting.newUpdater(ab1::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(ab1::set, logger, Settings.EMPTY);
         settingUpdater.prepareApply(Settings.builder().put("foo.bar", true).build());
         assertNull(ab1.get());
         assertNull(ab2.get());
@@ -124,7 +124,7 @@ public class SettingTests extends ESTestCase {
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
-        ClusterSettingsService.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
         assertFalse(settingUpdater.prepareApply(Settings.EMPTY));
         settingUpdater.apply();
         assertSame("no update - type has not changed", type, ref.get());
@@ -147,7 +147,7 @@ public class SettingTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, true, Setting.Scope.Cluster);
         assertFalse(integerSetting.isGroupSetting());
         AtomicReference<Integer> ref = new AtomicReference<>(null);
-        ClusterSettingsService.SettingUpdater settingUpdater = integerSetting.newUpdater(ref::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = integerSetting.newUpdater(ref::set, logger, Settings.EMPTY);
         assertNull(ref.get());
         assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.int.bar", "2").build()));
         settingUpdater.rollback();
@@ -169,7 +169,7 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", true, Setting.Scope.Cluster);
         assertTrue(setting.isGroupSetting());
-        ClusterSettingsService.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
 
         assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build()));
         settingUpdater.apply();
@@ -209,7 +209,7 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettingsService.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY, (s) -> false);
+        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY, (s) -> false);
         try {
             predicateSettingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build());
             fail("not accepted");
@@ -243,7 +243,7 @@ public class SettingTests extends ESTestCase {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, true, Setting.Scope.Cluster);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, true, Setting.Scope.Cluster);
-        ClusterSettingsService.SettingUpdater settingUpdater = Setting.compoundUpdater(c::set, a, b, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = Setting.compoundUpdater(c::set, a, b, logger, Settings.EMPTY);
         assertFalse(settingUpdater.prepareApply(Settings.EMPTY));
         settingUpdater.apply();
         assertNull(c.a);

@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.Locale;
 
@@ -82,7 +82,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private ClusterRebalanceType type;
 
     @Inject
-    public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         try {
             type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
@@ -92,7 +92,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         }
         logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, type.toString().toLowerCase(Locale.ROOT));
 
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
 
     public void setType(ClusterRebalanceType type) {

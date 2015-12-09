@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -46,7 +45,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  */
 public class DiskThresholdDeciderUnitTests extends ESTestCase {
     public void testDynamicSettings() {
-        ClusterSettingsService nss = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
@@ -84,7 +83,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
     }
 
     public void testCanAllocateUsesMaxAvailableSpace() {
-        ClusterSettingsService nss = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
 
@@ -125,7 +124,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {
-        ClusterSettingsService nss = new ClusterSettingsService(Settings.EMPTY, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
         ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingMap = ImmutableOpenMap.builder();

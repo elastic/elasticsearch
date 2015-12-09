@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,7 +51,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private PurgerThread purgerThread;
 
     @Inject
-    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, ClusterSettingsService clusterSettingsService, TransportBulkAction bulkAction) {
+    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, ClusterSettings clusterSettings, TransportBulkAction bulkAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -86,7 +86,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         this.bulkAction = bulkAction;
         this.bulkSize = this.settings.getAsInt("indices.ttl.bulk_size", 10000);
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
-        clusterSettingsService.addSettingsUpdateConsumer(INDICES_TTL_INTERVAL_SETTING, this.purgerThread::resetInterval);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_TTL_INTERVAL_SETTING, this.purgerThread::resetInterval);
     }
 
     @Override

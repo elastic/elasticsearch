@@ -62,7 +62,6 @@ import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
@@ -262,8 +261,8 @@ public class ClusterModule extends AbstractModule {
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-        final ClusterSettingsService clusterSettingsService = new ClusterSettingsService(settings, new ClusterSettings(new HashSet<>(clusterDynamicSettings.values())));
-        bind(ClusterSettingsService.class).toInstance(clusterSettingsService);
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
+        bind(ClusterSettings.class).toInstance(clusterSettings);
 
 
     }

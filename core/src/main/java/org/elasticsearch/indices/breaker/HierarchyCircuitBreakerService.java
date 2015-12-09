@@ -25,10 +25,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +66,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
     @Inject
-    public HierarchyCircuitBreakerService(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(),
@@ -88,9 +88,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
 
-        clusterSettingsService.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
-        clusterSettingsService.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
-        clusterSettingsService.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
     }
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
         long newRequestLimitBytes = newRequestMax == null ? HierarchyCircuitBreakerService.this.requestSettings.getLimit() : newRequestMax.bytes();

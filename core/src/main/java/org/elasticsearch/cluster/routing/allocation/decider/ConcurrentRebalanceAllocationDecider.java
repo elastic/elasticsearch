@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
@@ -46,11 +46,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     private volatile int clusterConcurrentRebalance;
 
     @Inject
-    public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING, this::setClusterConcurrentRebalance);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING, this::setClusterConcurrentRebalance);
     }
 
     public void setClusterConcurrentRebalance(int concurrentRebalance) {

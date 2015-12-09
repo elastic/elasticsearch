@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -44,6 +43,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -73,7 +73,6 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -203,7 +202,7 @@ public class Node implements Releasable {
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setNodeSettingsService(injector.getInstance(ClusterSettingsService.class));
+            threadPool.setNodeSettingsService(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

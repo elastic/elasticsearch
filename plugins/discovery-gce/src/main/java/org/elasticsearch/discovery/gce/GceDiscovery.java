@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.gce;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -39,10 +40,10 @@ public class GceDiscovery extends ZenDiscovery {
 
     @Inject
     public GceDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
-                        ClusterService clusterService, ClusterSettingsService clusterSettingsService, ZenPingService pingService,
+                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPingService pingService,
                         DiscoverySettings discoverySettings,
                         ElectMasterService electMasterService) {
-        super(settings, clusterName, threadPool, transportService, clusterService, clusterSettingsService,
+        super(settings, clusterName, threadPool, transportService, clusterService, clusterSettings,
                 pingService, electMasterService, discoverySettings);
     }
 }

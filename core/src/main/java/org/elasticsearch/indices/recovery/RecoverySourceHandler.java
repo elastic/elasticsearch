@@ -58,9 +58,6 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
@@ -591,100 +588,38 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Throwable {
         store.incRef();
         try {
-            Future[] runners = asyncSendFiles(store, files, outputStreamFactory);
-            IOException corruptedEngine = null;
-            final List<Throwable> exceptions = new ArrayList<>();
-            for (int i = 0; i < runners.length; i++) {
-                StoreFileMetaData md = files[i];
-                try {
-                    runners[i].get();
-                } catch (ExecutionException t) {
-                    corruptedEngine = handleExecutionException(store, corruptedEngine, exceptions, md, t.getCause());
-                } catch (InterruptedException t) {
-                    corruptedEngine = handleExecutionException(store, corruptedEngine, exceptions, md, t);
+            ArrayUtil.timSort(files, (a,b) -> Long.compare(a.length(), b.length())); // send smallest first
+            for (int i = 0; i < files.length; i++) {
+                final StoreFileMetaData md = files[i];
+                try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                    // it's fine that we are only having the indexInput int he try/with block. The copy methods handles
+                    // exceptions during close correctly and doesn't hide the original exception.
+                    Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
+                } catch (Throwable t) {
+                    final IOException corruptIndexException;
+                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(t)) != null) {
+                        if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
+                            logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                            failEngine(corruptIndexException);
+                            throw corruptIndexException;
+                        } else { // corruption has happened on the way to replica
+                            RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
+                            exception.addSuppressed(t);
+                            logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                                corruptIndexException, shardId, request.targetNode(), md);
+                            throw exception;
+                        }
+                    } else {
+                        throw t;
+                    }
                 }
-            }
-            if (corruptedEngine != null) {
-                failEngine(corruptedEngine);
-                throw corruptedEngine;
-            } else {
-                ExceptionsHelper.rethrowAndSuppress(exceptions);
             }
         } finally {
             store.decRef();
         }
-    }
-
-    private IOException handleExecutionException(Store store, IOException corruptedEngine, List<Throwable> exceptions, StoreFileMetaData md, Throwable t) {
-        logger.debug("Failed to transfer file [" + md + "] on recovery");
-        final IOException corruptIndexException;
-        final boolean checkIntegrity = corruptedEngine == null;
-        if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(t)) != null) {
-            if (checkIntegrity && store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
-                corruptedEngine = corruptIndexException;
-            } else { // corruption has happened on the way to replica
-                RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
-                exception.addSuppressed(t);
-                if (checkIntegrity) {
-                    logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                            corruptIndexException, shardId, request.targetNode(), md);
-                } else {
-                    logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum are skipped",
-                            corruptIndexException, shardId, request.targetNode(), md);
-                }
-                exceptions.add(exception);
-
-            }
-        } else {
-            exceptions.add(t);
-        }
-        return corruptedEngine;
     }
 
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
-    }
-
-    Future<Void>[] asyncSendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) {
-        store.incRef();
-        try {
-            final Future<Void>[] futures = new Future[files.length];
-            for (int i = 0; i < files.length; i++) {
-                final StoreFileMetaData md = files[i];
-                long fileSize = md.length();
-
-                // Files are split into two categories, files that are "small"
-                // (under 5mb) and other files. Small files are transferred
-                // using a separate thread pool dedicated to small files.
-                //
-                // The idea behind this is that while we are transferring an
-                // older, large index, a user may create a new index, but that
-                // index will not be able to recover until the large index
-                // finishes, by using two different thread pools we can allow
-                // tiny files (like segments for a brand new index) to be
-                // recovered while ongoing large segment recoveries are
-                // happening. It also allows these pools to be configured
-                // separately.
-                ThreadPoolExecutor pool;
-                if (fileSize > RecoverySettings.SMALL_FILE_CUTOFF_BYTES) {
-                    pool = recoverySettings.concurrentStreamPool();
-                } else {
-                    pool = recoverySettings.concurrentSmallFileStreamPool();
-                }
-                Future<Void> future = pool.submit(() -> {
-                    try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                        // it's fine that we are only having the indexInput int he try/with block. The copy methods handles
-                        // exceptions during close correctly and doesn't hide the original exception.
-                        Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
-                    }
-                    return null;
-                });
-                futures[i] = future;
-            }
-            return futures;
-        } finally {
-            store.decRef();
-        }
     }
 }

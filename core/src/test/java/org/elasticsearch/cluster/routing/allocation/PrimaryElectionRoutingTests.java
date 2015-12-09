@@ -43,7 +43,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(PrimaryElectionRoutingTests.class);
 
     public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -93,7 +93,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
     }
 
     public void testRemovingInitializingReplicasIfPrimariesFails() {
-        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 

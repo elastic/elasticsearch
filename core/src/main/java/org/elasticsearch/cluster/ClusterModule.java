@@ -74,7 +74,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -128,7 +127,6 @@ public class ClusterModule extends AbstractModule {
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
     }
-
 
     private void registerBuiltinIndexSettings() {
         registerIndexDynamicSetting(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, Validator.BYTES_SIZE);

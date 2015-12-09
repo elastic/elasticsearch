@@ -50,7 +50,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -378,7 +377,7 @@ public class ExternalNodeService {
             long startTime = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTime < maxTimeInMillis) {
                 if (Files.exists(pidPath)) {
-                    BufferedReader reader = Files.newBufferedReader(pidPath);
+                    BufferedReader reader = Files.newBufferedReader(pidPath, StandardCharsets.UTF_8);
                     String pid = reader.readLine();
                     reader.close();
                     if (pid != null) {

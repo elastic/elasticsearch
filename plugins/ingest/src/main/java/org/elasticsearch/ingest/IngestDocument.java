@@ -36,8 +36,6 @@ public final class IngestDocument {
     private final Map<String, Object> source;
     private final Map<String, String> ingestMetadata;
 
-    private boolean sourceModified = false;
-
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp, String ttl, Map<String, Object> source) {
         this.esMetadata = new HashMap<>();
         this.esMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -190,7 +188,6 @@ public final class IngestDocument {
             Map<String, Object> map = (Map<String, Object>) context;
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
-                this.sourceModified = true;
                 return;
             }
             throw new IllegalArgumentException("field [" + leafKey + "] not present as part of path [" + path + "]");
@@ -208,7 +205,6 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
             }
             list.remove(index);
-            this.sourceModified = true;
             return;
         }
 
@@ -292,7 +288,6 @@ public final class IngestDocument {
                 } else {
                     HashMap<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
-                    sourceModified = true;
                     context = newMap;
                 }
             } else if (context instanceof List) {
@@ -327,13 +322,11 @@ public final class IngestDocument {
                         @SuppressWarnings("unchecked")
                         List<Object> list = (List<Object>) object;
                         list.add(value);
-                        sourceModified = true;
                         return;
                     }
                 }
             }
             map.put(leafKey, value);
-            sourceModified = true;
         } else if (context instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
@@ -347,7 +340,6 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
             }
             list.set(index, value);
-            this.sourceModified = true;
         } else {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with parent object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");
         }
@@ -384,10 +376,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getSource() {
         return source;
-    }
-
-    public boolean isSourceModified() {
-        return sourceModified;
     }
 
     static Object deepCopy(Object value) {

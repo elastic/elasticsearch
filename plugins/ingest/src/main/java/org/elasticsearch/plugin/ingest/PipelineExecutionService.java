@@ -62,9 +62,7 @@ public class PipelineExecutionService {
             IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
             try {
                 pipeline.execute(ingestDocument);
-                if (ingestDocument.isSourceModified()) {
-                    indexRequest.source(ingestDocument.getSource());
-                }
+                indexRequest.source(ingestDocument.getSource());
                 indexRequest.index(ingestDocument.getEsMetadata(IngestDocument.MetaData.INDEX));
                 indexRequest.type(ingestDocument.getEsMetadata(IngestDocument.MetaData.TYPE));
                 indexRequest.id(ingestDocument.getEsMetadata(IngestDocument.MetaData.ID));

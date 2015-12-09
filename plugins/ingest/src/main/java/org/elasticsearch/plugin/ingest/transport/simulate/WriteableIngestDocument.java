@@ -74,7 +74,6 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DOCUMENT);
-        builder.field(Fields.MODIFIED, ingestDocument.isSourceModified());
         for (Map.Entry<String, String> esMetadata : ingestDocument.getEsMetadata().entrySet()) {
             builder.field(esMetadata.getKey(), esMetadata.getValue());
         }
@@ -112,7 +111,6 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
 
     static final class Fields {
         static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
-        static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
         static final XContentBuilderString SOURCE = new XContentBuilderString("_source");
         static final XContentBuilderString INGEST = new XContentBuilderString("_ingest");
     }

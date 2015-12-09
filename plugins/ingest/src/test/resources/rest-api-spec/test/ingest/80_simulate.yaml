@@ -46,7 +46,6 @@
             ]
           }
   - length: { docs: 1 }
-  - is_true: docs.0.doc.modified
   - match: { docs.0.doc._source.foo: "bar" }
   - match: { docs.0.doc._source.field2: "_value" }
   - length: { docs.0.doc._ingest: 1 }
@@ -155,7 +154,6 @@
   - length: { docs: 1 }
   - length: { docs.0.processor_results: 2 }
   - match: { docs.0.processor_results.0.processor_id: "processor[set]-0" }
-  - is_true: docs.0.processor_results.0.doc.modified
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
@@ -209,7 +207,6 @@
           }
   - length: { docs: 2 }
   - match: { docs.0.error.type: "illegal_argument_exception" }
-  - is_true: docs.1.doc.modified
   - match: { docs.1.doc._source.foo: "BAR" }
   - length: { docs.1.doc._ingest: 1 }
   - is_true: docs.1.doc._ingest.timestamp

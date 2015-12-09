@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+
+//TODO this processor needs to be removed, as the set processor allows now to set any field, including metadata ones.
+//The only reason for it to be still here is that it supports templating, we will remove once any processor supports templating.
 public final class MetaDataProcessor implements Processor {
 
     public final static String TYPE = "meta";
@@ -26,11 +29,11 @@ public final class MetaDataProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        Map<String, Object> model = ingestDocument.getSource();
+        Map<String, Object> model = ingestDocument.getSourceAndMetadata();
         for (Map.Entry<MetaData, Mustache> entry : templates.entrySet()) {
             StringWriter writer = new StringWriter();
             entry.getValue().execute(writer, model);
-            ingestDocument.setEsMetadata(entry.getKey(), writer.toString());
+            ingestDocument.setFieldValue(entry.getKey().getFieldName(), writer.toString());
         }
     }
 

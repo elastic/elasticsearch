@@ -122,9 +122,9 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
         Answer answer = invocationOnMock -> {
-            ActionListener<IngestDocument> listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing(), indexRequest.parent(),
-                indexRequest.timestamp(), indexRequest.ttl() == null ? null : indexRequest.ttl().toString(), indexRequest.sourceAsMap()));
+            @SuppressWarnings("unchecked")
+            ActionListener<Void> listener = (ActionListener<Void>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
             return null;
         };
         doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));

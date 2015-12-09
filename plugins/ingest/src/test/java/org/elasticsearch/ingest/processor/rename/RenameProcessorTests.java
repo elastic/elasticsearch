@@ -60,14 +60,14 @@ public class RenameProcessorTests extends ESTestCase {
 
         Processor processor = new RenameProcessor("list.0", "item");
         processor.execute(ingestDocument);
-        Object actualObject = ingestDocument.getSource().get("list");
+        Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(actualObject, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> actualList = (List<String>) actualObject;
         assertThat(actualList.size(), equalTo(2));
         assertThat(actualList.get(0), equalTo("item2"));
         assertThat(actualList.get(1), equalTo("item3"));
-        actualObject = ingestDocument.getSource().get("item");
+        actualObject = ingestDocument.getSourceAndMetadata().get("item");
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
@@ -120,7 +120,7 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationSetFails() throws Exception {
-        Map<String, Object> document = new HashMap<String, Object>() {
+        Map<String, Object> source = new HashMap<String, Object>() {
             private static final long serialVersionUID = 362498820763181265L;
             @Override
             public Object put(String key, Object value) {
@@ -130,22 +130,22 @@ public class RenameProcessorTests extends ESTestCase {
                 return super.put(key, value);
             }
         };
-        document.put("list", Collections.singletonList("item"));
+        source.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
         Processor processor = new RenameProcessor("list", "new_field");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch(UnsupportedOperationException e) {
             //the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSource().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
-        Map<String, Object> document = new HashMap<String, Object>() {
+        Map<String, Object> source = new HashMap<String, Object>() {
             private static final long serialVersionUID = 362498820763181265L;
             @Override
             public Object remove(Object key) {
@@ -155,17 +155,17 @@ public class RenameProcessorTests extends ESTestCase {
                 return super.remove(key);
             }
         };
-        document.put("list", Collections.singletonList("item"));
+        source.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
         Processor processor = new RenameProcessor("list", "new_field");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
             //the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSource().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }
 }

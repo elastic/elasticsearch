@@ -34,7 +34,7 @@ import java.util.Objects;
 
 final class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
 
-    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap()));
 
     private final IngestDocument ingestDocument;
 
@@ -53,28 +53,26 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
 
     @Override
     public WriteableIngestDocument readFrom(StreamInput in) throws IOException {
-        @SuppressWarnings("unchecked")
-        Map<String, String> esMetadata = (Map<String, String>) in.readGenericValue();
-        Map<String, Object> source = in.readMap();
+        Map<String, Object> sourceAndMetadata = in.readMap();
         @SuppressWarnings("unchecked")
         Map<String, String> ingestMetadata = (Map<String, String>) in.readGenericValue();
-        return new WriteableIngestDocument(new IngestDocument(esMetadata, source, ingestMetadata));
+        return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(ingestDocument.getEsMetadata());
-        out.writeMap(ingestDocument.getSource());
+        out.writeMap(ingestDocument.getSourceAndMetadata());
         out.writeGenericValue(ingestDocument.getIngestMetadata());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DOCUMENT);
-        for (Map.Entry<String, String> esMetadata : ingestDocument.getEsMetadata().entrySet()) {
-            builder.field(esMetadata.getKey(), esMetadata.getValue());
+        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+        for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
+            builder.field(metadata.getKey().getFieldName(), metadata.getValue());
         }
-        builder.field(Fields.SOURCE, ingestDocument.getSource());
+        builder.field(Fields.SOURCE, ingestDocument.getSourceAndMetadata());
         builder.startObject(Fields.INGEST);
         for (Map.Entry<String, String> ingestMetadata : ingestDocument.getIngestMetadata().entrySet()) {
             builder.field(ingestMetadata.getKey(), ingestMetadata.getValue());

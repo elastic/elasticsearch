@@ -32,7 +32,7 @@ import java.util.Collections;
 
 public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
 
-    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult("_na", new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())));
+    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult("_na", new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
 
     private String processorId;
     private WriteableIngestDocument ingestDocument;

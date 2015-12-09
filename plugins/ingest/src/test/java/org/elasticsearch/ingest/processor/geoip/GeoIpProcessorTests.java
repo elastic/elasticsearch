@@ -43,10 +43,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSource().size(), equalTo(2));
-        assertThat(ingestDocument.getSource().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(10));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -69,10 +68,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSource().size(), equalTo(2));
-        assertThat(ingestDocument.getSource().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -89,7 +87,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(0));
     }
 

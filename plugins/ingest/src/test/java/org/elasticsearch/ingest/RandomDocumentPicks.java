@@ -64,7 +64,7 @@ public final class RandomDocumentPicks {
      * in the document provided as an argument.
      */
     public static String randomExistingFieldName(Random random, IngestDocument ingestDocument) {
-        Map<String, Object> source = new TreeMap<>(ingestDocument.getSource());
+        Map<String, Object> source = new TreeMap<>(ingestDocument.getSourceAndMetadata());
         Map.Entry<String, Object> randomEntry = RandomPicks.randomFrom(random, source.entrySet());
         String key = randomEntry.getKey();
         while (randomEntry.getValue() instanceof Map) {
@@ -99,7 +99,7 @@ public final class RandomDocumentPicks {
      */
     public static boolean canAddField(String path, IngestDocument ingestDocument) {
         String[] pathElements = Strings.splitStringToArray(path, '.');
-        Map<String, Object> innerMap = ingestDocument.getSource();
+        Map<String, Object> innerMap = ingestDocument.getSourceAndMetadata();
         if (pathElements.length > 1) {
             for (int i = 0; i < pathElements.length - 1; i++) {
                 Object currentLevel = innerMap.get(pathElements[i]);
@@ -122,13 +122,13 @@ public final class RandomDocumentPicks {
      * Generates a random document and random metadata
      */
     public static IngestDocument randomIngestDocument(Random random) {
-        return randomIngestDocument(random, randomDocument(random));
+        return randomIngestDocument(random, randomSource(random));
     }
 
     /**
      * Generates a document that holds random metadata and the document provided as a map argument
      */
-    public static IngestDocument randomIngestDocument(Random random, Map<String, Object> document) {
+    public static IngestDocument randomIngestDocument(Random random, Map<String, Object> source) {
         String index = randomString(random);
         String type = randomString(random);
         String id = randomString(random);
@@ -148,10 +148,10 @@ public final class RandomDocumentPicks {
         if (random.nextBoolean()) {
             ttl = randomString(random);
         }
-        return new IngestDocument(index, type, id, routing, parent, timestamp, ttl, document);
+        return new IngestDocument(index, type, id, routing, parent, timestamp, ttl, source);
     }
 
-    public static Map<String, Object> randomDocument(Random random) {
+    public static Map<String, Object> randomSource(Random random) {
         Map<String, Object> document = new HashMap<>();
         addRandomFields(random, document, 0);
         return document;

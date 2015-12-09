@@ -36,30 +36,32 @@ import static org.hamcrest.Matchers.not;
 public class WriteableIngestDocumentTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
-        Map<String, String> esMetadata = new HashMap<>();
+        Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
         for (int i = 0; i < numFields; i++) {
-            esMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
         Map<String, String> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, Object> document = RandomDocumentPicks.randomDocument(random());
-        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(new IngestDocument(esMetadata, document, ingestMetadata));
+        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
 
         boolean changed = false;
-        Map<String, String> otherEsMetadata;
+        Map<String, Object> otherSourceAndMetadata;
         if (randomBoolean()) {
-            otherEsMetadata = new HashMap<>();
-            numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
-            for (int i = 0; i < numFields; i++) {
-                otherEsMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
-            }
+            otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
             changed = true;
         } else {
-            otherEsMetadata = Collections.unmodifiableMap(esMetadata);
+            otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
+        }
+        if (randomBoolean()) {
+            numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
+            for (int i = 0; i < numFields; i++) {
+                otherSourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+            }
+            changed = true;
         }
 
         Map<String, String> otherIngestMetadata;
@@ -74,15 +76,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
             otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
         }
 
-        Map<String, Object> otherDocument;
-        if (randomBoolean()) {
-            otherDocument = RandomDocumentPicks.randomDocument(random());
-            changed = true;
-        } else {
-            otherDocument = Collections.unmodifiableMap(document);
-        }
-
-        WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(new IngestDocument(otherEsMetadata, otherDocument, otherIngestMetadata));
+        WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(new IngestDocument(otherSourceAndMetadata, otherIngestMetadata));
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -90,7 +84,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(new IngestDocument(Collections.unmodifiableMap(esMetadata), Collections.unmodifiableMap(document), Collections.unmodifiableMap(ingestMetadata)));
+            WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata)));
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -98,18 +92,18 @@ public class WriteableIngestDocumentTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        Map<String, String> esMetadata = new HashMap<>();
+        Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
         for (int i = 0; i < numFields; i++) {
-            esMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
         Map<String, String> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, Object> document = RandomDocumentPicks.randomDocument(random());
-        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(esMetadata, document, ingestMetadata));
+        Map<String, Object> document = RandomDocumentPicks.randomSource(random());
+        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
 
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);

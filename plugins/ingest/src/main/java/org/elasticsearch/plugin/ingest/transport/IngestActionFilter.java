@@ -31,7 +31,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 
@@ -84,9 +83,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             chain.proceed(action, indexRequest, listener);
             return;
         }
-        executionService.execute(indexRequest, pipelineId, new ActionListener<IngestDocument>() {
+        executionService.execute(indexRequest, pipelineId, new ActionListener<Void>() {
             @Override
-            public void onResponse(IngestDocument ingestDocument) {
+            public void onResponse(Void aVoid) {
                 indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);
             }
@@ -121,9 +120,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         IndexRequest indexRequest = (IndexRequest) actionRequest;
-        executionService.execute(indexRequest, pipelineId, new ActionListener<IngestDocument>() {
+        executionService.execute(indexRequest, pipelineId, new ActionListener<Void>() {
             @Override
-            public void onResponse(IngestDocument ingestDocument) {
+            public void onResponse(Void aVoid) {
                 processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
             }
 

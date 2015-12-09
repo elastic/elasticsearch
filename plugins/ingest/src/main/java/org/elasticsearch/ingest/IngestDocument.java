@@ -26,34 +26,34 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
- * Represents a single document being captured before indexing and holds the source and meta data (like id, type and index).
+ * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
  */
 public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final Map<String, String> esMetadata;
-    private final Map<String, Object> source;
+    private final Map<String, Object> sourceAndMetadata;
     private final Map<String, String> ingestMetadata;
 
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp, String ttl, Map<String, Object> source) {
-        this.esMetadata = new HashMap<>();
-        this.esMetadata.put(MetaData.INDEX.getFieldName(), index);
-        this.esMetadata.put(MetaData.TYPE.getFieldName(), type);
-        this.esMetadata.put(MetaData.ID.getFieldName(), id);
+        this.sourceAndMetadata = new HashMap<>();
+        this.sourceAndMetadata.putAll(source);
+        this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
+        this.sourceAndMetadata.put(MetaData.TYPE.getFieldName(), type);
+        this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
         if (routing != null) {
-            this.esMetadata.put(MetaData.ROUTING.getFieldName(), routing);
+            this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);
         }
         if (parent != null) {
-            this.esMetadata.put(MetaData.PARENT.getFieldName(), parent);
+            this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
         }
         if (timestamp != null) {
-            this.esMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
+            this.sourceAndMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
         }
         if (ttl != null) {
-            this.esMetadata.put(MetaData.TTL.getFieldName(), ttl);
+            this.sourceAndMetadata.put(MetaData.TTL.getFieldName(), ttl);
         }
-        this.source = source;
+
         this.ingestMetadata = new HashMap<>();
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
         df.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -61,21 +61,20 @@ public final class IngestDocument {
     }
 
     /**
-     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties of the one provided as argument
+     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(other.esMetadata, other.source, other.ingestMetadata);
+        this(new HashMap<>(other.sourceAndMetadata), new HashMap<>(other.ingestMetadata));
     }
 
     /**
      * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
      * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes comparisons impossible in tests.
+     * init time, which makes equality comparisons impossible in tests.
      */
-    public IngestDocument(Map<String, String> esMetadata, Map<String, Object> source, Map<String, String> ingestMetadata) {
-        this.esMetadata = new HashMap<>(esMetadata);
-        this.source = new HashMap<>(source);
-        this.ingestMetadata = new HashMap<>(ingestMetadata);
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, String> ingestMetadata) {
+        this.sourceAndMetadata = sourceAndMetadata;
+        this.ingestMetadata = ingestMetadata;
     }
 
     /**
@@ -83,45 +82,29 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
-     * @throws IllegalArgumentException if the field is null, empty, or if the source contains a field within the path
-     * which is not of the expected type
+     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz) {
-        if (Strings.isEmpty(path)) {
-            throw new IllegalArgumentException("path cannot be null nor empty");
-        }
-        String[] pathElements = Strings.splitStringToArray(path, '.');
-        assert pathElements.length > 0;
-
-        Object context = source;
-        for (String pathElement : pathElements) {
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (String pathElement : fieldPath.pathElements) {
             context = resolve(pathElement, path, context);
         }
-
-        if (context == null) {
-            return null;
-        }
-        if (clazz.isInstance(context)) {
-            return clazz.cast(context);
-        }
-        throw new IllegalArgumentException("field [" + path + "] of type [" + context.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
+        return cast(path, context, clazz);
     }
 
     /**
      * Checks whether the document contains a value for the provided path
      * @param path The path within the document in dot-notation
      * @return true if the document contains a value for the field, false otherwise
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path) {
-        if (Strings.isEmpty(path)) {
-            return false;
-        }
-        String[] pathElements = Strings.splitStringToArray(path, '.');
-        assert pathElements.length > 0;
-
-        Object context = source;
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            String pathElement = pathElements[i];
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
+            String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
             }
@@ -147,7 +130,7 @@ public final class IngestDocument {
             }
         }
 
-        String leafKey = pathElements[pathElements.length - 1];
+        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
@@ -167,22 +150,18 @@ public final class IngestDocument {
     }
 
     /**
-     * Removes the field identified by the provided path
+     * Removes the field identified by the provided path.
      * @param path the path of the field to be removed
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
-        if (Strings.isEmpty(path)) {
-            throw new IllegalArgumentException("path cannot be null nor empty");
-        }
-        String[] pathElements = Strings.splitStringToArray(path, '.');
-        assert pathElements.length > 0;
-
-        Object context = source;
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            context = resolve(pathElements[i], path, context);
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
+            context = resolve(fieldPath.pathElements[i], path, context);
         }
 
-        String leafKey = pathElements[pathElements.length - 1];
+        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
@@ -249,6 +228,7 @@ public final class IngestDocument {
      * but if the last element is a list, the value will be appended to the existing list.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void appendFieldValue(String path, Object value) {
         setFieldValue(path, value, true);
@@ -260,23 +240,20 @@ public final class IngestDocument {
      * the value will replace the existing list.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void setFieldValue(String path, Object value) {
         setFieldValue(path, value, false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
-        if (Strings.isEmpty(path)) {
-            throw new IllegalArgumentException("path cannot be null nor empty");
-        }
-        String[] pathElements = Strings.splitStringToArray(path, '.');
-        assert pathElements.length > 0;
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
 
         value = deepCopy(value);
 
-        Object context = source;
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            String pathElement = pathElements[i];
+        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
+            String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + path + "]");
             }
@@ -308,7 +285,7 @@ public final class IngestDocument {
             }
         }
 
-        String leafKey = pathElements[pathElements.length - 1];
+        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
         }
@@ -345,37 +322,43 @@ public final class IngestDocument {
         }
     }
 
-    public String getEsMetadata(MetaData esMetadata) {
-        return this.esMetadata.get(esMetadata.getFieldName());
-    }
-
-    public Map<String, String> getEsMetadata() {
-        return Collections.unmodifiableMap(esMetadata);
-    }
-
-    public void setEsMetadata(MetaData metaData, String value) {
-        this.esMetadata.put(metaData.getFieldName(), value);
-    }
-
-    public String getIngestMetadata(String ingestMetadata) {
-        return this.ingestMetadata.get(ingestMetadata);
-    }
-
-    public Map<String, String> getIngestMetadata() {
-        return Collections.unmodifiableMap(this.ingestMetadata);
-    }
-
-    public void setIngestMetadata(String metadata, String value) {
-        this.ingestMetadata.put(metadata, value);
+    private static <T> T cast(String path, Object object, Class<T> clazz) {
+        if (object == null) {
+            return null;
+        }
+        if (clazz.isInstance(object)) {
+            return clazz.cast(object);
+        }
+        throw new IllegalArgumentException("field [" + path + "] of type [" + object.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
     }
 
     /**
-     * Returns the document. Should be used only for reading. Any change made to the returned map will
-     * not be reflected to the sourceModified flag. Modify the document instead using {@link #setFieldValue(String, Object)}
-     * and {@link #removeField(String)}
+     * one time operation that extracts the metadata fields from the ingest document and returns them.
+     * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<String, Object> getSource() {
-        return source;
+    public Map<MetaData, String> extractMetadata() {
+        Map<MetaData, String> metadataMap = new HashMap<>();
+        for (MetaData metaData : MetaData.values()) {
+            metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
+        }
+        return metadataMap;
+    }
+
+    /**
+     * Returns the available ingest metadata fields, by default only timestamp, but it is possible to set additional ones.
+     * Use only for reading values, modify them instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
+     */
+    public Map<String, String> getIngestMetadata() {
+        return this.ingestMetadata;
+    }
+
+    /**
+     * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
+     * metadata fields will not be present anymore. Should be used only for reading.
+     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
+     */
+    public Map<String, Object> getSourceAndMetadata() {
+        return this.sourceAndMetadata;
     }
 
     static Object deepCopy(Object value) {
@@ -412,27 +395,24 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(source, other.source) &&
-                Objects.equals(esMetadata, other.esMetadata) &&
+        return Objects.equals(sourceAndMetadata, other.sourceAndMetadata) &&
                 Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esMetadata, source);
+        return Objects.hash(sourceAndMetadata, ingestMetadata);
     }
 
     @Override
     public String toString() {
         return "IngestDocument{" +
-                "esMetadata=" + esMetadata +
-                ", source=" + source +
+                " sourceAndMetadata=" + sourceAndMetadata +
                 ", ingestMetadata=" + ingestMetadata +
                 '}';
     }
 
     public enum MetaData {
-
         INDEX("_index"),
         TYPE("_type"),
         ID("_id"),
@@ -469,6 +449,33 @@ public final class IngestDocument {
                     return TTL;
                 default:
                     throw new IllegalArgumentException("no valid metadata field name [" + value + "]");
+            }
+        }
+    }
+
+    private class FieldPath {
+        private final String[] pathElements;
+        private final Object initialContext;
+
+        private FieldPath(String path) {
+            if (Strings.isEmpty(path)) {
+                throw new IllegalArgumentException("path cannot be null nor empty");
+            }
+            String newPath;
+            if (path.startsWith("_ingest.")) {
+                initialContext = ingestMetadata;
+                newPath = path.substring(8, path.length());
+            } else {
+                initialContext = sourceAndMetadata;
+                newPath = path;
+            }
+            if (newPath.startsWith("_source.")) {
+                newPath = newPath.substring(8, path.length());
+            }
+
+            this.pathElements = Strings.splitStringToArray(newPath, '.');
+            if (pathElements.length == 0) {
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
     }

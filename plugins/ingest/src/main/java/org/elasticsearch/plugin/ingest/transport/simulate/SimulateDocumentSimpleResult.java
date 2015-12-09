@@ -29,7 +29,7 @@ import java.util.Collections;
 
 public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
 
-    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())));
+    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
 
     private WriteableIngestDocument ingestDocument;
     private Exception failure;

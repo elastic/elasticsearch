@@ -26,8 +26,9 @@ public class MetaDataProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", "value"));
         processor.execute(ingestDocument);
 
+        Map<MetaData, String> metadataMap = ingestDocument.extractMetadata();
         for (MetaData metaData : MetaData.values()) {
-            assertThat(ingestDocument.getEsMetadata(metaData), Matchers.equalTo("some value"));
+            assertThat(metadataMap.get(metaData), Matchers.equalTo("some value"));
         }
     }
 }

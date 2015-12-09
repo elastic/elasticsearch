@@ -43,7 +43,7 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(IndexRequest indexRequest, String pipelineId, ActionListener<IngestDocument> listener) {
+    public void execute(IndexRequest indexRequest, String pipelineId, ActionListener<Void> listener) {
         Pipeline pipeline = store.get(pipelineId);
         if (pipeline == null) {
             listener.onFailure(new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist"));
@@ -62,15 +62,16 @@ public class PipelineExecutionService {
             IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
             try {
                 pipeline.execute(ingestDocument);
-                indexRequest.source(ingestDocument.getSource());
-                indexRequest.index(ingestDocument.getEsMetadata(IngestDocument.MetaData.INDEX));
-                indexRequest.type(ingestDocument.getEsMetadata(IngestDocument.MetaData.TYPE));
-                indexRequest.id(ingestDocument.getEsMetadata(IngestDocument.MetaData.ID));
-                indexRequest.routing(ingestDocument.getEsMetadata(IngestDocument.MetaData.ROUTING));
-                indexRequest.parent(ingestDocument.getEsMetadata(IngestDocument.MetaData.PARENT));
-                indexRequest.timestamp(ingestDocument.getEsMetadata(IngestDocument.MetaData.TIMESTAMP));
-                indexRequest.ttl(ingestDocument.getEsMetadata(IngestDocument.MetaData.TTL));
-                listener.onResponse(ingestDocument);
+                Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+                indexRequest.index(metadataMap.get(IngestDocument.MetaData.INDEX));
+                indexRequest.type(metadataMap.get(IngestDocument.MetaData.TYPE));
+                indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));
+                indexRequest.routing(metadataMap.get(IngestDocument.MetaData.ROUTING));
+                indexRequest.parent(metadataMap.get(IngestDocument.MetaData.PARENT));
+                indexRequest.timestamp(metadataMap.get(IngestDocument.MetaData.TIMESTAMP));
+                indexRequest.ttl(metadataMap.get(IngestDocument.MetaData.TTL));
+                indexRequest.source(ingestDocument.getSourceAndMetadata());
+                listener.onResponse(null);
             } catch (Throwable e) {
                 listener.onFailure(e);
             }

@@ -56,21 +56,21 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the settings key or a prefix if this setting is a group setting
      * @see #isGroupSetting()
      */
-    public String getKey() {
+    public final String getKey() {
         return key;
     }
 
     /**
      * Returns <code>true</code> iff this setting is dynamically updateable, otherwise <code>false</code>
      */
-    public boolean isDynamic() {
+    public final boolean isDynamic() {
         return dynamic;
     }
 
     /**
      * Returns the settings scope
      */
-    public Scope getScope() {
+    public final Scope getScope() {
         return scope;
     }
 
@@ -87,14 +87,14 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the default values string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public String getDefault(Settings settings) {
+    public final String getDefault(Settings settings) {
         return defaultValue.apply(settings);
     }
 
     /**
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
-    public boolean exists(Settings settings) {
+    public final boolean exists(Settings settings) {
         return settings.get(key) != null;
     }
 
@@ -117,7 +117,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public String getRaw(Settings settings) {
+    public final String getRaw(Settings settings) {
         return settings.get(key, defaultValue.apply(settings));
     }
 
@@ -131,7 +131,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("key", key);
         builder.field("type", scope.name());
@@ -149,7 +149,7 @@ public class Setting<T> extends ToXContentToBytes {
         INDEX;
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
+    final AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
         return newUpdater(consumer, logger, settings, (s) -> {});
     }
 
@@ -161,6 +161,10 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * this is used for settings that depend on each other... see {@link org.elasticsearch.common.settings.AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and it's
+     * usage for details.
+     */
     static <A, B> AbstractScopedSettings.SettingUpdater compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger, Settings settings) {
         final AtomicReference<A> aRef = new AtomicReference<>();
         final AtomicReference<B> bRef = new AtomicReference<>();

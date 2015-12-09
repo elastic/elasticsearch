@@ -449,7 +449,7 @@ public final class Settings implements ToXContent {
         for (String setting : settings) {
             String retVal = get(setting);
             if (retVal != null) {
-                parseBytesSizeValue(get(settings), defaultValue, setting);
+               return parseBytesSizeValue(get(settings), defaultValue, setting);
             }
         }
         return defaultValue;

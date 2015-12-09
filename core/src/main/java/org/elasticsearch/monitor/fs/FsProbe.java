@@ -28,7 +28,7 @@ import java.io.IOException;
 
 public class FsProbe extends AbstractComponent {
 
-    private final NodeEnvironment nodeEnv;
+    protected final NodeEnvironment nodeEnv;
 
     public FsProbe(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);

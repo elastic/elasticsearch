@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public class FsService extends AbstractComponent {
 
-    private final FsProbe probe;
+    private FsProbe probe;
 
     private final SingleObjectCache<FsInfo> fsStatsCache;
 
@@ -61,6 +61,16 @@ public class FsService extends AbstractComponent {
                 return new FsInfo();
             }
         }
+    }
+
+    /**
+     * If a plugin needs to override the default probe implementation it should
+     * use this method.
+     *
+     * @param probe
+     */
+    public void setProbe(FsProbe probe) {
+        this.probe = probe;
     }
 
 }

@@ -31,7 +31,7 @@
         pipeline: "my_pipeline"
         body: >
           {
-            values: ["foo", "bar", "baz"]
+            "values": ["foo", "bar", "baz"]
           }
 
   - do:

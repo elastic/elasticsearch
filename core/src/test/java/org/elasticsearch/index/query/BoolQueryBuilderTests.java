@@ -133,22 +133,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    \"bool\" : {\n";
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder<?> must = tempQueryBuilder.must().get(0);
-            contentString += "must: " + must.toString() + ",";
+            contentString += "\"must\": " + must.toString() + ",";
             expectedQuery.must(must);
         }
         if (tempQueryBuilder.mustNot().size() > 0) {
             QueryBuilder<?> mustNot = tempQueryBuilder.mustNot().get(0);
-            contentString += (randomBoolean() ? "must_not: " : "mustNot: ") + mustNot.toString() + ",";
+            contentString += (randomBoolean() ? "\"must_not\": " : "\"mustNot\": ") + mustNot.toString() + ",";
             expectedQuery.mustNot(mustNot);
         }
         if (tempQueryBuilder.should().size() > 0) {
             QueryBuilder<?> should = tempQueryBuilder.should().get(0);
-            contentString += "should: " + should.toString() + ",";
+            contentString += "\"should\": " + should.toString() + ",";
             expectedQuery.should(should);
         }
         if (tempQueryBuilder.filter().size() > 0) {
             QueryBuilder<?> filter = tempQueryBuilder.filter().get(0);
-            contentString += "filter: " + filter.toString() + ",";
+            contentString += "\"filter\": " + filter.toString() + ",";
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);

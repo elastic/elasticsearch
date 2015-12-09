@@ -50,7 +50,7 @@ public class JsonXContent implements XContent {
 
     static {
         jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, false);
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

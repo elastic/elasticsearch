@@ -15,3 +15,7 @@ endpoint should be used in lieu of optimize.
 The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 `POST` HTTP verb.
 
+==== Forbid unquoted JSON
+
+Previously, JSON documents were allowed with unquoted field names, which
+isn't strictly JSON and broke some Elasticsearch clients.

@@ -62,6 +62,19 @@ the response for the last example will be:
     "persistent" : {},
     "transient" : {}
 }
+--------------------------------------------------
+
+Settings can also be reset using simple wildcards. For instance to reset
+all dynamic `discovery.zen` setting a prefix can be used:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "discovery.zen.*" : null
+    }
+}'
+--------------------------------------------------
 
 Cluster wide settings can be returned using:
 

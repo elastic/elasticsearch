@@ -84,10 +84,6 @@ public class InternalProfileCollector implements Collector {
         return this.collectorName;
     }
 
-    public Collector getWrappedCollector() {
-        return collector;
-    }
-
     /**
      * Creates a human-friendly representation of the Collector name.
      *

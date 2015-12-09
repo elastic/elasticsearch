@@ -35,3 +35,8 @@ Node roles are now returned in a specific section, called `roles`, as part of
 nodes stats and nodes info response. The new section is an array that holds all
 the different roles that each node fulfills. In case the array is returned
 empty, that means that the node is a coordinating only node.
+
+==== Forbid unquoted JSON
+
+Previously, JSON documents were allowed with unquoted field names, which
+isn't strictly JSON and broke some Elasticsearch clients.

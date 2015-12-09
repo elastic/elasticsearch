@@ -108,6 +108,6 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
     }
 
     private String source(String id, String nameValue) {
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+        return "{ \"type1\" : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
     }
 }

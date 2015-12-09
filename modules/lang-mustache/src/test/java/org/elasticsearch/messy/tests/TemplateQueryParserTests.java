@@ -59,6 +59,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +77,6 @@ import static org.hamcrest.Matchers.containsString;
  * Test parsing and executing a template request.
  */
 // NOTE: this can't be migrated to ESSingleNodeTestCase because of the custom path.conf
-@ESTestCase.AwaitsFix(bugUrl = "nopush")
 public class TemplateQueryParserTests extends ESTestCase {
 
     private Injector injector;
@@ -97,6 +97,9 @@ public class TemplateQueryParserTests extends ESTestCase {
                 });
         Index index = new Index("test");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        ScriptModule scriptModule = new ScriptModule(settings);
+        // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
+        scriptModule.addScriptEngine(MustacheScriptEngineService.class);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings, new SettingsFilter(settings)),
@@ -108,7 +111,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                         bindQueryParsersExtension();
                     }
                 },
-                new ScriptModule(settings),
+                scriptModule,
                 new IndexSettingsModule(index, settings),
                 new AbstractModule() {
                     @Override

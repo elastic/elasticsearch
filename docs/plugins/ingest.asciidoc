@@ -4,7 +4,7 @@
 === Processors
 
 ==== Set processor
-Sets one field and associates it with the specified value. If a field already exists,
+Sets one field and associates it with the specified value. If the field already exists,
 its value will be replaced with the provided one.
 
 [source,js]
@@ -17,7 +17,7 @@ its value will be replaced with the provided one.
 --------------------------------------------------
 
 ==== Remove processor
-Removes an existing field. If a field doesn't exist, nothing will happen.
+Removes an existing field. If the field doesn't exist, an exception will be thrown
 
 [source,js]
 --------------------------------------------------
@@ -29,7 +29,7 @@ Removes an existing field. If a field doesn't exist, nothing will happen.
 --------------------------------------------------
 
 ==== Rename processor
-Renames an existing fields. If a field doesn't exist, an exception will be thrown. Also, the new field
+Renames an existing field. If the field doesn't exist, an exception will be thrown. Also, the new field
 name must not exist.
 
 [source,js]
@@ -48,7 +48,7 @@ If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `float`, `string`, and `boolean`.
 
-`boolean` will set a field to true if its string value is equal to `true` (ignore case), to
+`boolean` will set the field to true if its string value is equal to `true` (ignore case), to
 false if its string value is equal to `false` (ignore case) and it will throw exception otherwise.
 
 [source,js]

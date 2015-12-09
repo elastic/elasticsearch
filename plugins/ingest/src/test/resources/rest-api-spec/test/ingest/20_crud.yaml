@@ -19,6 +19,9 @@
               }
             ]
           }
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 1 }
   - match: { _id: "my_pipeline" }
 
   # Simulate a Thread.sleep(), because pipeline are updated in the background
@@ -38,8 +41,11 @@
   - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 2 }
   - match: { _id: "my_pipeline" }
-  - match: { _found: true }
+  - match: { found: true }
 
   # Simulate a Thread.sleep(), because pipeline are updated in the background
   - do:

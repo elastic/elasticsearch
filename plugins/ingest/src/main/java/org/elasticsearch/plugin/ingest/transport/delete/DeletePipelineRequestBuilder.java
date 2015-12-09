@@ -20,9 +20,10 @@
 package org.elasticsearch.plugin.ingest.transport.delete;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, DeletePipelineResponse, DeletePipelineRequestBuilder> {
+public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, DeleteResponse, DeletePipelineRequestBuilder> {
 
     public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action) {
         super(client, action, new DeletePipelineRequest());

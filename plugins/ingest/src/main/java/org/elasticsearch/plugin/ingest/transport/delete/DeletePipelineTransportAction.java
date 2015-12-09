@@ -20,9 +20,7 @@
 package org.elasticsearch.plugin.ingest.transport.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,7 +30,7 @@ import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class DeletePipelineTransportAction extends HandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
+public class DeletePipelineTransportAction extends HandledTransportAction<DeletePipelineRequest, DeleteResponse> {
 
     private final PipelineStore pipelineStore;
 
@@ -43,17 +41,7 @@ public class DeletePipelineTransportAction extends HandledTransportAction<Delete
     }
 
     @Override
-    protected void doExecute(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
-        pipelineStore.delete(request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                listener.onResponse(new DeletePipelineResponse(deleteResponse.getId(), deleteResponse.isFound()));
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
-            }
-        });
+    protected void doExecute(DeletePipelineRequest request, ActionListener<DeleteResponse> listener) {
+        pipelineStore.delete(request, listener);
     }
 }

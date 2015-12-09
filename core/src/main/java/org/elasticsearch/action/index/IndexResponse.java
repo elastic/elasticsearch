@@ -22,8 +22,15 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.RestStatus.CREATED;
 
 /**
  * A response of an index operation,
@@ -31,7 +38,7 @@ import java.io.IOException;
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse extends ActionWriteResponse {
+public class IndexResponse extends ActionWriteResponse implements StatusToXContent {
 
     private String index;
     private String id;
@@ -107,6 +114,27 @@ public class IndexResponse extends ActionWriteResponse {
     }
 
     @Override
+    public RestStatus status() {
+        RestStatus status = getShardInfo().status();
+        if (created) {
+            status = CREATED;
+        }
+        return status;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        ActionWriteResponse.ShardInfo shardInfo = getShardInfo();
+        builder.field(Fields._INDEX, index)
+            .field(Fields._TYPE, type)
+            .field(Fields._ID, id)
+            .field(Fields._VERSION, version);
+        shardInfo.toXContent(builder, params);
+        builder.field(Fields.CREATED, created);
+        return builder;
+    }
+
+    @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
@@ -117,5 +145,13 @@ public class IndexResponse extends ActionWriteResponse {
         builder.append(",created=").append(created);
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
+    }
+
+    static final class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString CREATED = new XContentBuilderString("created");
     }
 }

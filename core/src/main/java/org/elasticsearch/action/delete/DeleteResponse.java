@@ -22,8 +22,15 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 
 /**
  * The response of the delete action.
@@ -31,7 +38,7 @@ import java.io.IOException;
  * @see org.elasticsearch.action.delete.DeleteRequest
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  */
-public class DeleteResponse extends ActionWriteResponse {
+public class DeleteResponse extends ActionWriteResponse implements StatusToXContent {
 
     private String index;
     private String id;
@@ -104,5 +111,34 @@ public class DeleteResponse extends ActionWriteResponse {
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(found);
+    }
+
+    @Override
+    public RestStatus status() {
+        RestStatus status = getShardInfo().status();
+        if (isFound() == false) {
+            status = NOT_FOUND;
+        }
+        return status;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        ActionWriteResponse.ShardInfo shardInfo = getShardInfo();
+        builder.field(Fields.FOUND, found)
+            .field(Fields._INDEX, index)
+            .field(Fields._TYPE, type)
+            .field(Fields._ID, id)
+            .field(Fields._VERSION, version)
+            .value(shardInfo);
+        return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
 }

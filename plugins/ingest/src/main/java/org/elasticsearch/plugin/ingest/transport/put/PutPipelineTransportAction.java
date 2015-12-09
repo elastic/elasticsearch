@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
-public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, PutPipelineResponse> {
+public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, IndexResponse> {
 
     private final PipelineStore pipelineStore;
 
@@ -47,20 +47,7 @@ public class PutPipelineTransportAction extends HandledTransportAction<PutPipeli
     }
 
     @Override
-    protected void doExecute(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener) {
-        pipelineStore.put(request, new ActionListener<IndexResponse>() {
-            @Override
-            public void onResponse(IndexResponse indexResponse) {
-                PutPipelineResponse response = new PutPipelineResponse();
-                response.id(indexResponse.getId());
-                response.version(indexResponse.getVersion());
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
-            }
-        });
+    protected void doExecute(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
+        pipelineStore.put(request, listener);
     }
 }

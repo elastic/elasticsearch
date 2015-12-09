@@ -8,7 +8,7 @@ Commonly used network settings:
 |Name |Description
 |`network.host` |Host to bind and publish to other nodes. Can be set to an IP address, hostname, or special value (see table below). Defaults to `_local_`.
 
-|`discovery.zen.ping.unicast.hosts`|Initial list other nodes. Can be set to IP addresses or hostnames. Defaults to `["127.0.0.1", "[::1]"]`.
+|`discovery.zen.ping.unicast.hosts`|Initial list of other nodes. Can be set to IP addresses or hostnames. Defaults to `["127.0.0.1", "[::1]"]`.
 
 |`http.port` |Port to bind for incoming http requests. Can be set to a single value or a range. Defaults to `9200-9300`.
 

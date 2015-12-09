@@ -94,7 +94,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     }
 
     public void setWeightFunction(float indexBalance, float shardBalanceFactor) {
-        weightFunction = new WeightFunction(indexBalance, weightFunction.shardBalance);
+        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
     }
 
 

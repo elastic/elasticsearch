@@ -101,8 +101,9 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             );
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
+            assertEquals("illegal value can't update [threadpool.] from [{}] to [{" + threadPoolName + ".type=" + invalidThreadPoolType.getType() + "}]", e.getMessage());
             assertThat(
-                    e.getMessage(),
+                    e.getCause().getMessage(),
                     is("setting threadpool." + threadPoolName + ".type to " + invalidThreadPoolType.getType() + " is not permitted; must be " + validThreadPoolType.getType()));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);

@@ -79,10 +79,10 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     }
 
     /**
-     * Sets detail
+     * Sets explain
      */
-    public AnalyzeRequestBuilder setDetail(boolean detail) {
-        request.detail(detail);
+    public AnalyzeRequestBuilder setExplain(boolean explain) {
+        request.explain(explain);
         return this;
     }
 

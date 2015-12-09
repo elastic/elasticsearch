@@ -231,7 +231,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         List<AnalyzeResponse.AnalyzeToken> tokens = null;
         DetailAnalyzeResponse detail = null;
 
-        if (request.detail()) {
+        if (request.explain()) {
             detail = detailAnalyze(request, analyzer, field);
         } else {
             tokens = simpleAnalyze(request, analyzer, field);

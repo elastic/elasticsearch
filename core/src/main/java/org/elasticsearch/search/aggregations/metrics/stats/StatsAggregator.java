@@ -182,7 +182,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new StatsAggegator.Factory(name);
+            return new StatsAggregator.Factory(name);
         }
 
         @Override

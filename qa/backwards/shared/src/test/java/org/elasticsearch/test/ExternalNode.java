@@ -63,7 +63,7 @@ final class ExternalNode implements Closeable {
     private final Random random;
     private final NodeConfigurationSource nodeConfigurationSource;
     private final ExternalNodeServiceClient nodeServiceClient;
-    private int port;
+    private int pid;
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
@@ -105,6 +105,7 @@ final class ExternalNode implements Closeable {
         externaNodeSettingsBuilder.put("node.name", nodeName);
         externaNodeSettingsBuilder.put("path.data", dataPath());
         externaNodeSettingsBuilder.put("path.logs", logPath());
+        externaNodeSettingsBuilder.put("pidfile", pidPath());
 
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             String found = externaNodeSettingsBuilder.get(entry.getKey());
@@ -146,10 +147,12 @@ final class ExternalNode implements Closeable {
             throw new IllegalArgumentException("Without unicast hosts the external cluster isn't likely to work!");
         }
 
+
+
         boolean success = false;
         try {
             logger.info("starting external node [{}] with: {}", nodeName, args);
-            port = nodeServiceClient.start(args.toString());
+            pid = nodeServiceClient.start(args.toString());
             if (waitForNode(client, nodeName)) {
                 nodeInfo = nodeInfo(client, nodeName);
                 assert nodeInfo != null;
@@ -228,8 +231,8 @@ final class ExternalNode implements Closeable {
     synchronized void stop() {
         if (running()) {
             logger.warn("Stopping client for {}", nodeName);
-            nodeServiceClient.stop(port);
-            port = 0;
+            nodeServiceClient.stop(pid);
+            pid = 0;
             if (client != null) {
                 client.close();
             }
@@ -248,8 +251,12 @@ final class ExternalNode implements Closeable {
         return rootPath().resolve("logs");
     }
 
+    public Path pidPath() {
+        return rootPath().resolve("pid");
+    }
+
     synchronized boolean running() {
-        return port != 0;
+        return pid != 0;
     }
 
     @Override

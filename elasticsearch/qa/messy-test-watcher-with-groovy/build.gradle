@@ -11,8 +11,11 @@ dependencies {
   testCompile project(path: ':modules:lang-groovy', configuration: 'runtime')
 }
 
-// TODO: remove this, its because gradle does not bring in plugin-metadata for lang-groovy
-// into the test classpath: if it did, then things will work
-test {
-  systemProperty 'tests.security.manager', 'false'
+gradle.projectsEvaluated {
+  Project groovy = project(':modules:lang-groovy')
+  sourceSets.test.resources {
+    srcDir groovy.pluginProperties.generatedResourcesDir
+    srcDir new File(groovy.projectDir, 'src/main/plugin-metadata')
+  }
+  test.dependsOn groovy.pluginProperties
 }

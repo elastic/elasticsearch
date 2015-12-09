@@ -34,10 +34,15 @@ public interface AwsService {
         public static final String KEY = "cloud.aws.access_key";
         public static final String SECRET = "cloud.aws.secret_key";
         public static final String PROTOCOL = "cloud.aws.protocol";
-        public static final String PROXY_HOST = "cloud.aws.proxy_host";
-        public static final String PROXY_PORT = "cloud.aws.proxy_port";
+        public static final String PROXY_HOST = "cloud.aws.proxy.host";
+        public static final String PROXY_PORT = "cloud.aws.proxy.port";
+        public static final String PROXY_USERNAME = "cloud.aws.proxy.username";
+        public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
         public static final String SIGNER = "cloud.aws.signer";
         public static final String REGION = "cloud.aws.region";
-
+        @Deprecated
+        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
+        @Deprecated
+        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
     }
 }

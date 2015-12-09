@@ -63,6 +63,8 @@ public class PipelineExecutionService {
             try {
                 pipeline.execute(ingestDocument);
                 Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+                //it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                //before ingestion, which might also get modified during ingestion.
                 indexRequest.index(metadataMap.get(IngestDocument.MetaData.INDEX));
                 indexRequest.type(metadataMap.get(IngestDocument.MetaData.TYPE));
                 indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));

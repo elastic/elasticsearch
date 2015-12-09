@@ -122,6 +122,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("marvel.enabled", false)
 
                 .put("shield.audit.enabled", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_host_address", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_host_name", randomBoolean())
+                .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.esusers.order", 0)

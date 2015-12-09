@@ -70,11 +70,11 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
         return settings.getAsBoolean("shield.audit.enabled", false);
     }
 
-    public static boolean indexAuditLoggingEnabled(Settings settings) {
+    public static boolean fileAuditLoggingEnabled(Settings settings) {
         if (auditingEnabled(settings)) {
-            String[] outputs = settings.getAsArray("shield.audit.outputs");
+            String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
             for (String output : outputs) {
-                if (output.equals(IndexAuditTrail.NAME)) {
+                if (output.equals(LoggingAuditTrail.NAME)) {
                     return true;
                 }
             }

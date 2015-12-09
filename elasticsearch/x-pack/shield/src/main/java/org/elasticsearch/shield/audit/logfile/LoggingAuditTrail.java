@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.shield.audit.logfile;
 
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -33,13 +36,14 @@ import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 /**
  *
  */
-public class LoggingAuditTrail implements AuditTrail {
+public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTrail> implements AuditTrail {
 
     public static final String NAME = "logfile";
 
-    private final String prefix;
     private final ESLogger logger;
     private final Transport transport;
+
+    private String prefix;
 
     @Override
     public String name() {
@@ -48,17 +52,41 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Inject
     public LoggingAuditTrail(Settings settings, Transport transport) {
-        this(resolvePrefix(settings, transport), transport, Loggers.getLogger(LoggingAuditTrail.class));
+        this(settings, transport, Loggers.getLogger(LoggingAuditTrail.class));
     }
 
     LoggingAuditTrail(Settings settings, Transport transport, ESLogger logger) {
-        this(resolvePrefix(settings, transport), transport, logger);
+        this("", settings, transport, logger);
     }
 
-    LoggingAuditTrail(String prefix, Transport transport, ESLogger logger) {
+    LoggingAuditTrail(String prefix, Settings settings, Transport transport, ESLogger logger) {
+        super(settings);
         this.logger = logger;
         this.prefix = prefix;
         this.transport = transport;
+    }
+
+
+    @Override
+    protected void doStart() {
+        if (transport.lifecycleState() == Lifecycle.State.STARTED) {
+            prefix = resolvePrefix(settings, transport);
+        } else {
+            transport.addLifecycleListener(new LifecycleListener() {
+                @Override
+                public void afterStart() {
+                    prefix = resolvePrefix(settings, transport);
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void doStop() {
+    }
+
+    @Override
+    protected void doClose() {
     }
 
     @Override

@@ -26,7 +26,7 @@
   - match:
       $body: |
                /^cpu\s+ \n
-                (\s+(-1|\d+)*\s+ \n)+ $/
+                (\s*(-1|\d+)*\s+ \n)+ $/
 
   - do:
       cat.nodes:

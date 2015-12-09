@@ -19,33 +19,14 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import com.fasterxml.jackson.core.JsonGenerator;
+import org.elasticsearch.common.xcontent.BaseXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
-import java.io.OutputStream;
-
-/**
- *
- */
-public class SmileXContentGenerator extends JsonXContentGenerator {
-
-    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        super(jsonGenerator, os, filters);
-    }
+public class SmileXContentTests extends BaseXContentTestCase {
 
     @Override
-    public XContentType contentType() {
+    public XContentType xcontentType() {
         return XContentType.SMILE;
     }
 
-    @Override
-    public void usePrintLineFeedAtEnd() {
-        // nothing here
-    }
-
-    @Override
-    protected boolean supportsRawWrites() {
-        return false;
-    }
 }

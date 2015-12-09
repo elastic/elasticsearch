@@ -920,23 +920,18 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder rawField(String fieldName, byte[] content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, byte[] content, int offset, int length) throws IOException {
-        generator.writeRawField(fieldName, content, offset, length, bos);
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, InputStream content, XContentType contentType) throws IOException {
-        generator.writeRawField(fieldName, content, bos, contentType);
+    public XContentBuilder rawField(String fieldName, InputStream content) throws IOException {
+        generator.writeRawField(fieldName, content);
         return this;
     }
 
     public XContentBuilder rawField(String fieldName, BytesReference content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
+        generator.writeRawField(fieldName, content);
+        return this;
+    }
+
+    public XContentBuilder rawValue(BytesReference content) throws IOException {
+        generator.writeRawValue(content);
         return this;
     }
 
@@ -1202,22 +1197,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this.generator;
     }
 
-    public OutputStream stream() {
-        return this.bos;
-    }
-
     @Override
     public BytesReference bytes() {
         close();
         return ((BytesStream) bos).bytes();
-    }
-
-    /**
-     * Returns the actual stream used.
-     */
-    public BytesStream bytesStream() throws IOException {
-        close();
-        return (BytesStream) bos;
     }
 
     /**

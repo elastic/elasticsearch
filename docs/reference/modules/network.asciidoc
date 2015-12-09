@@ -13,6 +13,7 @@ Commonly used network settings:
 |`http.port` |Port to bind for incoming http requests. Can be set to a single value or a range. Defaults to `9200-9300`.
 
 |`transport.tcp.port` |Port to bind for communication between nodes. Can be set to a single value or a range. Defaults to `9300-9400`.
+|=======================================================================
 
 Be careful with network configuration! Never expose an unprotected instance
 to the public internet.
@@ -28,12 +29,11 @@ network interface. For example `_en0_`.
 |`_site_` |Will be resolved to site-local addresses (e.g. 192.168.0.1)
 
 |`_global_` |Will be resolved to globally-scoped addresses (e.g. 8.8.8.8)
+|=======================================================================
 
 These special values will work over both IPv4 and IPv6 by default,
 but you can also limit this with the use of `:ipv4` of `:ipv6` specifiers, for 
 example `_en0:ipv4_` would only bind to the ipv4 addresses of interface `en0`.
-
-|=======================================================================
 
 When the `discovery-ec2` plugin is installed, you can use
 {plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].

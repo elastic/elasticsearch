@@ -128,22 +128,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             }
         }
-
-        try {
-            for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith("logger.")) {
-                    String component = entry.getKey().substring("logger.".length());
-                    if ("_root".equals(component)) {
-                        ESLoggerFactory.getRootLogger().setLevel(entry.getValue());
-                    } else {
-                        ESLoggerFactory.getLogger(component).setLevel(entry.getValue());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("failed to refresh settings for [{}]", e, "logger");
-        }
-
         return lastSettingsApplied = newSettings;
     }
 

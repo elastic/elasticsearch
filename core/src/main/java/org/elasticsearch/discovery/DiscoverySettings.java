@@ -36,6 +36,9 @@ import java.util.EnumSet;
  */
 public class DiscoverySettings extends AbstractComponent {
 
+    public final static int NO_MASTER_BLOCK_ID = 2;
+    public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     /**
      * sets the timeout for a complete publishing cycle, including both sending and committing. the master
      * will continute to process the next cluster state update after this time has elapsed
@@ -49,11 +52,6 @@ public class DiscoverySettings extends AbstractComponent {
     public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING = new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s), (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"), true, Setting.Scope.CLUSTER);
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock, true, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING = Setting.boolSetting("discovery.zen.publish_diff.enable", true, true, Setting.Scope.CLUSTER);
-
-    public final static int NO_MASTER_BLOCK_ID = 2;
-
-    public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout;

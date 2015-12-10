@@ -45,6 +45,7 @@ public class Setting<T> extends ToXContentToBytes {
     private final Scope scope;
 
     public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;

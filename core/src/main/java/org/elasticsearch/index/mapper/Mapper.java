@@ -148,7 +148,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
                 };
             }
 
-            class MultiFieldParserContext extends ParserContext {
+            static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.type(), in.analysisService, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher());
                 }

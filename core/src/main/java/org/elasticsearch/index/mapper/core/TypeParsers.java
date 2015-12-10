@@ -182,9 +182,72 @@ public class TypeParsers {
         }
     }
 
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = builder.fieldType().indexAnalyzer();
         NamedAnalyzer searchAnalyzer = builder.fieldType().searchAnalyzer();
+
+        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+            Map.Entry<String, Object> entry = iterator.next();
+            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final Object propNode = entry.getValue();
+            if (propName.equals("term_vector")) {
+                parseTermVector(name, propNode.toString(), builder);
+                iterator.remove();
+            } else if (propName.equals("store_term_vectors")) {
+                builder.storeTermVectors(nodeBooleanValue(propNode));
+                iterator.remove();
+            } else if (propName.equals("store_term_vector_offsets")) {
+                builder.storeTermVectorOffsets(nodeBooleanValue(propNode));
+                iterator.remove();
+            } else if (propName.equals("store_term_vector_positions")) {
+                builder.storeTermVectorPositions(nodeBooleanValue(propNode));
+                iterator.remove();
+            } else if (propName.equals("store_term_vector_payloads")) {
+                builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
+                iterator.remove();
+            } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
+                    propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                indexAnalyzer = analyzer;
+                iterator.remove();
+            } else if (propName.equals("search_analyzer")) {
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                searchAnalyzer = analyzer;
+                iterator.remove();
+            }
+        }
+
+        if (indexAnalyzer == null) {
+            if (searchAnalyzer != null) {
+                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+            }
+        } else if (searchAnalyzer == null) {
+            searchAnalyzer = indexAnalyzer;
+        }
+        builder.indexAnalyzer(indexAnalyzer);
+        builder.searchAnalyzer(searchAnalyzer);
+    }
+
+    /**
+     * Parse text field attributes. In addition to {@link #parseField common attributes}
+     * this will parse analysis and term-vectors related settings.
+     */
+    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+        parseField(builder, name, fieldNode, parserContext);
+        parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
+    }
+
+    /**
+     * Parse common field attributes such as {@code doc_values} or {@code store}.
+     */
+    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         Version indexVersionCreated = parserContext.indexVersionCreated();
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -202,23 +265,8 @@ public class TypeParsers {
             } else if (propName.equals(DOC_VALUES)) {
                 builder.docValues(nodeBooleanValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("term_vector")) {
-                parseTermVector(name, propNode.toString(), builder);
-                iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(nodeBooleanValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(nodeBooleanValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(nodeBooleanValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
                 iterator.remove();
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
@@ -250,22 +298,6 @@ public class TypeParsers {
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
-                       propName.equals("index_analyzer") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                indexAnalyzer = analyzer;
-                iterator.remove();
-            } else if (propName.equals("search_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                searchAnalyzer = analyzer;
-                iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
                 iterator.remove();
@@ -296,16 +328,11 @@ public class TypeParsers {
                 iterator.remove();
             }
         }
-
-        if (indexAnalyzer == null) {
-            if (searchAnalyzer != null) {
-                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
-            }
-        } else if (searchAnalyzer == null) {
-            searchAnalyzer = indexAnalyzer;
+        if (indexVersionCreated.before(Version.V_2_2_0)) {
+            // analyzer, search_analyzer, term_vectors were accepted on all fields
+            // before 2.2, even though it made little sense
+            parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
         }
-        builder.indexAnalyzer(indexAnalyzer);
-        builder.searchAnalyzer(searchAnalyzer);
     }
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {

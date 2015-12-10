@@ -8,11 +8,10 @@ package org.elasticsearch.shield.tribe;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Arrays;
 
@@ -42,7 +41,7 @@ public class TribeShieldLoadedTests extends ESTestCase {
         Settings.Builder builder = defaultSettings();
 
         try {
-            NodeBuilder.nodeBuilder().settings(builder.build()).build();
+            new Node(builder.build());
             fail("node initialization should have failed due to missing shield plugin");
         } catch(Throwable t) {
             assertThat(t.getMessage(), containsString("Missing mandatory plugins [shield]"));
@@ -55,7 +54,7 @@ public class TribeShieldLoadedTests extends ESTestCase {
         Settings.Builder builder = addTribeSettings(defaultSettings(), "t2");
 
         try {
-            NodeBuilder.nodeBuilder().settings(builder.build()).build();
+            new Node(builder.build());
             fail("node initialization should have failed due to missing shield plugin");
         } catch(Throwable t) {
             assertThat(t.getMessage(), containsString("Missing mandatory plugins [shield]"));

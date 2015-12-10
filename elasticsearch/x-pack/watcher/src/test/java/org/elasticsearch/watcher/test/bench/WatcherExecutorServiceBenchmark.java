@@ -11,21 +11,22 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerModule;
+import org.elasticsearch.xpack.XPackPlugin;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;

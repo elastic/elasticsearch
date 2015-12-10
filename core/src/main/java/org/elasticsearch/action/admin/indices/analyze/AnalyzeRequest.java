@@ -91,7 +91,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest tokenFilters(String... tokenFilters) {
-        assert tokenFilters != null: "token filters must not be null";
+        if (tokenFilters == null) {
+            throw new IllegalArgumentException("token filters must not be null");
+        }
         this.tokenFilters = tokenFilters;
         return this;
     }
@@ -101,7 +103,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest charFilters(String... charFilters) {
-        assert charFilters != null: "char filters must not be null";
+        if (charFilters == null) {
+            throw new IllegalArgumentException("char filters must not be null");
+        }
         this.charFilters = charFilters;
         return this;
     }
@@ -129,7 +133,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest attributes(String... attributes) {
-        assert attributes != null: "attributes must not be null";
+        if (attributes == null) {
+            throw new IllegalArgumentException("attributes must not be null");
+        }
         this.attributes = attributes;
         return this;
     }

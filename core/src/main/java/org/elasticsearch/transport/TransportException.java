@@ -28,6 +28,10 @@ import java.io.IOException;
  *
  */
 public class TransportException extends ElasticsearchException {
+    public TransportException(Exception e) {
+        super(e);
+    }
+
     public TransportException(StreamInput in) throws IOException {
         super(in);
     }

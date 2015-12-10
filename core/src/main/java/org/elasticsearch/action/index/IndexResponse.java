@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -51,6 +52,14 @@ public class IndexResponse extends DocWriteResponse {
      */
     public boolean isCreated() {
         return this.created;
+    }
+
+    @Override
+    public RestStatus status() {
+        if (created) {
+            return RestStatus.CREATED;
+        }
+        return super.status();
     }
 
     @Override

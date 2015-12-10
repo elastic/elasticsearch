@@ -21,11 +21,11 @@ package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
 
     public void testMultipleDocsEncryptedLast() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
@@ -72,7 +72,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
     }
 
     public void testMultipleDocsEncryptedFirst() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
@@ -103,9 +103,8 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
         try {
             DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
-                Settings.builder()
-                    .put("index.mapping.attachment.ignore_errors", false)
-                    .build()).documentMapperParser();
+                Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(),
+                getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
             DocumentMapper docMapper = mapperParser.parse(mapping);

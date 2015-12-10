@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -73,8 +72,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = newHashSet(new TestEngineService(),
-                                               new MustacheScriptEngineService(baseSettings));
+        scriptEngineServices = newHashSet(new TestEngineService());
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
@@ -199,10 +197,6 @@ public class ScriptServiceTests extends ESTestCase {
         createFileScripts("groovy", "mustache", "test");
 
         for (ScriptContext scriptContext : scriptContexts) {
-            //mustache engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext, contextAndHeaders);
             //custom engine is sandboxed, all scripts are enabled by default
             assertCompileAccepted("test", "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
             assertCompileAccepted("test", "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);

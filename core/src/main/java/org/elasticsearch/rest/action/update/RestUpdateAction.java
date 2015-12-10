@@ -32,6 +32,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -40,7 +41,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.CREATED;
 
 /**
  */
@@ -115,18 +115,6 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
 
-        client.update(updateRequest, new RestBuilderListener<UpdateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                RestStatus status = response.getShardInfo().status();
-                if (response.isCreated()) {
-                    status = CREATED;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        client.update(updateRequest, new RestStatusToXContentListener<>(channel));
     }
 }

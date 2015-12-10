@@ -183,12 +183,35 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
+
+==== Recovery settings
+
+Recovery settings deprecated in 1.x have been removed:
+
+ * `index.shard.recovery.translog_size` is superseded by `indices.recovery.translog_size`
+ * `index.shard.recovery.translog_ops` is superseded by `indices.recovery.translog_ops`
+ * `index.shard.recovery.file_chunk_size` is superseded by `indices.recovery.file_chunk_size`
+ * `index.shard.recovery.concurrent_streams` is superseded by `indices.recovery.concurrent_streams`
+ * `index.shard.recovery.concurrent_small_file_streams` is superseded by `indices.recovery.concurrent_small_file_streams`
+ * `indices.recovery.max_size_per_sec` is superseded by `indices.recovery.max_bytes_per_sec`
+
+If you are using any of these settings please take the time and review their purpose. All of the settings above are considered
+_expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
+cluster settings please use the settings update API and set their superseded keys accordingly.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
+
+==== Default number mappings
+
+When a floating-point number is encountered, it is now dynamically mapped as a
+float by default instead of a double. The reasoning is that floats should be
+more than enough for most cases but would decrease storage requirements
+significantly.
 
 [[breaking_30_plugins]]
 === Plugin changes
@@ -220,6 +243,15 @@ Cloud AWS plugin has been split in two plugins:
 
 * {plugins}/discovery-ec2.html[Discovery EC2 plugin]
 * {plugins}/repository-s3.html[Repository S3 plugin]
+
+Proxy settings for both plugins have been renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
 
 ==== Cloud Azure plugin changes
 

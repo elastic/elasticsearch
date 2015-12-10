@@ -23,10 +23,10 @@ import org.apache.tika.io.IOUtils;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
 
     @Before
     public void createMapper() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
         docMapper = mapperParser.parse(mapping);
@@ -93,7 +93,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
         assertParseable("text-in-english.txt");
         testMapper("text-in-english.txt", false);
     }
-    
+
     /**
      * Test for .epub
      */
@@ -129,7 +129,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     protected void assertParseable(String filename) throws Exception {
         try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);  
+            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
         }

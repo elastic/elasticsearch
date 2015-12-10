@@ -220,7 +220,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexCache = indexCache;
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
-        this.termVectorsService =  provider.getTermVectorsService();
+        this.termVectorsService = provider.getTermVectorsService();
         this.searchService = new ShardSearchStats(settings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = provider.getIndicesQueryCache();
@@ -239,7 +239,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.checkIndexOnStartup = settings.get("index.shard.check_on_startup", "false");
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, settings, Translog.Durabilty.REQUEST),
-                provider.getBigArrays(), threadPool);
+            provider.getBigArrays(), threadPool);
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -395,7 +395,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
      */
     public IndexShardState markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
-            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+        IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -521,8 +521,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
     }
 
+
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long version, VersionType versionType) {
-        if (shardRouting.primary()) {
+        if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
             throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
         }
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
@@ -534,6 +535,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         long startTime = System.nanoTime();
         return new Engine.Delete(type, id, uid, seqNo, version, versionType, origin, startTime, false);
     }
+
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
@@ -692,7 +694,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("force merge with {}", forceMerge);
         }
         getEngine().forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
-                forceMerge.onlyExpungeDeletes(), false, false);
+            forceMerge.onlyExpungeDeletes(), false, false);
     }
 
     /**
@@ -706,8 +708,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
         // we just want to upgrade the segments, not actually forge merge to a single segment
         getEngine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
-                Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
-                false, true, upgrade.upgradeOnlyAncientSegments());
+            Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
+            false, true, upgrade.upgradeOnlyAncientSegments());
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
             logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
@@ -941,7 +943,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read
         return state == IndexShardState.POST_RECOVERY || state == IndexShardState.RECOVERING || state == IndexShardState.STARTED ||
-                state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
+            state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
@@ -1046,7 +1048,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             long iwBytesUsed = engine.indexWriterRAMBytesUsed();
 
             String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
-                    preValue, shardIndexingBufferSize, iwBytesUsed);
+                preValue, shardIndexingBufferSize, iwBytesUsed);
 
             if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
                 // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
@@ -1476,9 +1478,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     writeReason = "routing changed from " + currentRouting + " to " + newRouting;
                 } else {
                     logger.trace("skip writing shard state, has been written before; previous version:  [" +
-                            currentRouting.version() + "] current version [" + newRouting.version() + "]");
+                        currentRouting.version() + "] current version [" + newRouting.version() + "]");
                     assert currentRouting.version() <= newRouting.version() : "version should not go backwards for shardID: " + shardId +
-                            " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
+                        " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
                     return;
                 }
                 final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID(), newRouting.allocationId());
@@ -1510,9 +1512,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer,
-                indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
+            threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+            mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {
@@ -1537,12 +1538,27 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
+     * increments the ongoing operations counter on a primary shard. Returns the primary term of this shard.
+     */
+    public long incrementOperationCounterOnPrimary() {
+        if (shardRouting.primary() == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
+        }
+        indexShardOperationCounter.incRef();
+        return shardRouting.primaryTerm();
+    }
+
+
+    /**
      * increments the ongoing operations counter. If the given primary term is lower then the one in {@link #shardRouting}
      * an {@link IllegalIndexShardStateException} is thrown.
      */
-    public void incrementOperationCounter(long opPrimaryTerm) {
+    public void incrementOperationCounterOnReplica(long opPrimaryTerm) {
         if (shardRouting.primaryTerm() > opPrimaryTerm) {
             throw new IllegalIndexShardStateException(shardId, state, "operation term [{}] is too old (current [{}])", opPrimaryTerm, shardRouting.primaryTerm());
+        }
+        if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
         }
         indexShardOperationCounter.incRef();
     }

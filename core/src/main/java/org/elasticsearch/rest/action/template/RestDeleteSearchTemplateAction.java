@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -38,6 +38,6 @@ public class RestDeleteSearchTemplateAction extends RestDeleteIndexedScriptActio
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return MustacheScriptEngineService.NAME;
+        return Template.DEFAULT_LANG;
     }
 }

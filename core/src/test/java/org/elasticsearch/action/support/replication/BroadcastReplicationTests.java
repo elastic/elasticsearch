@@ -20,6 +20,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,6 +28,9 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -35,7 +39,39 @@ import java.io.IOException;
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable {
+public class BulkItemResponse implements Streamable, StatusToXContent {
+
+    @Override
+    public RestStatus status() {
+        return failure == null ? response.status() : failure.getStatus();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(opType);
+        if (failure == null) {
+            response.toXContent(builder, params);
+            builder.field(Fields.STATUS, response.status());
+        } else {
+            builder.field(Fields._INDEX, failure.getIndex());
+            builder.field(Fields._TYPE, failure.getType());
+            builder.field(Fields._ID, failure.getId());
+            builder.field(Fields.STATUS, failure.getStatus());
+            builder.startObject(Fields.ERROR);
+            ElasticsearchException.toXContent(builder, params, failure.getCause());
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+    }
 
     /**
      * Represents a failure.

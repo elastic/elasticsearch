@@ -27,16 +27,13 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -47,8 +44,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -62,15 +57,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -79,13 +67,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -279,172 +264,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getMaxScore(), is(10.0f));
-
-        assertGetRequestsContainHeaders(".scripts");
-        assertRequestsContainHeader(PutIndexedScriptRequest.class);
-    }
-
-    public void testThatIndexedScriptGetRequestInTemplateQueryContainsContextAndHeaders() throws Exception {
-        PutIndexedScriptResponse scriptResponse = transportClient()
-                .preparePutIndexedScript(
-                        MustacheScriptEngineService.NAME,
-                        "my_script",
-                        jsonBuilder().startObject().field("script", "{ \"match\": { \"name\": \"Star Wars\" }}").endObject()
-                                .string()).get();
-        assertThat(scriptResponse.isCreated(), is(true));
-
-        transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject()).get();
-        transportClient().admin().indices().prepareRefresh(queryIndex).get();
-
-        SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .setQuery(
-                        QueryBuilders.templateQuery(new Template("my_script", ScriptType.INDEXED,
-                                MustacheScriptEngineService.NAME, null, null))).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-
-        assertGetRequestsContainHeaders(".scripts");
-        assertRequestsContainHeader(PutIndexedScriptRequest.class);
-    }
-
-    public void testThatIndexedScriptGetRequestInReducePhaseContainsContextAndHeaders() throws Exception {
-        PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(GroovyScriptEngineService.NAME, "my_script",
-                jsonBuilder().startObject().field("script", "_value0 * 10").endObject().string()).get();
-        assertThat(scriptResponse.isCreated(), is(true));
-
-        transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("s_field", "foo").field("l_field", 10).endObject()).get();
-        transportClient().admin().indices().prepareRefresh(queryIndex).get();
-
-        SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .addAggregation(
-                        AggregationBuilders
-                                .terms("terms")
-                                .field("s_field")
-                                .subAggregation(AggregationBuilders.max("max").field("l_field"))
-                                .subAggregation(
-                                        PipelineAggregatorBuilders.bucketScript("scripted").setBucketsPaths("max").script(
-                                                new Script("my_script", ScriptType.INDEXED, GroovyScriptEngineService.NAME, null)))).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-
-        assertGetRequestsContainHeaders(".scripts");
-        assertRequestsContainHeader(PutIndexedScriptRequest.class);
-    }
-
-    public void testThatSearchTemplatesWithIndexedTemplatesGetRequestContainsContextAndHeaders() throws Exception {
-        PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(MustacheScriptEngineService.NAME, "the_template",
-                jsonBuilder().startObject().startObject("template").startObject("query").startObject("match")
-                        .field("name", "{{query_string}}").endObject().endObject().endObject().endObject().string()
-        ).get();
-        assertThat(scriptResponse.isCreated(), is(true));
-
-        transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-                .get();
-        transportClient().admin().indices().prepareRefresh(queryIndex).get();
-
-        Map<String, Object> params = new HashMap<>();
-        params.put("query_string", "star wars");
-
-        SearchResponse searchResponse = transportClient().prepareSearch(queryIndex).setTemplate(new Template("the_template", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, params))
-                .get();
-
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-
-        assertGetRequestsContainHeaders(".scripts");
-        assertRequestsContainHeader(PutIndexedScriptRequest.class);
-    }
-
-    public void testThatIndexedScriptGetRequestInPhraseSuggestContainsContextAndHeaders() throws Exception {
-        CreateIndexRequestBuilder builder = transportClient().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
-                .put("index.analysis.analyzer.text.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
-                .put("index.analysis.filter.my_shingle.type", "shingle")
-                .put("index.analysis.filter.my_shingle.output_unigrams", true)
-                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle.max_shingle_size", 3));
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("title")
-                .field("type", "string")
-                .field("analyzer", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
-        ensureGreen();
-
-        List<String> titles = new ArrayList<>();
-
-        titles.add("United States House of Representatives Elections in Washington 2006");
-        titles.add("United States House of Representatives Elections in Washington 2005");
-        titles.add("State");
-        titles.add("Houses of Parliament");
-        titles.add("Representative Government");
-        titles.add("Election");
-
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (String title: titles) {
-            transportClient().prepareIndex("test", "type1").setSource("title", title).get();
-        }
-        transportClient().admin().indices().prepareRefresh("test").get();
-
-        String filterStringAsFilter = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("match_phrase")
-                .field("title", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
-
-        PutIndexedScriptResponse scriptResponse = transportClient()
-                .preparePutIndexedScript(
-                        MustacheScriptEngineService.NAME,
-                        "my_script",
-                jsonBuilder().startObject().field("script", filterStringAsFilter).endObject()
-                                .string()).get();
-        assertThat(scriptResponse.isCreated(), is(true));
-
-        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
-                .field("title")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
-                        .suggestMode("always")
-                        .maxTermFreq(.99f)
-                        .size(10)
-                        .maxInspections(200)
-                )
-                .confidence(0f)
-                .maxErrors(2f)
-                .shardSize(30000)
-                .size(10);
-
-        PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(new Template("my_script", ScriptType.INDEXED,
-                MustacheScriptEngineService.NAME, null, null));
-
-        SearchRequestBuilder searchRequestBuilder = transportClient().prepareSearch("test").setSize(0);
-        SuggestBuilder suggestBuilder = new SuggestBuilder();
-        String suggestText = "united states house of representatives elections in washington 2006";
-        if (suggestText != null) {
-            suggestBuilder.setText(suggestText);
-        }
-        suggestBuilder.addSuggestion(filteredFilterSuggest);
-        searchRequestBuilder.suggest(suggestBuilder);
-        SearchResponse actionGet = searchRequestBuilder.execute().actionGet();
-        assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(0));
-        Suggest searchSuggest = actionGet.getSuggest();
-
-        assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         assertGetRequestsContainHeaders(".scripts");
         assertRequestsContainHeader(PutIndexedScriptRequest.class);

@@ -128,14 +128,13 @@ public class Node implements Releasable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(preparedSettings, Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    Node(Settings preparedSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        final Settings pSettings = settingsBuilder().put(preparedSettings)
-                .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
-        Environment tmpEnv = InternalSettingsPreparer.prepareEnvironment(pSettings, null);
-        Settings tmpSettings = TribeService.processSettings(tmpEnv.settings());
+    protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+        Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
+            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+        tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());

@@ -110,7 +110,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
-        shard.incrementOperationCounter(shard.routingEntry().primaryTerm());
+        shard.incrementOperationCounterOnPrimary();
         try {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
@@ -157,7 +157,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertNull(listener.result);
         assertEquals("no such index", listener.error.getMessage());
     }
-    
+
     public void testFailAfterIntermediateCommit() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();

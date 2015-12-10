@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -42,7 +42,7 @@ public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return MustacheScriptEngineService.NAME;
+        return Template.DEFAULT_LANG;
     }
 
     @Override

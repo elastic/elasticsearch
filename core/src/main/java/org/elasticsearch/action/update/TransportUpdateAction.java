@@ -176,7 +176,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     @Override
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(),
-                                response.getId(), response.getSeqNo(), response.getVersion(), response.isCreated());
+                            response.getId(), response.getSeqNo(), response.getVersion(), response.isCreated());
                         if (request.fields() != null && request.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
                             update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
@@ -214,7 +214,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     @Override
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(),
-                                response.getSeqNo(), response.getVersion(), response.isCreated());
+                            response.getSeqNo(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }
@@ -243,7 +243,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(),
-                                response.getId(), response.getSeqNo(), response.getVersion(), false);
+                            response.getId(), response.getSeqNo(), response.getVersion(), false);
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         listener.onResponse(update);
                     }

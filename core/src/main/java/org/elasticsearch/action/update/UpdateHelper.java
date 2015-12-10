@@ -83,7 +83,7 @@ public class UpdateHelper extends AbstractComponent {
     @SuppressWarnings("unchecked")
     protected Result prepare(UpdateRequest request, final GetResult getResult) {
         long getDateNS = System.nanoTime();
-        final ShardId shardId = new ShardId(request.index(), request.shardId());
+        final ShardId shardId = new ShardId(getResult.getIndex(), request.shardId());
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(shardId, request.type(), request.id());
@@ -232,12 +232,12 @@ public class UpdateHelper extends AbstractComponent {
                     .consistencyLevel(request.consistencyLevel());
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(new ShardId(getResult.getIndex(), request.shardId()), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
-            UpdateResponse update = new UpdateResponse(new ShardId(getResult.getIndex(), request.shardId()), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
     }

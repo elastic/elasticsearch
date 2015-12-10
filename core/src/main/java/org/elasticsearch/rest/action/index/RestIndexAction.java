@@ -30,6 +30,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
 import java.io.IOException;
 
@@ -98,17 +99,6 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                RestStatus status = response.getShardInfo().status();
-                if (response.isCreated()) {
-                    status = CREATED;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        client.index(indexRequest, new RestStatusToXContentListener<>(channel));
     }
 }

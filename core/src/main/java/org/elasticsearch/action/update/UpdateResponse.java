@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -71,6 +72,14 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     @Override
+    public RestStatus status() {
+        if (created) {
+            return RestStatus.CREATED;
+        }
+        return super.status();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         created = in.readBoolean();
@@ -104,5 +113,18 @@ public class UpdateResponse extends DocWriteResponse {
             builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("UpdateResponse[");
+        builder.append("index=").append(getIndex());
+        builder.append(",type=").append(getType());
+        builder.append(",id=").append(getId());
+        builder.append(",version=").append(getVersion());
+        builder.append(",created=").append(created);
+        builder.append(",shards=").append(getShardInfo());
+        return builder.append("]").toString();
     }
 }

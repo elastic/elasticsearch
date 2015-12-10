@@ -560,44 +560,19 @@ class DocumentParser implements Closeable {
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
-            if (numberType == XContentParser.NumberType.INT) {
-                if (context.parser().estimatedNumberType()) {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
-                    if (builder == null) {
-                        builder = MapperBuilders.longField(currentFieldName);
-                    }
-                    return builder;
-                } else {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
-                    if (builder == null) {
-                        builder = MapperBuilders.integerField(currentFieldName);
-                    }
-                    return builder;
-                }
-            } else if (numberType == XContentParser.NumberType.LONG) {
+            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
                     builder = MapperBuilders.longField(currentFieldName);
                 }
                 return builder;
-            } else if (numberType == XContentParser.NumberType.FLOAT) {
-                if (context.parser().estimatedNumberType()) {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
-                    if (builder == null) {
-                        builder = MapperBuilders.doubleField(currentFieldName);
-                    }
-                    return builder;
-                } else {
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
-                    if (builder == null) {
-                        builder = MapperBuilders.floatField(currentFieldName);
-                    }
-                    return builder;
-                }
-            } else if (numberType == XContentParser.NumberType.DOUBLE) {
+            } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
-                    builder = MapperBuilders.doubleField(currentFieldName);
+                    // no templates are defined, we use float by default instead of double
+                    // since this is much more space-efficient and should be enough most of
+                    // the time
+                    builder = MapperBuilders.floatField(currentFieldName);
                 }
                 return builder;
             }
@@ -713,37 +688,64 @@ class DocumentParser implements Closeable {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
 
+            String[] paths = Strings.splitStringToArray(field, '.');
+            String fieldName = paths[paths.length-1];
             ObjectMapper mapper = context.root();
-            String objectPath = "";
-            String fieldPath = field;
-            int posDot = field.lastIndexOf('.');
-            if (posDot > 0) {
-                objectPath = field.substring(0, posDot);
-                context.path().add(objectPath);
-                mapper = context.docMapper().objectMappers().get(objectPath);
-                fieldPath = field.substring(posDot + 1);
+            ObjectMapper[] mappers = new ObjectMapper[paths.length-1];
+            if (paths.length > 1) {
+                ObjectMapper parent = context.root();
+                for (int i = 0; i < paths.length-1; i++) {
+                    mapper = context.docMapper().objectMappers().get(context.path().fullPathAsText(paths[i]));
+                    if (mapper == null) {
+                        // One mapping is missing, check if we are allowed to create a dynamic one.
+                        ObjectMapper.Dynamic dynamic = parent.dynamic();
+                        if (dynamic == null) {
+                            dynamic = dynamicOrDefault(context.root().dynamic());
+                        }
+
+                        switch (dynamic) {
+                            case STRICT:
+                                throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
+                            case TRUE:
+                                Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
+                                if (builder == null) {
+                                    // if this is a non root object, then explicitly set the dynamic behavior if set
+                                    if (!(parent instanceof RootObjectMapper) && parent.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
+                                        ((ObjectMapper.Builder) builder).dynamic(parent.dynamic());
+                                    }
+                                    builder = MapperBuilders.object(paths[i]).enabled(true).pathType(parent.pathType());
+                                }
+                                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                                mapper = (ObjectMapper) builder.build(builderContext);
+                                if (mapper.nested() != ObjectMapper.Nested.NO) {
+                                    throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().fullPathAsText(paths[i]) + "]) through `copy_to`");
+                                }
+                                break;
+                            case FALSE:
+                              // Maybe we should log something to tell the user that the copy_to is ignored in this case.
+                              break;
+                            default:
+                                throw new AssertionError("Unexpected dynamic type " + dynamic);
+
+                        }
+                    }
+                    context.path().add(paths[i]);
+                    mappers[i] = mapper;
+                    parent = mapper;
+                }
             }
-            if (mapper == null) {
-                //TODO: Create an object dynamically?
-                throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
-            }
-            ObjectMapper update = parseDynamicValue(context, mapper, fieldPath, context.parser().currentToken());
+            ObjectMapper update = parseDynamicValue(context, mapper, fieldName, context.parser().currentToken());
             assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
 
-            // propagate the update to the root
-            while (objectPath.length() > 0) {
-                String parentPath = "";
-                ObjectMapper parent = context.root();
-                posDot = objectPath.lastIndexOf('.');
-                if (posDot > 0) {
-                    parentPath = objectPath.substring(0, posDot);
-                    parent = context.docMapper().objectMappers().get(parentPath);
+            if (paths.length > 1) {
+                for (int i = paths.length - 2; i >= 0; i--) {
+                    ObjectMapper parent = context.root();
+                    if (i > 0) {
+                        parent = mappers[i-1];
+                    }
+                    assert parent != null;
+                    update = parent.mappingUpdate(update);
                 }
-                if (parent == null) {
-                    throw new IllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
-                }
-                update = parent.mappingUpdate(update);
-                objectPath = parentPath;
             }
             context.addDynamicMappingsUpdate(update);
         }

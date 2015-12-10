@@ -411,9 +411,9 @@ Use the `field(String, float)` method instead.
 
 ==== MissingQueryBuilder
 
-The two individual setters for existence() and nullValue() were removed in favour of
-optional constructor settings in order to better capture and validate their interdependent
-settings at construction time.
+The MissingQueryBuilder which was deprecated in 2.2.0 is removed. As a replacement use ExistsQueryBuilder
+inside a mustNot() clause. So instead of using `new ExistsQueryBuilder(name)` now use
+`new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(name))`.
 
 ==== NotQueryBuilder
 
@@ -491,3 +491,4 @@ from `OsStats.Cpu#getPercent`.
 === Fields option
 Only stored fields are retrievable with this option.
 The fields option won't be able to load non stored fields from _source anymore.
+

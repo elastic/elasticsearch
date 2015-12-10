@@ -120,7 +120,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(GeohashCellQuery.Parser.class);
         registerQueryParser(GeoPolygonQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
-        registerQueryParser(MissingQueryParser.class);
         registerQueryParser(MatchNoneQueryParser.class);
 
         if (ShapesAvailability.JTS_AVAILABLE) {

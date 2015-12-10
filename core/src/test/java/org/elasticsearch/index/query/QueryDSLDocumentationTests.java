@@ -58,7 +58,6 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -238,10 +237,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testMatch() {
         matchQuery("name", "kimchy elasticsearch");
-    }
-
-    public void testMissing() {
-        missingQuery("user", true, true);
     }
 
     public void testMLT() {

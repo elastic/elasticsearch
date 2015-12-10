@@ -71,7 +71,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -440,25 +439,9 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("obj1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("field1")).get();
-            assertHitCount(countResponse, 2l);
-
-            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("field1")).get();
-            assertHitCount(countResponse, 2l);
-
-            countResponse = client().prepareSearch().setSize(0).setQuery(constantScoreQuery(missingQuery("field1"))).get();
-            assertHitCount(countResponse, 2l);
-
             countResponse = client().prepareSearch().setSize(0).setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
-            // wildcard check
-            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("x*")).get();
-            assertHitCount(countResponse, 2l);
-
-            // object check
-            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("obj1")).get();
-            assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
                 break;
             }

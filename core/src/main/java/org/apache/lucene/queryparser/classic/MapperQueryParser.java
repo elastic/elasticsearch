@@ -54,7 +54,6 @@ public class MapperQueryParser extends QueryParser {
     static {
         Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
         fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
-        fieldQueryExtensions.put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension());
         FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
     }
 

@@ -865,7 +865,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
                 .addAlias(new Alias("alias1"))
-                .addAlias(new Alias("alias2").filter(QueryBuilders.missingQuery("field")))
+                .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
                 .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
 
         checkAliases();

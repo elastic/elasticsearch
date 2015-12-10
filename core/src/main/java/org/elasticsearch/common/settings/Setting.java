@@ -45,6 +45,14 @@ public class Setting<T> extends ToXContentToBytes {
     private final boolean dynamic;
     private final Scope scope;
 
+    /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true iff this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
     public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;

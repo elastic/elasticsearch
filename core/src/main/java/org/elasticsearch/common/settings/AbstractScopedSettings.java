@@ -120,12 +120,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
+     * @param validator an additional validator that is only applied to updates of this setting.
+     *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
-    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> predicate) {
+    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        this.settingUpdaters.add(setting.newUpdater(consumer, logger, predicate));
+        this.settingUpdaters.add(setting.newUpdater(consumer, logger, validator));
     }
 
     /**

@@ -33,6 +33,8 @@ dependencies {
   compile 'com.google.guava:guava:16.0.1' // needed by watcher and shield tests for jimfs
   compile 'com.google.code.findbugs:jsr305:3.0.1' // TODO: remove this
   compile 'com.sun.mail:javax.mail:1.5.3'
+  // fork of mustache: https://github.com/elastic/x-plugins/issues/1116 
+  compile 'com.github.spullara.mustache.java:compiler:0.9.1' // TODO: remove this
   testCompile 'org.subethamail:subethasmtp:3.1.7'
 
   // common test deps

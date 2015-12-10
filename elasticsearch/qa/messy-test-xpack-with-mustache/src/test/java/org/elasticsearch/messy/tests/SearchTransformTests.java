@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transform.search;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -23,7 +23,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,6 +41,9 @@ import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformBuilders;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -55,6 +60,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -88,6 +94,15 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchTransformTests extends ESIntegTestCase {
+    
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.nodePlugins());
+        types.add(MustachePlugin.class);
+        return types;
+    }
+    
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         final Path tempDir = createTempDir();

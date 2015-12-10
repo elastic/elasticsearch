@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -11,8 +11,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -20,14 +22,25 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+@ShieldIntegTestCase.AwaitsFix(bugUrl = "clean up test to not use mustache templates, otherwise needs many resources here")
 public class ShieldCachePermissionTests extends ShieldIntegTestCase {
     static final String READ_ONE_IDX_USER = "read_user";
+    
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.nodePlugins());
+        types.add(MustachePlugin.class);
+        return types;
+    }
 
     @Override
     public String configUsers() {

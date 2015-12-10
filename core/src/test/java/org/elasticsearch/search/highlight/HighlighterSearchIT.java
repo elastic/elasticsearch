@@ -2471,7 +2471,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(boolQuery()
-                .should(boolQuery().mustNot(constantScoreQuery(QueryBuilders.existsQuery("field1"))))
+                .should(boolQuery().mustNot(QueryBuilders.existsQuery("field1")))
                 .should(matchQuery("field1", "test"))
                 .should(constantScoreQuery(queryStringQuery("field1:photo*"))))
                 .highlighter(highlight().field("field1"));

@@ -57,44 +57,44 @@ public class ExistsIT extends ESIntegTestCase {
 
     public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-                .startObject()
+            .startObject()
                 .startObject("type")
-                .startObject(FieldNamesFieldMapper.NAME)
-                .field("enabled", randomBoolean())
+                    .startObject(FieldNamesFieldMapper.NAME)
+                        .field("enabled", randomBoolean())
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                        .startObject("bar")
+                            .field("type", "object")
+                            .startObject("properties")
+                                .startObject("foo")
+                                    .field("type", "string")
+                                .endObject()
+                                .startObject("bar")
+                                    .field("type", "object")
+                                    .startObject("properties")
+                                        .startObject("bar")
+                                            .field("type", "string")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                                .startObject("baz")
+                                    .field("type", "long")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
                 .endObject()
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "string")
-                .endObject()
-                .startObject("bar")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "string")
-                .endObject()
-                .startObject("bar")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("bar")
-                .field("type", "string")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("baz")
-                .field("type", "long")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
         @SuppressWarnings("unchecked")
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
-        final Map<String, Object>[] sources = new Map[]{
+        final Map<String, Object>[] sources = new Map[] {
                 // simple property
                 singletonMap("foo", "bar"),
                 // object fields

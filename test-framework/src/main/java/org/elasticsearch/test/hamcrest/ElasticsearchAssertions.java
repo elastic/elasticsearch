@@ -705,7 +705,7 @@ public class ElasticsearchAssertions {
             IllegalAccessException, InvocationTargetException {
         try {
             Class<? extends Streamable> clazz = streamable.getClass();
-            Constructor<? extends Streamable> constructor = clazz.getDeclaredConstructor();
+            Constructor<? extends Streamable> constructor = clazz.getConstructor();
             assertThat(constructor, Matchers.notNullValue());
             Streamable newInstance = constructor.newInstance();
             return newInstance;

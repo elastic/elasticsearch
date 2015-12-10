@@ -83,7 +83,7 @@ public final class ProviderMethodsModule implements Module {
     public List<ProviderMethod<?>> getProviderMethods(Binder binder) {
         List<ProviderMethod<?>> result = new ArrayList<>();
         for (Class<?> c = delegate.getClass(); c != Object.class; c = c.getSuperclass()) {
-            for (Method method : c.getDeclaredMethods()) {
+            for (Method method : c.getMethods()) {
                 if (method.getAnnotation(Provides.class) != null) {
                     result.add(createProviderMethod(binder, method));
                 }

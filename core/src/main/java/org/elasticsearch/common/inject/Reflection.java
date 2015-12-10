@@ -41,7 +41,7 @@ class Reflection {
     @SuppressWarnings("unchecked")
     static <T> Constructor<T> invalidConstructor() {
         try {
-            return (Constructor<T>) InvalidConstructor.class.getDeclaredConstructor();
+            return (Constructor<T>) InvalidConstructor.class.getConstructor();
         } catch (NoSuchMethodException e) {
             throw new AssertionError(e);
         }

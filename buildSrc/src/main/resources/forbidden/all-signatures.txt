@@ -92,6 +92,13 @@ java.net.InetAddress#getCanonicalHostName()
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
 
 @defaultMessage Do not violate java's access system
+java.lang.Class#getDeclaredClasses() @ Do not violate java's access system: Use getClasses() instead
+java.lang.Class#getDeclaredConstructor(java.lang.Class[]) @ Do not violate java's access system: Use getConstructor() instead
+java.lang.Class#getDeclaredConstructors() @ Do not violate java's access system: Use getConstructors() instead
+java.lang.Class#getDeclaredField(java.lang.String) @ Do not violate java's access system: Use getField() instead
+java.lang.Class#getDeclaredFields() @ Do not violate java's access system: Use getFields() instead
+java.lang.Class#getDeclaredMethod(java.lang.String, java.lang.Class[]) @ Do not violate java's access system: Use getMethod() instead
+java.lang.Class#getDeclaredMethods() @ Do not violate java's access system: Use getMethods() instead
 java.lang.reflect.AccessibleObject#setAccessible(boolean)
 java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)
 

@@ -417,7 +417,7 @@ public enum VersionType implements Writeable<VersionType> {
             return EXTERNAL_GTE;
         case "force":
             return FORCE;
-        case "external_exact":
+        case "reindex":
             return REINDEX;
         default:
             throw new IllegalArgumentException("No version type match [" + versionType + "]");

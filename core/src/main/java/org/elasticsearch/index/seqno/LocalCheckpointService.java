@@ -19,12 +19,11 @@
 package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.util.LinkedList;
 
 /**
  * This class generates sequences numbers and keeps track of the so called local checkpoint - the highest number for which
@@ -32,92 +31,54 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
-    /** sets the maximum spread between lowest and highest seq no in flight */
-    public static String SETTINGS_INDEX_LAG_THRESHOLD = "index.seq_no.index_lag.threshold";
+    public static String SETTINGS_BIT_ARRAY_CHUNK_SIZE = "index.seq_no.checkpoint.bit_array_chunk_size";
 
-    /**
-     * how long should an incoming indexing request which violates {@link #SETTINGS_INDEX_LAG_THRESHOLD } should wait
-     * before being rejected
-     */
-    public static String SETTINGS_INDEX_LAG_MAX_WAIT = "index.seq_no.index_lag.max_wait";
+    /** default value for {@link #SETTINGS_BIT_ARRAY_CHUNK_SIZE} */
+    final static int DEFAULT_BIT_ARRAY_CHUNK_SIZE = 1024;
 
-    /** default value for {@link #SETTINGS_INDEX_LAG_THRESHOLD} */
-    final static int DEFAULT_INDEX_LAG_THRESHOLD = 1024;
 
-    /** default value for {@link #SETTINGS_INDEX_LAG_MAX_WAIT} */
-    final static TimeValue DEFAULT_INDEX_LAG_MAX_WAIT = TimeValue.timeValueSeconds(30);
+    final LinkedList<FixedBitSet> processedSeqNo;
+    final int processedSeqNoChunkSize;
+    long minSeqNoInProcessSeqNo = 0;
 
-    /** protects changes to all internal state and signals changes in {@link #checkpoint} */
-    final Object mutex = new Object();
-
-    /** each bits maps to a seqNo in round robin fashion. a set bit means the seqNo has been processed */
-    final FixedBitSet processedSeqNo;
-
-    /** value of {@link #SETTINGS_INDEX_LAG_THRESHOLD } */
-    final int indexLagThreshold;
-    /** value of {#link #SETTINGS_INDEX_LAG_THRESHOLD } */
-    final TimeValue indexLagMaxWait;
-
+    /** the current local checkpoint, i.e., all seqNo lower&lt;= this number have been completed */
+    volatile long checkpoint = -1;
 
     /** the next available seqNo - used for seqNo generation */
     volatile long nextSeqNo = 0;
 
-    /** the current local checkpoint, i.e., all seqNo lower<= this number have been completed */
-    volatile long checkpoint = -1;
 
     public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
-        indexLagThreshold = indexSettings.getSettings().getAsInt(SETTINGS_INDEX_LAG_THRESHOLD, DEFAULT_INDEX_LAG_THRESHOLD);
-        indexLagMaxWait = indexSettings.getSettings().getAsTime(SETTINGS_INDEX_LAG_MAX_WAIT, DEFAULT_INDEX_LAG_MAX_WAIT);
-        processedSeqNo = new FixedBitSet(indexLagThreshold);
-
+        processedSeqNoChunkSize = indexSettings.getSettings().getAsInt(SETTINGS_BIT_ARRAY_CHUNK_SIZE, DEFAULT_BIT_ARRAY_CHUNK_SIZE);
+        processedSeqNo = new LinkedList<>();
     }
 
     /**
      * issue the next sequence number
-     *
-     * Note that this method can block to honour maximum indexing lag . See {@link #SETTINGS_INDEX_LAG_THRESHOLD }
      **/
-    public long generateSeqNo() {
-        synchronized (mutex) {
-            // we have to keep checking when ensure capacity returns because it release the lock and nextSeqNo may change
-            while (hasCapacity(nextSeqNo) == false) {
-                ensureCapacity(nextSeqNo);
-            }
-            return nextSeqNo++;
-        }
+    public synchronized long generateSeqNo() {
+        return nextSeqNo++;
     }
 
     /**
      * marks the processing of the given seqNo have been completed
-     * Note that this method can block to honour maximum indexing lag . See {@link #SETTINGS_INDEX_LAG_THRESHOLD }
      **/
-    public long markSeqNoAsCompleted(long seqNo) {
-        synchronized (mutex) {
-            // make sure we track highest seen seqNo
-            if (seqNo >= nextSeqNo) {
-                nextSeqNo = seqNo + 1;
-            }
-            if (seqNo <= checkpoint) {
-                // this is possible during recover where we might replay an op that was also replicated
-                return checkpoint;
-            }
-            // just to be safe (previous calls to generateSeqNo/markSeqNoAsStarted should ensure this is OK)
-            ensureCapacity(seqNo);
-            int offset = seqNoToOffset(seqNo);
-            processedSeqNo.set(offset);
-            if (seqNo == checkpoint + 1) {
-                do {
-                    // clear the flag as we are making it free for future operations. do se before we expose it
-                    // by moving the checkpoint
-                    processedSeqNo.clear(offset);
-                    checkpoint++;
-                    offset = seqNoToOffset(checkpoint + 1);
-                } while (processedSeqNo.get(offset));
-                mutex.notifyAll();
-            }
+    public synchronized void markSeqNoAsCompleted(long seqNo) {
+        // make sure we track highest seen seqNo
+        if (seqNo >= nextSeqNo) {
+            nextSeqNo = seqNo + 1;
         }
-        return checkpoint;
+        if (seqNo <= checkpoint) {
+            // this is possible during recover where we might replay an op that was also replicated
+            return;
+        }
+        FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
+        int offset = seqNoToBitSetOffset(seqNo);
+        bitSet.set(offset);
+        if (seqNo == checkpoint + 1) {
+            updateCheckpoint();
+        }
     }
 
     /** get's the current check point */
@@ -130,43 +91,41 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return nextSeqNo - 1;
     }
 
-
-    /** checks if seqNo violates {@link #SETTINGS_INDEX_LAG_THRESHOLD } */
-    private boolean hasCapacity(long seqNo) {
-        assert Thread.holdsLock(mutex);
-        return (seqNo - checkpoint) <= indexLagThreshold;
-    }
-
-    /** blocks until {@link #SETTINGS_INDEX_LAG_THRESHOLD } is honoured or raises {@link EsRejectedExecutionException }*/
-    private void ensureCapacity(long seqNo) {
-        assert Thread.holdsLock(mutex);
-        long retry = 0;
-        final long maxRetries = indexLagMaxWait.seconds();
-        while (hasCapacity(seqNo) == false) {
-            try {
-                if (retry > maxRetries) {
-                    ElasticsearchException e = new EsRejectedExecutionException("indexing lag exceeds [{}] (seq# requested [{}], local checkpoint [{}]",
-                            indexLagThreshold, seqNo, checkpoint);
-                    e.setShard(shardId());
-                    throw e;
-                }
-
-                // this temporary releases the lock on mutex
-                mutex.wait(Math.min(1000, indexLagMaxWait.millis() - retry * 1000));
-                retry++;
-            } catch (InterruptedException ie) {
-                ElasticsearchException exp = new ElasticsearchException("interrupted while waiting on index lag");
-                exp.setShard(shardId());
-                throw exp;
+    private void updateCheckpoint() {
+        assert Thread.holdsLock(this);
+        assert checkpoint - minSeqNoInProcessSeqNo < processedSeqNoChunkSize : "checkpoint to minSeqNoInProcessSeqNo is larger then a bit set";
+        assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) : "updateCheckpoint is called but the bit following the checkpoint is not set";
+        assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() : "checkpoint + 1 doesn't point to the first bit set";
+        // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
+        FixedBitSet current = processedSeqNo.getFirst();
+        do {
+            checkpoint++;
+            // the checkpoint always falls in the first bit set or just before. If it falls
+            // on the last bit of the current bit set, we can clean it.
+            if (checkpoint == minSeqNoInProcessSeqNo + processedSeqNoChunkSize - 1) {
+                processedSeqNo.pop();
+                minSeqNoInProcessSeqNo += processedSeqNoChunkSize;
+                assert checkpoint - minSeqNoInProcessSeqNo < processedSeqNoChunkSize;
+                current = processedSeqNo.peekFirst();
             }
+        } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
+    }
+
+    private FixedBitSet getBitSetForSeqNo(long seqNo) {
+        assert Thread.holdsLock(this);
+        assert seqNo >= minSeqNoInProcessSeqNo;
+        int bitSetOffset = ((int) (seqNo - minSeqNoInProcessSeqNo)) / processedSeqNoChunkSize;
+        while (bitSetOffset >= processedSeqNo.size()) {
+            processedSeqNo.add(new FixedBitSet(processedSeqNoChunkSize));
         }
+        return processedSeqNo.get(bitSetOffset);
     }
 
-    /** maps the given seqNo to a position in {@link #processedSeqNo} */
-    private int seqNoToOffset(long seqNo) {
-        assert seqNo - checkpoint <= indexLagThreshold;
-        assert seqNo > checkpoint;
-        return (int) (seqNo % indexLagThreshold);
-    }
 
+    /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
+    private int seqNoToBitSetOffset(long seqNo) {
+        assert Thread.holdsLock(this);
+        assert seqNo >= minSeqNoInProcessSeqNo;
+        return ((int) (seqNo - minSeqNoInProcessSeqNo)) % processedSeqNoChunkSize;
+    }
 }

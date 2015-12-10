@@ -20,45 +20,39 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.*;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class LocalCheckpointServiceTests extends ESTestCase {
 
     LocalCheckpointService checkpointService;
 
-    final int SMALL_INDEX_LAG_THRESHOLD = 10;
+    final int SMALL_CHUNK_SIZE = 4;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        checkpointService = getCheckpointService(SMALL_INDEX_LAG_THRESHOLD, LocalCheckpointService.DEFAULT_INDEX_LAG_MAX_WAIT);
+        checkpointService = getCheckpointService();
     }
 
-    protected LocalCheckpointService getCheckpointService(int thresholdLag, TimeValue thresholdDelay) {
+    protected LocalCheckpointService getCheckpointService() {
         return new LocalCheckpointService(
-                new ShardId("test", 0),
-                IndexSettingsModule.newIndexSettings("test",
-                        Settings.builder()
-                                .put(LocalCheckpointService.SETTINGS_INDEX_LAG_THRESHOLD, thresholdLag)
-                                .put(LocalCheckpointService.SETTINGS_INDEX_LAG_MAX_WAIT, thresholdDelay)
-                                .build()
-                ));
+            new ShardId("test", 0),
+            IndexSettingsModule.newIndexSettings("test",
+                Settings.builder()
+                    .put(LocalCheckpointService.SETTINGS_BIT_ARRAY_CHUNK_SIZE, SMALL_CHUNK_SIZE)
+                    .build()
+            ));
     }
 
     public void testSimplePrimary() {
@@ -88,88 +82,28 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         assertThat(checkpointService.getCheckpoint(), equalTo(2L));
     }
 
-    public void testIndexThrottleSuccessPrimary() throws Exception {
-        LocalCheckpointService checkpoint = getCheckpointService(3, TimeValue.timeValueHours(1));
-        final long seq1 = checkpoint.generateSeqNo();
-        final long seq2 = checkpoint.generateSeqNo();
-        final long seq3 = checkpoint.generateSeqNo();
-        final CountDownLatch threadStarted = new CountDownLatch(1);
-        final AtomicBoolean threadDone = new AtomicBoolean(false);
-        Thread backgroundThread = new Thread(() -> {
-            threadStarted.countDown();
-            checkpoint.generateSeqNo();
-            threadDone.set(true);
-        }, "testIndexDelayPrimary");
-        backgroundThread.start();
-        logger.info("--> waiting for thread to start");
-        threadStarted.await();
-        assertFalse("background thread finished but should have waited", threadDone.get());
-        checkpoint.markSeqNoAsCompleted(seq2);
-        assertFalse("background thread finished but should have waited (seq2 completed)", threadDone.get());
-        checkpoint.markSeqNoAsCompleted(seq1);
-        logger.info("--> waiting for thread to stop");
-        assertBusy(() -> {
-            assertTrue("background thread should finished after finishing seq1", threadDone.get());
-        });
-    }
+    public void testSimpleOverFlow() {
+        List<Integer> seqNoList = new ArrayList<>();
+        final boolean aligned = randomBoolean();
+        final int maxOps = SMALL_CHUNK_SIZE * randomIntBetween(1, 5) + (aligned ? 0 : randomIntBetween(1, SMALL_CHUNK_SIZE - 1));
 
-    public void testIndexThrottleTimeoutPrimary() throws Exception {
-        LocalCheckpointService checkpoint = getCheckpointService(2, TimeValue.timeValueMillis(100));
-        checkpoint.generateSeqNo();
-        checkpoint.generateSeqNo();
-        try {
-            checkpoint.generateSeqNo();
-            fail("index operation should time out due to a large lag");
-        } catch (EsRejectedExecutionException e) {
-            // OK!
+        for (int i = 0; i < maxOps; i++) {
+            seqNoList.add(i);
         }
-    }
-
-    public void testIndexThrottleSuccessReplica() throws Exception {
-        LocalCheckpointService checkpoint = getCheckpointService(3, TimeValue.timeValueHours(1));
-        final CountDownLatch threadStarted = new CountDownLatch(1);
-        final AtomicBoolean threadDone = new AtomicBoolean(false);
-        checkpoint.markSeqNoAsCompleted(1);
-        Thread backgroundThread = new Thread(() -> {
-            threadStarted.countDown();
-            checkpoint.markSeqNoAsCompleted(3);
-            threadDone.set(true);
-        }, "testIndexDelayReplica");
-        backgroundThread.start();
-        logger.info("--> waiting for thread to start");
-        threadStarted.await();
-        assertFalse("background thread finished but should have waited", threadDone.get());
-        checkpoint.markSeqNoAsCompleted(0);
-        logger.info("--> waiting for thread to stop");
-        assertBusy(() -> {
-            assertTrue("background thread should finished after finishing seq1", threadDone.get());
-        });
-    }
-
-    public void testIndexThrottleTimeoutReplica() throws Exception {
-        LocalCheckpointService checkpoint = getCheckpointService(1, TimeValue.timeValueMillis(100));
-        try {
-            checkpoint.markSeqNoAsCompleted(1L);
-            fail("index operation should time out due to a large lag");
-        } catch (EsRejectedExecutionException e) {
-            // OK!
+        Collections.shuffle(seqNoList, random());
+        for (Integer seqNo : seqNoList) {
+            checkpointService.markSeqNoAsCompleted(seqNo);
         }
-        checkpoint.markSeqNoAsCompleted(0L);
-        try {
-            checkpoint.markSeqNoAsCompleted(2L);
-            fail("index operation should time out due to a large lag");
-        } catch (EsRejectedExecutionException e) {
-            // OK!
-        }
-
+        assertThat(checkpointService.checkpoint, equalTo(maxOps - 1L));
+        assertThat(checkpointService.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
     }
 
     public void testConcurrentPrimary() throws InterruptedException {
         Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final int opsPerThread = randomIntBetween(10, 20);
         final int maxOps = opsPerThread * threads.length;
-        final long unFinisshedSeq = randomIntBetween(maxOps - SMALL_INDEX_LAG_THRESHOLD, maxOps - 2); // make sure we won't be blocked
-        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinisshedSeq);
+        final long unFinishedSeq = randomIntBetween(0, maxOps - 2); // make sure we always index the last seqNo to simplify maxSeq checks
+        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         for (int t = 0; t < threads.length; t++) {
             final int threadId = t;
@@ -185,7 +119,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                     for (int i = 0; i < opsPerThread; i++) {
                         long seqNo = checkpointService.generateSeqNo();
                         logger.info("[t{}] started   [{}]", threadId, seqNo);
-                        if (seqNo != unFinisshedSeq) {
+                        if (seqNo != unFinishedSeq) {
                             checkpointService.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
@@ -198,16 +132,17 @@ public class LocalCheckpointServiceTests extends ESTestCase {
             thread.join();
         }
         assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinisshedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinisshedSeq);
+        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(checkpointService.processedSeqNo.size(), isOneOf(0, 1));
     }
 
     public void testConcurrentReplica() throws InterruptedException {
         Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final int opsPerThread = randomIntBetween(10, 20);
         final int maxOps = opsPerThread * threads.length;
-        final long unFinisshedSeq = randomIntBetween(maxOps - SMALL_INDEX_LAG_THRESHOLD, maxOps - 2); // make sure we won't be blocked
+        final long unFinishedSeq = randomIntBetween(0, maxOps - 2); // make sure we always index the last seqNo to simplify maxSeq checks
         Set<Integer> seqNoList = new HashSet<>();
         for (int i = 0; i < maxOps; i++) {
             seqNoList.add(i);
@@ -221,7 +156,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
             seqNoList.removeAll(Arrays.asList(seqNoPerThread[t]));
         }
         seqNoPerThread[threads.length - 1] = seqNoList.toArray(new Integer[seqNoList.size()]);
-        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinisshedSeq);
+        logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         for (int t = 0; t < threads.length; t++) {
             final int threadId = t;
@@ -236,7 +171,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                     barrier.await();
                     Integer[] ops = seqNoPerThread[threadId];
                     for (int seqNo : ops) {
-                        if (seqNo != unFinisshedSeq) {
+                        if (seqNo != unFinishedSeq) {
                             checkpointService.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
@@ -249,8 +184,8 @@ public class LocalCheckpointServiceTests extends ESTestCase {
             thread.join();
         }
         assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinisshedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinisshedSeq);
+        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
     }
 

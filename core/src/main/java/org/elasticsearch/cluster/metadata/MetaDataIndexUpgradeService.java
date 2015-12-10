@@ -151,7 +151,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             "index.translog.interval",
             "index.translog.sync_interval",
             "index.shard.inactive_time",
-            LocalCheckpointService.SETTINGS_INDEX_LAG_MAX_WAIT,
+        LocalCheckpointService.SETTINGS_BIT_ARRAY_CHUNK_SIZE,
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
 
     /**

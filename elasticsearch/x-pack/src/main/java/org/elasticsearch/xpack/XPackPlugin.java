@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.graph.Graph;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Marvel;
@@ -71,6 +72,7 @@ public class XPackPlugin extends Plugin {
     protected Shield shield;
     protected Marvel marvel;
     protected Watcher watcher;
+    protected Graph graph;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
@@ -78,6 +80,7 @@ public class XPackPlugin extends Plugin {
         this.shield = new Shield(settings);
         this.marvel = new Marvel(settings);
         this.watcher = new Watcher(settings);
+        this.graph = new Graph(settings);
     }
 
     @Override public String name() {
@@ -96,6 +99,7 @@ public class XPackPlugin extends Plugin {
         modules.addAll(shield.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(marvel.nodeModules());
+        modules.addAll(graph.nodeModules());
         return modules;
     }
 
@@ -110,6 +114,7 @@ public class XPackPlugin extends Plugin {
         services.addAll(shield.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(marvel.nodeServices());
+        services.addAll(graph.nodeServices());
         return services;
     }
 
@@ -118,6 +123,7 @@ public class XPackPlugin extends Plugin {
         Settings.Builder builder = Settings.builder();
         builder.put(shield.additionalSettings());
         builder.put(watcher.additionalSettings());
+        builder.put(graph.additionalSettings());
         return builder.build();
     }
 
@@ -133,6 +139,7 @@ public class XPackPlugin extends Plugin {
         shield.onModule(module);
         marvel.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
         licensing.onModule(module);
     }
 
@@ -140,16 +147,19 @@ public class XPackPlugin extends Plugin {
         licensing.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
     }
 
     public void onModule(ActionModule module) {
         licensing.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
     }
 
     public void onIndexModule(IndexModule module) {
         shield.onIndexModule(module);
+        graph.onIndexModule(module);
     }
 
     public void onModule(LazyInitializationModule module) {

@@ -54,6 +54,7 @@ indices:monitor/upgrade
 indices:data/read/explain
 indices:data/read/field_stats
 indices:data/read/get
+indices:data/read/graph/explore
 indices:data/read/mget
 indices:data/read/mpercolate
 indices:data/read/msearch

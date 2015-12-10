@@ -45,6 +45,7 @@ import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -289,6 +290,18 @@ public class Shield {
             // multiple nodes will try to add the same privileges multiple times.
         }
     }
+    
+    public static void registerIndexPrivilege(String name, String... patterns) {
+        try {
+            IndexPrivilege.addCustom(name, patterns);
+        } catch (Exception se) {
+            logger.warn("could not register index privilege [{}]", name);
+
+            // we need to prevent bubbling the shield exception here for the tests. In the tests
+            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
+            // multiple nodes will try to add the same privileges multiple times.
+        }
+    }    
 
     private void addUserSettings(Settings.Builder settingsBuilder) {
         String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;

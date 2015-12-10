@@ -1,0 +1,17 @@
+admin:
+  cluster: all
+  indices:
+    '*': all
+
+graph_explorer:
+  cluster: cluster:monitor/health
+  indices:
+    '*':
+      privileges: graph, indices:data/write/index, indices:admin/refresh, indices:admin/create
+    
+
+no_graph_explorer:
+  cluster: cluster:monitor/health
+  indices:
+    '*':
+      privileges: indices:data/read/search, indices:data/write/index, indices:admin/refresh, indices:admin/create

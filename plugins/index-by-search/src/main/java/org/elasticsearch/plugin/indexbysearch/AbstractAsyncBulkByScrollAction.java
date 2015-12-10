@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -48,28 +47,13 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.plugin.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
 import org.elasticsearch.search.SearchHit;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all
- * results. Right now that is only used by AsyncIndexBySearchAction but its
- * still nice because this handles the scrolling while AsyncIndexBySearchAction
- * handles the document building.
+ * results.
  */
-public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?> & AsyncScrollActionRequest, Response> {
-    public interface AsyncScrollActionRequest {
-        /**
-         * Maximum number of processed documents. -1 means process all
-         * documents.
-         */
-        int size();
-        /**
-         * Should version conflicts cause aborts?
-         */
-        boolean abortOnVersionConflict();
-    }
-
+public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
     protected final Request mainRequest;
 
     private final AtomicLong total = new AtomicLong(-1);
@@ -90,9 +74,10 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
 
-    public AbstractAsyncScrollAction(ESLogger logger, TransportSearchAction searchAction, TransportSearchScrollAction scrollAction,
+    public AbstractAsyncBulkByScrollAction(ESLogger logger, TransportSearchAction searchAction, TransportSearchScrollAction scrollAction,
             TransportBulkAction bulkAction, TransportClearScrollAction clearScroll, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
+        // NOCOMMIT switch this from Transport*Action to Client.
         this.logger = logger;
         this.searchAction = searchAction;
         this.scrollAction = scrollAction;

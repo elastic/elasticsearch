@@ -132,7 +132,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
                         if (useExternalVersioning) {
                             reindex.index().setVersionType(VersionType.EXTERNAL);
                         }
-                        IndexBySearchResponse response = reindex.get();
+                        IndexByScrollResponse response = reindex.get();
                         assertThat(response, responseMatcher()
                                 .updated(either(equalTo(0L)).or(equalTo(1L)))
                                 .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));

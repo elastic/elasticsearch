@@ -19,14 +19,10 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import static java.lang.Math.min;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 import java.io.IOException;
-import java.util.Arrays;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequest.OpType;
@@ -34,20 +30,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.plugin.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> implements AsyncScrollActionRequest {
-    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
-    private static final int DEFAULT_SIZE = 100;
-
-    /**
-     * The search to be executed.
-     */
-    private SearchRequest search;
-
+public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySearchRequest> {
     /**
      * Prototype for index requests.
      *
@@ -56,38 +41,25 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
      */
     private IndexRequest index;
 
-    /**
-     * Maximum number of documents to index. Null means all. Confusingly,
-     * {@linkplain search}'s size is used for the bulk batch size. -1 is all
-     * hits and is the default.
-     */
-    private int size = -1;
-
-    /**
-     * Should version conflicts cause an abort? Defaults to false.
-     */
-    private boolean abortOnVersionConflict = false;
-
     public IndexBySearchRequest() {
     }
 
     public IndexBySearchRequest(SearchRequest search, IndexRequest index) {
-        this.search = search;
+        super(search);
         this.index = index;
-
-        search.scroll(DEFAULT_SCROLL_TIMEOUT);
-        search.source(new SearchSourceBuilder());
-        search.source().version(true);
-        search.source().sort(fieldSort("_doc"));
-        search.source().size(DEFAULT_SIZE);
 
         // Clear the versionType so we can check if we've parsed it
         index.versionType(null);
     }
 
     @Override
+    protected IndexBySearchRequest self() {
+        return this;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = search.validate();
+        ActionRequestValidationException e = super.validate();
         /*
          * Note that we don't validate the index here - it won't work because
          * we'll be filling in portions of it as we receive the docs. But we can
@@ -100,51 +72,16 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
                 "keep".equals(index.routing()) || "discard".equals(index.routing()))) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
-        if (search.source().from() != -1) {
-            e = addValidationError("from is not supported in this context", e);
-        }
         return e;
-    }
-
-    @Override
-    public int size() {
-        return size;
-    }
-
-    public IndexBySearchRequest size(int size) {
-        this.size = size;
-        return this;
-    }
-
-    @Override
-    public boolean abortOnVersionConflict() {
-        return abortOnVersionConflict;
-    }
-
-    public IndexBySearchRequest abortOnVersionConflict(boolean abortOnVersionConflict) {
-        this.abortOnVersionConflict = abortOnVersionConflict;
-        return this;
-    }
-
-    public SearchRequest search() {
-        return search;
     }
 
     public IndexRequest index() {
         return index;
     }
 
+    @Override
     public void fillInConditionalDefaults() {
-        if (search.source() == null) {
-            search.source(new SearchSourceBuilder());
-        }
-        if (size() != -1) {
-            /*
-             * Don't use larger batches than the maximum request size because
-             * that'd be silly.
-             */
-            search().source().size(min(size(), search().source().size()));
-        }
+        super.fillInConditionalDefaults();
         if (index().versionType() == null) {
             setupDefaultVersionType();
         }
@@ -179,49 +116,38 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
      * </ul>
      */
     public boolean destinationSameAsSource() {
-        if (search.indices() == null || search.indices().length != 1) {
+        if (search().indices() == null || search().indices().length != 1) {
             return false;
         }
-        if (false == search.indices()[0].equals(index.index())) {
+        if (false == search().indices()[0].equals(index.index())) {
             return false;
         }
         if (index.type() == null) {
-            return search.types() == null || search.types().length == 0;
+            return search().types() == null || search().types().length == 0;
         }
-        if (search.types().length != 1) {
+        if (search().types().length != 1) {
             return false;
         }
-        return search.types()[0].equals(index.type());
+        return search().types()[0].equals(index.type());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        search.readFrom(in);
         index.readFrom(in);
-        size = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        search.writeTo(out);
         index.writeTo(out);
-        out.writeVInt(size);
     }
 
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("index-by-search from ");
-        if (search.indices() != null && search.indices().length != 0) {
-            b.append(Arrays.toString(search.indices()));
-        } else {
-            b.append("[all indices]");
-        }
-        if (search.types() != null && search.types().length != 0) {
-            b.append(search.types());
-        }
+        searchToString(b);
         b.append(" to [").append(index.index()).append(']');
         if (index.type() != null) {
             b.append('[').append(index.type()).append(']');

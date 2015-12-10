@@ -43,11 +43,15 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
         return IndexBySearchAction.INSTANCE.newRequestBuilder(client());
     }
 
+    protected ReindexInPlaceRequestBuilder newReindex() {
+        return ReindexInPlaceAction.INSTANCE.newRequestBuilder(client());
+    }
+
     public IndexBySearchResponseMatcher responseMatcher() {
         return new IndexBySearchResponseMatcher();
     }
 
-    public static class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
+    public static class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexByScrollResponse> {
         private Matcher<Long> updatedMatcher = equalTo(0l);
         private Matcher<Long> createdMatcher = equalTo(0l);
         private Matcher<Integer> batchesMatcher = any(Integer.class);
@@ -114,7 +118,7 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
 
 
         @Override
-        protected boolean matchesSafely(IndexBySearchResponse item) {
+        protected boolean matchesSafely(IndexByScrollResponse item) {
             return updatedMatcher.matches(item.updated()) &&
                 createdMatcher.matches(item.created()) &&
                 batchesMatcher.matches(item.batches()) &&

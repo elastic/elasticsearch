@@ -19,29 +19,25 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndexBySearchPlugin extends Plugin {
-    public static final String NAME = "index-by-search";
+public class ReindexInPlaceAction extends
+        Action<ReindexInPlaceRequest, IndexByScrollResponse, ReindexInPlaceRequestBuilder> {
+    public static final ReindexInPlaceAction INSTANCE = new ReindexInPlaceAction();
+    public static final String NAME = "indices:data/write/index/by_query";
 
-    @Override
-    public String name() {
-        return NAME;
+    private ReindexInPlaceAction() {
+        super(NAME);
     }
 
     @Override
-    public String description() {
-        return "The Index By Search plugin allows to index documents in Elasticsearch based on a search.";
+    public ReindexInPlaceRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ReindexInPlaceRequestBuilder(client, this);
     }
 
-    public void onModule(ActionModule actionModule) {
-        actionModule.registerAction(IndexBySearchAction.INSTANCE, TransportIndexBySearchAction.class);
-    }
-
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(RestIndexBySearchAction.class);
-        restModule.addRestAction(RestReindexInPlaceAction.class);
+    @Override
+    public IndexByScrollResponse newResponse() {
+        return new IndexByScrollResponse();
     }
 }

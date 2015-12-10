@@ -30,25 +30,26 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexByScrollResponse> {
+public class TransportReindexInPlaceAction
+        extends HandledTransportAction<ReindexInPlaceRequest, IndexByScrollResponse> {
     private final TransportSearchAction searchAction;
     private final TransportSearchScrollAction scrollAction;
     private final TransportBulkAction bulkAction;
     private final TransportClearScrollAction clearScrollAction;
 
     @Inject
-    public TransportIndexBySearchAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportReindexInPlaceAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, TransportSearchAction transportSearchAction,
             TransportSearchScrollAction transportSearchScrollAction, TransportBulkAction bulkAction,
             TransportClearScrollAction clearScrollAction, TransportService transportService) {
-        super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                IndexBySearchRequest::new);
+        super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters,
+                indexNameExpressionResolver, ReindexInPlaceRequest::new);
         this.searchAction = transportSearchAction;
         this.scrollAction = transportSearchScrollAction;
         this.bulkAction = bulkAction;
@@ -56,11 +57,10 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     }
 
     @Override
-    protected void doExecute(IndexBySearchRequest request, ActionListener<IndexByScrollResponse> listener) {
+    protected void doExecute(ReindexInPlaceRequest request,
+            ActionListener<IndexByScrollResponse> listener) {
         new AsyncIndexBySearchAction(request, listener).start();
     }
-
-
 
     /**
      * Simple implementation of index-by-search scrolling and bulk. There are
@@ -68,9 +68,11 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      * requests but this makes no attempt to do any of them so it can be as
      * simple possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest> {
-        public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexByScrollResponse> listener) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener);
+    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexInPlaceRequest> {
+        public AsyncIndexBySearchAction(ReindexInPlaceRequest request,
+                ActionListener<IndexByScrollResponse> listener) {
+            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(),
+                    listener);
         }
 
         @Override
@@ -78,60 +80,19 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
             BulkRequest bulkRequest = new BulkRequest(mainRequest);
 
             for (SearchHit doc : docs) {
-                IndexRequest index = new IndexRequest(mainRequest.index(), mainRequest);
+                IndexRequest index = new IndexRequest(mainRequest);
 
-                // We want the index from the copied request, not the doc.
+                index.index(doc.index());
+                index.type(doc.type());
                 index.id(doc.id());
-                if (index.type() == null) {
-                    /*
-                     * Default to doc's type if not specified in request so its
-                     * easy to do a scripted update.
-                     */
-                    index.type(doc.type());
-                }
                 index.source(doc.sourceRef());
-                if (index.version() == Versions.MATCH_ANY /* The default */) {
-                    index.version(doc.version());
-                } else if (index.version() == Versions.NOT_SET) {
-                    /*
-                     * We borrow NOT_SET here to mean
-                     * "don't set the version parameter" so we set it back to
-                     * the default.
-                     */
-                    index.version(Versions.MATCH_ANY);
-                }
+                index.versionType(mainRequest.useReindexVersionType() ? VersionType.REINDEX : VersionType.INTERNAL);
 
                 copyMetadata(index, doc);
 
                 bulkRequest.add(index);
             }
             return bulkRequest;
-        }
-
-        /**
-         * Override the simple copy behavior to allow more fine grained control.
-         */
-        @Override
-        protected void copyRouting(IndexRequest index, SearchHit doc) {
-            String routingSpec = mainRequest.index().routing();
-            if (routingSpec == null) {
-                super.copyRouting(index, doc);
-                return;
-            }
-            if (routingSpec.startsWith("=")) {
-                index.routing(mainRequest.index().routing().substring(1));
-                return;
-            }
-            switch (routingSpec) {
-            case "keep":
-                super.copyRouting(index, doc);
-                break;
-            case "discard":
-                index.routing(null);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unsupported routing command");
-            }
         }
     }
 }

@@ -20,54 +20,36 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndexBySearchRequestBuilder
-        extends ActionRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
-    private final SearchRequestBuilder search;
+public class IndexBySearchRequestBuilder extends
+        AbstractAsyncBulkByScrollRequestBuilder<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> {
     private final IndexRequestBuilder index;
 
     public IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action) {
+            Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
                 new IndexRequestBuilder(client, IndexAction.INSTANCE));
     }
 
     private IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action, SearchRequestBuilder search,
-            IndexRequestBuilder index) {
-        super(client, action, new IndexBySearchRequest(search.request(), index.request()));
-        this.search = search;
+            Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> action,
+            SearchRequestBuilder search, IndexRequestBuilder index) {
+        super(client, action, search, new IndexBySearchRequest(search.request(), index.request()));
         this.index = index;
     }
 
-    public SearchRequestBuilder search() {
-        return search;
+    @Override
+    protected IndexBySearchRequestBuilder self() {
+        return this;
     }
 
     public IndexRequestBuilder index() {
         return index;
-    }
-
-    /**
-     * The maximum number of documents to attempt.
-     */
-    public IndexBySearchRequestBuilder size(int size) {
-        request.size(size);
-        return this;
-    }
-
-    /**
-     * Should we version conflicts cause the action to abort?
-     */
-    public IndexBySearchRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.abortOnVersionConflict(abortOnVersionConflict);
-        return this;
     }
 
     @Override

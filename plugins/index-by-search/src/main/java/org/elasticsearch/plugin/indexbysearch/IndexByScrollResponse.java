@@ -1,31 +1,12 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.plugin.indexbysearch;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.BATCHES;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.CREATED;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.FAILURES;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.TOOK;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.UPDATED;
-import static org.elasticsearch.plugin.indexbysearch.IndexBySearchResponse.Fields.VERSION_CONFLICTS;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.BATCHES;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.CREATED;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.FAILURES;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.TOOK;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.UPDATED;
+import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.VERSION_CONFLICTS;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +20,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
-public class IndexBySearchResponse extends ActionResponse implements ToXContent {
+/**
+ * Response used for actions that index many documents using a scroll request.
+ */
+public class IndexByScrollResponse extends ActionResponse implements ToXContent {
     private long took;
     private long created;
     private long updated;
@@ -47,10 +31,10 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
     private long versionConflicts;
     private List<Failure> failures;
 
-    public IndexBySearchResponse() {
+    public IndexByScrollResponse() {
     }
 
-    public IndexBySearchResponse(long took, long created, long updated, int batches, long versionConflicts, List<Failure> failures) {
+    public IndexByScrollResponse(long took, long created, long updated, int batches, long versionConflicts, List<Failure> failures) {
         this.took = took;
         this.created = created;
         this.updated = updated;

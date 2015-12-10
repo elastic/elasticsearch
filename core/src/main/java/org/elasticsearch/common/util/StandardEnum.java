@@ -17,26 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.indexbysearch;
+package org.elasticsearch.common.util;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+public interface StandardEnum {
 
-public class IndexBySearchAction extends Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> {
-    public static final IndexBySearchAction INSTANCE = new IndexBySearchAction();
-    public static final String NAME = "indices:data/write/index/by_query";
-
-    private IndexBySearchAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndexBySearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndexBySearchRequestBuilder(client, this);
-    }
-
-    @Override
-    public IndexByScrollResponse newResponse() {
-        return new IndexByScrollResponse();
-    }
 }

@@ -199,18 +199,15 @@ public class HttpExporter extends Exporter {
             }
             builder.endObject();
             builder.endObject();
-
-            // Adds action metadata line bulk separator
-            builder.flush(); // Flush is needed here because the separator is written directly in the builder's stream
-            builder.stream().write(builder.contentType().xContent().streamSeparator());
-
-            // Render the MarvelDoc
-            renderer.render(marvelDoc, xContentType, out);
-
-            // Adds final bulk separator
-            builder.flush();
-            builder.stream().write(builder.contentType().xContent().streamSeparator());
         }
+        // Adds action metadata line bulk separator
+        out.write(xContentType.xContent().streamSeparator());
+
+        // Render the MarvelDoc
+        renderer.render(marvelDoc, xContentType, out);
+
+        // Adds final bulk separator
+        out.write(xContentType.xContent().streamSeparator());
     }
 
     @SuppressWarnings("unchecked")

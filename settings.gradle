@@ -11,6 +11,7 @@ List projects = [
   'test-framework',
   'modules:lang-expression',
   'modules:lang-groovy',
+  'modules:lang-mustache',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',

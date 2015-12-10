@@ -51,3 +51,4 @@
           - query:
               { "template": { "query": { "term": { "foo": { "value": "{{template}}" } } }, "params": { "template": "bar" } } }
   - match: { responses.0.hits.total: 1 }
+

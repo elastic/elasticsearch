@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest;
+package org.elasticsearch.messy.tests;
 
 
 import org.elasticsearch.ElasticsearchException;
@@ -33,6 +33,10 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.mustache.MustachePlugin;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
@@ -46,6 +50,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -76,7 +81,13 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchIT extends ESIntegTestCase {
+public class SuggestSearchTests extends ESIntegTestCase {
+    
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(MustachePlugin.class);
+    }
+    
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
         createIndex("test");
@@ -609,7 +620,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
     
     private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
-        return Files.readAllLines(PathUtils.get(SuggestSearchIT.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
+        return Files.readAllLines(PathUtils.get(Suggest.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
     }
 
     public void testSizePararm() throws IOException {

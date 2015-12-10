@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -45,6 +45,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -57,6 +59,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,11 +92,14 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .build();
         final Client proxy = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
-                new Class[]{Client.class}, (proxy1, method, args) -> {
+                new Class<?>[]{Client.class}, (proxy1, method, args) -> {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
         Index index = new Index("test");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        ScriptModule scriptModule = new ScriptModule(settings);
+        // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
+        scriptModule.addScriptEngine(MustacheScriptEngineService.class);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings, new SettingsFilter(settings)),
@@ -105,7 +111,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                         bindQueryParsersExtension();
                     }
                 },
-                new ScriptModule(settings),
+                scriptModule,
                 new IndexSettingsModule(index, settings),
                 new AbstractModule() {
                     @Override

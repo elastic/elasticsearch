@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  * This service offers transactional application of updates settings.
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
-    private Settings lastSettingsApplied;
+    private Settings lastSettingsApplied = Settings.EMPTY;
     private final List<SettingUpdater> settingUpdaters = new ArrayList<>();
     private final Map<String, Setting<?>> groupSettings = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
@@ -62,29 +62,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
     public synchronized Settings dryRun(Settings settings) {
-        final Settings build = Settings.builder().put(this.settings).put(settings).build();
-        try {
-            List<RuntimeException> exceptions = new ArrayList<>();
-            for (SettingUpdater settingUpdater : settingUpdaters) {
-                try {
-                    settingUpdater.prepareApply(build);
-                } catch (RuntimeException ex) {
-                    exceptions.add(ex);
-                    logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);
+        final Settings current = Settings.builder().put(this.settings).put(settings).build();
+        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
+        List<RuntimeException> exceptions = new ArrayList<>();
+        for (SettingUpdater settingUpdater : settingUpdaters) {
+            try {
+                if (settingUpdater.hasChanged(current, previous)) {
+                    settingUpdater.getValue(current, previous);
                 }
-            }
-            // here we are exhaustive and record all settings that failed.
-            ExceptionsHelper.rethrowAndSuppress(exceptions);
-        } finally {
-            for (SettingUpdater settingUpdater : settingUpdaters) {
-                try {
-                    settingUpdater.rollback();
-                } catch (Exception e) {
-                    logger.error("failed to rollback settings for [{}]", e, settingUpdater);
-                }
+            } catch (RuntimeException ex) {
+                exceptions.add(ex);
+                logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);
             }
         }
-        return build;
+        // here we are exhaustive and record all settings that failed.
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
+        return current;
     }
 
     /**
@@ -99,34 +92,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             // nothing changed in the settings, ignore
             return newSettings;
         }
-        final Settings build = Settings.builder().put(this.settings).put(newSettings).build();
-        boolean success = false;
+        final Settings current = Settings.builder().put(this.settings).put(newSettings).build();
+        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         try {
+            List<Runnable> applyRunnables = new ArrayList<>();
             for (SettingUpdater settingUpdater : settingUpdaters) {
                 try {
-                    settingUpdater.prepareApply(build);
+                    applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
                     logger.warn("failed to prepareCommit settings for [{}]", ex, settingUpdater);
                     throw ex;
                 }
             }
-            for (SettingUpdater settingUpdater : settingUpdaters) {
-                settingUpdater.apply();
+            for (Runnable settingUpdater : applyRunnables) {
+                settingUpdater.run();
             }
-            success = true;
         } catch (Exception ex) {
             logger.warn("failed to apply settings", ex);
             throw ex;
         } finally {
-            if (success == false) {
-                for (SettingUpdater settingUpdater : settingUpdaters) {
-                    try {
-                        settingUpdater.rollback();
-                    } catch (Exception e) {
-                        logger.error("failed to refresh settings for [{}]", e, settingUpdater);
-                    }
-                }
-            }
         }
         return lastSettingsApplied = newSettings;
     }
@@ -141,7 +125,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        this.settingUpdaters.add(setting.newUpdater(consumer, logger, settings, predicate));
+        this.settingUpdaters.add(setting.newUpdater(consumer, logger, predicate));
     }
 
     /**
@@ -159,7 +143,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (b != get(b.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
         }
-        this.settingUpdaters.add(Setting.compoundUpdater(consumer, a, b, logger, settings));
+        this.settingUpdaters.add(Setting.compoundUpdater(consumer, a, b, logger));
     }
 
     /**
@@ -176,24 +160,51 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Transactional interface to update settings.
      * @see Setting
      */
-    public interface SettingUpdater {
-        /**
-         * Prepares applying the given settings to this updater. All the heavy lifting like parsing and validation
-         * happens in this method. Yet the actual setting should not be changed by this call.
-         * @param settings the settings to apply
-         * @return <code>true</code> if this updater will update a setting on calling {@link #apply()} otherwise <code>false</code>
-         */
-        boolean prepareApply(Settings settings);
+    public interface SettingUpdater<T> {
 
         /**
-         * Applies the settings passed to {@link #prepareApply(Settings)}
+         * Returns true if this updaters setting has changed with the current update
+         * @param current the current settings
+         * @param previous the previous setting
+         * @return true if this updaters setting has changed with the current update
          */
-        void apply();
+        boolean hasChanged(Settings current, Settings previous);
 
         /**
-         * Rolls back to the state before {@link #prepareApply(Settings)} was called. All internal prepared state is cleared after this call.
+         * Returns the instance value for the current settings. This method is stateless and idempotent.
          */
-        void rollback();
+        T getValue(Settings current, Settings previous);
+
+        /**
+         * Applies the given value to the updater. This methods will actually run the update.
+         */
+        void apply(T value, Settings current, Settings previous);
+
+        /**
+         * Updates this updaters value if it has changed.
+         * @return <code>true</code> iff the value has been updated.
+         */
+        default boolean apply(Settings current, Settings previous) {
+            if (hasChanged(current, previous)) {
+                T value = getValue(current, previous);
+                apply(value, current, previous);
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings)} if the settings
+         * actually changed. This allows to defer the update to a later point in time while keeping type safety.
+         * If the value didn't change the returned runnable is a noop.
+         */
+        default Runnable updater(Settings current, Settings previous) {
+            if (hasChanged(current, previous)) {
+                T value = getValue(current, previous);
+                return () -> { apply(value, current, previous);};
+            }
+            return () -> {};
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -150,13 +151,13 @@ public class Setting<T> extends ToXContentToBytes {
         INDEX;
     }
 
-    final AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings) {
-        return newUpdater(consumer, logger, settings, (s) -> {});
+    final AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger) {
+        return newUpdater(consumer, logger, (s) -> {});
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Settings settings, Consumer<T> accept) {
+    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> accept) {
         if (isDynamic()) {
-            return new Updater(consumer, logger, settings, accept);
+            return new Updater(consumer, logger, accept);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }
@@ -166,39 +167,23 @@ public class Setting<T> extends ToXContentToBytes {
      * this is used for settings that depend on each other... see {@link org.elasticsearch.common.settings.AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and it's
      * usage for details.
      */
-    static <A, B> AbstractScopedSettings.SettingUpdater compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger, Settings settings) {
-        final AtomicReference<A> aRef = new AtomicReference<>();
-        final AtomicReference<B> bRef = new AtomicReference<>();
-        final AbstractScopedSettings.SettingUpdater aSettingUpdater = aSettting.newUpdater(aRef::set, logger, settings);
-        final AbstractScopedSettings.SettingUpdater bSettingUpdater = bSetting.newUpdater(bRef::set, logger, settings);
-        return new AbstractScopedSettings.SettingUpdater() {
-            boolean aHasChanged = false;
-            boolean bHasChanged = false;
+    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger) {
+        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSettting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
+        return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
             @Override
-            public boolean prepareApply(Settings settings) {
-                aHasChanged = aSettingUpdater.prepareApply(settings);
-                bHasChanged = bSettingUpdater.prepareApply(settings);
-                return aHasChanged || bHasChanged;
+            public boolean hasChanged(Settings current, Settings previous) {
+                return aSettingUpdater.hasChanged(current, previous) || bSettingUpdater.hasChanged(current, previous);
             }
 
             @Override
-            public void apply() {
-                aSettingUpdater.apply();
-                bSettingUpdater.apply();
-                if (aHasChanged || bHasChanged) {
-                    consumer.accept(aRef.get(), bRef.get());
-                }
+            public Tuple<A, B> getValue(Settings current, Settings previous) {
+                return new Tuple<>(aSettingUpdater.getValue(current, previous), bSettingUpdater.getValue(current, previous));
             }
 
             @Override
-            public void rollback() {
-                try {
-                    aRef.set(null);
-                    aSettingUpdater.rollback();
-                } finally {
-                    bRef.set(null);
-                    bSettingUpdater.rollback();
-                }
+            public void apply(Tuple<A, B> value, Settings current, Settings previous) {
+                consumer.accept(value.v1(), value.v2());
             }
 
             @Override
@@ -209,62 +194,46 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    private class Updater implements AbstractScopedSettings.SettingUpdater {
+    private class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final ESLogger logger;
         private final Consumer<T> accept;
-        private String value;
-        private boolean commitPending;
-        private String pendingValue;
-        private T valueInstance;
 
-        public Updater(Consumer<T> consumer, ESLogger logger, Settings settings,  Consumer<T> accept) {
+        public Updater(Consumer<T> consumer, ESLogger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
-            value = getRaw(settings);
             this.accept = accept;
-        }
-
-
-        public boolean prepareApply(Settings settings) {
-            final String newValue = getRaw(settings);
-            if (value.equals(newValue) == false) {
-                T inst = get(settings);
-                try {
-                    accept.accept(inst);
-                } catch (Exception | AssertionError e) {
-                    throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + getRaw(settings) + "]", e);
-                }
-                pendingValue = newValue;
-                valueInstance = inst;
-                commitPending = true;
-
-            } else {
-                commitPending = false;
-            }
-            return commitPending;
-        }
-
-        public void apply() {
-            if (commitPending) {
-                logger.info("update [{}] from [{}] to [{}]", key, value, pendingValue);
-                value = pendingValue;
-                consumer.accept(valueInstance);
-            }
-            commitPending = false;
-            valueInstance = null;
-            pendingValue = null;
-        }
-
-        public void rollback() {
-            commitPending = false;
-            valueInstance = null;
-            pendingValue = null;
         }
 
         @Override
         public String toString() {
             return "Updater for: " + Setting.this.toString();
+        }
+
+        @Override
+        public boolean hasChanged(Settings current, Settings previous) {
+            final String newValue = getRaw(current);
+            final String value = getRaw(previous);
+            return value.equals(newValue) == false;
+        }
+
+        @Override
+        public T getValue(Settings current, Settings previous) {
+            final String newValue = getRaw(current);
+            final String value = getRaw(previous);
+            T inst = get(current);
+            try {
+                accept.accept(inst);
+            } catch (Exception | AssertionError e) {
+                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]", e);
+            }
+            return inst;
+        }
+
+        @Override
+        public void apply(T value, Settings current, Settings previous) {
+            logger.info("update [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+            consumer.accept(value);
         }
     }
 
@@ -329,43 +298,35 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater newUpdater(Consumer<Settings> consumer, ESLogger logger, Settings settings, Consumer<Settings> accept) {
+            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger, Consumer<Settings> accept) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
                 }
                 final Setting<?> setting = this;
-                return new AbstractScopedSettings.SettingUpdater() {
-                    private Settings pendingSettings;
-                    private Settings committedSettings = get(settings);
+                return new AbstractScopedSettings.SettingUpdater<Settings>() {
 
                     @Override
-                    public boolean prepareApply(Settings settings) {
-                        Settings currentSettings = get(settings);
-                        if (currentSettings.equals(committedSettings) == false) {
-                            try {
-                                accept.accept(currentSettings);
-                            } catch (Exception | AssertionError e) {
-                                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + committedSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
-                            }
-                            pendingSettings = currentSettings;
-                            return true;
-                        } else {
-                            return false;
-                        }
+                    public boolean hasChanged(Settings current, Settings previous) {
+                        Settings currentSettings = get(current);
+                        Settings previousSettings = get(previous);
+                        return currentSettings.equals(previousSettings) == false;
                     }
 
                     @Override
-                    public void apply() {
-                        if (pendingSettings != null) {
-                            consumer.accept(pendingSettings);
-                            committedSettings = pendingSettings;
+                    public Settings getValue(Settings current, Settings previous) {
+                        Settings currentSettings = get(current);
+                        Settings previousSettings = get(previous);
+                        try {
+                            accept.accept(currentSettings);
+                        } catch (Exception | AssertionError e) {
+                            throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
                         }
-                        pendingSettings = null;
+                        return currentSettings;
                     }
 
                     @Override
-                    public void rollback() {
-                        pendingSettings = null;
+                    public void apply(Settings value, Settings current, Settings previous) {
+                        consumer.accept(value);
                     }
 
                     @Override

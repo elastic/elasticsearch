@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -42,38 +43,33 @@ public class SettingTests extends ESTestCase {
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
         try {
-            settingUpdater.prepareApply(Settings.builder().put("a.byte.size", 12).build());
+            settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (ElasticsearchParseException ex) {
             assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized", ex.getMessage());
         }
 
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("a.byte.size", "12b").build()));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
         assertEquals(new ByteSizeValue(12), value.get());
     }
 
     public void testSimpleUpdate() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger);
         Settings build = Settings.builder().put("foo.bar", false).build();
-        settingUpdater.prepareApply(build);
-        assertNull(atomicBoolean.get());
-        settingUpdater.rollback();
+        settingUpdater.apply(build, Settings.EMPTY);
         assertNull(atomicBoolean.get());
         build = Settings.builder().put("foo.bar", true).build();
-        settingUpdater.prepareApply(build);
-        assertNull(atomicBoolean.get());
-        settingUpdater.apply();
+        settingUpdater.apply(build, Settings.EMPTY);
         assertTrue(atomicBoolean.get());
 
         // try update bogus value
         build = Settings.builder().put("foo.bar", "I am not a boolean").build();
         try {
-            settingUpdater.prepareApply(build);
+            settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [I am not a boolean] for setting [foo.bar]", ex.getMessage());
@@ -85,7 +81,7 @@ public class SettingTests extends ESTestCase {
         assertFalse(booleanSetting.isGroupSetting());
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
         try {
-            booleanSetting.newUpdater(atomicBoolean::set, logger, Settings.EMPTY);
+            booleanSetting.newUpdater(atomicBoolean::set, logger);
             fail("not dynamic");
         } catch (IllegalStateException ex) {
             assertEquals("setting [foo.bar] is not dynamic", ex.getMessage());
@@ -96,11 +92,9 @@ public class SettingTests extends ESTestCase {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
         AtomicReference<Boolean> ab1 = new AtomicReference<>(null);
         AtomicReference<Boolean> ab2 = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(ab1::set, logger, Settings.EMPTY);
-        settingUpdater.prepareApply(Settings.builder().put("foo.bar", true).build());
-        assertNull(ab1.get());
-        assertNull(ab2.get());
-        settingUpdater.apply();
+        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(ab1::set, logger);
+        ClusterSettings.SettingUpdater settingUpdater2 = booleanSetting.newUpdater(ab2::set, logger);
+        settingUpdater.apply(Settings.builder().put("foo.bar", true).build(), Settings.EMPTY);
         assertTrue(ab1.get());
         assertNull(ab2.get());
     }
@@ -124,38 +118,20 @@ public class SettingTests extends ESTestCase {
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
-        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
-        assertFalse(settingUpdater.prepareApply(Settings.EMPTY));
-        settingUpdater.apply();
+        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger);
+        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertSame("no update - type has not changed", type, ref.get());
 
         // change from default
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar", "2").build()));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(Settings.builder().put("foo.bar", "2").build(), Settings.EMPTY));
         assertNotSame("update - type has changed", type, ref.get());
         assertEquals("2", ref.get().foo);
 
 
         // change back to default...
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar.baz", "2").build()));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(Settings.EMPTY, Settings.builder().put("foo.bar", "2").build()));
         assertNotSame("update - type has changed", type, ref.get());
         assertEquals("", ref.get().foo);
-    }
-
-    public void testRollback() {
-        Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, true, Setting.Scope.CLUSTER);
-        assertFalse(integerSetting.isGroupSetting());
-        AtomicReference<Integer> ref = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = integerSetting.newUpdater(ref::set, logger, Settings.EMPTY);
-        assertNull(ref.get());
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.int.bar", "2").build()));
-        settingUpdater.rollback();
-        settingUpdater.apply();
-        assertNull(ref.get());
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.int.bar", "2").build()));
-        settingUpdater.apply();
-        assertEquals(2, ref.get().intValue());
     }
 
     public void testType() {
@@ -169,10 +145,11 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", true, Setting.Scope.CLUSTER);
         assertTrue(setting.isGroupSetting());
-        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY);
+        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger);
 
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build()));
-        settingUpdater.apply();
+        Settings currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build();
+        Settings previousInput = Settings.EMPTY;
+        assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotNull(ref.get());
         Settings settings = ref.get();
         Map<String, Settings> asMap = settings.getAsGroups();
@@ -181,14 +158,16 @@ public class SettingTests extends ESTestCase {
         assertEquals(asMap.get("2").get("value"), "2");
         assertEquals(asMap.get("3").get("value"), "3");
 
+        previousInput = currentInput;
+        currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build();
         Settings current = ref.get();
-        assertFalse(settingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build()));
-        settingUpdater.apply();
+        assertFalse(settingUpdater.apply(currentInput, previousInput));
         assertSame(current, ref.get());
 
+        previousInput = currentInput;
+        currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build();
         // now update and check that we got it
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build()));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotSame(current, ref.get());
 
         asMap = ref.get().getAsGroups();
@@ -196,9 +175,10 @@ public class SettingTests extends ESTestCase {
         assertEquals(asMap.get("1").get("value"), "1");
         assertEquals(asMap.get("2").get("value"), "2");
 
+        previousInput = currentInput;
+        currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "4").build();
         // now update and check that we got it
-        assertTrue(settingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "4").build()));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotSame(current, ref.get());
 
         asMap = ref.get().getAsGroups();
@@ -209,9 +189,9 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger, Settings.EMPTY, (s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
         try {
-            predicateSettingUpdater.prepareApply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build());
+            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(), Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
@@ -243,32 +223,27 @@ public class SettingTests extends ESTestCase {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, true, Setting.Scope.CLUSTER);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, true, Setting.Scope.CLUSTER);
-        ClusterSettings.SettingUpdater settingUpdater = Setting.compoundUpdater(c::set, a, b, logger, Settings.EMPTY);
-        assertFalse(settingUpdater.prepareApply(Settings.EMPTY));
-        settingUpdater.apply();
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
+        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
         assertNull(c.b);
 
         Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
-        assertTrue(settingUpdater.prepareApply(build));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
         assertEquals(2, c.a.intValue());
-        assertNull(c.b);
+        assertEquals(1, c.b.intValue());
 
         Integer aValue = c.a;
-        assertFalse(settingUpdater.prepareApply(build));
-        settingUpdater.apply();
+        assertFalse(settingUpdater.apply(build, build));
         assertSame(aValue, c.a);
-
+        Settings previous = build;
         build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
-        assertTrue(settingUpdater.prepareApply(build));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(build, previous));
         assertEquals(2, c.a.intValue());
         assertEquals(5, c.b.intValue());
 
         // reset to default
-        assertTrue(settingUpdater.prepareApply(Settings.EMPTY));
-        settingUpdater.apply();
+        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
         assertEquals(1, c.a.intValue());
         assertEquals(1, c.b.intValue());
 

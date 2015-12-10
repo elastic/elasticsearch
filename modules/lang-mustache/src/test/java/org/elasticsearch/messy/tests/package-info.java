@@ -40,6 +40,7 @@ renamed:    core/src/test/java/org/elasticsearch/index/query/TemplateQueryParser
 renamed:    core/src/test/java/org/elasticsearch/index/query/TemplateQueryIT.java -> modules/lang-mustache/src/test/java/org/elasticsearch/messy/tests/TemplateQueryTests.java
 renamed:    core/src/test/java/org/elasticsearch/transport/ContextAndHeaderTransportIT.java -> module/lang-mustache/src/test/java/org/elasticsearch/messy/tests/ContextAndHeaderTransportTests.java
   ^^^^^ note: just the methods from this test using mustache were moved here, the others use groovy and are in the groovy module under its messy tests package.
+renamed:    rest-api-spec/test/msearch/10_basic.yaml -> module/lang-mustache/src/test/resources/rest-api-spec/test/lang_mustache/50_messy_test_msearch.yaml 
  */
 
 package org.elasticsearch.messy.tests;

@@ -828,21 +828,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         AbstractQueryTestCase delegate;
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getDeclaredMethod("get", GetRequest.class))) {
+            if (method.equals(Client.class.getMethod("get", GetRequest.class))) {
                 return new PlainActionFuture<GetResponse>() {
                     @Override
                     public GetResponse get() throws InterruptedException, ExecutionException {
                         return delegate.executeGet((GetRequest) args[0]);
                     }
                 };
-            } else if (method.equals(Client.class.getDeclaredMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
+            } else if (method.equals(Client.class.getMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
                     return new PlainActionFuture<MultiTermVectorsResponse>() {
                         @Override
                         public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
                             return delegate.executeMultiTermVectors((MultiTermVectorsRequest) args[0]);
                         }
                     };
-            } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
+            } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);

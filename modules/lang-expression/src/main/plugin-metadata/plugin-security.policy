@@ -20,8 +20,6 @@
 grant {
   // needed to generate runtime classes
   permission java.lang.RuntimePermission "createClassLoader";
-  // needed because of security problems in JavascriptCompiler
-  permission java.lang.RuntimePermission "getClassLoader";
   
   // expression runtime
   permission org.elasticsearch.script.ClassPermission "java.lang.String";

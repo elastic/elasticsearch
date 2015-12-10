@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.indexbysearch;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndexBySearchAction extends Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> {
+public class IndexBySearchAction extends Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
     public static final IndexBySearchAction INSTANCE = new IndexBySearchAction();
     public static final String NAME = "indices:data/write/index/by_query";
 
@@ -36,7 +36,7 @@ public class IndexBySearchAction extends Action<IndexBySearchRequest, IndexByScr
     }
 
     @Override
-    public IndexByScrollResponse newResponse() {
-        return new IndexByScrollResponse();
+    public IndexBySearchResponse newResponse() {
+        return new IndexBySearchResponse();
     }
 }

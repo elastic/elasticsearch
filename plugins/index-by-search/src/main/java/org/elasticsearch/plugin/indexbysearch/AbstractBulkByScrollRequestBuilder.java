@@ -6,11 +6,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public abstract class AbstractAsyncBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractAsyncBulkByScrollRequestBuilder<Request, Response, Self>>
+public abstract class AbstractBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
         extends ActionRequestBuilder<Request, Response, Self> {
     private final SearchRequestBuilder search;
 
-    protected AbstractAsyncBulkByScrollRequestBuilder(ElasticsearchClient client,
+    protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
             Action<Request, Response, Self> action, SearchRequestBuilder search, Request request) {
         super(client, action, request);
         this.search = search;

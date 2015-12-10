@@ -1,12 +1,11 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.BATCHES;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.CREATED;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.FAILURES;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.TOOK;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.UPDATED;
-import static org.elasticsearch.plugin.indexbysearch.IndexByScrollResponse.Fields.VERSION_CONFLICTS;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.BATCHES;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.FAILURES;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.TOOK;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.UPDATED;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.VERSION_CONFLICTS;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,32 +22,30 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 /**
  * Response used for actions that index many documents using a scroll request.
  */
-public class IndexByScrollResponse extends ActionResponse implements ToXContent {
+public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
     private long took;
-    private long created;
     private long updated;
     private int batches;
     private long versionConflicts;
     private List<Failure> failures;
 
-    public IndexByScrollResponse() {
+    public BulkIndexByScrollResponse() {
     }
 
-    public IndexByScrollResponse(long took, long created, long updated, int batches, long versionConflicts, List<Failure> failures) {
+    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, List<Failure> failures) {
         this.took = took;
-        this.created = created;
         this.updated = updated;
         this.batches = batches;
         this.versionConflicts = versionConflicts;
         this.failures = failures;
     }
 
-    public long updated() {
-        return updated;
+    public long took() {
+        return took;
     }
 
-    public long created() {
-        return created;
+    public long updated() {
+        return updated;
     }
 
     public int batches() {
@@ -67,10 +64,23 @@ public class IndexByScrollResponse extends ActionResponse implements ToXContent 
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // NOCOMMIT need a round trip test for this
+        super.writeTo(out);
+        out.writeVLong(took);
+        out.writeVLong(updated);
+        out.writeVInt(batches);
+        out.writeVLong(versionConflicts);
+        out.writeVInt(failures.size());
+        for (Failure failure: failures) {
+            failure.writeTo(out);
+        }
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         took = in.readVLong();
-        created = in.readVLong();
         updated = in.readVLong();
         batches = in.readVInt();
         versionConflicts = in.readVLong();
@@ -82,21 +92,6 @@ public class IndexByScrollResponse extends ActionResponse implements ToXContent 
             failures.add(failure);
         }
         this.failures = unmodifiableList(failures);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // NOCOMMIT need a round trip test for this
-        super.writeTo(out);
-        out.writeVLong(took);
-        out.writeVLong(created);
-        out.writeVLong(updated);
-        out.writeVInt(batches);
-        out.writeVLong(versionConflicts);
-        out.writeVInt(failures.size());
-        for (Failure failure: failures) {
-            failure.writeTo(out);
-        }
     }
 
     static final class Fields {
@@ -111,7 +106,6 @@ public class IndexByScrollResponse extends ActionResponse implements ToXContent 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TOOK, took);
-        builder.field(CREATED, created);
         builder.field(UPDATED, updated);
         // NOCOMMIT rest tests for batches, version conflicts, and failures
         builder.field(BATCHES, batches);
@@ -129,9 +123,8 @@ public class IndexByScrollResponse extends ActionResponse implements ToXContent 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("IndexBySearchResponse[");
+        builder.append("BulkIndexByScrollResponse[");
         builder.append("took=").append(took);
-        builder.append(",created=").append(created);
         builder.append(",updated=").append(updated);
         builder.append(",batches=").append(batches);
         builder.append(",versionConflicts=").append(versionConflicts);

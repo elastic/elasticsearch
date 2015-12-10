@@ -38,6 +38,7 @@ public class IndexBySearchPlugin extends Plugin {
 
     public void onModule(ActionModule actionModule) {
         actionModule.registerAction(IndexBySearchAction.INSTANCE, TransportIndexBySearchAction.class);
+        actionModule.registerAction(ReindexInPlaceAction.INSTANCE, TransportReindexInPlaceAction.class);
     }
 
     public void onModule(RestModule restModule) {

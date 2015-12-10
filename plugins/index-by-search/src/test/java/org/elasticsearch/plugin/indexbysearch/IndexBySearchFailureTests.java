@@ -55,7 +55,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
          */
         copy.search().setSize(1);
 
-        IndexByScrollResponse response = copy.get();
+        IndexBySearchResponse response = copy.get();
         assertThat(response, responseMatcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
@@ -76,7 +76,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
          */
         copy.index().setVersionType(VersionType.INTERNAL);
 
-        IndexByScrollResponse response = copy.get();
+        IndexBySearchResponse response = copy.get();
         assertThat(response, responseMatcher().batches(1).versionConflicts(greaterThan(0l)).failures(greaterThan(0)));
         for (Failure failure: response.failures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));

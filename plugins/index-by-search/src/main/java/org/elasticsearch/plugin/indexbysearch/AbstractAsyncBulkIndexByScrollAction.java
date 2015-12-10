@@ -15,13 +15,13 @@ import org.elasticsearch.search.SearchHitField;
  * Abstract base for scrolling across a search and executing bulk indexes on all
  * results.
  */
-public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkByScrollRequest<Request>>
-        extends AbstractAsyncBulkByScrollAction<Request, IndexByScrollResponse> {
+public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+        extends AbstractAsyncBulkByScrollAction<Request, Response> {
 
     public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, TransportSearchAction searchAction,
             TransportSearchScrollAction scrollAction, TransportBulkAction bulkAction,
             TransportClearScrollAction clearScroll, Request mainRequest, SearchRequest firstSearchRequest,
-            ActionListener<IndexByScrollResponse> listener) {
+            ActionListener<Response> listener) {
         super(logger, searchAction, scrollAction, bulkAction, clearScroll, mainRequest, firstSearchRequest, listener);
     }
 
@@ -54,10 +54,5 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (routing != null) {
             index.routing(routing.value());
         }
-    }
-
-    @Override
-    protected IndexByScrollResponse buildResponse(long took) {
-        return new IndexByScrollResponse(took, created(), updated(), batches(), versionConflicts(), failures());
     }
 }

@@ -36,7 +36,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexByScrollResponse> {
+public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexBySearchResponse> {
     private final TransportSearchAction searchAction;
     private final TransportSearchScrollAction scrollAction;
     private final TransportBulkAction bulkAction;
@@ -56,7 +56,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     }
 
     @Override
-    protected void doExecute(IndexBySearchRequest request, ActionListener<IndexByScrollResponse> listener) {
+    protected void doExecute(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
         new AsyncIndexBySearchAction(request, listener).start();
     }
 
@@ -68,8 +68,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      * requests but this makes no attempt to do any of them so it can be as
      * simple possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest> {
-        public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexByScrollResponse> listener) {
+    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
+        public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
             super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener);
         }
 
@@ -132,6 +132,11 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
             default:
                 throw new UnsupportedOperationException("Unsupported routing command");
             }
+        }
+
+        @Override
+        protected IndexBySearchResponse buildResponse(long took) {
+            return new IndexBySearchResponse(took, created(), updated(), batches(), versionConflicts(), failures());
         }
     }
 }

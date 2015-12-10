@@ -6,8 +6,16 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+/**
+ * Request to reindex a set of documents where they are without changing their
+ * locations or IDs.
+ */
 public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexInPlaceRequest> {
-    private boolean useReindexVersionType;
+    /**
+     * Should this request use the reindex version type (true, the default) or
+     * the internal version type (false).
+     */
+    private boolean useReindexVersionType = true;
 
     public ReindexInPlaceRequest() {
     }
@@ -16,10 +24,18 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
         super(search);
     }
 
+    /**
+     * Should this request use the reindex version type (true, the default) or
+     * the internal version type (false).
+     */
     public boolean useReindexVersionType() {
         return useReindexVersionType;
     }
 
+    /**
+     * Should this request use the reindex version type (true, the default) or
+     * the internal version type (false).
+     */
     public ReindexInPlaceRequest useReindexVersionType(boolean useReindexVersionType) {
         this.useReindexVersionType = useReindexVersionType;
         return this;

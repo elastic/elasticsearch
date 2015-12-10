@@ -23,9 +23,9 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class ReindexInPlaceAction extends
-        Action<ReindexInPlaceRequest, IndexByScrollResponse, ReindexInPlaceRequestBuilder> {
+        Action<ReindexInPlaceRequest, BulkIndexByScrollResponse, ReindexInPlaceRequestBuilder> {
     public static final ReindexInPlaceAction INSTANCE = new ReindexInPlaceAction();
-    public static final String NAME = "indices:data/write/index/by_query";
+    public static final String NAME = "indices:data/write/reindex";
 
     private ReindexInPlaceAction() {
         super(NAME);
@@ -37,7 +37,7 @@ public class ReindexInPlaceAction extends
     }
 
     @Override
-    public IndexByScrollResponse newResponse() {
-        return new IndexByScrollResponse();
+    public BulkIndexByScrollResponse newResponse() {
+        return new BulkIndexByScrollResponse();
     }
 }

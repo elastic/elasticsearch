@@ -37,7 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportReindexInPlaceAction
-        extends HandledTransportAction<ReindexInPlaceRequest, IndexByScrollResponse> {
+        extends HandledTransportAction<ReindexInPlaceRequest, BulkIndexByScrollResponse> {
     private final TransportSearchAction searchAction;
     private final TransportSearchScrollAction scrollAction;
     private final TransportBulkAction bulkAction;
@@ -48,7 +48,7 @@ public class TransportReindexInPlaceAction
             IndexNameExpressionResolver indexNameExpressionResolver, TransportSearchAction transportSearchAction,
             TransportSearchScrollAction transportSearchScrollAction, TransportBulkAction bulkAction,
             TransportClearScrollAction clearScrollAction, TransportService transportService) {
-        super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, ReindexInPlaceAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, ReindexInPlaceRequest::new);
         this.searchAction = transportSearchAction;
         this.scrollAction = transportSearchScrollAction;
@@ -58,7 +58,7 @@ public class TransportReindexInPlaceAction
 
     @Override
     protected void doExecute(ReindexInPlaceRequest request,
-            ActionListener<IndexByScrollResponse> listener) {
+            ActionListener<BulkIndexByScrollResponse> listener) {
         new AsyncIndexBySearchAction(request, listener).start();
     }
 
@@ -68,9 +68,9 @@ public class TransportReindexInPlaceAction
      * requests but this makes no attempt to do any of them so it can be as
      * simple possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexInPlaceRequest> {
+    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexInPlaceRequest, BulkIndexByScrollResponse> {
         public AsyncIndexBySearchAction(ReindexInPlaceRequest request,
-                ActionListener<IndexByScrollResponse> listener) {
+                ActionListener<BulkIndexByScrollResponse> listener) {
             super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(),
                     listener);
         }
@@ -87,12 +87,18 @@ public class TransportReindexInPlaceAction
                 index.id(doc.id());
                 index.source(doc.sourceRef());
                 index.versionType(mainRequest.useReindexVersionType() ? VersionType.REINDEX : VersionType.INTERNAL);
+                index.version(doc.version());
 
                 copyMetadata(index, doc);
 
                 bulkRequest.add(index);
             }
             return bulkRequest;
+        }
+
+        @Override
+        protected BulkIndexByScrollResponse buildResponse(long took) {
+            return new BulkIndexByScrollResponse(took, updated(), batches(), versionConflicts(), failures());
         }
     }
 }

@@ -27,17 +27,17 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class IndexBySearchRequestBuilder extends
-        AbstractAsyncBulkByScrollRequestBuilder<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> {
+        AbstractBulkByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
     private final IndexRequestBuilder index;
 
     public IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> action) {
+            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
                 new IndexRequestBuilder(client, IndexAction.INSTANCE));
     }
 
     private IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexByScrollResponse, IndexBySearchRequestBuilder> action,
+            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action,
             SearchRequestBuilder search, IndexRequestBuilder index) {
         super(client, action, search, new IndexBySearchRequest(search.request(), index.request()));
         this.index = index;

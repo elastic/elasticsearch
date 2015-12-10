@@ -36,7 +36,6 @@ import java.util.Locale;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  */
@@ -46,21 +45,18 @@ public class ScrollSearchBenchmark {
     public static void main(String[] args) {
         String indexName = "test";
         String typeName = "type";
-        String clusterName = ScrollSearchBenchmark.class.getSimpleName();
         long numDocs = SizeValue.parseSizeValue("300k").singles();
         int requestSize = 50;
 
         Settings settings = settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 3)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", ScrollSearchBenchmark.class.getSimpleName())
                 .build();
 
         Node[] nodes = new Node[3];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder()
-                    .clusterName(clusterName)
-                    .settings(settingsBuilder().put(settings).put("name", "node" + i))
-                    .node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
 
         Client client = nodes[0].client();

@@ -28,11 +28,10 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -41,7 +40,8 @@ public class GeoDistanceSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
 
-        Node node = NodeBuilder.nodeBuilder().clusterName(GeoDistanceSearchBenchmark.class.getSimpleName()).node();
+        Settings settings = Settings.builder().put("cluste.name", GeoDistanceSearchBenchmark.class.getSimpleName()).build();
+        Node node = new Node(settings).start();
         Client client = node.client();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

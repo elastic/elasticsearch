@@ -39,7 +39,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  */
@@ -52,9 +51,7 @@ public class NestedSearchBenchMark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder()
-                .settings(settingsBuilder().put(settings).put("name", "node1"))
-                .node();
+        Node node1 = new Node(settingsBuilder().put(settings).put("name", "node1").build()).start();
         Client client = node1.client();
 
         int count = (int) SizeValue.parseSizeValue("1m").singles();

@@ -38,8 +38,12 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 /**
  *
@@ -70,16 +74,15 @@ public class ChildSearchBenchmark {
         Settings.Builder settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0);
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", ChildSearchBenchmark.class.getSimpleName());
 
         // enable bwc parent child mode:
         if (bwcMode) {
             settings.put("tests.mock.version", Version.V_1_6_0);
         }
 
-        String clusterName = ChildSearchBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings.build()).put("name", "node1")).node();
+        Node node1 = new Node(settingsBuilder().put(settings).put("name", "node1").build()).start();
         Client client = node1.client();
 
         int CHILD_COUNT = 15;
@@ -126,7 +129,7 @@ public class ChildSearchBenchmark {
                 .setJvm(true).execute().actionGet();
         System.out.println("--> Committed heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapCommitted());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
-        
+
         // run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -294,7 +297,7 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-        
+
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreMode(ScoreMode.Max)).execute().actionGet();
@@ -304,7 +307,7 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_child query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-        
+
         System.out.println("--> Running has_parent query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {

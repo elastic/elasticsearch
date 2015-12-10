@@ -55,7 +55,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -80,14 +79,12 @@ public class TimeDataHistogramAggregationBenchmark {
                 .put("node.local", true)
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", TimeDataHistogramAggregationBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = TimeDataHistogramAggregationBenchmark.class.getSimpleName();
         Node[] nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().clusterName(clusterName)
-                    .settings(settingsBuilder().put(settings).put("name", "node" + i))
-                    .node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
 
         client = nodes[0].client();

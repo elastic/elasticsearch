@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -66,12 +65,9 @@ public class ReplicaRecoveryBenchmark {
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "local")
+                .put("cluster.name", ReplicaRecoveryBenchmark.class.getSimpleName())
                 .build();
-
-        String clusterName = ReplicaRecoveryBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings))
-                .node();
+        Node node1 = new Node(settings).start();
 
         final ESLogger logger = ESLoggerFactory.getLogger("benchmark");
 
@@ -100,9 +96,7 @@ public class ReplicaRecoveryBenchmark {
 
         logger.info("--> starting another node and allocating a shard on it");
 
-        Node node2 = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings))
-                .node();
+        Node node2 = new Node(settings).start();
 
         client1.admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS + ": 1").get();
 

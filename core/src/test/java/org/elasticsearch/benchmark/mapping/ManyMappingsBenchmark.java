@@ -33,7 +33,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  */
@@ -92,16 +91,12 @@ public class ManyMappingsBenchmark {
                 .put("")
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name",  ManyMappingsBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = ManyMappingsBenchmark.class.getSimpleName();
-        Node node = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings))
-                .node();
+        Node node = new Node(settings).start();
         if (TWO_NODES) {
-            Node node2 = nodeBuilder().clusterName(clusterName)
-                    .settings(settingsBuilder().put(settings))
-                    .node();
+            Node node2 = new Node(settings).start();
         }
 
         Client client = node.client();

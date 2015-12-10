@@ -55,26 +55,10 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
          */
         copy.search().setSize(1);
 
-        /*
-         * Optionally configure failure tolerances.
-         */
-        int allowedFailures = 0;
-        int maxBatches = 1;
-        if (random().nextBoolean()) {
-            // This should cause multiple batches
-            allowedFailures = 10;
-            maxBatches = 1 + allowedFailures / maximumNumberOfShards();
-            assertThat(maxBatches, greaterThan(1));
-            copy.failuresCauseAbort(allowedFailures + 1);
-        } else if (rarely()) {
-            // Set the default explicitly
-            copy.failuresCauseAbort(1);
-        }
-
         IndexBySearchResponse response = copy.get();
         assertThat(response, responseMatcher()
-                .batches(both(greaterThan(0)).and(lessThanOrEqualTo(maxBatches)))
-                .failures(both(greaterThan(0)).and(lessThanOrEqualTo(allowedFailures + maximumNumberOfShards()))));
+                .batches(1)
+                .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.failures()) {
             assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
         }
@@ -83,7 +67,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
     public void testVersionConflictsRecorded() throws Exception {
         indexDocs(100);
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().saveVersionConflicts(true);
+        IndexBySearchRequestBuilder copy = newIndexBySearch().abortOnVersionConflict(true);
         copy.search().setIndices("source");
         copy.index().setIndex("dest");
         /*

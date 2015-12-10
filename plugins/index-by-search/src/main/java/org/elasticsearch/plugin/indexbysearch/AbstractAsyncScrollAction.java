@@ -65,15 +65,9 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
          */
         int size();
         /**
-         * Should vesion conflicts be saved to the failures list?
+         * Should version conflicts cause aborts?
          */
-        boolean saveVersionConflicts();
-        /**
-         * How many failures must be accumulated before the operation aborts?
-         * Defaults to 1. This action may accumulate more than this many
-         * failures because failure is checked after each bulk batch.
-         */
-        int failuresCauseAbort();
+        boolean abortOnVersionConflict();
     }
 
     protected final Request mainRequest;
@@ -251,7 +245,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
                 }
             }
 
-            if (failures.size() >= mainRequest.failuresCauseAbort()) {
+            if (failures.isEmpty() == false) {
                 finishHim(null);
                 return;
             }
@@ -283,7 +277,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         switch (failure.getStatus()) {
         case CONFLICT:
             versionConflicts.incrementAndGet();
-            if (mainRequest.saveVersionConflicts()) {
+            if (mainRequest.abortOnVersionConflict()) {
                 failures.add(failure);
             }
             return;

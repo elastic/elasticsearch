@@ -94,7 +94,7 @@
   - is_true: took
 
 ---
-"Response format for version conflict with save_version_conflict":
+"Response format for version conflict with abort_on_version_conflict":
   - do:
       index:
         index:   test
@@ -113,7 +113,7 @@
   - do:
       index_by_search:
         body:
-          save_version_conflicts: true
+          abort_on_version_conflict: true
           source:
             index:        test
             type:         foo

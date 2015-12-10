@@ -64,17 +64,9 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
     private int size = -1;
 
     /**
-     * Should failure messages be saved in the list of failures and count
-     * against the failuresBeforeAbort? Defaults to false.
+     * Should version conflicts cause an abort? Defaults to false.
      */
-    private boolean saveVersionConflicts = false;
-
-    /**
-     * How many failures must be accumulated before the operation aborts?
-     * Defaults to 1. The response may contain more than this many failures
-     * because failure is checked after each bulk batch.
-     */
-    private int failuresCauseAbort = 1;
+    private boolean abortOnVersionConflict = false;
 
     public IndexBySearchRequest() {
     }
@@ -125,22 +117,12 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
     }
 
     @Override
-    public int failuresCauseAbort() {
-        return failuresCauseAbort;
+    public boolean abortOnVersionConflict() {
+        return abortOnVersionConflict;
     }
 
-    public IndexBySearchRequest failuresCauseAbort(int failuresCauseAbort) {
-        this.failuresCauseAbort = failuresCauseAbort;
-        return this;
-    }
-
-    @Override
-    public boolean saveVersionConflicts() {
-        return saveVersionConflicts;
-    }
-
-    public IndexBySearchRequest saveVersionConflicts(boolean saveVersionConflicts) {
-        this.saveVersionConflicts = saveVersionConflicts;
+    public IndexBySearchRequest abortOnVersionConflict(boolean abortOnVersionConflict) {
+        this.abortOnVersionConflict = abortOnVersionConflict;
         return this;
     }
 

@@ -63,20 +63,10 @@ public class IndexBySearchRequestBuilder
     }
 
     /**
-     * How many failures must be accumulated before the operation aborts?
-     * Defaults to 1. The response may contain more than this many failures
-     * because failure is checked after each bulk batch.
+     * Should we version conflicts cause the action to abort?
      */
-    public IndexBySearchRequestBuilder failuresCauseAbort(int failuresCauseAbort) {
-        request.failuresCauseAbort(failuresCauseAbort);
-        return this;
-    }
-
-    /**
-     * Should we return version conflicts and count them against the failures before abort?
-     */
-    public IndexBySearchRequestBuilder saveVersionConflicts(boolean saveVersionConflicts) {
-        request.saveVersionConflicts(saveVersionConflicts);
+    public IndexBySearchRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
+        request.abortOnVersionConflict(abortOnVersionConflict);
         return this;
     }
 

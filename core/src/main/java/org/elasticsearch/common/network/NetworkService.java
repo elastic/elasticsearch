@@ -137,8 +137,7 @@ public class NetworkService extends AbstractComponent {
      * Resolves {@code publishHosts} to a single publish address. The fact that it returns
      * only one address is just a current limitation.
      * <p>
-     * If {@code publishHosts} resolves to more than one address, <b>then one is selected with magic</b>,
-     * and the user is warned (they can always just be more specific).
+     * If {@code publishHosts} resolves to more than one address, <b>then one is selected with magic</b>
      * @param publishHosts list of hosts to publish as. this may contain special pseudo-hostnames
      *                     such as _local_ (see the documentation). if it is null, it will be populated
      *                     based on global default settings.
@@ -186,13 +185,12 @@ public class NetworkService extends AbstractComponent {
             }
         }
         
-        // 3. warn user if we end out with multiple publish addresses
+        // 3. if we end out with multiple publish addresses, select by preference.
+        // don't warn the user, or they will get confused by bind_host vs publish_host etc.
         if (addresses.length > 1) {
             List<InetAddress> sorted = new ArrayList<>(Arrays.asList(addresses));
             NetworkUtils.sortAddresses(sorted);
             addresses = new InetAddress[] { sorted.get(0) };
-            logger.warn("publish host: {} resolves to multiple addresses, auto-selecting {{}} as single publish address", 
-                    Arrays.toString(publishHosts), NetworkAddress.format(addresses[0]));
         }
         return addresses[0];
     }

@@ -3,11 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.actions.email;
+package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
@@ -18,6 +20,8 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -46,6 +50,14 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestC
     @After
     public void cleanup() throws Exception {
         server.stop();
+    }
+    
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.pluginTypes());
+        types.add(MustachePlugin.class);
+        return types;
     }
 
     @Override

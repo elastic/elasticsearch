@@ -30,7 +30,6 @@ public class IndexStatsTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, IndexStatsCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", "local")
-                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 

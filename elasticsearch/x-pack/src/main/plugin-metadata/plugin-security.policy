@@ -4,4 +4,11 @@ grant {
 
   // needed to set expert SSL options, etc
   permission java.lang.RuntimePermission "setFactory";
+
+  // needed when sending emails for javax.activation
+  // otherwise a classnotfound exception is thrown due to trying
+  // to load the class with the application class loader
+  permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+
 };

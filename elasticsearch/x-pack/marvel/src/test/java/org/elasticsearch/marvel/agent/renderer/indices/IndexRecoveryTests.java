@@ -38,7 +38,6 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INDICES, INDEX_PREFIX + "*")
                 .put(MarvelSettings.COLLECTORS, IndexRecoveryCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", "local")
-                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 

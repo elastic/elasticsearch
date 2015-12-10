@@ -7,6 +7,10 @@ package org.elasticsearch.marvel.agent.exporter.local;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
@@ -15,18 +19,20 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.SecuredClient;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.installedTemplateVersionIsSufficient;
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate;
 
 /**
  *
@@ -42,11 +48,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
     private volatile LocalBulk bulk;
     private volatile boolean active = true;
 
+    /** Version of the built-in template **/
+    private final Version templateVersion;
+
     public LocalExporter(Exporter.Config config, Client client, ClusterService clusterService, RendererRegistry renderers) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
         this.renderers = renderers;
+
+        // Checks that the built-in template is versioned
+        templateVersion = MarvelTemplateUtils.loadDefaultTemplateVersion();
+        if (templateVersion == null) {
+            throw new IllegalStateException("unable to find built-in template version");
+        }
+
         bulk = resolveBulk(clusterService.state(), bulk);
         clusterService.add(this);
     }
@@ -122,7 +138,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
                 return null;
             }
             Version installedTemplateVersion = MarvelTemplateUtils.templateVersion(installedTemplate);
-            if (!installedTemplateVersionIsSufficient(Version.CURRENT, installedTemplateVersion)) {
+            if (!installedTemplateVersionIsSufficient(installedTemplateVersion)) {
                 logger.debug("local exporter [{}] - cannot start. the currently installed marvel template (version [{}]) is incompatible with the " +
                         "current elasticsearch version [{}]. waiting until the template is updated", name(), installedTemplateVersion, Version.CURRENT);
                 return null;
@@ -138,21 +154,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
         // if we cannot find a template or a compatible template, we'll install one in / update it.
         if (installedTemplate == null) {
             logger.debug("local exporter [{}] - could not find existing marvel template, installing a new one", name());
-            putTemplate(config.settings().getAsSettings("template.settings"));
+            putTemplate();
             // we'll get that template on the next cluster state update
             return null;
         }
         Version installedTemplateVersion = MarvelTemplateUtils.templateVersion(installedTemplate);
-        if (installedTemplateVersionMandatesAnUpdate(Version.CURRENT, installedTemplateVersion)) {
-            logger.debug("local exporter [{}] - installing new marvel template [{}], replacing [{}]", name(), Version.CURRENT, installedTemplateVersion);
-            putTemplate(config.settings().getAsSettings("template.settings"));
+        if (installedTemplateVersionMandatesAnUpdate(templateVersion, installedTemplateVersion, logger, name())) {
+            logger.debug("local exporter [{}] - installing new marvel template [{}], replacing [{}]", name(), templateVersion, installedTemplateVersion);
+            putTemplate();
             // we'll get that template on the next cluster state update
             return null;
-        } else if (!installedTemplateVersionIsSufficient(Version.CURRENT, installedTemplateVersion)) {
+        } else if (!installedTemplateVersionIsSufficient(installedTemplateVersion)) {
             logger.error("local exporter [{}] - marvel template version [{}] is below the minimum compatible version [{}]. "
                             + "please manually update the marvel template to a more recent version"
                             + "and delete the current active marvel index (don't forget to back up it first if needed)",
-                    name(), installedTemplateVersion, MIN_SUPPORTED_TEMPLATE_VERSION);
+                    name(), installedTemplateVersion, MarvelTemplateUtils.MIN_SUPPORTED_TEMPLATE_VERSION);
             // we're not going to do anything with the template.. it's too old, and the schema might
             // be too different than what this version of marvel/es can work with. For this reason we're
             // not going to export any data, to avoid mapping conflicts.
@@ -163,86 +179,91 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
         return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, indexNameResolver, renderers);
     }
 
-    boolean installedTemplateVersionIsSufficient(Version current, Version installed) {
-        // null indicates couldn't parse the version from the installed template, this means it is probably too old or invalid...
-        if (installed == null) {
-            return false;
-        }
-        // ensure the template is not too old
-        if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-            return false;
-        }
+    void putTemplate() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).source(MarvelTemplateUtils.loadDefaultTemplate());
+        assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
 
-        // We do not enforce that versions are equivalent to the current version as we may be in a rolling upgrade scenario
-        // and until a master is elected with the new version, data nodes that have been upgraded will not be able to ship
-        // data. This means that there is an implication that the new shippers will ship data correctly even with an old template.
-        // There is also no upper bound and we rely on elasticsearch nodes not being able to connect to each other across major
-        // versions
-        return true;
-    }
+        // async call, so we won't block cluster event thread
+        client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
+            @Override
+            public void onResponse(PutIndexTemplateResponse response) {
+                if (response.isAcknowledged()) {
+                    logger.trace("local exporter [{}] - successfully installed marvel template", name());
 
-    boolean installedTemplateVersionMandatesAnUpdate(Version current, Version installed) {
-        if (installed == null) {
-            logger.debug("local exporter [{}] - currently installed marvel template is missing a version - installing a new one [{}]", name(), current);
-            return true;
-        }
-        // Never update a very old template
-        if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-            return false;
-        }
-        // Always update a template to the last up-to-date version
-        if (current.after(installed)) {
-            logger.debug("local exporter [{}] - currently installed marvel template version [{}] will be updated to a newer version [{}]", name(), installed, current);
-            return true;
-            // When the template is up-to-date, force an update for snapshot versions only
-        } else if (current.equals(installed)) {
-            logger.debug("local exporter [{}] - currently installed marvel template version [{}] is up-to-date", name(), installed);
-            return installed.snapshot() && !current.snapshot();
-            // Never update a template that is newer than the expected one
-        } else {
-            logger.debug("local exporter [{}] - currently installed marvel template version [{}] is newer than the one required [{}]... keeping it.", name(), installed, current);
-            return false;
-        }
-    }
-
-    void putTemplate(Settings customSettings) {
-        try (InputStream is = getClass().getResourceAsStream("/marvel_index_template.json")) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(is, out);
-            final byte[] template = out.toByteArray();
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).source(template);
-            if (customSettings != null && customSettings.names().size() > 0) {
-                Settings updatedSettings = Settings.builder()
-                        .put(request.settings())
-                        .put(customSettings)
-                        // making sure we override any other template that may apply
-                        .put("order", Integer.MAX_VALUE)
-                        .build();
-                request.settings(updatedSettings);
+                    if (config.settings().getAsBoolean("update_mappings", true)) {
+                        updateMappings(MarvelSettings.MARVEL_DATA_INDEX_NAME);
+                        updateMappings(indexNameResolver().resolve(System.currentTimeMillis()));
+                    }
+                } else {
+                    logger.error("local exporter [{}] - failed to update marvel index template", name());
+                }
             }
 
-            assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
+            @Override
+            public void onFailure(Throwable throwable) {
+                logger.error("local exporter [{}] - failed to update marvel index template", throwable, name());
+            }
+        });
+    }
 
-            // async call, so we won't block cluster event thread
-            client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
-                @Override
-                public void onResponse(PutIndexTemplateResponse response) {
-                    if (response.isAcknowledged()) {
-                        logger.trace("local exporter [{}] - successfully installed marvel template", name());
-                    } else {
-                        logger.error("local exporter [{}] - failed to update marvel index template", name());
+    // TODO: Remove this method once marvel indices are versioned (v 2.2.0)
+    void updateMappings(String index) {
+        logger.trace("local exporter [{}] - updating mappings for index [{}]", name(), index);
+
+        // Parse the default template to get its mappings
+        PutIndexTemplateRequest template = new PutIndexTemplateRequest().source(MarvelTemplateUtils.loadDefaultTemplate());
+        if ((template == null) || (template.mappings() == null) || (template.mappings().isEmpty())) {
+            return;
+        }
+
+        // async call, so we won't block cluster event thread
+        client.admin().indices().getMappings(new GetMappingsRequest().indices(index), new ActionListener<GetMappingsResponse>() {
+            @Override
+            public void onResponse(GetMappingsResponse response) {
+                ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings().get(index);
+                if (indexMappings != null) {
+
+                    // Iterates over document types defined in the default template
+                    for (String type : template.mappings().keySet()) {
+                        if (indexMappings.get(type) != null) {
+                            logger.trace("local exporter [{}] - type [{} already exists in mapping of index [{}]", name(), type, index);
+                            continue;
+                        }
+
+                        logger.trace("local exporter [{}] - adding type [{}] to index [{}] mappings", name(), type, index);
+                        updateMappingForType(index, type, template.mappings().get(type));
                     }
                 }
+            }
 
-                @Override
-                public void onFailure(Throwable throwable) {
-                    logger.error("local exporter [{}] - failed to update marvel index template", throwable, name());
+            @Override
+            public void onFailure(Throwable e) {
+                if (e instanceof IndexNotFoundException) {
+                    logger.trace("local exporter [{}] - index [{}] not found, unable to update mappings", name(), index);
+                } else {
+                    logger.error("local exporter [{}] - failed to get mappings for index [{}]", name(), index);
                 }
-            });
+            }
+        });
+    }
 
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to update marvel index template", e);
-        }
+    void updateMappingForType(String index, String type, String mappingSource) {
+        logger.trace("local exporter [{}] - updating index [{}] mappings for type [{}]", name(), index, type);
+        client.admin().indices().putMapping(new PutMappingRequest(index).type(type).source(mappingSource), new ActionListener<PutMappingResponse>() {
+            @Override
+            public void onResponse(PutMappingResponse response) {
+                if (response.isAcknowledged()) {
+                    logger.trace("local exporter [{}] - mapping of index [{}] updated for type [{}]", name(), index, type);
+                } else {
+                    logger.trace("local exporter [{}] - mapping of index [{}] failed to be updated for type [{}]", name(), index, type);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.error("local exporter [{}] - failed to update mapping of index [{}] for type [{}]", name(), index, type);
+            }
+        });
     }
 
     public static class Factory extends Exporter.Factory<LocalExporter> {

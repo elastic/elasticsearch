@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,12 +13,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
@@ -34,6 +33,9 @@ import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -57,6 +59,14 @@ import static org.hamcrest.Matchers.*;
  */
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.pluginTypes());
+        types.add(MustachePlugin.class);
+        return types;
+    }
+    
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");

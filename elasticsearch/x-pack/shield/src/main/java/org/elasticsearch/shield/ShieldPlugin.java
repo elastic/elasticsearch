@@ -24,6 +24,7 @@ import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheAction;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
+import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -52,8 +53,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 
 import java.nio.file.Path;
 import java.util.*;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  *
@@ -121,7 +120,16 @@ public class ShieldPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (enabled && clientMode == false) {
-            return Arrays.<Class<? extends LifecycleComponent>>asList(ShieldLicensee.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
+            List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
+            if (AuditTrailModule.fileAuditLoggingEnabled(settings)) {
+                list.add(LoggingAuditTrail.class);
+            }
+            list.add(ShieldLicensee.class);
+            list.add(InternalCryptoService.class);
+            list.add(FileRolesStore.class);
+            list.add(Realms.class);
+            list.add(IPFilter.class);
+            return list;
         }
         return Collections.emptyList();
     }

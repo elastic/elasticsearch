@@ -9,7 +9,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -33,7 +32,6 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, ClusterStatsCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", "local")
-                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 

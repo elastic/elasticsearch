@@ -13,7 +13,6 @@ import okio.Buffer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -88,7 +87,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+                .put("marvel.agent.exporters._http.connection.keep_alive", false)
+                .put("marvel.agent.exporters._http.update_mappings", false);
 
         String agentNode = internalCluster().startNode(builder);
         HttpExporter exporter = getExporter(agentNode);
@@ -142,56 +142,14 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test3"));
     }
 
-    public void testTemplateUpdate() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
-
-        logger.info("--> starting node");
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueResponse(404, "marvel template does not exist");
-        enqueueResponse(201, "marvel template created");
-        enqueueResponse(200, "successful bulk request ");
-
-        String agentNode = internalCluster().startNode(builder);
-
-        logger.info("--> exporting data");
-        HttpExporter exporter = getExporter(agentNode);
-        final int nbDocs = randomIntBetween(1, 25);
-        exporter.export(newRandomMarvelDocs(nbDocs));
-
-        assertThat(webServer.getRequestCount(), equalTo(4));
-
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/"));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("POST"));
-        assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
-
-        assertBulkRequest(recordedRequest.getBody(), nbDocs);
-    }
-
     public void testHostChangeReChecksTemplate() throws Exception {
 
         Settings.Builder builder = Settings.builder()
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+                .put("marvel.agent.exporters._http.connection.keep_alive", false)
+                .put("marvel.agent.exporters._http.update_mappings", false);
 
         logger.info("--> starting node");
 
@@ -287,44 +245,6 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         }
     }
 
-    public void testUnsupportedTemplateVersion() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
-
-        logger.info("--> starting node");
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        // returning a fake template with an unsupported version
-        Version unsupportedVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
-        enqueueResponse(200, XContentHelper.toString(Settings.builder().put("index.marvel_version", unsupportedVersion.toString()).build()));
-
-        String agentNode = internalCluster().startNode(builder);
-
-        logger.info("--> exporting data");
-        HttpExporter exporter = getExporter(agentNode);
-        assertThat(exporter.supportedClusterVersion, is(false));
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-
-        assertThat(exporter.supportedClusterVersion, is(true));
-        assertThat(webServer.getRequestCount(), equalTo(3));
-
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/"));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
-    }
-
     public void testUnsupportedClusterVersion() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(MarvelSettings.INTERVAL, "-1")
@@ -357,7 +277,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+                .put("marvel.agent.exporters._http.connection.keep_alive", false)
+                .put("marvel.agent.exporters._http.update_mappings", false);
 
         String agentNode = internalCluster().startNode(builder);
 

@@ -184,11 +184,6 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean estimatedNumberType() {
-        return parser.estimatedNumberType();
-    }
-
-    @Override
     public short shortValue(boolean coerce) throws IOException {
         return parser.shortValue(coerce);
     }

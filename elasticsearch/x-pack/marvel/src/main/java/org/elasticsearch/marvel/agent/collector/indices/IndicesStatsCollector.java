@@ -54,7 +54,11 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
             IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                     .setIndices(marvelSettings.indices())
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setRefresh(true)
+                    .clear()
+                    .setDocs(true)
+                    .setIndexing(true)
+                    .setSearch(true)
+                    .setStore(true)
                     .get(marvelSettings.indicesStatsTimeout());
 
             return Collections.singletonList(new IndicesStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), indicesStats));

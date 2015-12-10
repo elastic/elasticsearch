@@ -8,9 +8,11 @@ package org.elasticsearch.marvel.agent.exporter.http;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -40,9 +43,10 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
+
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.installedTemplateVersionIsSufficient;
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate;
 
 /**
  *
@@ -88,7 +92,6 @@ public class HttpExporter extends Exporter {
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
 
-
     /** Version of the built-in template **/
     final Version templateVersion;
 
@@ -126,7 +129,7 @@ public class HttpExporter extends Exporter {
         hostnameVerification = config.settings().getAsBoolean(SSL_HOSTNAME_VERIFICATION_SETTING, true);
 
         // Checks that the built-in template is versioned
-        templateVersion = MarvelTemplateUtils.parseTemplateVersion(MarvelTemplateUtils.loadDefaultTemplate());
+        templateVersion = MarvelTemplateUtils.loadDefaultTemplateVersion();
         if (templateVersion == null) {
             throw new IllegalStateException("unable to find built-in template version");
         }
@@ -381,6 +384,37 @@ public class HttpExporter extends Exporter {
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
+        byte[] installedTemplate;
+        try {
+            installedTemplate = findMarvelTemplate(host);
+        } catch (Exception e) {
+            logger.debug("http exporter [{}] - exception when loading the existing marvel template on host[{}]", e, name(), host);
+            return false;
+        }
+
+        // if we cannot find a template or a compatible template, we'll install one in / update it.
+        if (installedTemplate == null) {
+            logger.debug("http exporter [{}] - could not find existing marvel template, installing a new one", name());
+            return putTemplate(host);
+        }
+        Version installedTemplateVersion = MarvelTemplateUtils.parseTemplateVersion(installedTemplate);
+        if (installedTemplateVersionMandatesAnUpdate(templateVersion, installedTemplateVersion, logger, name())) {
+            logger.debug("http exporter [{}] - installing new marvel template [{}], replacing [{}]", name(), templateVersion, installedTemplateVersion);
+            return putTemplate(host);
+        } else if (!installedTemplateVersionIsSufficient(installedTemplateVersion)) {
+            logger.error("http exporter [{}] - marvel template version [{}] is below the minimum compatible version [{}]. "
+                            + "please manually update the marvel template to a more recent version"
+                            + "and delete the current active marvel index (don't forget to back up it first if needed)",
+                    name(), installedTemplateVersion, MarvelTemplateUtils.MIN_SUPPORTED_TEMPLATE_VERSION);
+            // we're not going to do anything with the template.. it's too old, and the schema might
+            // be too different than what this version of marvel/es can work with. For this reason we're
+            // not going to export any data, to avoid mapping conflicts.
+            return false;
+        }
+        return true;
+    }
+
+    private byte[] findMarvelTemplate(String host) throws IOException {
         String url = "_template/" + MarvelTemplateUtils.INDEX_TEMPLATE_NAME;
         if (templateCheckTimeout != null) {
             url += "?timeout=" + templateCheckTimeout;
@@ -388,40 +422,28 @@ public class HttpExporter extends Exporter {
 
         HttpURLConnection connection = null;
         try {
-            logger.debug("checking if marvel template exists on the marvel cluster");
+            logger.debug("http exporter [{}] - checking if marvel template exists on the marvel cluster", name());
             connection = openConnection(host, "GET", url, null);
             if (connection == null) {
-                logger.debug("no available connection to check marvel template existence");
-                return false;
+                throw new IOException("no available connection to check marvel template existence");
             }
+
+            byte[] remoteTemplate = null;
 
             // 200 means that the template has been found, 404 otherwise
             if (connection.getResponseCode() == 200) {
-                logger.debug("marvel template found, checking its version");
+                logger.debug("marvel template found");
 
-                byte[] remoteTemplate;
                 try (InputStream is = connection.getInputStream()) {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     Streams.copy(is, out);
                     remoteTemplate = out.toByteArray();
                 }
-
-                if ((remoteTemplate == null) || (remoteTemplate.length == 0)) {
-                    logger.error("unable to load remote marvel template on host [{}]", host);
-                    return false;
-                }
-
-                Version remoteVersion = MarvelTemplateUtils.parseTemplateVersion(remoteTemplate);
-                logger.debug("detected existing remote template in version [{}] on host [{}]", remoteVersion, host);
-
-                if ((remoteVersion != null) && (remoteVersion.onOrAfter(MIN_SUPPORTED_TEMPLATE_VERSION))) {
-                    logger.debug("remote template in version [{}] is compatible with the min. supported version [{}]", remoteVersion, MIN_SUPPORTED_TEMPLATE_VERSION);
-                    return true;
-                }
             }
-        } catch (IOException e) {
-            logger.error("failed to verify the marvel template to [{}]:\n{}", host, e.getMessage());
-            return false;
+            return remoteTemplate;
+        } catch (Exception e) {
+            logger.error("http exporter [{}] - failed to verify the marvel template to [{}]:\n{}", name(), host, e.getMessage());
+            throw e;
         } finally {
             if (connection != null) {
                 try {
@@ -431,28 +453,30 @@ public class HttpExporter extends Exporter {
                 }
             }
         }
+    }
 
+    boolean putTemplate(String host) {
+        HttpURLConnection connection = null;
         try {
-            connection = openConnection(host, "PUT", url, XContentType.JSON.restContentType());
+            connection = openConnection(host, "PUT", "_template/" + MarvelTemplateUtils.INDEX_TEMPLATE_NAME, XContentType.JSON.restContentType());
             if (connection == null) {
-                logger.debug("no available connection to update marvel template");
+                logger.debug("http exporter [{}] - no available connection to update marvel template", name());
                 return false;
             }
 
-            logger.debug("loading marvel pre-configured template");
+            logger.debug("http exporter [{}] - loading marvel pre-configured template", name());
             byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
 
             // Uploads the template and closes the outputstream
             Streams.copy(template, connection.getOutputStream());
-
             if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
                 logConnectionError("error adding the marvel template to [" + host + "]", connection);
                 return false;
             }
 
-            logger.info("marvel template updated to version [{}]", templateVersion);
+            logger.info("http exporter [{}] - marvel template updated to version [{}]", name(), templateVersion);
         } catch (IOException e) {
-            logger.error("failed to update the marvel template to [{}]:\n{}", host, e.getMessage());
+            logger.error("http exporter [{}] - failed to update the marvel template to [{}]:\n{}", name(), host, e.getMessage());
             return false;
 
         } finally {
@@ -465,7 +489,109 @@ public class HttpExporter extends Exporter {
             }
         }
 
+        if (config.settings().getAsBoolean("update_mappings", true)) {
+            updateMappings(host, MarvelSettings.MARVEL_DATA_INDEX_NAME);
+            updateMappings(host, indexNameResolver().resolve(System.currentTimeMillis()));
+        }
         return true;
+    }
+
+    // TODO: Remove this method once marvel indices are versioned (v 2.2.0)
+    void updateMappings(String host, String index) {
+        logger.trace("http exporter [{}] - updating mappings for index [{}]", name(), index);
+
+        // Parse the default template to get its mappings
+        PutIndexTemplateRequest template = new PutIndexTemplateRequest().source(MarvelTemplateUtils.loadDefaultTemplate());
+        if ((template == null) || (template.mappings() == null) || (template.mappings().isEmpty())) {
+            return;
+        }
+
+        Set<String> indexMappings = new HashSet<>();
+
+        HttpURLConnection connection = null;
+        try {
+            connection = openConnection(host, "GET", "/" + index + "/_mapping", XContentType.JSON.restContentType());
+            if (connection == null) {
+                logger.debug("http exporter [{}] - no available connection to get index mappings", name());
+                return;
+            }
+
+            if (connection.getResponseCode() == 404) {
+                logger.trace("http exporter [{}] - index [{}] does not exist", name(), index);
+                return;
+            } else if (connection.getResponseCode() == 200) {
+                try (InputStream is = connection.getInputStream()) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    Streams.copy(is, out);
+
+                    Map<String, Object> mappings = XContentHelper.convertToMap(new BytesArray(out.toByteArray()), false).v2();
+                    if ((mappings.get(index) != null) && (mappings.get(index) instanceof Map)) {
+                        Map m = (Map) ((Map) mappings.get(index)).get("mappings");
+                        if (m != null) {
+                            indexMappings = m.keySet();
+                        }
+                    }
+                }
+            } else {
+                logConnectionError("http exporter [" + name() +"] - failed to get mappings for index [" + index + "] on host [" + host + "]", connection);
+                return;
+            }
+        } catch (Exception e) {
+            logger.error("http exporter [{}] - failed to update the marvel template to [{}]:\n{}", name(), host, e.getMessage());
+            return;
+
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+
+        // Iterates over document types defined in the default template
+        for (String type : template.mappings().keySet()) {
+            if (indexMappings.contains(type)) {
+                logger.trace("http exporter [{}] - type [{} already exists in mapping of index [{}]", name(), type, index);
+                continue;
+            }
+
+            logger.trace("http exporter [{}] - adding type [{}] to index [{}] mappings", name(), type, index);
+            updateMappingForType(host, index, type, template.mappings().get(type));
+        }
+    }
+
+    void updateMappingForType(String host, String index, String type, String mappingSource) {
+        logger.trace("http exporter [{}] - updating index [{}] mappings for type [{}] on host [{}]", name(), index, type, host);
+        HttpURLConnection connection = null;
+        try {
+            connection = openConnection(host, "PUT", "/" + index + "/_mapping/" + type, XContentType.JSON.restContentType());
+            if (connection == null) {
+                logger.debug("http exporter [{}] - no available connection to update index mapping", name());
+                return;
+            }
+
+            // Uploads the template and closes the outputstream
+            Streams.copy(Strings.toUTF8Bytes(mappingSource), connection.getOutputStream());
+            if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
+                logConnectionError("http exporter [" + name() +"] - mapping of index [" + index + "] failed to be updated for type [" + type + "] on host [" + host + "]", connection);
+                return;
+            }
+
+            logger.trace("http exporter [{}] - mapping of index [{}] updated for type [{}]", name(), index, type);
+        } catch (Exception e) {
+            logger.error("http exporter [{}] - failed to update mapping of index [{}] for type [{}]", name(), index, type);
+
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
     }
 
     private void logConnectionError(String msg, HttpURLConnection conn) {

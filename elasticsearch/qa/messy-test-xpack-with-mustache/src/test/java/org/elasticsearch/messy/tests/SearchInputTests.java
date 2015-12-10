@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.input.search;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,7 +17,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -27,6 +29,9 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
+import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -46,6 +51,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,6 +74,15 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchInputTests extends ESIntegTestCase {
+    
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.nodePlugins());
+        types.add(MustachePlugin.class);
+        return types;
+    }
+    
     private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +

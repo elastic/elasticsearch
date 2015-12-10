@@ -38,7 +38,7 @@ dependencies {
   testCompile 'org.subethamail:subethasmtp:3.1.7'
 
   // common test deps
-  testCompile 'org.elasticsearch:securemock:1.1'
+  testCompile 'org.elasticsearch:securemock:1.2'
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.slf4j:slf4j-api:1.6.2'
 

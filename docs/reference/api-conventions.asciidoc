@@ -360,6 +360,22 @@ are:
 `s`::   Second
 `ms`::  Milli-second
 
+[[size-units]]
+[float]
+=== Data size units
+
+Whenever the size of data needs to be specified, eg when setting a buffer size
+parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
+supported units are:
+
+[horizontal]
+`b`::   Bytes
+`kb`::  Kilobytes
+`mb`::  Megabytes
+`gb`::  Gigabytes
+`tb`::  Terabytes
+`pb`::  Petabytes
+
 [[distance-units]]
 [float]
 === Distance Units

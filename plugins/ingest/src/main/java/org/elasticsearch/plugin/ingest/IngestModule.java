@@ -34,14 +34,11 @@ import org.elasticsearch.ingest.processor.rename.RenameProcessor;
 import org.elasticsearch.ingest.processor.split.SplitProcessor;
 import org.elasticsearch.ingest.processor.trim.TrimProcessor;
 import org.elasticsearch.ingest.processor.uppercase.UppercaseProcessor;
-import org.elasticsearch.ingest.processor.meta.MetaDataProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionService;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.plugin.ingest.PipelineStore.ProcessorFactoryProvider;
 
 public class IngestModule extends AbstractModule {
 
@@ -54,20 +51,19 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(SimulateExecutionService.class).asEagerSingleton();
 
-        addProcessor(GeoIpProcessor.TYPE, environment -> new GeoIpProcessor.Factory(environment.configFile()));
-        addProcessor(GrokProcessor.TYPE, environment -> new GrokProcessor.Factory(environment.configFile()));
-        addProcessor(DateProcessor.TYPE, environment -> new DateProcessor.Factory());
-        addProcessor(SetProcessor.TYPE, environment -> new SetProcessor.Factory());
-        addProcessor(RenameProcessor.TYPE, environment -> new RenameProcessor.Factory());
-        addProcessor(RemoveProcessor.TYPE, environment -> new RemoveProcessor.Factory());
-        addProcessor(SplitProcessor.TYPE, environment -> new SplitProcessor.Factory());
-        addProcessor(JoinProcessor.TYPE, environment -> new JoinProcessor.Factory());
-        addProcessor(UppercaseProcessor.TYPE, environment -> new UppercaseProcessor.Factory());
-        addProcessor(LowercaseProcessor.TYPE, environment -> new LowercaseProcessor.Factory());
-        addProcessor(TrimProcessor.TYPE, environment -> new TrimProcessor.Factory());
-        addProcessor(ConvertProcessor.TYPE, environment -> new ConvertProcessor.Factory());
-        addProcessor(GsubProcessor.TYPE, environment -> new GsubProcessor.Factory());
-        addProcessor(MetaDataProcessor.TYPE, environment -> new MetaDataProcessor.Factory());
+        addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+        addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
+        addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
+        addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
+        addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
+        addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
+        addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
+        addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
+        addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
+        addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
+        addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
+        addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
+        addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
 
         MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
         for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {

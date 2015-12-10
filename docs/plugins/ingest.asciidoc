@@ -403,57 +403,110 @@ An example that adds the parsed date to the `timestamp` field based on the `init
 }
 --------------------------------------------------
 
-==== Meta processor
+=== Accessing data in pipelines
 
-The `meta` processor allows to modify metadata properties of a document being processed.
+Processors in pipelines have read and write access to documents that pass through the pipeline.
+The fields in the source of a document and its metadata fields are accessible.
 
-The following example changes the index of a document to `alternative_index` instead of indexing it into an index
-that was specified in the index or bulk request:
-
-[source,js]
---------------------------------------------------
-{
-  "description" : "...",
-  "processors" : [
-    {
-      "meta" : {
-        "_index" : "alternative_index"
-      }
-    }
-  ]
-}
---------------------------------------------------
-
-The following metadata attributes can be modified in this processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
-`_timestamp` and `_ttl`. All these metadata attributes can be specified in the body of the `meta` processor.
-
-Also the metadata settings in this processor are templatable which allows metadata field values to be replaced with
-field values in the source of the document being indexed. The mustache template language is used and anything between
-`{{` and `}}` can contain a template and point to any field in the source of the document.
-
-The following example documents being processed end up being indexed into an index based on the resolved city name by
-the `geoip` processor. (for example `city-amsterdam`)
+Accessing a field in the source is straightforward and one can refer to fields by
+their name. For example:
 
 [source,js]
 --------------------------------------------------
 {
-  "description" : "...",
-  "processors" : [
-    {
-      "geoip" : {
-        "source" : "ip"
-      }
-    },
-    {
-      "meta" : {
-        "_index" : "city-{{geoip.city_name}}"
-      }
-    }
-  ]
+  "set": {
+    "field": "my_field"
+    "value": 582.1
+  }
 }
 --------------------------------------------------
 
-=== Put pipeline API
+On top of this fields from the source are always accessible via the `_source` prefix:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "_source.my_field"
+    "value": 582.1
+  }
+}
+--------------------------------------------------
+
+Metadata fields can also be accessed in the same way as fields from the source. This
+is possible because Elasticsearch doesn't allow fields in the source that have the
+same name as metadata fields.
+
+The following example sets the id of a document to `1`:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "_id"
+    "value": "1"
+  }
+}
+--------------------------------------------------
+
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
+`_timestamp` and `_ttl`.
+
+Beyond metadata fields and source fields, the ingest plugin also adds ingest metadata to documents being processed.
+These metadata properties are accessible under the `_ingest` key. Currently the ingest plugin adds the ingest timestamp
+under `_ingest.timestamp` key to the ingest metadata, which is the time the ingest plugin received the index or bulk
+request to pre-process. But any processor is free to add more ingest related metadata to it. Ingest metadata is transient
+and is lost after a document has been processed by the pipeline and thus ingest metadata won't be indexed.
+
+The following example adds a field with the name `received` and the value is the ingest timestamp:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "received"
+    "value": "{{_ingest.timestamp}}"
+  }
+}
+--------------------------------------------------
+
+As opposed to Elasticsearch metadata fields, the ingest metadata field name _ingest can be used as a valid field name
+in the source of a document. Use _source._ingest to refer to it, otherwise _ingest will be interpreted as ingest
+metadata fields by the ingest plugin.
+
+A number of processor settings also support templating. Settings that support templating can have zero or more
+template snippets. A template snippet begins with `{{` and ends with `}}`.
+Accessing fields and metafields in templates is exactly the same as via regular processor field settings.
+
+In this example a field by the name `field_c` is added and its value is a concatenation of
+the values of `field_a` and `field_b`.
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "field_c"
+    "value": "{{field_a}} {{field_b}}"
+  }
+}
+--------------------------------------------------
+
+The following example changes the index a document is going to be indexed into. The index a document will be redirected
+to depends on the field in the source with name `geoip.country_iso_code`.
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "_index"
+    "value": "{{geoip.country_iso_code}}"
+  }
+}
+--------------------------------------------------
+
+=== Ingest APIs
+
+==== Put pipeline API
 
 The put pipeline api adds pipelines and updates existing pipelines in the cluster.
 
@@ -477,7 +530,7 @@ PUT _ingest/pipeline/my-pipeline-id
 NOTE: Each ingest node updates its processors asynchronously in the background, so it may take a few seconds for all
       nodes to have the latest version of the pipeline.
 
-=== Get pipeline API
+==== Get pipeline API
 
 The get pipeline api returns pipelines based on id. This api always returns a local reference of the pipeline.
 
@@ -513,7 +566,7 @@ For each returned pipeline the source and the version is returned.
 The version is useful for knowing what version of the pipeline the node has.
 Multiple ids can be provided at the same time. Also wildcards are supported.
 
-=== Delete pipeline API
+==== Delete pipeline API
 
 The delete pipeline api deletes pipelines by id.
 

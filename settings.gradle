@@ -39,6 +39,7 @@ List projects = [
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
+  'qa:ingest-with-mustache',
   'qa:vagrant',
 ]
 

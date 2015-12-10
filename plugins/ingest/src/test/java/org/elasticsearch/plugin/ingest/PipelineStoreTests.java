@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
@@ -68,9 +69,10 @@ public class PipelineStoreTests extends ESTestCase {
         client = mock(Client.class);
 
         ClusterService clusterService = mock(ClusterService.class);
+        ScriptService scriptService = mock(ScriptService.class);
         when(client.searchScroll(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
         Environment environment = mock(Environment.class);
-        store = new PipelineStore(Settings.EMPTY, () -> client, threadPool, environment, clusterService, Collections.emptyMap());
+        store = new PipelineStore(Settings.EMPTY, () -> client, threadPool, environment, clusterService, () -> scriptService, Collections.emptyMap());
     }
 
     @After

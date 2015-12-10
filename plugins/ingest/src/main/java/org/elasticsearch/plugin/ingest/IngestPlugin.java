@@ -41,6 +41,7 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptModule;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -114,5 +115,9 @@ public class IngestPlugin extends Plugin {
             networkModule.registerRestHandler(RestDeletePipelineAction.class);
             networkModule.registerRestHandler(RestSimulatePipelineAction.class);
         }
+    }
+
+    public void onModule(ScriptModule module) {
+        module.registerScriptContext(InternalTemplateService.INGEST_SCRIPT_CONTEXT);
     }
 }

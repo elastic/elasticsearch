@@ -1,0 +1,171 @@
+---
+"Test metadata templateing":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "index_type_id",
+                  "value": "{{_index}}/{{_type}}/{{_id}}"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline_1" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline_1"
+        body: {}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - length: { _source: 1 }
+  - match: { _source.index_type_id: "test/test/1" }
+
+---
+"Test templateing":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field4",
+                  "value": "{{field1}}/{{field2}}/{{field3}}"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline_1" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "{{field1}}",
+                  "value": "value"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline_2" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_3"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{field_to_remove}}"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline_3" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline_1"
+        body: {
+          field1: "1",
+          field2: "2",
+          field3: "3"
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - length: { _source: 4 }
+  - match: { _source.field1: "1" }
+  - match: { _source.field2: "2" }
+  - match: { _source.field3: "3" }
+  - match: { _source.field4: "1/2/3" }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline_2"
+        body: {
+          field1: "field2"
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - length: { _source: 2 }
+  - match: { _source.field1: "field2" }
+  - match: { _source.field2: "value" }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline_3"
+        body: {
+          field_to_remove: "field2",
+          field2: "2",
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - length: { _source: 1 }
+  - match: { _source.field_to_remove: "field2" }

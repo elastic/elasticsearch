@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest.processor.set;
 
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,18 +31,23 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SetProcessorFactoryTests extends ESTestCase {
 
+    private SetProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new SetProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testCreate() throws Exception {
-        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
         SetProcessor setProcessor = factory.create(config);
-        assertThat(setProcessor.getField(), equalTo("field1"));
-        assertThat(setProcessor.getValue(), equalTo("value1"));
+        assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
-        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
@@ -52,7 +59,6 @@ public class SetProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateNoValuePresent() throws Exception {
-        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
@@ -64,7 +70,6 @@ public class SetProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateNullValue() throws Exception {
-        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", null);
@@ -75,4 +80,5 @@ public class SetProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("required property [value] is missing"));
         }
     }
+
 }

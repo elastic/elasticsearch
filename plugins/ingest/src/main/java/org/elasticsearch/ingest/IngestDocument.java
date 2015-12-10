@@ -30,6 +30,9 @@ import java.util.*;
  */
 public final class IngestDocument {
 
+    public final static String INGEST_KEY = "_ingest";
+    public final static String SOURCE_KEY = "_source";
+
     static final String TIMESTAMP = "timestamp";
 
     private final Map<String, Object> sourceAndMetadata;
@@ -151,6 +154,16 @@ public final class IngestDocument {
 
     /**
      * Removes the field identified by the provided path.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     */
+    public void removeField(TemplateService.Template fieldPathTemplate) {
+        Map<String, Object> model = createTemplateModel();
+        removeField(fieldPathTemplate.execute(model));
+    }
+
+    /**
+     * Removes the field identified by the provided path.
      * @param path the path of the field to be removed
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
@@ -246,12 +259,22 @@ public final class IngestDocument {
         setFieldValue(path, value, false);
     }
 
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value to put in for the path key
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     */
+    public void setFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+        Map<String, Object> model = createTemplateModel();
+        setFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model), false);
+    }
+
     private void setFieldValue(String path, Object value, boolean append) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
-
-        value = deepCopy(value);
-
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
@@ -332,6 +355,15 @@ public final class IngestDocument {
         throw new IllegalArgumentException("field [" + path + "] of type [" + object.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
     }
 
+    private Map<String, Object> createTemplateModel() {
+        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+        model.put(SOURCE_KEY, sourceAndMetadata);
+        // If there is a field in the source with the name '_ingest' it gets overwritten here,
+        // if access to that field is required then it get accessed via '_source._ingest'
+        model.put(INGEST_KEY, ingestMetadata);
+        return model;
+    }
+
     /**
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
@@ -359,32 +391,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getSourceAndMetadata() {
         return this.sourceAndMetadata;
-    }
-
-    static Object deepCopy(Object value) {
-        if (value instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> mapValue = (Map<Object, Object>) value;
-            Map<Object, Object> copy = new HashMap<>(mapValue.size());
-            for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), deepCopy(entry.getValue()));
-            }
-            return copy;
-        } else if (value instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> listValue = (List<Object>) value;
-            List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(deepCopy(itemValue));
-            }
-            return copy;
-        } else if (value == null || value instanceof String || value instanceof Integer ||
-                value instanceof Long || value instanceof Float ||
-                value instanceof Double || value instanceof Boolean) {
-            return value;
-        } else {
-            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-        }
     }
 
     @Override
@@ -431,26 +437,6 @@ public final class IngestDocument {
             return fieldName;
         }
 
-        public static MetaData fromString(String value) {
-            switch (value) {
-                case "_index":
-                    return INDEX;
-                case "_type":
-                    return TYPE;
-                case "_id":
-                    return ID;
-                case "_routing":
-                    return ROUTING;
-                case "_parent":
-                    return PARENT;
-                case "_timestamp":
-                    return TIMESTAMP;
-                case "_ttl":
-                    return TTL;
-                default:
-                    throw new IllegalArgumentException("no valid metadata field name [" + value + "]");
-            }
-        }
     }
 
     private class FieldPath {
@@ -462,12 +448,12 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
             String newPath;
-            if (path.startsWith("_ingest.")) {
+            if (path.startsWith(INGEST_KEY + ".")) {
                 initialContext = ingestMetadata;
                 newPath = path.substring(8, path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith("_source.")) {
+                if (path.startsWith(SOURCE_KEY + ".")) {
                     newPath = path.substring(8, path.length());
                 } else {
                     newPath = path;

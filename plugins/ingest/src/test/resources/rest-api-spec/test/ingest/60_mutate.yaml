@@ -113,3 +113,51 @@
   - match: { _source.field_to_join: "127-0-0-1" }
   - match: { _source.field_to_convert: [127,0,0,1] }
   - match: { _source.field_to_gsub: "127.0.0.1" }
+
+---
+"Test metadata":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value" : "surprise"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {field: "value"}
+
+  - do:
+      get:
+        index: surprise
+        type: test
+        id: 1
+  - length: { _source: 1 }
+  - match: { _source.field: "value" }
+

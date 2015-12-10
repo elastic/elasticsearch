@@ -19,10 +19,10 @@
 
 package org.elasticsearch.ingest.processor.set;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.*;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.*;
 
@@ -34,7 +34,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = new SetProcessor(fieldName, fieldValue);
+        Processor processor = createSetProcessor(fieldName, fieldValue);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -46,7 +46,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
-        Processor processor = new SetProcessor(fieldName, fieldValue);
+        Processor processor = createSetProcessor(fieldName, fieldValue);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -55,7 +55,7 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
-        Processor processor = new SetProcessor("field.inner", "value");
+        Processor processor = createSetProcessor("field.inner", "value");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -63,4 +63,18 @@ public class SetProcessorTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as part of path [field.inner]"));
         }
     }
+
+    public void testSetMetadata() throws Exception {
+        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
+        Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
+    }
+
+    private Processor createSetProcessor(String fieldName, Object fieldValue) {
+        TemplateService templateService = TestTemplateService.instance();
+        return new SetProcessor(templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService));
+    }
+
 }

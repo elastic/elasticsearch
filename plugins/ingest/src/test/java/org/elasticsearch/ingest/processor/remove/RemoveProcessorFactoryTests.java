@@ -19,27 +19,33 @@
 
 package org.elasticsearch.ingest.processor.remove;
 
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RemoveProcessorFactoryTests extends ESTestCase {
 
+    private RemoveProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new RemoveProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testCreate() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         RemoveProcessor removeProcessor = factory.create(config);
-        assertThat(removeProcessor.getField(), equalTo("field1"));
+        assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
     }
 
     public void testCreateMissingField() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
             factory.create(config);
@@ -48,4 +54,5 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("required property [field] is missing"));
         }
     }
+
 }

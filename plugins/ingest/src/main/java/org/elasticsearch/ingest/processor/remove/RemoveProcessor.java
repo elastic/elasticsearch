@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor.remove;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
@@ -32,13 +33,13 @@ public class RemoveProcessor implements Processor {
 
     public static final String TYPE = "remove";
 
-    private final String field;
+    private final TemplateService.Template field;
 
-    RemoveProcessor(String field) {
+    RemoveProcessor(TemplateService.Template field) {
         this.field = field;
     }
 
-    String getField() {
+    public TemplateService.Template getField() {
         return field;
     }
 
@@ -53,10 +54,17 @@ public class RemoveProcessor implements Processor {
     }
 
     public static class Factory implements Processor.Factory<RemoveProcessor> {
+
+        private final TemplateService templateService;
+
+        public Factory(TemplateService templateService) {
+            this.templateService = templateService;
+        }
+
         @Override
         public RemoveProcessor create(Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
-            return new RemoveProcessor(field);
+            return new RemoveProcessor(templateService.compile(field));
         }
     }
 }

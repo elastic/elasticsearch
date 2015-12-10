@@ -22,8 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -381,7 +379,7 @@ public class IngestDocumentTests extends ESTestCase {
         }
 
         try {
-            ingestDocument.setFieldValue("_ingest.", Object.class);
+            ingestDocument.setFieldValue("_ingest.", "_value");
             fail("set field value should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
@@ -605,7 +603,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveNullField() {
         try {
-            ingestDocument.removeField(null);
+            ingestDocument.removeField((String) null);
             fail("remove field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -677,57 +675,4 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testDeepCopy() {
-        int iterations = scaledRandomIntBetween(8, 64);
-        for (int i = 0; i < iterations; i++) {
-            Map<String, Object> map = RandomDocumentPicks.randomSource(random());
-            Object copy = IngestDocument.deepCopy(map);
-            assertThat("iteration: " + i, copy, equalTo(map));
-            assertThat("iteration: " + i, copy, not(sameInstance(map)));
-        }
-    }
-
-    public void testDeepCopyDoesNotChangeProvidedMap() {
-        Map<String, Object> myPreciousMap = new HashMap<>();
-        myPreciousMap.put("field2", "value2");
-
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, new HashMap<>());
-        ingestDocument.setFieldValue("field1", myPreciousMap);
-        ingestDocument.removeField("field1.field2");
-
-        assertThat(myPreciousMap.size(), equalTo(1));
-        assertThat(myPreciousMap.get("field2"), equalTo("value2"));
-    }
-
-    public void testDeepCopyDoesNotChangeProvidedList() {
-        List<String> myPreciousList = new ArrayList<>();
-        myPreciousList.add("value");
-
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, new HashMap<>());
-        ingestDocument.setFieldValue("field1", myPreciousList);
-        ingestDocument.removeField("field1.0");
-
-        assertThat(myPreciousList.size(), equalTo(1));
-        assertThat(myPreciousList.get(0), equalTo("value"));
-    }
-
-    public void testIngestMetadataTimestamp() throws Exception {
-        long before = System.currentTimeMillis();
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        long after = System.currentTimeMillis();
-        String timestampString = ingestDocument.getIngestMetadata().get("timestamp");
-        assertThat(timestampString, notNullValue());
-        assertThat(timestampString, endsWith("+0000"));
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
-        Date timestamp = df.parse(timestampString);
-        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
-        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
-    }
-
-    public void testCopyConstructor() {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        IngestDocument copy = new IngestDocument(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
-        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(copy.getSourceAndMetadata()));
-    }
 }

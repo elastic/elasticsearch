@@ -35,10 +35,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.regex.Regex;
@@ -48,9 +45,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequest;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequest;
+import org.elasticsearch.script.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -66,35 +65,46 @@ public class PipelineStore extends AbstractLifecycleComponent {
     public final static String TYPE = "pipeline";
 
     private final ThreadPool threadPool;
+    private final Environment environment;
     private final TimeValue scrollTimeout;
     private final ClusterService clusterService;
     private final Provider<Client> clientProvider;
     private final TimeValue pipelineUpdateInterval;
+    private final Provider<ScriptService> scriptServiceProvider;
     private final Pipeline.Factory factory = new Pipeline.Factory();
-    private final Map<String, Processor.Factory> processorFactoryRegistry;
+    private volatile Map<String, Processor.Factory> processorFactoryRegistry;
+    private final Map<String, ProcessorFactoryProvider> processorFactoryProviders;
 
     private volatile Client client;
     private volatile Map<String, PipelineDefinition> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, ProcessorFactoryProvider> processorFactoryProviders) {
+    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool,
+                         Environment environment, ClusterService clusterService, Provider<ScriptService> scriptServiceProvider,
+                         Map<String, ProcessorFactoryProvider> processorFactoryProviders) {
         super(settings);
         this.threadPool = threadPool;
+        this.environment = environment;
         this.clusterService = clusterService;
         this.clientProvider = clientProvider;
+        this.scriptServiceProvider = scriptServiceProvider;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
-            Processor.Factory processorFactory = entry.getValue().get(environment);
-            processorFactories.put(entry.getKey(), processorFactory);
-        }
-        this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);
+        this.processorFactoryProviders = processorFactoryProviders;
+
         clusterService.add(new PipelineStoreListener());
     }
 
     @Override
     protected void doStart() {
+        // TODO this will be better when #15203 gets in:
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        TemplateService templateService = new InternalTemplateService(scriptServiceProvider.get());
+        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
+            Processor.Factory processorFactory = entry.getValue().get(environment, templateService);
+            processorFactories.put(entry.getKey(), processorFactory);
+        }
+        this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);
     }
 
     @Override
@@ -249,25 +259,11 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return SearchScrollIterator.createIterator(client(), scrollTimeout, searchRequest);
     }
 
-
     private Client client() {
         if (client == null) {
             client = clientProvider.get();
         }
         return client;
-    }
-
-    /**
-     * The ingest framework (pipeline, processor and processor factory) can't rely on ES specific code. However some
-     * processors rely on reading files from the config directory. We can't add Environment as a constructor parameter,
-     * so we need some code that provides the physical location of the configuration directory to the processor factories
-     * that need this and this is what this processor factory provider does.
-     */
-    @FunctionalInterface
-    interface ProcessorFactoryProvider {
-
-        Processor.Factory get(Environment environment);
-
     }
 
     class Updater implements Runnable {

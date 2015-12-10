@@ -25,8 +25,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.meta.MetaDataProcessor;
+import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -126,10 +127,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExecuteTTL() throws Exception {
         // test with valid ttl
-        MetaDataProcessor.Factory metaProcessorFactory = new MetaDataProcessor.Factory();
+        SetProcessor.Factory metaProcessorFactory = new SetProcessor.Factory(TestTemplateService.instance());
         Map<String, Object> config = new HashMap<>();
-        config.put("_ttl", "5d");
-        MetaDataProcessor processor = metaProcessorFactory.create(config);
+        config.put("field", "_ttl");
+        config.put("value", "5d");
+        Processor processor = metaProcessorFactory.create(config);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
@@ -141,9 +143,10 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(listener, never()).onFailure(any());
 
         // test with invalid ttl
-        metaProcessorFactory = new MetaDataProcessor.Factory();
+        metaProcessorFactory = new SetProcessor.Factory(TestTemplateService.instance());
         config = new HashMap<>();
-        config.put("_ttl", "abc");
+        config.put("field", "_ttl");
+        config.put("value", "abc");
         processor = metaProcessorFactory.create(config);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
 

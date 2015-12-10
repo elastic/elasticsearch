@@ -20,11 +20,11 @@
 package org.elasticsearch.ingest.processor.set;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -35,19 +35,19 @@ public class SetProcessor implements Processor {
 
     public static final String TYPE = "set";
 
-    private final String field;
-    private final Object value;
+    private final TemplateService.Template field;
+    private final ValueSource value;
 
-    SetProcessor(String field, Object value) {
+    SetProcessor(TemplateService.Template field, ValueSource value) {
         this.field = field;
         this.value = value;
     }
 
-    String getField() {
+    public TemplateService.Template getField() {
         return field;
     }
 
-    Object getValue() {
+    public ValueSource getValue() {
         return value;
     }
 
@@ -62,11 +62,18 @@ public class SetProcessor implements Processor {
     }
 
     public static final class Factory implements Processor.Factory<SetProcessor> {
+
+        private final TemplateService templateService;
+
+        public Factory(TemplateService templateService) {
+            this.templateService = templateService;
+        }
+
         @Override
         public SetProcessor create(Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             Object value = ConfigurationUtils.readObject(config, "value");
-            return new SetProcessor(field, value);
+            return new SetProcessor(templateService.compile(field), ValueSource.wrap(value, templateService));
         }
     }
 }

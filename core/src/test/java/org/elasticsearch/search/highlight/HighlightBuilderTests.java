@@ -426,9 +426,9 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
-     * create random shape that is put under test
+     * create random highlight builder that is put under test
      */
-    private static HighlightBuilder randomHighlighterBuilder() {
+    public static HighlightBuilder randomHighlighterBuilder() {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());

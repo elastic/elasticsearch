@@ -144,7 +144,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private List<BytesReference> aggregations;
 
-    private BytesReference highlightBuilder;
+    private HighlightBuilder highlightBuilder;
 
     private BytesReference suggestBuilder;
 
@@ -405,22 +405,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Adds highlight to perform as part of the search.
      */
     public SearchSourceBuilder highlighter(HighlightBuilder highlightBuilder) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            highlightBuilder.innerXContent(builder);
-            builder.endObject();
-            this.highlightBuilder = builder.bytes();
-            return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.highlightBuilder = highlightBuilder;
+        return this;
     }
 
     /**
-     * Gets the bytes representing the hightlighter builder for this request.
+     * Gets the hightlighter builder for this request.
      */
-    public BytesReference highlighter() {
+    public HighlightBuilder highlighter() {
         return highlightBuilder;
     }
 
@@ -813,8 +805,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.aggregations = aggregations;
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                    builder.highlightBuilder = xContentBuilder.bytes();
+                    builder.highlightBuilder = HighlightBuilder.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     builder.innerHitsBuilder = xContentBuilder.bytes();
@@ -1012,10 +1003,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (highlightBuilder != null) {
-            builder.field(HIGHLIGHT_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(highlightBuilder);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            this.highlightBuilder.toXContent(builder, params);
         }
 
         if (innerHitsBuilder != null) {
@@ -1158,7 +1146,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         builder.from = in.readVInt();
         if (in.readBoolean()) {
-            builder.highlightBuilder = in.readBytesReference();
+            builder.highlightBuilder = HighlightBuilder.PROTOTYPE.readFrom(in);
         }
         boolean hasIndexBoost = in.readBoolean();
         if (hasIndexBoost) {
@@ -1259,7 +1247,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasHighlightBuilder = highlightBuilder != null;
         out.writeBoolean(hasHighlightBuilder);
         if (hasHighlightBuilder) {
-            out.writeBytesReference(highlightBuilder);
+            highlightBuilder.writeTo(out);
         }
         boolean hasIndexBoost = indexBoost != null;
         out.writeBoolean(hasIndexBoost);

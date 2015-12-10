@@ -7,6 +7,8 @@ package org.elasticsearch.shield.authz.accesscontrol;
 
 import org.elasticsearch.transport.TransportRequest;
 
+import java.util.Objects;
+
 /**
  * A thread local based holder of the currnet {@link TransportRequest} instance.
  */
@@ -40,7 +42,7 @@ public final class RequestContext {
     private final TransportRequest request;
 
     public RequestContext(TransportRequest request) {
-        this.request = request;
+        this.request = Objects.requireNonNull(request);
     }
 
     /**

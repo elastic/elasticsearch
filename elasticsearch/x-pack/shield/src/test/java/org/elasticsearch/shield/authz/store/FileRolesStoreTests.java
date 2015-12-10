@@ -206,7 +206,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(),
-                logger, randomBoolean() ? Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build() : Settings.EMPTY);
+                logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(7));
         assertThat(roles.get("role_fields"), nullValue());

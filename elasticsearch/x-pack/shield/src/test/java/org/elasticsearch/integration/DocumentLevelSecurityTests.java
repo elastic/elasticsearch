@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -13,8 +14,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -457,6 +461,83 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
         assertThat(response.getCount(), equalTo(1l));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
+    }
+
+    public void testRequestCache() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true))
+                .addMapping("type1", "field1", "type=string", "field2", "type=string")
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+                .get();
+        refresh();
+
+        int max = scaledRandomIntBetween(4, 32);
+        for (int i = 0; i < max; i++) {
+            Boolean requestCache = randomFrom(true, null);
+            SearchResponse response = client().prepareSearch("test")
+                    .setSize(0)
+                    .setQuery(termQuery("field1", "value1"))
+                    .setRequestCache(requestCache)
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                    .get();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            response = client().prepareSearch("test")
+                    .setSize(0)
+                    .setQuery(termQuery("field1", "value1"))
+                    .setRequestCache(requestCache)
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                    .get();
+            assertNoFailures(response);
+            assertHitCount(response, 0);
+        }
+    }
+
+    public void testUpdateApiIsBlocked() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field1", "type=string", "field2", "type=string")
+        );
+        client().prepareIndex("test", "type", "1").setSource("field1", "value1")
+                .setRefresh(true)
+                .get();
+
+        // With document level security enabled the update is not allowed:
+        try {
+            client().prepareUpdate("test", "type", "1").setDoc("field1", "value2")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                    .get();
+            fail("failed, because update request shouldn't be allowed if document level security is enabled");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
+        }
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value1"));
+
+        // With no document level security enabled the update is allowed:
+        client().prepareUpdate("test", "type", "1").setDoc("field1", "value2")
+                .get();
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
+
+        // With document level security enabled the update in bulk is not allowed:
+        try {
+            client().prepareBulk()
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                    .add(new UpdateRequest("test", "type", "1").doc("field1", "value3"))
+                    .get();
+            fail("failed, because bulk request with updates shouldn't be allowed if field or document level security is enabled");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if field or document level security is enabled"));
+        }
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
+
+        client().prepareBulk()
+                .add(new UpdateRequest("test", "type", "1").doc("field1", "value3"))
+                .get();
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value3"));
     }
 
 }

@@ -7,8 +7,10 @@ package org.elasticsearch.marvel.agent.collector.node;
 
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -20,6 +22,7 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.node.service.NodeService;
 
 import java.util.ArrayList;
@@ -38,7 +41,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     public static final String NAME = "node-stats-collector";
     public static final String TYPE = "node_stats";
 
-    private final NodeService nodeService;
+    private final Client client;
     private final DiscoveryService discoveryService;
     private final NodeEnvironment nodeEnvironment;
 
@@ -46,10 +49,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
-                              NodeService nodeService, DiscoveryService discoveryService, NodeEnvironment nodeEnvironment,
+                              SecuredClient client, DiscoveryService discoveryService, NodeEnvironment nodeEnvironment,
                               DiskThresholdDecider diskThresholdDecider) {
         super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
-        this.nodeService = nodeService;
+        this.client = client;
         this.discoveryService = discoveryService;
         this.nodeEnvironment = nodeEnvironment;
         this.diskThresholdDecider = diskThresholdDecider;
@@ -70,7 +73,14 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
 
-        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.ALL, true, true, true, true, true, false, false, false,false, false);
+        NodesStatsRequest request = new NodesStatsRequest("_local");
+        request.indices(CommonStatsFlags.ALL);
+        request.os(true);
+        request.jvm(true);
+        request.process(true);
+        request.threadPool(true);
+        request.fs(true);
+        NodeStats nodeStats = client.admin().cluster().nodesStats(request).actionGet().getAt(0);
 
         // Here we are calling directly the DiskThresholdDecider to retrieve the high watermark value
         // It would be nicer to use a settings API like documented in #6732

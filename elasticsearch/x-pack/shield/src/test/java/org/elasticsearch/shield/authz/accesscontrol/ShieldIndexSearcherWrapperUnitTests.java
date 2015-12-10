@@ -93,6 +93,16 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
+    public void testUnkownOriginOfCurrentCall() {
+        RequestContext.setCurrent(null);
+        try {
+            shieldIndexSearcherWrapper.wrap(esIn);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("can't locate the origin of the current request"));
+        }
+    }
+
     public void testDefaultMetaFields() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

@@ -767,7 +767,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
             fail("failed, because update request shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), equalTo("Can't execute an update request if field level security is enabled"));
+            assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
         }
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value1"));
 
@@ -785,21 +785,14 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
             fail("failed, because bulk request with updates shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if document and field level security is enabled"));
+            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if field or document level security is enabled"));
         }
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
-        // FIXME this should work once we can support update requests within BulkRequests...
-        // With no field level security enabled the update in bulk is allowed:
-        try {
-            client().prepareBulk()
-                    .add(new UpdateRequest("test", "type", "1").doc("field2", "value3"))
-                    .get();
-            assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if document and field level security is enabled"));
-        }
+        client().prepareBulk()
+                .add(new UpdateRequest("test", "type", "1").doc("field2", "value3"))
+                .get();
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }
 
     public void testQuery_withRoleWithFieldWildcards() throws Exception {

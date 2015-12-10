@@ -22,9 +22,9 @@ import java.util.List;
  * Base class for interceptors that disables features when field level security is configured for indices a request
  * is going to execute on.
  */
-public abstract class FieldSecurityRequestInterceptor<Request> extends AbstractComponent implements RequestInterceptor<Request> {
+public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> extends AbstractComponent implements RequestInterceptor<Request> {
 
-    public FieldSecurityRequestInterceptor(Settings settings) {
+    public FieldAndDocumentLevelSecurityRequestInterceptor(Settings settings) {
         super(settings);
     }
 
@@ -41,13 +41,16 @@ public abstract class FieldSecurityRequestInterceptor<Request> extends AbstractC
         for (IndicesRequest indicesRequest : indicesRequests) {
             for (String index : indicesRequest.indices()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                if (indexAccessControl != null && indexAccessControl.getFields() != null) {
-                    logger.debug("intercepted request for index [{}] with field level security enabled, disabling features", index);
-                    disableFeatures(request);
-                    return;
-                } else {
-                    logger.trace("intercepted request for index [{}] with field level security not enabled, doing nothing", index);
+                if (indexAccessControl != null) {
+                    boolean fls = indexAccessControl.getFields() != null;
+                    boolean dls = indexAccessControl.getQueries() != null;
+                    if (fls || dls) {
+                        logger.debug("intercepted request for index [{}] with field level or document level security enabled, disabling features", index);
+                        disableFeatures(request);
+                        return;
+                    }
                 }
+                logger.trace("intercepted request for index [{}] with neither field level or document level security not enabled, doing nothing", index);
             }
         }
     }

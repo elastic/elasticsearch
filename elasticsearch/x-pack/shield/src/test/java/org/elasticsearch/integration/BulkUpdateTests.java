@@ -10,6 +10,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -29,7 +30,7 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
-                //.put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false) //FIXME randomize once DLS/FLS works with Bulk updates...
+                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, randomBoolean())
                 .build();
     }
 

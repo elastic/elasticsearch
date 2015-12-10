@@ -13,7 +13,7 @@ import org.elasticsearch.transport.TransportRequest;
 /**
  * If field level security is enabled this interceptor disables the request cache for search requests.
  */
-public class SearchRequestInterceptor extends FieldSecurityRequestInterceptor<SearchRequest> {
+public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor<SearchRequest> {
 
     @Inject
     public SearchRequestInterceptor(Settings settings) {

@@ -316,7 +316,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     public static boolean flsDlsEnabled(Settings settings) {
-        return settings.getAsBoolean(DLS_FLS_ENABLED_SETTING, false);
+        return settings.getAsBoolean(DLS_FLS_ENABLED_SETTING, true);
     }
 
     private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {

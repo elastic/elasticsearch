@@ -120,10 +120,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(Fields._INDEX, getIndex())
-            .field(Fields._TYPE, getType())
-            .field(Fields._ID, getId())
-            .field(Fields._VERSION, getVersion());
+        builder.field(Fields._INDEX, shardId.getIndex())
+            .field(Fields._TYPE, type)
+            .field(Fields._ID, id)
+            .field(Fields._VERSION, version);
         shardInfo.toXContent(builder, params);
         return builder;
     }

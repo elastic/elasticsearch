@@ -125,7 +125,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the fragment size in characters, defaults to {@link HighlighterParseElement#DEFAULT_FRAGMENT_CHAR_SIZE}
+     * Set the fragment size in characters, defaults to {@link HighlightBuilder#DEFAULT_FRAGMENT_CHAR_SIZE}
      */
     @SuppressWarnings("unchecked")
     public HB fragmentSize(Integer fragmentSize) {
@@ -141,7 +141,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlighterParseElement#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -428,7 +428,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal hashCode calculation to overwrite for the implementing classes.
+     * fields only present in subclass should contribute to hashCode in the implementation
      */
     protected abstract int doHashCode();
 
@@ -462,7 +462,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal equals to overwrite for the implementing classes.
+     * fields only present in subclass should be checked for equality in the implementation
      */
     protected abstract boolean doEquals(HB other);
 

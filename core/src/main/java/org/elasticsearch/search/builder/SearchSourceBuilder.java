@@ -700,14 +700,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXConent(parser, context);
+        builder.parseXContent(parser, context);
         return builder;
     }
 
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      */
-    public void parseXConent(XContentParser parser, QueryParseContext context) throws IOException {
+    public void parseXContent(XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {

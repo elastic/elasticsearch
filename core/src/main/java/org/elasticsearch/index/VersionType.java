@@ -215,9 +215,9 @@ public enum VersionType implements Writeable<VersionType> {
 
     },
     /**
-     * Like INTERNAL but preserves the version on write. Like EXTERNAL but only writes on exact match.
+     * Like INTERNAL but preserves the version on write. Like EXTERNAL but only writes on exact match. Meant for use with the _reindex API.
      */
-    EXTERNAL_EXACT((byte) 4) {
+    REINDEX((byte) 4) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
             return isVersionConflict(currentVersion, expectedVersion, deleted);
@@ -418,7 +418,7 @@ public enum VersionType implements Writeable<VersionType> {
         case "force":
             return FORCE;
         case "external_exact":
-            return EXTERNAL_EXACT;
+            return REINDEX;
         default:
             throw new IllegalArgumentException("No version type match [" + versionType + "]");
         }
@@ -442,7 +442,7 @@ public enum VersionType implements Writeable<VersionType> {
         case 3:
             return FORCE;
         case 4:
-            return EXTERNAL_EXACT;
+            return REINDEX;
         default:
             throw new IllegalArgumentException("No version type match [" + value + "]");
         }

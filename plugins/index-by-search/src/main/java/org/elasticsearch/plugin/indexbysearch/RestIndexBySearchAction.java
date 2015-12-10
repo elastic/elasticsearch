@@ -60,7 +60,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         ObjectParser.Parser<SearchRequest, QueryParseContext> parseSearchSource = (parser, search, context) -> {
             try {
                 context.reset(parser);
-                search.source().parseXConent(parser, context);
+                search.source().parseXContent(parser, context);
             } catch (IOException e) {
                 // TODO throw a better exception
                 throw new ElasticsearchException(e);

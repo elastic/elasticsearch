@@ -180,7 +180,7 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> im
         }
         if (destinationSameAsSource()) {
             // Only writes on versions == and writes the version number
-            index().versionType(VersionType.EXTERNAL_EXACT);
+            index().versionType(VersionType.REINDEX);
             return;
         }
         index().opType(OpType.CREATE);

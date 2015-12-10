@@ -38,9 +38,9 @@ public class VersionTypeTests extends ESTestCase {
         internalVersionConflictTestCase(VersionType.INTERNAL);
     }
 
-    public void testExternalExactVersionConflict() throws Exception {
-        // EXTERNAL_EXACT should be just like INTERNAL
-        internalVersionConflictTestCase(VersionType.EXTERNAL_EXACT);
+    public void testReindexVersionConflict() throws Exception {
+        // REINDEX's conflict behavior should be just like INTERNAL
+        internalVersionConflictTestCase(VersionType.REINDEX);
     }
 
     public void internalVersionConflictTestCase(VersionType internal) throws Exception {
@@ -113,12 +113,12 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.INTERNAL.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.INTERNAL.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
 
-        assertTrue(VersionType.EXTERNAL_EXACT.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(VersionType.EXTERNAL_EXACT.validateVersionForWrites(Versions.MATCH_ANY));
-        assertFalse(VersionType.EXTERNAL_EXACT.validateVersionForWrites(randomIntBetween(Integer.MIN_VALUE, 0)));
-        assertTrue(VersionType.EXTERNAL_EXACT.validateVersionForReads(Versions.MATCH_ANY));
-        assertTrue(VersionType.EXTERNAL_EXACT.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(VersionType.EXTERNAL_EXACT.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
+        assertTrue(VersionType.REINDEX.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(VersionType.REINDEX.validateVersionForWrites(Versions.MATCH_ANY));
+        assertFalse(VersionType.REINDEX.validateVersionForWrites(randomIntBetween(Integer.MIN_VALUE, 0)));
+        assertTrue(VersionType.REINDEX.validateVersionForReads(Versions.MATCH_ANY));
+        assertTrue(VersionType.REINDEX.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(VersionType.REINDEX.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
     }
 
     public void testExternalVersionConflict() throws Exception {
@@ -235,9 +235,9 @@ public class VersionTypeTests extends ESTestCase {
         assertThat(VersionType.FORCE.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
         assertThat(VersionType.FORCE.updateVersion(11, 10), equalTo(10l));
 
-        assertThat(VersionType.EXTERNAL_EXACT.updateVersion(Versions.NOT_SET, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL_EXACT.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL_EXACT.updateVersion(1, 10), equalTo(10l));
+        assertThat(VersionType.REINDEX.updateVersion(Versions.NOT_SET, 10), equalTo(10l));
+        assertThat(VersionType.REINDEX.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
+        assertThat(VersionType.REINDEX.updateVersion(1, 10), equalTo(10l));
 
 // Old indexing code
 //        if (index.versionType() == VersionType.INTERNAL) { // internal version type

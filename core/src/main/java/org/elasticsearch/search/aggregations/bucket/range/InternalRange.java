@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -223,6 +225,14 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         public Type type() {
             return TYPE;
+        }
+
+        public ValuesSourceType getValueSourceType() {
+            return ValuesSourceType.NUMERIC;
+        }
+
+        public ValueType getValueType() {
+            return ValueType.NUMERIC;
         }
 
         public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,

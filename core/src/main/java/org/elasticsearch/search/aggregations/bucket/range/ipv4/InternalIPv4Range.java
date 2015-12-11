@@ -26,13 +26,12 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.ip.IpFieldMapper.MAX_IP;
 
 /**
  *
@@ -115,6 +114,11 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
         @Override
         public Type type() {
             return TYPE;
+        }
+
+        @Override
+        public ValueType getValueType() {
+            return ValueType.IP;
         }
 
         @Override

@@ -423,10 +423,10 @@ public class NestedIT extends ESIntegTestCase {
 
         Terms startDate = response.getAggregations().get("startDate");
         assertThat(startDate.getBuckets().size(), equalTo(2));
-        Terms.Bucket bucket = startDate.getBucketByKey("1414800000000"); // 2014-11-01T00:00:00.000Z
+        Terms.Bucket bucket = startDate.getBucketByKey("2014-11-01T00:00:00.000Z");
         assertThat(bucket.getDocCount(), equalTo(1l));
         Terms endDate = bucket.getAggregations().get("endDate");
-        bucket = endDate.getBucketByKey("1417305600000"); // 2014-11-30T00:00:00.000Z
+        bucket = endDate.getBucketByKey("2014-11-30T00:00:00.000Z");
         assertThat(bucket.getDocCount(), equalTo(1l));
         Terms period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-11");
@@ -440,10 +440,10 @@ public class NestedIT extends ESIntegTestCase {
         Terms tags = nestedTags.getAggregations().get("tag");
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
 
-        bucket = startDate.getBucketByKey("1417392000000"); // 2014-12-01T00:00:00.000Z
+        bucket = startDate.getBucketByKey("2014-12-01T00:00:00.000Z");
         assertThat(bucket.getDocCount(), equalTo(1l));
         endDate = bucket.getAggregations().get("endDate");
-        bucket = endDate.getBucketByKey("1419984000000"); // 2014-12-31T00:00:00.000Z
+        bucket = endDate.getBucketByKey("2014-12-31T00:00:00.000Z");
         assertThat(bucket.getDocCount(), equalTo(1l));
         period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-12");

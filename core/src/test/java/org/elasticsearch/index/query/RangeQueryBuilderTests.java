@@ -23,7 +23,9 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -352,5 +354,43 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         assertEquals(json, "2015-01-01 00:00:00", parsed.from());
         assertEquals(json, "now", parsed.to());
+    }
+
+    public void testNamedQueryParsing() throws IOException {
+        String json =
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"boost\" : 1.0,\n" +
+                "      \"_name\" : \"my_range\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertNotNull(parseQuery(json));
+
+        json =
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    },\n" +
+                "    \"_name\" : \"my_range\"\n" +
+                "  }\n" +
+                "}";
+
+        // non strict parsing should accept "_name" on top level
+        assertNotNull(parseQuery(json, ParseFieldMatcher.EMPTY));
+
+        // with strict parsing, ParseField will throw exception
+        try {
+            parseQuery(json, ParseFieldMatcher.STRICT);
+            fail("Strict parsing should trigger exception for '_name' on top level");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]"));
+        }
     }
 }

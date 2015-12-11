@@ -767,6 +767,23 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(rangeQuery.includesMax(), equalTo(false));
     }
 
+    /**
+     * test that "_name" gets parsed on field level and on query level
+     */
+    @Test
+    public void testNamedRangeQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = "{ range: { age: { gte:\"23\", lt:\"54\", _name:\"middle_aged\"}}}";
+        ParsedQuery parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.query(), instanceOf(NumericRangeQuery.class));
+        assertThat(parsedQuery.namedFilters().keySet(), contains("middle_aged"));
+
+        query = "{ range: { age: { gte:\"23\", lt:\"54\"}, _name:\"middle_aged_toplevel\"}}";
+        parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.query(), instanceOf(NumericRangeQuery.class));
+        assertThat(parsedQuery.namedFilters().keySet(), contains("middle_aged_toplevel"));
+    }
+
     @Test
     public void testRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();

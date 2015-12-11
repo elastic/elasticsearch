@@ -24,7 +24,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -93,10 +91,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private boolean enabled = Defaults.ENABLED;
 
-        private long compressThreshold = Defaults.COMPRESS_THRESHOLD;
-
-        private Boolean compress = null;
-
         private String format = Defaults.FORMAT;
 
         private String[] includes = null;
@@ -108,16 +102,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         public Builder enabled(boolean enabled) {
             this.enabled = enabled;
-            return this;
-        }
-
-        public Builder compress(boolean compress) {
-            this.compress = compress;
-            return this;
-        }
-
-        public Builder compressThreshold(long compressThreshold) {
-            this.compressThreshold = compressThreshold;
             return this;
         }
 
@@ -138,7 +122,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(enabled, format, compress, compressThreshold, includes, excludes, context.indexSettings());
+            return new SourceFieldMapper(enabled, format, includes, excludes, context.indexSettings());
         }
     }
 
@@ -153,22 +137,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
-                    iterator.remove();
-                } else if (fieldName.equals("compress") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    if (fieldNode != null) {
-                        builder.compress(nodeBooleanValue(fieldNode));
-                    }
-                    iterator.remove();
-                } else if (fieldName.equals("compress_threshold") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    if (fieldNode != null) {
-                        if (fieldNode instanceof Number) {
-                            builder.compressThreshold(((Number) fieldNode).longValue());
-                            builder.compress(true);
-                        } else {
-                            builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString(), "compress_threshold").bytes());
-                            builder.compress(true);
-                        }
-                    }
                     iterator.remove();
                 } else if ("format".equals(fieldName)) {
                     builder.format(nodeStringValue(fieldNode, null));
@@ -242,9 +210,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
 
-    private Boolean compress;
-    private long compressThreshold;
-
     private final String[] includes;
     private final String[] excludes;
 
@@ -253,15 +218,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private XContentType formatContentType;
 
     private SourceFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
+        this(Defaults.ENABLED, Defaults.FORMAT, null, null, indexSettings);
     }
 
-    private SourceFieldMapper(boolean enabled, String format, Boolean compress, long compressThreshold,
+    private SourceFieldMapper(boolean enabled, String format,
                                 String[] includes, String[] excludes, Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE.clone(), Defaults.FIELD_TYPE, indexSettings); // Only stored.
         this.enabled = enabled;
-        this.compress = compress;
-        this.compressThreshold = compressThreshold;
         this.includes = includes;
         this.excludes = excludes;
         this.format = format;
@@ -321,35 +284,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
             Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
             BytesStreamOutput bStream = new BytesStreamOutput();
-            StreamOutput streamOutput = bStream;
-            if (compress != null && compress && (compressThreshold == -1 || source.length() > compressThreshold)) {
-                streamOutput = CompressorFactory.defaultCompressor().streamOutput(bStream);
-            }
             XContentType contentType = formatContentType;
             if (contentType == null) {
                 contentType = mapTuple.v1();
             }
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
             builder.close();
 
             source = bStream.bytes();
-        } else if (compress != null && compress && !CompressorFactory.isCompressed(source)) {
-            if (compressThreshold == -1 || source.length() > compressThreshold) {
-                BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentType contentType = XContentFactory.xContentType(source);
-                if (formatContentType != null && formatContentType != contentType) {
-                    XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, CompressorFactory.defaultCompressor().streamOutput(bStream));
-                    builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
-                    builder.close();
-                } else {
-                    StreamOutput streamOutput = CompressorFactory.defaultCompressor().streamOutput(bStream);
-                    source.writeTo(streamOutput);
-                    streamOutput.close();
-                }
-                source = bStream.bytes();
-                // update the data in the context, so it can be compressed and stored compressed outside...
-                context.source(source);
-            }
         } else if (formatContentType != null) {
             // see if we need to convert the content type
             Compressor compressor = CompressorFactory.compressor(source);
@@ -403,7 +345,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null) {
+        if (!includeDefaults && enabled == Defaults.ENABLED && includes == null && excludes == null) {
             return builder;
         }
         builder.startObject(contentType());
@@ -412,16 +354,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         if (includeDefaults || !Objects.equals(format, Defaults.FORMAT)) {
             builder.field("format", format);
-        }
-        if (compress != null) {
-            builder.field("compress", compress);
-        } else if (includeDefaults) {
-            builder.field("compress", false);
-        }
-        if (compressThreshold != -1) {
-            builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
-        } else if (includeDefaults) {
-            builder.field("compress_threshold", -1);
         }
 
         if (includes != null) {
@@ -452,13 +384,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
                 mergeResult.addConflict("Cannot update excludes setting for [_source]");
-            }
-        } else {
-            if (sourceMergeWith.compress != null) {
-                this.compress = sourceMergeWith.compress;
-            }
-            if (sourceMergeWith.compressThreshold != -1) {
-                this.compressThreshold = sourceMergeWith.compressThreshold;
             }
         }
     }

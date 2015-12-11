@@ -84,32 +84,6 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
     }
 
-    public void testJsonFormatCompressedBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_source").field("format", "json").field("compress", true).endObject()
-                .endObject().endObject().string();
-
-        Settings backcompatSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapperParser parser = createIndex("test", backcompatSettings).mapperService().documentMapperParser();
-        DocumentMapper documentMapper = parser.parse(mapping);
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
-                .field("field", "value")
-                .endObject().bytes());
-
-        assertThat(CompressorFactory.isCompressed(doc.source()), equalTo(true));
-        byte[] uncompressed = CompressorFactory.uncompressIfNeeded(doc.source()).toBytes();
-        assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
-
-        documentMapper = parser.parse(mapping);
-        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
-                .field("field", "value")
-                .endObject().bytes());
-
-        assertThat(CompressorFactory.isCompressed(doc.source()), equalTo(true));
-        uncompressed = CompressorFactory.uncompressIfNeeded(doc.source()).toBytes();
-        assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
-    }
-
     public void testIncludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("includes", new String[]{"path1*"}).endObject()

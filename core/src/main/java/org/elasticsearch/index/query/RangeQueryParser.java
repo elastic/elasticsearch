@@ -104,6 +104,8 @@ public class RangeQueryParser implements QueryParser {
                             timeZone = DateTimeZone.forID(parser.text());
                         } else if ("format".equals(currentFieldName)) {
                             forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()));
+                        } else if ("_name".equals(currentFieldName)) {
+                            queryName = parser.text();
                         } else {
                             throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                         }

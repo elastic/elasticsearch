@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
@@ -103,15 +104,25 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     public String metadata(String metadataPath) throws IOException {
         String urlMetadataNetwork = GCE_METADATA_URL + "/" + metadataPath;
         logger.debug("get metadata from [{}]", urlMetadataNetwork);
-        URL url = new URL(urlMetadataNetwork);
+        final URL url = new URL(urlMetadataNetwork);
         HttpHeaders headers;
         try {
             // hack around code messiness in GCE code
             // TODO: get this fixed
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
             headers = AccessController.doPrivileged(new PrivilegedExceptionAction<HttpHeaders>() {
                 @Override
                 public HttpHeaders run() throws IOException {
                     return new HttpHeaders();
+                }
+            });
+            GenericUrl genericUrl = AccessController.doPrivileged(new PrivilegedAction<GenericUrl>() {
+                @Override
+                public GenericUrl run() {
+                    return new GenericUrl(url);
                 }
             });
 
@@ -119,7 +130,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             headers.put("Metadata-Flavor", "Google");
             HttpResponse response;
             response = getGceHttpTransport().createRequestFactory()
-                    .buildGetRequest(new GenericUrl(url))
+                    .buildGetRequest(genericUrl)
                     .setHeaders(headers)
                     .execute();
             String metadata = response.parseAsString();

@@ -47,7 +47,7 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(xyzLogger.getLevel(), nullValue());
         assertThat(abcLogger.getLevel(), nullValue());
 
-        Method method = TestClass.class.getDeclaredMethod("annotatedTestMethod");
+        Method method = TestClass.class.getMethod("annotatedTestMethod");
         TestLogging annotation = method.getAnnotation(TestLogging.class);
         Description testDescription = Description.createTestDescription(LoggingListenerTests.class, "annotatedTestMethod", annotation);
         loggingListener.testStarted(testDescription);
@@ -105,7 +105,7 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(abcLogger.getLevel(), equalTo("ERROR"));
         assertThat(xyzLogger.getLevel(), nullValue());
 
-        Method method = TestClass.class.getDeclaredMethod("annotatedTestMethod");
+        Method method = TestClass.class.getMethod("annotatedTestMethod");
         TestLogging annotation = method.getAnnotation(TestLogging.class);
         Description testDescription = Description.createTestDescription(LoggingListenerTests.class, "annotatedTestMethod", annotation);
         loggingListener.testStarted(testDescription);
@@ -116,7 +116,7 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(abcLogger.getLevel(), equalTo("ERROR"));
         assertThat(xyzLogger.getLevel(), nullValue());
 
-        Method method2 = TestClass.class.getDeclaredMethod("annotatedTestMethod2");
+        Method method2 = TestClass.class.getMethod("annotatedTestMethod2");
         TestLogging annotation2 = method2.getAnnotation(TestLogging.class);
         Description testDescription2 = Description.createTestDescription(LoggingListenerTests.class, "annotatedTestMethod2", annotation2);
         loggingListener.testStarted(testDescription2);

@@ -521,7 +521,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
     }
 
-
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long version, VersionType versionType) {
         if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
             throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");

@@ -212,7 +212,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
             TypeLiteral<?> factoryType, TypeLiteral<?> implementationType) {
         List<AssistedConstructor<?>> constructors = new ArrayList<>();
 
-        for (Constructor<?> constructor : implementationType.getRawType().getDeclaredConstructors()) {
+        for (Constructor<?> constructor : implementationType.getRawType().getConstructors()) {
             if (constructor.getAnnotation(AssistedInject.class) != null) {
                 @SuppressWarnings("unchecked") // the constructor type and implementation type agree
                         AssistedConstructor assistedConstructor = new AssistedConstructor(

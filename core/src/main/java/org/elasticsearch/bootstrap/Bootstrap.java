@@ -37,7 +37,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
@@ -80,11 +79,11 @@ final class Bootstrap {
             }
         });
     }
-    
+
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        
+
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
             if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
@@ -93,12 +92,12 @@ final class Bootstrap {
                 throw new RuntimeException("don't run elasticsearch as root.");
             }
         }
-        
+
         // enable secure computing mode
         if (seccomp) {
             Natives.trySeccomp(tmpFile);
         }
-        
+
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
@@ -175,11 +174,10 @@ final class Bootstrap {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .build();
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings);
-        node = nodeBuilder.build();
+        node = new Node(nodeSettings);
     }
-    
-    /** 
+
+    /**
      * option for elasticsearch.yml etc to turn off our security manager completely,
      * for example if you want to have your own configuration or just disable.
      */
@@ -322,7 +320,7 @@ final class Bootstrap {
             if (foreground) {
                 Loggers.enableConsoleLogging();
             }
-            
+
             throw e;
         }
     }

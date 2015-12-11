@@ -19,12 +19,12 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,7 +47,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A test that keep a singleton node started for all tests that can be used to get
@@ -119,7 +120,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     private static Node newNode() {
-        Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(Settings.builder()
+        Node build = new Node(Settings.builder()
                 .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put("path.home", createTempDir())
                 // TODO: use a consistent data path for custom paths
@@ -132,8 +133,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 .put("script.indexed", "on")
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
+                .put("node.local", true)
+                .put("node.data", true)
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-        ).build();
+                .build()
+        );
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

@@ -19,6 +19,8 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
+
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -34,6 +36,8 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.lang.ref.SoftReference;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
@@ -123,6 +127,9 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         // Nothing to do here
     }
 
+    // permission checked before doing crazy reflection
+    static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
+
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
@@ -148,9 +155,20 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
 
         @Override
         public Object run() {
-            BytesStreamOutput result = new BytesStreamOutput();
+            final BytesStreamOutput result = new BytesStreamOutput();
             try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
-                ((Mustache) template.compiled()).execute(writer, vars);
+                // crazy reflection here
+                SecurityManager sm = System.getSecurityManager();
+                if (sm != null) {
+                    sm.checkPermission(SPECIAL_PERMISSION);
+                }
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    @Override
+                    public Void run() {
+                        ((Mustache) template.compiled()).execute(writer, vars);
+                        return null;
+                    }
+                });
             } catch (Exception e) {
                 logger.error("Error running " + template, e);
                 throw new ScriptException("Error running " + template, e);

@@ -188,7 +188,7 @@ public final class InjectionPoint {
         Errors errors = new Errors(rawType);
 
         Constructor<?> injectableConstructor = null;
-        for (Constructor<?> constructor : rawType.getDeclaredConstructors()) {
+        for (Constructor<?> constructor : rawType.getConstructors()) {
             Inject inject = constructor.getAnnotation(Inject.class);
             if (inject != null) {
                 if (inject.optional()) {
@@ -212,7 +212,7 @@ public final class InjectionPoint {
 
         // If no annotated constructor is found, look for a no-arg constructor instead.
         try {
-            Constructor<?> noArgConstructor = rawType.getDeclaredConstructor();
+            Constructor<?> noArgConstructor = rawType.getConstructor();
 
             // Disallow private constructors on non-private classes (unless they have @Inject)
             if (Modifier.isPrivate(noArgConstructor.getModifiers())
@@ -334,7 +334,7 @@ public final class InjectionPoint {
         // name. In Scala, fields always get accessor methods (that we need to ignore). See bug 242.
         if (member instanceof Method) {
             try {
-                if (member.getDeclaringClass().getDeclaredField(member.getName()) != null) {
+                if (member.getDeclaringClass().getField(member.getName()) != null) {
                     return;
                 }
             } catch (NoSuchFieldException ignore) {
@@ -390,7 +390,7 @@ public final class InjectionPoint {
         Factory<Field> FIELDS = new Factory<Field>() {
             @Override
             public Field[] getMembers(Class<?> type) {
-                return type.getDeclaredFields();
+                return type.getFields();
             }
 
             @Override
@@ -402,7 +402,7 @@ public final class InjectionPoint {
         Factory<Method> METHODS = new Factory<Method>() {
             @Override
             public Method[] getMembers(Class<?> type) {
-                return type.getDeclaredMethods();
+                return type.getMethods();
             }
 
             @Override

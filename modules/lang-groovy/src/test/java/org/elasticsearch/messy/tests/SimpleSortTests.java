@@ -469,7 +469,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     }
 
     public void testSimpleSorts() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -496,7 +496,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                     .endObject());
             builders.add(builder);
         }
-        Randomness.shuffle(builders);
+        Collections.shuffle(builders, random);
         for (IndexRequestBuilder builder : builders) {
             builder.execute().actionGet();
             if (random.nextBoolean()) {

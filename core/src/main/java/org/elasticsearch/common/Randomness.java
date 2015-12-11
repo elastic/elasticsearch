@@ -114,7 +114,7 @@ public final class Randomness {
 
     private static Random getWithoutSeed() {
         assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
-        if (LOCAL.get() == null) {
+        if (LOCAL == null) {
             byte[] bytes = SR.generateSeed(8);
             long accumulator = 0;
             for (int i = 0; i < bytes.length; i++) {

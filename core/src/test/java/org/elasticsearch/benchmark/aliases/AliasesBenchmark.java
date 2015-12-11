@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,13 +45,13 @@ public class AliasesBenchmark {
 
         Settings settings = Settings.settingsBuilder()
                 .put("node.master", false).build();
-        Node node1 = NodeBuilder.nodeBuilder().settings(
-                Settings.settingsBuilder().put(settings).put("node.master", true)
-        ).node();
+        Node node1 = new Node(
+                Settings.settingsBuilder().put(settings).put("node.master", true).build()
+        ).start();
 
         Node[] otherNodes = new Node[NUM_ADDITIONAL_NODES];
         for (int i = 0; i < otherNodes.length; i++) {
-            otherNodes[i] = NodeBuilder.nodeBuilder().settings(settings).node();
+            otherNodes[i] = new Node(settings).start();
         }
 
         Client client = node1.client();

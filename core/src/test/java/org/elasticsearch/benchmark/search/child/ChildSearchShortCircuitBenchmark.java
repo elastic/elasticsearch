@@ -45,7 +45,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -57,12 +56,10 @@ public class ChildSearchShortCircuitBenchmark {
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", ChildSearchShortCircuitBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = ChildSearchShortCircuitBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "node1"))
-                .node();
+        Node node1 = new Node(settingsBuilder().put(settings).put("name", "node1").build()).start();
         Client client = node1.client();
 
         long PARENT_COUNT = SizeValue.parseSizeValue("10M").singles();

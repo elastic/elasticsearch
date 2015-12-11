@@ -42,7 +42,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class QueryFilterAggregationSearchBenchmark {
 
@@ -58,12 +57,11 @@ public class QueryFilterAggregationSearchBenchmark {
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("name", "node1")
+                .put("cluster.name", QueryFilterAggregationSearchBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = QueryFilterAggregationSearchBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder()
-                .clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        Node node1 = new Node(settings).start();
         client = node1.client();
 
         long[] lValues = new long[NUMBER_OF_TERMS];
@@ -119,7 +117,7 @@ public class QueryFilterAggregationSearchBenchmark {
         System.out.println("--> Number of docs in index: " + COUNT);
 
         final long anyValue = ((Number) client.prepareSearch().execute().actionGet().getHits().hits()[0].sourceAsMap().get("l_value")).longValue();
-        
+
         long totalQueryTime = 0;
 
         totalQueryTime = 0;

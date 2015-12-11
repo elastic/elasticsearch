@@ -21,7 +21,6 @@ package org.elasticsearch.benchmark.search.aggregations;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -40,14 +39,18 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.transport.TransportModule;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -77,13 +80,10 @@ public class GlobalOrdinalsBenchmark {
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "local")
+                .put("cluster.name", GlobalOrdinalsBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = GlobalOrdinalsBenchmark.class.getSimpleName();
-        node = nodeBuilder().clusterName(clusterName)
-                    .settings(settingsBuilder().put(settings))
-                    .node();
-
+        node = new Node(settings).start();
         client = node.client();
 
         try {

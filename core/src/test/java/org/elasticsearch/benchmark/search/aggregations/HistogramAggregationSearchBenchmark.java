@@ -39,8 +39,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 
 /**
  *
@@ -58,15 +59,12 @@ public class HistogramAggregationSearchBenchmark {
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", HistogramAggregationSearchBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = HistogramAggregationSearchBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder()
-                .clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        Node node1 = new Node(settingsBuilder().put(settings).put("name", "node1").build()).start();
 
-        //Node clientNode = nodeBuilder().clusterName(clusterName).settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-
+        //Node clientNode = new Node(settingsBuilder().put(settings).put("name", "client").put("node.client", true).build()).start();
         Client client = node1.client();
 
         long[] lValues = new long[NUMBER_OF_TERMS];

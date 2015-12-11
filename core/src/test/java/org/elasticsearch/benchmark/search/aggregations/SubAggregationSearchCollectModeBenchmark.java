@@ -51,7 +51,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -77,20 +76,15 @@ public class SubAggregationSearchCollectModeBenchmark {
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", SubAggregationSearchCollectModeBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = SubAggregationSearchCollectModeBenchmark.class.getSimpleName();
         nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().clusterName(clusterName)
-                    .settings(settingsBuilder().put(settings).put("name", "node" + i))
-                    .node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
 
-        Node clientNode = nodeBuilder()
-                .clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-
+        Node clientNode = new Node(settingsBuilder().put(settings).put("name", "client").put("node.client", true).build()).start();
         client = clientNode.client();
 
         Thread.sleep(10000);

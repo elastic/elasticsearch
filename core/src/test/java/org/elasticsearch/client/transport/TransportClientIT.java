@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -51,13 +50,15 @@ public class TransportClientIT extends ESIntegTestCase {
     public void testNodeVersionIsUpdated() {
         TransportClient client = (TransportClient)  internalCluster().client();
         TransportClientNodesService nodeService = client.nodeService();
-        Node node = nodeBuilder().data(false).settings(Settings.builder()
+        Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
+                .put("node.data", false)
+                .put("cluster.name", "foobar")
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-                .build()).clusterName("foobar").build();
+                .build());
         node.start();
         try {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();

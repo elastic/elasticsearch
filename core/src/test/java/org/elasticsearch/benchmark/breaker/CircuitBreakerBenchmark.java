@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.UUID;
@@ -123,7 +122,7 @@ public class CircuitBreakerBenchmark {
     }
 
     public static void main(String args[]) throws Exception {
-        Node node = NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder()).node();
+        Node node = new Node(Settings.EMPTY);
         final Client client = node.client();
         try {
             try {

@@ -20,7 +20,6 @@ package org.elasticsearch.benchmark.search.aggregations;
 
 import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -52,7 +51,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -77,14 +75,12 @@ public class TermsAggregationSearchAndIndexingBenchmark {
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", TermsAggregationSearchAndIndexingBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = TermsAggregationSearchAndIndexingBenchmark.class.getSimpleName();
         nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1"))
-                    .clusterName(clusterName)
-                    .node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
         Client client = nodes[0].client();
 

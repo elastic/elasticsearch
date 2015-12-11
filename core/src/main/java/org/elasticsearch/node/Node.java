@@ -108,8 +108,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
- * <p>In order to create a node, the {@link NodeBuilder} can be used. When done with it, make sure to
- * call {@link #close()} on it.
  */
 public class Node implements Releasable {
 

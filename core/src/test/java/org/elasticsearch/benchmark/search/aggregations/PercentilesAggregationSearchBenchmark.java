@@ -49,7 +49,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 
 public class PercentilesAggregationSearchBenchmark {
@@ -106,19 +105,15 @@ public class PercentilesAggregationSearchBenchmark {
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 100) // to also test performance and accuracy of the reduce phase
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", CLUSTER_NAME)
                 .build();
 
         Node[] nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().clusterName(CLUSTER_NAME)
-                    .settings(settingsBuilder().put(settings).put("name", "node" + i))
-                    .node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
 
-        Node clientNode = nodeBuilder()
-                .clusterName(CLUSTER_NAME)
-                .settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-
+        Node clientNode = new Node(settingsBuilder().put(settings).put("name", "client").put("node.client", true).build()).start();
         Client client = clientNode.client();
 
         for (Distribution d : Distribution.values()) {
@@ -193,7 +188,7 @@ public class PercentilesAggregationSearchBenchmark {
             System.out.println("Sum of error squares: " + sumOfErrorSquares);
             System.out.println();
         }
-        
+
         System.out.println("## Performance");
         for (int i = 0; i < 3; ++i) {
             for (Distribution d : Distribution.values()) {

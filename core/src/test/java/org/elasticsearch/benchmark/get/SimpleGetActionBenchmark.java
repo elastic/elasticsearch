@@ -21,9 +21,9 @@ package org.elasticsearch.benchmark.get;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 
 // simple test for embedded / single remote lookup
 public class SimpleGetActionBenchmark {
@@ -31,11 +31,11 @@ public class SimpleGetActionBenchmark {
     public static void main(String[] args) {
         long OPERATIONS = SizeValue.parseSizeValue("300k").singles();
 
-        Node node = NodeBuilder.nodeBuilder().node();
+        Node node = new Node(Settings.EMPTY);
 
         Client client;
         if (false) {
-            client = NodeBuilder.nodeBuilder().client(true).node().client();
+            client = new Node(Settings.builder().put("node.client", true).build()).start().client();
         } else {
             client = node.client();
         }

@@ -38,13 +38,11 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.joda.time.PeriodType;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class ScriptComparisonBenchmark {
 

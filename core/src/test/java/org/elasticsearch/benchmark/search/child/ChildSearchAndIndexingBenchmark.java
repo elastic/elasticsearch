@@ -40,7 +40,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
@@ -59,12 +58,10 @@ public class ChildSearchAndIndexingBenchmark {
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("cluster.name", ChildSearchAndIndexingBenchmark.class.getSimpleName())
                 .build();
 
-        String clusterName = ChildSearchAndIndexingBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1"))
-                .clusterName(clusterName)
-                .node();
+        Node node1 = new Node(settingsBuilder().put(settings).put("name", "node1").build()).start();
         Client client = node1.client();
 
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();

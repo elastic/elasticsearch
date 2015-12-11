@@ -45,7 +45,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  */
@@ -61,7 +60,7 @@ public class SuggestSearchBenchMark {
 
         Node[] nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
+            nodes[i] = new Node(settingsBuilder().put(settings).put("name", "node" + i).build()).start();
         }
 
         Client client = nodes[0].client();

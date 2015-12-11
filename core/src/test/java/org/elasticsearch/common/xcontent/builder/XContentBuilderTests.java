@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.FastCharArrayWriter;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,8 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class XContentBuilderTests extends ESTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
-        FastCharArrayWriter writer = new FastCharArrayWriter();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
         generator.usePrettyPrint();
         generator.usePrintLineFeedAtEnd();
 
@@ -68,27 +70,28 @@ public class XContentBuilderTests extends ESTestCase {
         // double close, and check there is no error...
         generator.close();
 
-        assertThat(writer.unsafeCharArray()[writer.size() - 1], equalTo('\n'));
+        byte[] bytes = os.toByteArray();
+        assertThat((char) bytes[bytes.length - 1], equalTo('\n'));
     }
 
     public void testReuseJsonGenerator() throws Exception {
-        FastCharArrayWriter writer = new FastCharArrayWriter();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
         generator.flush();
 
-        assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
+        assertThat(new BytesRef(os.toByteArray()), equalTo(new BytesRef("{\"test\":\"value\"}")));
 
         // try again...
-        writer.reset();
+        os.reset();
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
         generator.flush();
         // we get a space at the start here since it thinks we are not in the root object (fine, we will ignore it in the real code we use)
-        assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
+        assertThat(new BytesRef(os.toByteArray()), equalTo(new BytesRef(" {\"test\":\"value\"}")));
     }
 
     public void testRaw() throws IOException {

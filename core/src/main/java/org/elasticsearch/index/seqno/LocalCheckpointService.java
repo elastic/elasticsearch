@@ -31,15 +31,23 @@ import java.util.LinkedList;
  */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
-    public static String SETTINGS_BIT_ARRAY_CHUNK_SIZE = "index.seq_no.checkpoint.bit_array_chunk_size";
+    /**
+     * we keep a bit for each seq No that is still pending. to optimize allocation, we do so in multiple arrays
+     * allocating them on demand and cleaning up while completed. This setting controls the size of the arrays
+     */
+    public static String SETTINGS_BIT_ARRAYS_SIZE = "index.seq_no.checkpoint.bit_arrays_size";
 
-    /** default value for {@link #SETTINGS_BIT_ARRAY_CHUNK_SIZE} */
-    final static int DEFAULT_BIT_ARRAY_CHUNK_SIZE = 1024;
+    /** default value for {@link #SETTINGS_BIT_ARRAYS_SIZE} */
+    final static int DEFAULT_BIT_ARRAYS_SIZE = 1024;
 
 
+    /**
+     * an order list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstSeqNoInProcessSeqNo}
+     * which marks the seqNo the fist bit in the first array corresponds to.
+     */
     final LinkedList<FixedBitSet> processedSeqNo;
-    final int processedSeqNoChunkSize;
-    long minSeqNoInProcessSeqNo = 0;
+    final int bitArraysSize;
+    long firstSeqNoInProcessSeqNo = 0;
 
     /** the current local checkpoint, i.e., all seqNo lower&lt;= this number have been completed */
     volatile long checkpoint = -1;
@@ -50,7 +58,10 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
-        processedSeqNoChunkSize = indexSettings.getSettings().getAsInt(SETTINGS_BIT_ARRAY_CHUNK_SIZE, DEFAULT_BIT_ARRAY_CHUNK_SIZE);
+        bitArraysSize = indexSettings.getSettings().getAsInt(SETTINGS_BIT_ARRAYS_SIZE, DEFAULT_BIT_ARRAYS_SIZE);
+        if (bitArraysSize <= 0) {
+            throw new IllegalArgumentException("[" + SETTINGS_BIT_ARRAYS_SIZE + "] must be positive. got [" + bitArraysSize + "]");
+        }
         processedSeqNo = new LinkedList<>();
     }
 
@@ -70,7 +81,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
             nextSeqNo = seqNo + 1;
         }
         if (seqNo <= checkpoint) {
-            // this is possible during recover where we might replay an op that was also replicated
+            // this is possible during recovery where we might replay an op that was also replicated
             return;
         }
         FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
@@ -91,9 +102,13 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return nextSeqNo - 1;
     }
 
+    /**
+     * moves the checkpoint to the last consecutively processed seqNo
+     * Note: this method assumes that the seqNo following the current checkpoint is processed.
+     */
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert checkpoint - minSeqNoInProcessSeqNo < processedSeqNoChunkSize : "checkpoint to minSeqNoInProcessSeqNo is larger then a bit set";
+        assert checkpoint - firstSeqNoInProcessSeqNo < bitArraysSize : "checkpoint to firstSeqNoInProcessSeqNo is larger then a bit set";
         assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) : "updateCheckpoint is called but the bit following the checkpoint is not set";
         assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() : "checkpoint + 1 doesn't point to the first bit set";
         // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
@@ -102,21 +117,24 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
             checkpoint++;
             // the checkpoint always falls in the first bit set or just before. If it falls
             // on the last bit of the current bit set, we can clean it.
-            if (checkpoint == minSeqNoInProcessSeqNo + processedSeqNoChunkSize - 1) {
+            if (checkpoint == firstSeqNoInProcessSeqNo + bitArraysSize - 1) {
                 processedSeqNo.pop();
-                minSeqNoInProcessSeqNo += processedSeqNoChunkSize;
-                assert checkpoint - minSeqNoInProcessSeqNo < processedSeqNoChunkSize;
+                firstSeqNoInProcessSeqNo += bitArraysSize;
+                assert checkpoint - firstSeqNoInProcessSeqNo < bitArraysSize;
                 current = processedSeqNo.peekFirst();
             }
         } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
     }
 
+    /**
+     * gets the bit array for the give seqNo, allocating new ones if needed.
+     */
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= minSeqNoInProcessSeqNo;
-        int bitSetOffset = ((int) (seqNo - minSeqNoInProcessSeqNo)) / processedSeqNoChunkSize;
+        assert seqNo >= firstSeqNoInProcessSeqNo;
+        int bitSetOffset = ((int) (seqNo - firstSeqNoInProcessSeqNo)) / bitArraysSize;
         while (bitSetOffset >= processedSeqNo.size()) {
-            processedSeqNo.add(new FixedBitSet(processedSeqNoChunkSize));
+            processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
         return processedSeqNo.get(bitSetOffset);
     }
@@ -125,7 +143,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
     private int seqNoToBitSetOffset(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= minSeqNoInProcessSeqNo;
-        return ((int) (seqNo - minSeqNoInProcessSeqNo)) % processedSeqNoChunkSize;
+        assert seqNo >= firstSeqNoInProcessSeqNo;
+        return ((int) (seqNo - firstSeqNoInProcessSeqNo)) % bitArraysSize;
     }
 }

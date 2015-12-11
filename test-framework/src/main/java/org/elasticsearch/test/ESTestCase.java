@@ -555,12 +555,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, T... values) {
-        if (size > values.length) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
-        }
-        List<T> list = arrayAsArrayList(values);
-        Collections.shuffle(list);
-        return list.subList(0, size);
+        return randomSubsetOf(size, Arrays.asList(values));
     }
 
     /**
@@ -571,7 +566,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.size() + " objects");
         }
         List<T> list = new ArrayList<>(values);
-        Collections.shuffle(list);
+        Collections.shuffle(list, random());
         return list.subList(0, size);
     }
 
@@ -621,7 +616,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
     }
-    
+
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;

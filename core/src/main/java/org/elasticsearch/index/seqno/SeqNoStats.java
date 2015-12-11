@@ -29,14 +29,16 @@ import java.io.IOException;
 
 public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
 
-    public static final SeqNoStats PROTOTYPE = new SeqNoStats(0, 0);
-
     final long maxSeqNo;
     final long localCheckpoint;
 
     public SeqNoStats(long maxSeqNo, long localCheckpoint) {
         this.maxSeqNo = maxSeqNo;
         this.localCheckpoint = localCheckpoint;
+    }
+
+    public SeqNoStats(StreamInput in) throws IOException {
+        this(in.readZLong(), in.readZLong());
     }
 
     /** the maximum sequence number seen so far */
@@ -56,8 +58,8 @@ public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(maxSeqNo);
-        out.writeLong(localCheckpoint);
+        out.writeZLong(maxSeqNo);
+        out.writeZLong(localCheckpoint);
     }
 
     @Override

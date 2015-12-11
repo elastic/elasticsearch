@@ -61,7 +61,7 @@ public class ShieldActionMapperTests extends ESTestCase {
         }
         clearScrollRequest.addScrollId("_all");
         //make sure that wherever the _all is among the scroll ids the action name gets translated
-        Collections.shuffle(clearScrollRequest.getScrollIds(), getRandom());
+        Collections.shuffle(clearScrollRequest.getScrollIds(), random());
 
         assertThat(shieldActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ShieldActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME));
     }

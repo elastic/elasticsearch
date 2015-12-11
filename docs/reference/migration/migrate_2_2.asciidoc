@@ -27,3 +27,19 @@ for any nodes in the response that are also running version 2.2.0 or later of El
 other node in the response. Do note that if you send a cat nodes request to a node running a version of Elasticsearch
 earlier than 2.2.0, the CPU usage will not be shown for any nodes. Finally, the API for
 org.elasticsearch.monitor.os.OsStats has an additional method `OsStats#getCpuPercent`.
+
+[[breaking_22_plugins]]
+=== Plugins
+
+==== Cloud AWS
+
+Proxy settings have been deprecated and renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
+
+If you are using proxy settings, update your settings as deprecated ones will be removed in next major version.

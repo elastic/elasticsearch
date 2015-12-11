@@ -22,7 +22,6 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -33,24 +32,17 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
@@ -68,9 +60,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -900,78 +892,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
         ));
-    }
-
-    public static abstract class TestCustomMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
-        private final String data;
-
-        protected TestCustomMetaData(String data) {
-            this.data = data;
-        }
-
-        public String getData() {
-            return data;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TestCustomMetaData that = (TestCustomMetaData) o;
-
-            if (!data.equals(that.data)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return data.hashCode();
-        }
-
-        protected abstract TestCustomMetaData newTestCustomMetaData(String data);
-
-        @Override
-        public Custom readFrom(StreamInput in) throws IOException {
-            return newTestCustomMetaData(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getData());
-        }
-
-        @Override
-        public Custom fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            String data = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    if ("data".equals(currentFieldName)) {
-                        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                            throw new ElasticsearchParseException("failed to parse snapshottable metadata, invalid data type");
-                        }
-                        data = parser.text();
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [{}]", currentFieldName);
-                    }
-                } else {
-                    throw new ElasticsearchParseException("failed to parse snapshottable metadata");
-                }
-            }
-            if (data == null) {
-                throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
-            }
-            return newTestCustomMetaData(data);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.field("data", getData());
-            return builder;
-        }
     }
 
 

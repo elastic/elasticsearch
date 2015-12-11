@@ -836,8 +836,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
-
+    void handleJoinRequest(final DiscoveryNode node, final ClusterState state, final MembershipAction.JoinCallback callback) {
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
@@ -849,7 +848,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // Sanity check: maybe we don't end up here, because serialization may have failed.
             if (node.getVersion().before(minimumNodeJoinVersion)) {
                 callback.onFailure(
-                        new IllegalStateException("Can't handle join request from a node with a version [" + node.getVersion() + "] that is lower than the minimum compatible version [" + minimumNodeJoinVersion.minimumCompatibilityVersion() + "]")
+                    new IllegalStateException("Can't handle join request from a node with a version [" + node.getVersion() + "] that is lower than the minimum compatible version [" + minimumNodeJoinVersion.minimumCompatibilityVersion() + "]")
                 );
                 return;
             }
@@ -859,7 +858,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
-            membership.sendValidateJoinRequestBlocking(node, joinTimeout);
+            try {
+                membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
+            } catch (Throwable e) {
+                logger.warn("failed to validate incoming join request from node [{}]", node);
+                callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+                return;
+            }
             nodeJoinController.handleJoinRequest(node, callback);
         }
     }
@@ -1039,7 +1044,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private class MembershipListener implements MembershipAction.MembershipListener {
         @Override
         public void onJoin(DiscoveryNode node, MembershipAction.JoinCallback callback) {
-            handleJoinRequest(node, callback);
+            handleJoinRequest(node, clusterService.state(), callback);
         }
 
         @Override

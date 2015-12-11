@@ -134,7 +134,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         //noinspection unchecked
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }

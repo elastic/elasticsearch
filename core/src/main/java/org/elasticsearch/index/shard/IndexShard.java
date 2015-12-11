@@ -506,9 +506,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long version, VersionType versionType) {
-        if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
-        }
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
         return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation.Origin.REPLICA);
     }

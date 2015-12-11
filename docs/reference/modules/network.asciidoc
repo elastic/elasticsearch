@@ -1,94 +1,175 @@
 [[modules-network]]
 == Network Settings
 
-There are several modules within a Node that use network based
-configuration, for example, the
-<<modules-transport,transport>> and
-<<modules-http,http>> modules. Node level
-network settings allows to set common settings that will be shared among
-all network based modules (unless explicitly overridden in each module).
+Elasticsearch binds to localhost only by default.  This is sufficient for you
+to run a local development server (or even a development cluster, if you start
+multiple nodes on the same machine), but you will need to configure some
+<<common-network-settings,basic network settings>> in order to run a real
+production cluster across multiple servers.
 
-Be careful with host configuration! Never expose an unprotected instance
-to the public internet.
+[WARNING]
+.Be careful with the network configuration!
+=============================
+Never expose an unprotected node to the public internet.
+=============================
 
-The `network.bind_host` setting allows to control the host different network
-components will bind on. By default, the bind host will be `_local_`
-(loopback addresses such as `127.0.0.1`, `::1`).
+[float]
+[[common-network-settings]]
+=== Commonly Used Network Settings
 
-The `network.publish_host` setting allows to control the host the node will
-publish itself within the cluster so other nodes will be able to connect to it.
-Currently an elasticsearch node may be bound to multiple addresses, but only
-publishes one.  If not specified, this defaults to the "best" address from 
-`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by reachability.
+`network.host`::
 
-The `network.host` setting is a simple setting to automatically set both
-`network.bind_host` and `network.publish_host` to the same host value.
+The node will bind to this hostname or IP address and _publish_ (advertise)
+this host to other nodes in the cluster. Accepts an IP address, hostname, or a
+<<network-interface-values,special value>>.
++
+Defaults to `_local_`.
 
-Both settings allows to be configured with either explicit host address(es)
-or host name(s). The settings also accept logical setting value(s) explained
-in the following table:
+`discovery.zen.ping.unicast.hosts`::
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Logical Host Setting Value |Description
-|`_local_` |Will be resolved to loopback addresses
+In order to join a cluster, a node needs to know the hostname or IP address of
+at least some of the other nodes in the cluster.  This settting provides the
+initial list of other nodes that this node will try to contact. Accepts IP
+addresses or hostnames.
++
+Defaults to `["127.0.0.1", "[::1]"]`.
 
-|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses (e.g. 127.0.0.1)
+`http.port`::
 
-|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses (e.g. ::1)
+Port to bind to for incoming HTTP requests. Accepts a single value or a range.
+If a range is specified, the node will bind to the first available port in the
+range.
++
+Defaults to `9200-9300`.
 
-|`_site_` |Will be resolved to site-local addresses ("private network")
+`transport.tcp.port`::
 
-|`_site:ipv4_` |Will be resolved to site-local IPv4 addresses (e.g. 192.168.0.1)
+Port to bind for communication between nodes. Accepts a single value or a
+range. If a range is specified, the node will bind to the first available port
+in the range.
++
+Defaults to `9300-9400`.
 
-|`_site:ipv6_` |Will be resolved to site-local IPv6 addresses (e.g. fec0::1)
+[float]
+[[network-interface-values]]
+=== Special values for `network.host`
 
-|`_global_` |Will be resolved to globally-scoped addresses ("publicly reachable")
+The following special values may be passed to `network.host`:
 
-|`_global:ipv4_` |Will be resolved to globally-scoped IPv4 addresses (e.g. 8.8.8.8)
+[horizontal]
+`_[networkInterface]_`::
 
-|`_global:ipv6_` |Will be resolved to globally-scoped IPv6 addresses (e.g. 2001:4860:4860::8888)
+  Addresses of a network interface, for example `_en0_`.
 
-|`_[networkInterface]_` |Resolves to the addresses of the provided
-network interface. For example `_en0_`.
+`_local_`::
 
-|`_[networkInterface]:ipv4_` |Resolves to the ipv4 addresses of the
-provided network interface. For example `_en0:ipv4_`.
+  Any loopback addresses on the system, for example `127.0.0.1`.
 
-|`_[networkInterface]:ipv6_` |Resolves to the ipv6 addresses of the
-provided network interface. For example `_en0:ipv6_`.
-|=======================================================================
+`_site_`::
 
-When the `discovery-ec2` plugin is installed, you can use
-{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].
+  Any site-local addresses on the system, for example `192.168.0.1`.
 
-When the `discovery-gce` plugin is installed, you can use
-{plugins}/discovery-gce-network-host.html[gce specific host settings].
+`_global_`::
+
+  Any globally-scoped addresses on the system, for example `8.8.8.8`.
 
 
 [float]
+==== IPv4 vs IPv6
+
+These special values will work over both IPv4 and IPv6 by default, but you can
+also limit this with the use of `:ipv4` of `:ipv6` specifiers. For example,
+`_en0:ipv4_` would only bind to the IPv4 addresses of interface `en0`.
+
+[TIP]
+.Discovery in the cloud
+================================
+
+More special settings are available when running in the cloud with either the
+{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[EC2 discovery plugin] or the
+{plugins}/discovery-gce-network-host.html#discovery-gce-network-host[Google Compute Engine discovery plugin]
+installed.
+
+================================
+
+[float]
+[[advanced-network-settings]]
+=== Advanced network settings
+
+The `network.host` setting explained in <<common-network-settings,Commonly used network settings>>
+is a shortcut which sets the _bind host_ and the _publish host_ at the same
+time. In advanced used cases, such as when running behind a proxy server, you
+may need to set these settings to different values:
+
+`network.bind_host`::
+
+This specifies which network interface(s) a node should bind to in order to
+listen for incoming requests.  A node can bind to multiple interfaces, e.g.
+two network cards, or a site-local address and a local address. Defaults to
+`network.host`.
+
+`network.publish_host`::
+
+The publish host is the single interface that the node advertises to other
+nodes in the cluster, so that those nodes can connect to it.   Currently an
+elasticsearch node may be bound to multiple addresses, but only publishes one.
+If not specified, this defaults to the ``best'' address from
+`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by
+reachability.
+
+Both of the above settings can be configured just like `network.host` -- they
+accept IP addresses, host names, and
+<<network-interface-values,special values>>.
+
+[float]
 [[tcp-settings]]
-=== TCP Settings
+=== Advanced TCP Settings
 
-Any component that uses TCP (like the HTTP, Transport and Memcached)
-share the following allowed settings:
+Any component that uses TCP (like the <<modules-http,HTTP>> and
+<<modules-transport,Transport>> modules) share the following settings:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`network.tcp.no_delay` |Enable or disable tcp no delay setting.
+[horizontal]
+`network.tcp.no_delay`::
+
+Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+setting. Defaults to `true`.
+
+`network.tcp.keep_alive`::
+
+Enable or disable https://en.wikipedia.org/wiki/Keepalive[TCP keep alive].
 Defaults to `true`.
 
-|`network.tcp.keep_alive` |Enable or disable tcp keep alive. Defaults
-to `true`.
+`network.tcp.reuse_address`::
 
-|`network.tcp.reuse_address` |Should an address be reused or not.
-Defaults to `true` on non-windows machines.
+Should an address be reused or not. Defaults to `true` on non-windows
+machines.
 
-|`network.tcp.send_buffer_size` |The size of the tcp send buffer size
-(in size setting format). By default not explicitly set.
+`network.tcp.send_buffer_size`::
 
-|`network.tcp.receive_buffer_size` |The size of the tcp receive buffer
-size (in size setting format). By default not explicitly set.
-|=======================================================================
+The size of the TCP send buffer (specified with <<size-units,size units>>).
+By default not explicitly set.
+
+`network.tcp.receive_buffer_size`::
+
+The size of the TCP receive buffer (specified with <<size-units,size units>>).
+By default not explicitly set.
+
+[float]
+=== Transport and HTTP protocols
+
+An Elasticsearch node exposes two network protocols which inherit the above
+settings, but may be further configured independently:
+
+TCP Transport::
+
+Used for communication between nodes in the cluster and by the Java
+{javaclient}/node-client.html[Node client],
+{javaclient}/transport-client.html[Transport client], and by the
+<<modules-tribe,Tribe node>>.  See the <<modules-transport,Transport module>>
+for more information.
+
+HTTP::
+
+Exposes the JSON-over-HTTP interface used by all clients other than the Java
+clients. See the <<modules-http,HTTP module>> for more information.
 

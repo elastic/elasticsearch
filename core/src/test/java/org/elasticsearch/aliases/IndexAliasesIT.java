@@ -759,7 +759,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
         }
     }
 
@@ -768,7 +768,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
         }
     }
 

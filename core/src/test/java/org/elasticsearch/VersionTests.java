@@ -191,7 +191,7 @@ public class VersionTests extends ESTestCase {
 
     public void testAllVersionsMatchId() throws Exception {
         Map<String, Version> maxBranchVersions = new HashMap<>();
-        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
+        for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (field.getName().endsWith("_ID")) {
                 assertTrue(field.getName() + " should be static", Modifier.isStatic(field.getModifiers()));
                 assertTrue(field.getName() + " should be final", Modifier.isFinal(field.getModifiers()));

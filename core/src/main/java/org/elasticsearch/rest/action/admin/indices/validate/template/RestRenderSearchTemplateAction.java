@@ -41,7 +41,6 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.util.Map;
 
@@ -89,7 +88,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
                     throw new ElasticsearchParseException("failed to parse request. unknown field [{}] of type [{}]", currentFieldName, token);
                 }
             }
-            template = new Template(templateId, ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, params);
+            template = new Template(templateId, ScriptType.INDEXED, Template.DEFAULT_LANG, null, params);
         }
         renderSearchTemplateRequest = new RenderSearchTemplateRequest();
         renderSearchTemplateRequest.template(template);

@@ -83,6 +83,7 @@ public class PluginManager {
             "discovery-gce",
             "discovery-multicast",
             "lang-javascript",
+            "lang-plan-a",
             "lang-python",
             "mapper-attachments",
             "mapper-murmur3",

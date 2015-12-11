@@ -150,7 +150,7 @@ public class Regex {
                 pFlags |= Pattern.LITERAL;
             } else if ("COMMENTS".equals(s)) {
                 pFlags |= Pattern.COMMENTS;
-            } else if ("UNICODE_CHAR_CLASS".equals(s)) {
+            } else if (("UNICODE_CHAR_CLASS".equals(s)) || ("UNICODE_CHARACTER_CLASS".equals(s))) {
                 pFlags |= UNICODE_CHARACTER_CLASS;
             } else {
                 throw new IllegalArgumentException("Unknown regex flag [" + s + "]");

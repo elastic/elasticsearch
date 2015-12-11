@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -97,7 +96,7 @@ public class TribeUnitTests extends ESTestCase {
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
                 .put("path.home", createTempDir()).put(extraSettings).build();
 
-        try (Node node = NodeBuilder.nodeBuilder().settings(settings).node()) {
+        try (Node node = new Node(settings).start()) {
             try (Client client = node.client()) {
                 assertBusy(new Runnable() {
                     @Override

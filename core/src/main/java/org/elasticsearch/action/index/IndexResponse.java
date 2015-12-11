@@ -19,18 +19,15 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContent;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-
-import static org.elasticsearch.rest.RestStatus.CREATED;
 
 /**
  * A response of an index operation,
@@ -38,52 +35,17 @@ import static org.elasticsearch.rest.RestStatus.CREATED;
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse extends ActionWriteResponse implements StatusToXContent {
+public class IndexResponse extends DocWriteResponse {
 
-    private String index;
-    private String id;
-    private String type;
-    private long version;
     private boolean created;
 
     public IndexResponse() {
 
     }
 
-    public IndexResponse(String index, String type, String id, long version, boolean created) {
-        this.index = index;
-        this.id = id;
-        this.type = type;
-        this.version = version;
+    public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
+        super(shardId, type, id, version);
         this.created = created;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
-    public String getIndex() {
-        return this.index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String getType() {
-        return this.type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String getId() {
-        return this.id;
-    }
-
-    /**
-     * Returns the current version of the doc indexed.
-     */
-    public long getVersion() {
-        return this.version;
     }
 
     /**
@@ -94,64 +56,46 @@ public class IndexResponse extends ActionWriteResponse implements StatusToXConte
     }
 
     @Override
+    public RestStatus status() {
+        if (created) {
+            return RestStatus.CREATED;
+        }
+        return super.status();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        version = in.readLong();
         created = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        out.writeString(type);
-        out.writeString(id);
-        out.writeLong(version);
         out.writeBoolean(created);
-    }
-
-    @Override
-    public RestStatus status() {
-        RestStatus status = getShardInfo().status();
-        if (created) {
-            status = CREATED;
-        }
-        return status;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        ActionWriteResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(Fields._INDEX, index)
-            .field(Fields._TYPE, type)
-            .field(Fields._ID, id)
-            .field(Fields._VERSION, version);
-        shardInfo.toXContent(builder, params);
-        builder.field(Fields.CREATED, created);
-        return builder;
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
-        builder.append("index=").append(index);
-        builder.append(",type=").append(type);
-        builder.append(",id=").append(id);
-        builder.append(",version=").append(version);
+        builder.append("index=").append(getIndex());
+        builder.append(",type=").append(getType());
+        builder.append(",id=").append(getId());
+        builder.append(",version=").append(getVersion());
         builder.append(",created=").append(created);
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }
 
     static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString CREATED = new XContentBuilderString("created");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        super.toXContent(builder, params);
+        builder.field(Fields.CREATED, isCreated());
+        return builder;
     }
 }

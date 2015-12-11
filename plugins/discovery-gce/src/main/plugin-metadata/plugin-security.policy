@@ -19,5 +19,6 @@
 
 grant {
   // needed because of problems in gce
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

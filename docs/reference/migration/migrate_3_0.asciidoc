@@ -244,6 +244,15 @@ Cloud AWS plugin has been split in two plugins:
 * {plugins}/discovery-ec2.html[Discovery EC2 plugin]
 * {plugins}/repository-s3.html[Repository S3 plugin]
 
+Proxy settings for both plugins have been renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
+
 ==== Cloud Azure plugin changes
 
 Cloud Azure plugin has been split in three plugins:

@@ -136,7 +136,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                                 } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz)) {
                                     registered.add(clazz);
                                     try {
-                                        if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
+                                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
                                             hasDedicatedWrite.add(clazz);
                                         }
                                     } catch (Exception e) {

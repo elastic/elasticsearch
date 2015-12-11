@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,25 +64,16 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
-    public void testJsonFormat() throws Exception {
+    public void testFormatBackCompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("format", "json").endObject()
                 .endObject().endObject().string();
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
+                .build();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper documentMapper = parser.parse(mapping);
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
-                .field("field", "value")
-                .endObject().bytes());
-
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
-
-        documentMapper = parser.parse(mapping);
-        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
-            .field("field", "value")
-            .endObject().bytes());
-
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
+        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
+        parser.parse(mapping); // no exception
     }
 
     public void testIncludes() throws Exception {

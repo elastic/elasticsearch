@@ -38,16 +38,9 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
-    public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(8, ByteSizeUnit.KB);
-
-    private final TimeValue syncInterval;
     private final BigArrays bigArrays;
-    private final ThreadPool threadPool;
-    private final boolean syncOnEachOperation;
     private volatile TranslogGeneration translogGeneration;
-    private volatile Translog.Durabilty durabilty = Translog.Durabilty.REQUEST;
     private final IndexSettings indexSettings;
     private final ShardId shardId;
     private final Path translogPath;
@@ -58,67 +51,25 @@ public final class TranslogConfig {
      * @param shardId the shard ID this translog belongs to
      * @param translogPath the path to use for the transaction log files
      * @param indexSettings the index settings used to set internal variables
-     * @param durabilty the default durability setting for the translog
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
-     * @param threadPool a {@link ThreadPool} to schedule async sync durability
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, Translog.Durabilty durabilty, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
-        this(shardId, translogPath, indexSettings, durabilty, bigArrays, threadPool, DEFAULT_BUFFER_SIZE);
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, Translog.Durabilty durabilty, BigArrays bigArrays, @Nullable ThreadPool threadPool, ByteSizeValue bufferSize) {
+    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
-        this.durabilty = durabilty;
-        this.threadPool = threadPool;
         this.bigArrays = bigArrays;
-
-        syncInterval = indexSettings.getSettings().getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
-        if (syncInterval.millis() > 0 && threadPool != null) {
-            syncOnEachOperation = false;
-        } else if (syncInterval.millis() == 0) {
-            syncOnEachOperation = true;
-        } else {
-            syncOnEachOperation = false;
-        }
-    }
-
-
-    /**
-     * Returns a {@link ThreadPool} to schedule async durability operations
-     */
-    public ThreadPool getThreadPool() {
-        return threadPool;
-    }
-
-    /**
-     * Returns the current durability mode of this translog.
-     */
-    public Translog.Durabilty getDurabilty() {
-        return durabilty;
-    }
-
-    /**
-     * Sets the current durability mode for the translog.
-     */
-    public void setDurabilty(Translog.Durabilty durabilty) {
-        this.durabilty = durabilty;
     }
 
     /**
      * Returns <code>true</code> iff each low level operation shoudl be fsynced
      */
     public boolean isSyncOnEachOperation() {
-        return syncOnEachOperation;
-    }
-
-    /**
-     * Returns the current async fsync interval
-     */
-    public TimeValue getSyncInterval() {
-        return syncInterval;
+        return indexSettings.getTranslogSyncInterval().millis() == 0;
     }
 
     /**

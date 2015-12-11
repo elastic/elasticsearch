@@ -254,8 +254,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = settings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, settings, Translog.Durabilty.REQUEST),
-            provider.getBigArrays(), threadPool);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
+            provider.getBigArrays());
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -1159,12 +1159,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 this.flushOnClose = flushOnClose;
             }
 
-            final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
-            if (durabilty != translogConfig.getDurabilty()) {
-                logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
-                translogConfig.setDurabilty(durabilty);
-            }
-
             TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, this.refreshInterval);
             if (!refreshInterval.equals(this.refreshInterval)) {
                 logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
@@ -1541,17 +1535,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current translog durability mode
      */
     public Translog.Durabilty getTranslogDurability() {
-        return translogConfig.getDurabilty();
-    }
-
-    private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {
-        final String value = settings.get(TranslogConfig.INDEX_TRANSLOG_DURABILITY, defaultValue.name());
-        try {
-            return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
-            return defaultValue;
-        }
+        return indexSettings.getTranslogDurability();
     }
 
     private final AtomicBoolean asyncFlushRunning = new AtomicBoolean();

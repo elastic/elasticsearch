@@ -62,14 +62,14 @@ public class TribeUnitTests extends ESTestCase {
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
-                .put("node.name", "tribe1_node")
+                .put("name", "tribe1_node")
                 .put(DiscoveryService.SETTING_DISCOVERY_SEED, random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
-                .put("node.name", "tribe2_node")
+                .put("name", "tribe2_node")
                 .put(DiscoveryService.SETTING_DISCOVERY_SEED, random().nextLong())
                 .build()).start();
     }

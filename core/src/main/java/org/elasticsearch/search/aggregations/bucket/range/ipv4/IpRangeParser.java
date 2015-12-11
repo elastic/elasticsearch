@@ -18,26 +18,31 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
-import org.elasticsearch.common.network.Cidrs;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public class IpRangeParser implements Aggregator.Parser {
+public class IpRangeParser extends RangeParser {
+
+    public IpRangeParser() {
+        super(true, false, false);
+    }
 
     @Override
     public String type() {
@@ -45,105 +50,26 @@ public class IpRangeParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalIPv4Range.TYPE, context)
-                .targetValueType(ValueType.IP)
-                .formattable(false)
-                .build();
-
-        List<RangeAggregator.Range> ranges = null;
-        boolean keyed = false;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        double from = Double.NEGATIVE_INFINITY;
-                        String fromAsStr = null;
-                        double to = Double.POSITIVE_INFINITY;
-                        String toAsStr = null;
-                        String key = null;
-                        String mask = null;
-                        String toOrFromOrMaskOrKey = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                toOrFromOrMaskOrKey = parser.currentName();
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                if ("from".equals(toOrFromOrMaskOrKey)) {
-                                    from = parser.doubleValue();
-                                } else if ("to".equals(toOrFromOrMaskOrKey)) {
-                                    to = parser.doubleValue();
-                                }
-                            } else if (token == XContentParser.Token.VALUE_STRING) {
-                                if ("from".equals(toOrFromOrMaskOrKey)) {
-                                    fromAsStr = parser.text();
-                                } else if ("to".equals(toOrFromOrMaskOrKey)) {
-                                    toAsStr = parser.text();
-                                } else if ("key".equals(toOrFromOrMaskOrKey)) {
-                                    key = parser.text();
-                                } else if ("mask".equals(toOrFromOrMaskOrKey)) {
-                                    mask = parser.text();
-                                }
-                            }
-                        }
-                        RangeAggregator.Range range = new RangeAggregator.Range(key, from, fromAsStr, to, toAsStr);
-                        if (mask != null) {
-                            parseMaskRange(mask, range, aggregationName, context);
-                        }
-                        ranges.add(range);
-                    }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("keyed".equals(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
-            }
-        }
-
-        if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
-                    parser.getTokenLocation());
-        }
-
-        return new RangeAggregator.Factory(aggregationName, vsParser.input(), InternalIPv4Range.FACTORY, ranges, keyed);
+    protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return IPv4RangeAggregatorFactory.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
     }
 
-    private static void parseMaskRange(String cidr, RangeAggregator.Range range, String aggregationName, SearchContext ctx) {
-        long[] fromTo;
-        try {
-            fromTo = Cidrs.cidrMaskToMinMax(cidr);
-        } catch (IllegalArgumentException e) {
-            throw new SearchParseException(ctx, "invalid CIDR mask [" + cidr + "] in aggregation [" + aggregationName + "]",
-                    null, e);
+    @Override
+    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        List<IPv4RangeAggregatorFactory.Range> ranges = (List<IPv4RangeAggregatorFactory.Range>) otherOptions
+                .get(RangeAggregator.RANGES_FIELD);
+        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory(aggregationName, ranges);
+        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
+        if (keyed != null) {
+            factory.keyed(keyed);
         }
-        range.from = fromTo[0] == 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
-        range.to = fromTo[1] == InternalIPv4Range.MAX_IP ? Double.POSITIVE_INFINITY : fromTo[1];
-        if (range.key == null) {
-            range.key = cidr;
-        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new IPv4RangeAggregatorFactory(null, Collections.emptyList()) };
     }
 
 }

@@ -53,7 +53,3 @@ IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
 instance, a `long` field cannot have a string `null_value`.  String fields
 which are `analyzed` will also pass the `null_value` through the configured
 analyzer.
-
-Also see the <<query-dsl-missing-query,`missing` query>> for its `null_value` support.
-
-

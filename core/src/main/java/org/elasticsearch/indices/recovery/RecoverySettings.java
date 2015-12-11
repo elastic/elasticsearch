@@ -71,6 +71,8 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
     public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb", "SMALL_FILE_CUTOFF_BYTES").bytes();
 
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+
     private volatile int concurrentStreams;
     private volatile int concurrentSmallFileStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
@@ -83,6 +85,8 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     private volatile TimeValue activityTimeout;
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionLongTimeout;
+
+    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
     @Inject
     public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -158,6 +162,15 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
     public TimeValue internalActionLongTimeout() {
         return internalActionLongTimeout;
+    }
+
+    public ByteSizeValue getChunkSize() { return chunkSize; }
+
+    void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+        if (chunkSize.bytesAsInt() <= 0) {
+            throw new IllegalArgumentException("chunkSize must be > 0");
+        }
+        this.chunkSize = chunkSize;
     }
 
 

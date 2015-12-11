@@ -138,7 +138,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = shardSize.bytes() / 5;
+        long chunkSize = Math.max(1, shardSize.bytes() / 10);
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES));
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
@@ -148,6 +151,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void restoreRecoverySpeed() {
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, RecoverySettings.DEFAULT_CHUNK_SIZE);
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
@@ -628,5 +634,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             }
             transport.sendRequest(node, requestId, action, request, options);
         }
+    }
+
+    public static void setChunkSize(RecoverySettings recoverySettings, ByteSizeValue chunksSize) {
+        recoverySettings.setChunkSize(chunksSize);
     }
 }

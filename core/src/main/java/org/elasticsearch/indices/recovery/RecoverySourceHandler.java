@@ -72,7 +72,6 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    private static final int CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB).bytesAsInt();
     protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
@@ -82,6 +81,7 @@ public class RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
+    private final int chunkSizeInBytes;
 
     protected final RecoveryResponse response;
 
@@ -110,7 +110,7 @@ public class RecoverySourceHandler {
         this.transportService = transportService;
         this.indexName = this.request.shardId().index().name();
         this.shardId = this.request.shardId().id();
-
+        this.chunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
         this.response = new RecoveryResponse();
     }
 
@@ -247,7 +247,7 @@ public class RecoverySourceHandler {
                 });
                 // How many bytes we've copied since we last called RateLimiter.pause
                 final AtomicLong bytesSinceLastPause = new AtomicLong();
-                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new RecoveryOutputStream(md, bytesSinceLastPause, translogView), CHUNK_SIZE);
+                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new RecoveryOutputStream(md, bytesSinceLastPause, translogView), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 cancellableThreads.execute(() -> {
                     // Send the CLEAN_FILES request, which takes all of the files that
@@ -451,7 +451,7 @@ public class RecoverySourceHandler {
 
             // Check if this request is past bytes threshold, and
             // if so, send it off
-            if (size >= CHUNK_SIZE) {
+            if (size >= chunkSizeInBytes) {
 
                 // don't throttle translog, since we lock for phase3 indexing,
                 // so we need to move it as fast as possible. Note, since we
@@ -526,7 +526,6 @@ public class RecoverySourceHandler {
         private final AtomicLong bytesSinceLastPause;
         private final Translog.View translogView;
         private long position = 0;
-        private final AtomicBoolean failed = new AtomicBoolean(false);
 
         RecoveryOutputStream(StoreFileMetaData md, AtomicLong bytesSinceLastPause, Translog.View translogView) {
             this.md = md;
@@ -541,24 +540,9 @@ public class RecoverySourceHandler {
 
         @Override
         public final void write(byte[] b, int offset, int length) throws IOException {
-            if (failed.get() == false) {
-                /* since we are an outputstream a wrapper might get flushed on close after we threw an exception.
-                 * that might cause another exception from the other side of the recovery since we are in a bad state
-                 * due to a corrupted file stream etc. the biggest issue is that we will turn into a loop of exceptions
-                 * and we will always suppress the original one which might cause the recovery to retry over and over again.
-                 * To prevent this we try to not send chunks again after we failed once.*/
-                boolean success = false;
-                try {
-                    sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
-                    position += length;
-                    assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        failed.compareAndSet(false, true);
-                    }
-                }
-            }
+            sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
+            position += length;
+            assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
@@ -689,9 +673,10 @@ public class RecoverySourceHandler {
                     pool = recoverySettings.concurrentSmallFileStreamPool();
                 }
                 Future<Void> future = pool.submit(() -> {
-                    try (final OutputStream outputStream = outputStreamFactory.apply(md);
-                         final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                        Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStream);
+                    try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                        // it's fine that we are only having the indexInput int he try/with block. The copy methods handles
+                        // exceptions during close correctly and doesn't hide the original exception.
+                        Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
                     }
                     return null;
                 });

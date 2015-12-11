@@ -33,9 +33,10 @@ dependencies {
   compile('com.fasterxml.jackson.core:jackson-databind:2.5.3')
   compile('com.maxmind.db:maxmind-db:1.0.0')
 
+  compile "com.github.spullara.mustache.java:compiler:0.9.1"
   compile 'joda-time:joda-time:2.8.2'
   testCompile 'org.elasticsearch:geolite2-databases:20151029'
-  testCompile 'org.elasticsearch:securemock:1.1'
+  testCompile 'org.elasticsearch:securemock:1.2'
 }
 
 sourceSets {

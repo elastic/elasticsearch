@@ -11,6 +11,13 @@
       reindex:
         index: test
         conflicts: cat
+  - do:
+      catch: /conflicts may only be .* but was \[cat\]/
+      reindex:
+        index: test
+        body:
+          conflicts: cat
+
 
 ---
 "invalid version_type fails":
@@ -25,3 +32,9 @@
       reindex:
         index: test
         version_type: cat
+  - do:
+      catch: /version_type may only be .* but was \[cat\]/
+      reindex:
+        index: test
+        body:
+          version_type: cat

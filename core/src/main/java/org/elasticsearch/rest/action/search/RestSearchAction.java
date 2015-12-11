@@ -84,15 +84,20 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher);
+        RestSearchAction.parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, null);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**
      * Parses the rest request on top of the SearchRequest, preserving values
      * that are not overridden by the rest request.
+     *
+     * @param restContent
+     *            override body content to use for the request. If null body
+     *            content is read from the request using
+     *            RestAction.hasBodyContent.
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry,  RestRequest request, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request, ParseFieldMatcher parseFieldMatcher, BytesReference restContent) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -100,8 +105,12 @@ public class RestSearchAction extends BaseRestHandler {
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");
-        if (RestActions.hasBodyContent(request)) {
-            BytesReference restContent = RestActions.getRestContent(request);
+        if (restContent == null) {
+            if (RestActions.hasBodyContent(request)) {
+                restContent = RestActions.getRestContent(request);
+            }
+        }
+        if (restContent != null) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             if (isTemplateRequest) {
                 try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {

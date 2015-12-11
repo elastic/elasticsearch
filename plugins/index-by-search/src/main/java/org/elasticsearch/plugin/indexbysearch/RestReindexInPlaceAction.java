@@ -2,22 +2,26 @@ package org.elasticsearch.plugin.indexbysearch;
 
 import static org.elasticsearch.plugin.indexbysearch.ReindexInPlaceAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
-import java.io.IOException;
+import java.util.Map;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 public class RestReindexInPlaceAction extends BaseRestHandler {
@@ -42,73 +46,51 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
         ReindexInPlaceRequest internalRequest = new ReindexInPlaceRequest(new SearchRequest());
         int batchSize = internalRequest.search().source().size();
         internalRequest.search().source().size(-1);
+        /*
+         * We can't send parseSearchRequest REST content that it doesn't support
+         * so we will have to remove the content that is valid in addition to
+         * what it supports from the content first. This is a temporary hack and
+         * should get better when SearchRequest has full ObjectParser support
+         * then we can delegate and stuff.
+         */
+        BytesReference bodyContent = null;
+        if (RestActions.hasBodyContent(request)) {
+            bodyContent = RestActions.getRestContent(request);
+            Tuple<XContentType, Map<String, Object>> body = XContentHelper.convertToMap(bodyContent, false);
+            boolean modified = false;
+            String conflicts = (String) body.v2().remove("conflicts");
+            if (conflicts != null) {
+                internalRequest.conflicts(conflicts);
+                modified = true;
+            }
+            String versionType = (String) body.v2().remove("version_type");
+            if (versionType != null) {
+                internalRequest.versionType(versionType);
+                modified = true;
+            }
+            if (modified) {
+                XContentBuilder builder = XContentFactory.contentBuilder(body.v1());
+                builder.map(body.v2());
+                bodyContent = builder.bytes();
+            }
+        }
         RestSearchAction.parseSearchRequest(internalRequest.search(), indicesQueriesRegistry, request,
-                parseFieldMatcher);
+                parseFieldMatcher, bodyContent);
+
+        String conflicts = request.param("conflicts");
+        if (conflicts != null) {
+            internalRequest.conflicts(conflicts);
+        }
+        String versionType = request.param("version_type");
+        if (versionType != null) {
+            internalRequest.versionType(versionType);
+        }
+
         // TODO allow the user to modify the batch size? Or pick something better than just a default.
         internalRequest.size(internalRequest.search().source().size());
         internalRequest.search().source().size(batchSize);
 
-        if (!parseConflicts(internalRequest, request, channel)
-                || !parseVersionType(internalRequest, request, channel)) {
-            return;
-        }
 
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
     }
-
-    /**
-     * Parse the conflicts parameter from the request.
-     *
-     * @return true if the request can continue, false otherwise
-     */
-    private boolean parseConflicts(ReindexInPlaceRequest internalRequest, RestRequest request, RestChannel channel) {
-        String conflicts = request.param("conflicts");
-        if (conflicts == null) {
-            return true;
-        }
-        switch (conflicts) {
-        case "proceed":
-            internalRequest.abortOnVersionConflict(false);
-            return true;
-        case "abort":
-            internalRequest.abortOnVersionConflict(true);
-            return true;
-        default:
-            badRequest(channel, "conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
-            return false;
-        }
-    }
-
-    /**
-     * Parse the version_type parameter from the request.
-     *
-     * @return true if the request can continue, false otherwise
-     */
-    private boolean parseVersionType(ReindexInPlaceRequest internalRequest, RestRequest request, RestChannel channel) {
-        String versionType = request.param("version_type");
-        if (versionType == null) {
-            return true;
-        }
-        switch (versionType) {
-        case "internal":
-            internalRequest.useReindexVersionType(false);
-            return true;
-        case "reindex":
-            internalRequest.useReindexVersionType(true);
-            return true;
-        default:
-            badRequest(channel, "version_type may only be \"internal\" or \"reindex\" but was [" + versionType + "]");
-            return false;
-        }
-    }
-
-    private void badRequest(RestChannel channel, String message) {
-        try {
-            XContentBuilder builder = channel.newErrorBuilder();
-            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", message).endObject()));
-        } catch (IOException e) {
-            logger.warn("Failed to send response", e);
-        }
-    }
-
 }

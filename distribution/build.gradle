@@ -47,7 +47,7 @@ ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().ex
  *                                  Modules                                  *
  *****************************************************************************/
 
-task buildModules(type: Copy) {
+task buildModules(type: Sync) {
   into 'build/modules'
 } 
 

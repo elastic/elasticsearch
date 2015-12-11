@@ -95,11 +95,11 @@ subprojects {
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
     dependsOn project.assemble
+    includePackaged project.name == 'integ-test-zip'
     cluster {
       distribution = project.name
     }
     if (project.name != 'integ-test-zip') {
-      includePackaged true
       // see note above with module mustRunAfter about why integTest#stop is used here
       mustRunAfter ':distribution:integ-test-zip:integTest#stop'
     }

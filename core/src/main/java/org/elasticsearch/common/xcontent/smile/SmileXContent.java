@@ -20,15 +20,11 @@
 package org.elasticsearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
-import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
 
 import java.io.*;
 
@@ -64,27 +60,19 @@ public class SmileXContent implements XContent {
         return (byte) 0xFF;
     }
 
-    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
-        return new SmileXContentGenerator(new BaseJsonGenerator(jsonGenerator));
-    }
-
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return newXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8));
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        if (CollectionUtils.isEmpty(filters)) {
-            return createGenerator(os);
-        }
-        FilteringJsonGenerator smileGenerator = new FilteringJsonGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-        return new SmileXContentGenerator(smileGenerator);
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), filters);
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return newXContentGenerator(smileFactory.createGenerator(writer));
+        return new SmileXContentGenerator(smileFactory.createGenerator(writer));
     }
 
     @Override

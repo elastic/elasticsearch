@@ -423,7 +423,7 @@ public class XContentHelper {
             }
             XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
             if (contentType == builder.contentType()) {
-                builder.rawField(field, compressedStreamInput);
+                builder.rawField(field, compressedStreamInput, contentType);
             } else {
                 try (XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput)) {
                     parser.nextToken();

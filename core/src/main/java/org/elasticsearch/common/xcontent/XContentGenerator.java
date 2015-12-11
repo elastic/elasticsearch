@@ -115,7 +115,7 @@ public interface XContentGenerator {
 
     void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException;
 
-    void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException;
+    void writeRawField(String fieldName, InputStream content, OutputStream bos, XContentType contentType) throws IOException;
 
     void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException;
 

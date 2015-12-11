@@ -930,8 +930,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder rawField(String fieldName, InputStream content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
+    public XContentBuilder rawField(String fieldName, InputStream content, XContentType contentType) throws IOException {
+        generator.writeRawField(fieldName, content, bos, contentType);
         return this;
     }
 

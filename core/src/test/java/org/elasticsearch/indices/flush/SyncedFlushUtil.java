@@ -20,6 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
 
@@ -41,19 +45,23 @@ public class SyncedFlushUtil {
     /**
      * Blocking single index version of {@link SyncedFlushService#attemptSyncedFlush(String[], IndicesOptions, ActionListener)}
      */
-    public static IndicesSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, String index) {
-        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        LatchedListener<IndicesSyncedFlushResult> listener = new LatchedListener();
-        service.attemptSyncedFlush(new String[]{index}, IndicesOptions.lenientExpandOpen(), listener);
-        try {
-            listener.latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+    public static SyncedFlushResponse attemptSyncedFlush(InternalTestCluster cluster, String index) {
+        if (randomBoolean()) {
+            SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
+            LatchedListener<SyncedFlushResponse> listener = new LatchedListener();
+            service.attemptSyncedFlush(new String[]{index}, IndicesOptions.lenientExpandOpen(), listener);
+            try {
+                listener.latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (listener.error != null) {
+                throw ExceptionsHelper.convertToElastic(listener.error);
+            }
+            return listener.result;
+        } else {
+            return client().admin().indices().prepareSyncedFlush(index).get();
         }
-        if (listener.error != null) {
-            throw ExceptionsHelper.convertToElastic(listener.error);
-        }
-        return listener.result;
     }
 
 
@@ -109,5 +117,4 @@ public class SyncedFlushUtil {
         }
         return listener.result;
     }
-
 }

@@ -30,7 +30,7 @@ import org.junit.Test;
 import java.util.List;
 
 public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
-    
+
     @Before
     public void setupIndex() {
         Settings settings = Settings.builder()
@@ -52,7 +52,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
         assertNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
-    
+
     public void testVerbose() {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();

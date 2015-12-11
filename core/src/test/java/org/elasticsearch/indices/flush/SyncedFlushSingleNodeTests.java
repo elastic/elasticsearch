@@ -98,7 +98,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertNotNull(syncedFlushResult);
         assertEquals(1, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
-        SyncedFlushService.SyncedFlushResponse response = syncedFlushResult.shardResponses().values().iterator().next();
+        SyncedFlushService.ShardSyncedFlushResponse response = syncedFlushResult.shardResponses().values().iterator().next();
         assertTrue(response.success());
     }
 
@@ -157,7 +157,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertNull(listener.result);
         assertEquals("no such index", listener.error.getMessage());
     }
-    
+
     public void testFailAfterIntermediateCommit() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();

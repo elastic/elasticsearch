@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -102,7 +103,7 @@ public class FlushIT extends ESIntegTestCase {
             result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
         } else {
             logger.info("--> sync flushing index [test]");
-            IndicesSyncedFlushResult indicesResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+            SyncedFlushResponse indicesResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
             result = indicesResult.getShardsResultPerIndex().get("test").get(0);
         }
         assertFalse(result.failed());
@@ -174,7 +175,7 @@ public class FlushIT extends ESIntegTestCase {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        IndicesSyncedFlushResult syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+        SyncedFlushResponse syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
@@ -194,7 +195,7 @@ public class FlushIT extends ESIntegTestCase {
         for (final ShardStats shardStats : shardsStats) {
             for (final ShardsSyncedFlushResult shardResult : syncedFlushResults) {
                 if (shardStats.getShardRouting().getId() == shardResult.shardId().getId()) {
-                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
+                    for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
                         if (singleResponse.getKey().currentNodeId().equals(shardStats.getShardRouting().currentNodeId())) {
                             if (singleResponse.getValue().success()) {
                                 logger.info("{} sync flushed on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());

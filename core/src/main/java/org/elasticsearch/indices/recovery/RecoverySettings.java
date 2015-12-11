@@ -120,7 +120,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
         }
 
-        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}]",
+        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}]",
                 maxBytesPerSec, concurrentStreams);
 
         nodeSettingsService.addListener(new ApplySettings());

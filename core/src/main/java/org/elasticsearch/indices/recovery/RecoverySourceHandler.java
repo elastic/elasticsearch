@@ -547,7 +547,7 @@ public class RecoverySourceHandler {
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
             final TransportRequestOptions chunkSendOptions = TransportRequestOptions.builder()
-                .withCompress(false)
+                .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so we are safing the cpu for other things
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();

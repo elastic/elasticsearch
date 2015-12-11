@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -106,6 +108,16 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         @Override
         public Type type() {
             return TYPE;
+        }
+
+        @Override
+        public ValuesSourceType getValueSourceType() {
+            return ValuesSourceType.GEOPOINT;
+        }
+
+        @Override
+        public ValueType getValueType() {
+            return ValueType.GEOPOINT;
         }
 
         @Override

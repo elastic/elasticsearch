@@ -213,6 +213,13 @@ float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
 
+==== `_source`'s `format` option
+
+The `_source` mapping does not support the `format` option anymore. This option
+will still be accepted for indices created before the upgrade to 3.0 for backward
+compatibility, but it will have no effect. Indices created on or after 3.0 will
+reject this option.
+
 [[breaking_30_plugins]]
 === Plugin changes
 

@@ -10,23 +10,13 @@ import java.util.Arrays;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
-    /**
-     * Setup the parser for a subclass.
-     */
-    protected static <Self extends AbstractBulkByScrollRequest<Self>> void setupParser(ObjectParser<Self, Void> parser) {
-        // NOCOMMIT are we going to be able to use these?
-        parser.declareString(Self::conflicts, new ParseField("conflicts"));
-    }
-
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
     private static final int DEFAULT_SIZE = 100;
 

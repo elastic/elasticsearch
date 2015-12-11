@@ -1,0 +1,10 @@
+---
+"invalid conflicts fails":
+  - do:
+      indices.create:
+        index: test
+  - do:
+      catch: /conflicts may only be .* but was \[cat\]/
+      reindex:
+        index: test
+        conflicts: cat

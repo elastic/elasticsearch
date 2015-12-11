@@ -1,5 +1,5 @@
 ---
-"Update in place picks up new fields":
+"Reindex picks up new fields":
   - do:
       indices.create:
         index: test
@@ -41,12 +41,8 @@
   - match: { hits.total: 0 }
 
   - do:
-      index_by_search:
-        body:
-          source:
-            index: test
-          index:
-            index: test
+      reindex:
+        index: test
   - do:
       indices.refresh: {}
 

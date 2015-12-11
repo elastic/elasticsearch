@@ -1,0 +1,149 @@
+---
+"Basic response":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: test
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - is_true: took
+  - is_false: created # This shouldn't be included in the response
+
+---
+"Response for version conflict":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.refresh_interval: -1
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+  - do: # Creates a new version for reindex to miss on scan.
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test2" }
+
+  - do:
+      reindex:
+        index: test
+  - match: {updated: 0}
+  - match: {version_conflicts: 1}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - is_true: took
+
+---
+"Response for version conflict with conflicts=abort":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.refresh_interval: -1
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+  - do: # Creates a new version for reindex to miss on scan.
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test2" }
+
+  - do:
+      reindex:
+        index: test
+        conflicts: abort
+  - match: {updated: 0}
+  - match: {version_conflicts: 1}
+  - match: {batches: 1}
+  - match: {failures.0.index:  test}
+  - match: {failures.0.type:   foo}
+  - match: {failures.0.id:     "1"}
+  - match: {failures.0.status: CONFLICT}
+  - match: {failures.0.cause.type:   version_conflict_engine_exception}
+  - match: {failures.0.cause.reason: "[foo][1]: version conflict, current version [2] is different than the one provided [1]"}
+  - match: {failures.0.cause.shard:  /\d+/}
+  - match: {failures.0.cause.index:  test}
+  - is_true: took
+
+---
+"Limit by query":
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      2
+        body:    { "user": "junk" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: twitter
+        body:
+          query:
+            match:
+              user: kimchy
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - is_true: took
+
+---
+"Limit by size":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: twitter
+        size: 1
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - is_true: took

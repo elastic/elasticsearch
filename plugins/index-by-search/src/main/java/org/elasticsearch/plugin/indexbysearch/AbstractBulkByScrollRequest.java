@@ -17,7 +17,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
-
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
     private static final int DEFAULT_SIZE = 100;
 

@@ -48,22 +48,58 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
         internalRequest.size(internalRequest.search().source().size());
         internalRequest.search().source().size(batchSize);
 
-        String conflicts = request.param("conflicts");
-        if (conflicts != null) {
-            switch (conflicts) {
-            case "proceed":
-                internalRequest.abortOnVersionConflict(false);
-                break;
-            case "abort":
-                internalRequest.abortOnVersionConflict(true);
-                break;
-            default:
-                badRequest(channel, "conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
-                return;
-            }
+        if (!parseConflicts(internalRequest, request, channel)
+                || !parseVersionType(internalRequest, request, channel)) {
+            return;
         }
 
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
+    }
+
+    /**
+     * Parse the conflicts parameter from the request.
+     *
+     * @return true if the request can continue, false otherwise
+     */
+    private boolean parseConflicts(ReindexInPlaceRequest internalRequest, RestRequest request, RestChannel channel) {
+        String conflicts = request.param("conflicts");
+        if (conflicts == null) {
+            return true;
+        }
+        switch (conflicts) {
+        case "proceed":
+            internalRequest.abortOnVersionConflict(false);
+            return true;
+        case "abort":
+            internalRequest.abortOnVersionConflict(true);
+            return true;
+        default:
+            badRequest(channel, "conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
+            return false;
+        }
+    }
+
+    /**
+     * Parse the version_type parameter from the request.
+     *
+     * @return true if the request can continue, false otherwise
+     */
+    private boolean parseVersionType(ReindexInPlaceRequest internalRequest, RestRequest request, RestChannel channel) {
+        String versionType = request.param("version_type");
+        if (versionType == null) {
+            return true;
+        }
+        switch (versionType) {
+        case "internal":
+            internalRequest.useReindexVersionType(false);
+            return true;
+        case "reindex":
+            internalRequest.useReindexVersionType(true);
+            return true;
+        default:
+            badRequest(channel, "version_type may only be \"internal\" or \"reindex\" but was [" + versionType + "]");
+            return false;
+        }
     }
 
     private void badRequest(RestChannel channel, String message) {
@@ -74,4 +110,5 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
             logger.warn("Failed to send response", e);
         }
     }
+
 }

@@ -1,10 +1,27 @@
 ---
 "invalid conflicts fails":
   - do:
-      indices.create:
-        index: test
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
   - do:
       catch: /conflicts may only be .* but was \[cat\]/
       reindex:
         index: test
         conflicts: cat
+
+---
+"invalid version_type fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /version_type may only be .* but was \[cat\]/
+      reindex:
+        index: test
+        version_type: cat

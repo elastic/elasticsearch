@@ -448,12 +448,12 @@ public class Node implements Releasable {
         return this.injector;
     }
 
-    @SuppressForbidden(reason = "Need to specify port and pass to formatter")
+    /** Writes a file to the logs dir containing the ports for the given transport type */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
         Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
-                InetSocketAddress socketAddress = new InetSocketAddress(address.getAddress(), address.getPort());
+                InetSocketAddress socketAddress = buildAddress(address.getAddress(), address.getPort());
                 if (socketAddress.getAddress() instanceof Inet6Address &&
                     socketAddress.getAddress().isLinkLocalAddress()) {
                     // no link local, just causes problems
@@ -470,5 +470,10 @@ public class Node implements Releasable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to rename ports file", e);
         }
+    }
+
+    @SuppressForbidden(reason = "Need to specify address and port")
+    private static InetSocketAddress buildAddress(String address, int port) {
+        return new InetSocketAddress(address, port);
     }
 }

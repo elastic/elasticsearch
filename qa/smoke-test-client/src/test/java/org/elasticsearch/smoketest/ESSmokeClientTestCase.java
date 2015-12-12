@@ -107,14 +107,14 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         return client;
     }
 
-    @SuppressForbidden(reason = "Must use port when creating address")
     private static Client startClient() throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
             URL url = new URL("http://" + stringAddress);
-            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(url.getHost(), url.getPort()));
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return startClient(createTempDir(), transportAddresses);
     }

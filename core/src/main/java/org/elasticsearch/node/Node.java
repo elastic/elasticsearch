@@ -105,6 +105,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
 import java.nio.file.CopyOption;
@@ -453,13 +454,12 @@ public class Node implements Releasable {
         Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
-                InetSocketAddress socketAddress = buildAddress(address.getAddress(), address.getPort());
-                if (socketAddress.getAddress() instanceof Inet6Address &&
-                    socketAddress.getAddress().isLinkLocalAddress()) {
+                InetAddress inetAddress = InetAddress.getByName(address.getAddress());
+                if (inetAddress instanceof Inet6Address && inetAddress.isLinkLocalAddress()) {
                     // no link local, just causes problems
                     continue;
                 }
-                writer.write(NetworkAddress.formatAddress(socketAddress) + "\n");
+                writer.write(NetworkAddress.formatAddress(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);
@@ -470,10 +470,5 @@ public class Node implements Releasable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to rename ports file", e);
         }
-    }
-
-    @SuppressForbidden(reason = "Need to specify address and port")
-    private static InetSocketAddress buildAddress(String address, int port) {
-        return new InetSocketAddress(address, port);
     }
 }

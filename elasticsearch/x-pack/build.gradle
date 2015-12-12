@@ -119,6 +119,7 @@ bundlePlugin {
 }
 
 integTest {
+  // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
     // TODO set up tests so that shield can be enabled or disabled

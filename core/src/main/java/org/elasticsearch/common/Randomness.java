@@ -22,10 +22,10 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
-import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Provides factory methods for producing reproducible sources of
@@ -111,25 +111,10 @@ public final class Randomness {
 
     private static Random getWithoutSeed() {
         assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
-        return RandomnessHelper.LOCAL.get();
+        return ThreadLocalRandom.current();
     }
 
     public static void shuffle(List<?> list) {
         Collections.shuffle(list, get());
-    }
-
-    private static class RandomnessHelper {
-        private static final SecureRandom SR = new SecureRandom();
-
-        private static final ThreadLocal<Random> LOCAL = ThreadLocal.withInitial(
-            () -> {
-                byte[] bytes = SR.generateSeed(8);
-                long accumulator = 0;
-                for (int i = 0; i < bytes.length; i++) {
-                    accumulator = (accumulator << 8) + bytes[i] & 0xFFL;
-                }
-                return new Random(accumulator);
-            }
-        );
     }
 }

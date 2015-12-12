@@ -43,7 +43,6 @@ import java.util.Random;
  * DiscoveryService#SETTING_DISCOVERY_SEED)).
  */
 public final class Randomness {
-    private static final SecureRandom SR = new SecureRandom();
     private static final Method currentMethod;
     private static final Method getRandomMethod;
 
@@ -110,23 +109,27 @@ public final class Randomness {
         }
     }
 
-    private static ThreadLocal<Random> LOCAL;
-
     private static Random getWithoutSeed() {
         assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
-        if (LOCAL == null) {
-            byte[] bytes = SR.generateSeed(8);
-            long accumulator = 0;
-            for (int i = 0; i < bytes.length; i++) {
-                accumulator = (accumulator << 8) + bytes[i] & 0xFFL;
-            }
-            final long seed = accumulator;
-            LOCAL = ThreadLocal.withInitial(() -> new Random(seed));
-        }
-        return LOCAL.get();
+        return RandomnessHelper.LOCAL.get();
     }
 
     public static void shuffle(List<?> list) {
         Collections.shuffle(list, get());
+    }
+
+    private static class RandomnessHelper {
+        private static final SecureRandom SR = new SecureRandom();
+
+        private static final ThreadLocal<Random> LOCAL = ThreadLocal.withInitial(
+            () -> {
+                byte[] bytes = SR.generateSeed(8);
+                long accumulator = 0;
+                for (int i = 0; i < bytes.length; i++) {
+                    accumulator = (accumulator << 8) + bytes[i] & 0xFFL;
+                }
+                return new Random(accumulator);
+            }
+        );
     }
 }

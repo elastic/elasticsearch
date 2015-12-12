@@ -70,7 +70,6 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 
 ext.expansions = [
   'project.version': version,
-  'integ.http.port': integTest.cluster.baseHttpPort
 ]
 
 processResources {
@@ -117,12 +116,13 @@ bundlePlugin {
   from('watcher/bin/watcher') {
     into 'bin'
   }
+}
 
-  integTest {
-    cluster {
-      // TODO set up tests so that shield can be enabled or disabled
-      systemProperty 'es.shield.enabled', 'false'
-    }
+integTest {
+  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
+  cluster {
+    // TODO set up tests so that shield can be enabled or disabled
+    systemProperty 'es.shield.enabled', 'false'
   }
 }
 

@@ -87,6 +87,7 @@ import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.util.HashedWheelTimer;
 
 import java.io.IOException;
+import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -760,6 +761,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
         } else if (isConnectException(e.getCause())) {
             logger.trace("connect exception caught on transport layer [{}]", e.getCause(), ctx.getChannel());
+            // close the channel as safe measure, which will cause a node to be disconnected if relevant
+            ctx.getChannel().close();
+            disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else if (e.getCause() instanceof BindException) {
+            logger.trace("bind exception caught on transport layer [{}]", e.getCause(), ctx.getChannel());
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             ctx.getChannel().close();
             disconnectFromNodeChannel(ctx.getChannel(), e.getCause());

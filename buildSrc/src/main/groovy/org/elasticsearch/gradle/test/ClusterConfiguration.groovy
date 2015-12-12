@@ -33,10 +33,10 @@ class ClusterConfiguration {
     int numNodes = 1
 
     @Input
-    int baseHttpPort = 9400
+    int httpPort = 0
 
     @Input
-    int baseTransportPort = 9500
+    int transportPort = 0
 
     @Input
     boolean daemonize = true
@@ -55,7 +55,7 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://localhost:${node.httpPort()}",
+        ant.get(src: "http://${node.httpUri()}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)

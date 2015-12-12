@@ -78,7 +78,7 @@ class RandomizedTestingTask extends DefaultTask {
     @Input
     String argLine = null
 
-    Map<String, String> systemProperties = new HashMap<>()
+    Map<String, Object> systemProperties = new HashMap<>()
     PatternFilterable patternSet = new PatternSet()
 
     RandomizedTestingTask() {
@@ -100,7 +100,7 @@ class RandomizedTestingTask extends DefaultTask {
         jvmArgs.add(argument)
     }
 
-    void systemProperty(String property, String value) {
+    void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
     }
 
@@ -245,8 +245,8 @@ class RandomizedTestingTask extends DefaultTask {
                         exclude(name: excludePattern)
                     }
                 }
-                for (Map.Entry<String, String> prop : systemProperties) {
-                    sysproperty key: prop.getKey(), value: prop.getValue()
+                for (Map.Entry<String, Object> prop : systemProperties) {
+                    sysproperty key: prop.getKey(), value: prop.getValue().toString()
                 }
                 makeListeners()
             }

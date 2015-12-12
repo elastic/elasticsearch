@@ -135,7 +135,7 @@ are provided:
 |=======================================================================
 |Strategy |Supported Shapes |Supported Queries |Multiple Shapes
 
-|`recursive` |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN`, `CONTAINS` |Yes
+|`recursive` |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN` |Yes
 |`term` |<<point, Points>> |`INTERSECTS` |Yes
 
 |=======================================================================

@@ -201,6 +201,7 @@ public final class SuggestUtils {
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
         public static final ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         public static final ParseField SHARD_SIZE = new ParseField("shard_size");
+		public static final ParseField EXACT_MATCH = new ParseField("exact_match");
    }      
     
     public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
@@ -228,6 +229,8 @@ public final class SuggestUtils {
             suggestion.minQueryLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
             suggestion.minDocFreq(parser.floatValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.EXACT_MATCH)) {
+                suggestion.exactMatch(parser.booleanValue());
             } else {
                 return false;
             }

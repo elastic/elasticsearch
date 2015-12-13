@@ -35,6 +35,7 @@ public class DirectSpellcheckerSettings  {
     private int prefixLength = 1;
     private int minWordLength = 4;
     private float minDocFreq = 0f;
+	private boolean exactMatch = false;
 
     public SuggestMode suggestMode() {
         return suggestMode;
@@ -114,6 +115,13 @@ public class DirectSpellcheckerSettings  {
 
     public void minDocFreq(float minDocFreq) {
         this.minDocFreq = minDocFreq;
+    }
+	public boolean exactMatch() {
+        return exactMatch;
+    }
+ 
+    public void exactMatch(boolean exactMatch) {
+       this.exactMatch = exactMatch;
     }
 
 }

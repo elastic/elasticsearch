@@ -108,3 +108,6 @@ doesn't take the query into account that is part of request.
     usually spelled correctly on top of this also improves the spellcheck
     performance. The shard level document frequencies are used for this
     option.
+`exact_match`::
+     Indicate whether to include the text input as a suggest candidate
+     if a term is found to match it exactly.

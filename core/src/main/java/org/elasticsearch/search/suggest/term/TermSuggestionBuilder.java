@@ -39,7 +39,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private Integer prefixLength;
     private Integer minWordLength;
     private Float minDocFreq;
-    
+    private Boolean exactMatch;
+	
     /**
      * @param name
      *            The name of this suggestion. This is a required parameter.
@@ -186,6 +187,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         this.minDocFreq = minDocFreq;
         return this;
     }
+	
+	/**
+     * Indicate whether to return exact matches as suggestions
+     */
+    public TermSuggestionBuilder exactMatch(boolean exactMatch) {
+        this.exactMatch = exactMatch;
+        return this;
+    }
 
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -218,6 +227,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         }
         if (minDocFreq != null) {
             builder.field("min_doc_freq", minDocFreq);
+        }
+		if (exactMatch != null) {
+            builder.field("exact_match", exactMatch);
         }
         return builder;
     }

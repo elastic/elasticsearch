@@ -53,6 +53,7 @@ public class DirectSpellcheckerSettings  {
     private int prefixLength = DEFAULT_PREFIX_LENGTH;
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
+	private boolean exactMatch = false;
 
     private static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
     private static final Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
@@ -135,6 +136,13 @@ public class DirectSpellcheckerSettings  {
 
     public void minDocFreq(float minDocFreq) {
         this.minDocFreq = minDocFreq;
+    }
+	public boolean exactMatch() {
+        return exactMatch;
+    }
+ 
+    public void exactMatch(boolean exactMatch) {
+       this.exactMatch = exactMatch;
     }
 
     public DirectSpellChecker createDirectSpellChecker() {

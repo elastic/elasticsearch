@@ -78,6 +78,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private int prefixLength = DEFAULT_PREFIX_LENGTH;
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
+    private Boolean exactMatch;
 
     public TermSuggestionBuilder(String field) {
         super(field);
@@ -98,6 +99,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         prefixLength = in.prefixLength;
         minWordLength = in.minWordLength;
         minDocFreq = in.minDocFreq;
+        exactMatch = in.exactMatch;
     }
 
     /**
@@ -115,6 +117,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         prefixLength = in.readVInt();
         minWordLength = in.readVInt();
         minDocFreq = in.readFloat();
+        exactMatch = in.readBoolean();
     }
 
     @Override
@@ -129,6 +132,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         out.writeVInt(prefixLength);
         out.writeVInt(minWordLength);
         out.writeFloat(minDocFreq);
+        out.writeBoolean(exactMatch);
     }
 
     /**
@@ -362,6 +366,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         this.minDocFreq = minDocFreq;
         return this;
     }
+	
+	/**
+     * Indicate whether to return exact matches as suggestions
+     */
+    public TermSuggestionBuilder exactMatch(boolean exactMatch) {
+        this.exactMatch = exactMatch;
+        return this;
+    }
 
     /**
      * Get the minimal threshold for the frequency of a term appearing in the
@@ -383,6 +395,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
         builder.field(MIN_WORD_LENGTH_FIELD.getPreferredName(), minWordLength);
         builder.field(MIN_DOC_FREQ_FIELD.getPreferredName(), minDocFreq);
+        builder.field(EXACT_MATCH.getPreferredName(), exactMatch);
         return builder;
     }
 
@@ -423,6 +436,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     tmpSuggestion.minWordLength(parser.intValue());
                 } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, EXACT_MATCH)) {
+                   tmpSuggestion.exactMatch(parser.booleanValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                                                   "suggester[term] doesn't support field [" + currentFieldName + "]");
@@ -457,6 +472,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         settings.sort(sort);
         settings.stringDistance(stringDistance.toLucene());
         settings.suggestMode(suggestMode.toLucene());
+        settings.exactMatch(exactMatch);
         return suggestionContext;
     }
 
@@ -476,13 +492,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                Objects.equals(maxTermFreq, other.maxTermFreq) &&
                Objects.equals(prefixLength, other.prefixLength) &&
                Objects.equals(minWordLength, other.minWordLength) &&
-               Objects.equals(minDocFreq, other.minDocFreq);
+               Objects.equals(minDocFreq, other.minDocFreq) &&
+               Objects.equals(exactMatch, other.exactMatch);
     }
 
     @Override
     protected int doHashCode() {
         return Objects.hash(suggestMode, accuracy, sort, stringDistance, maxEdits, maxInspections,
-                            maxTermFreq, prefixLength, minWordLength, minDocFreq);
+                            maxTermFreq, prefixLength, minWordLength, minDocFreq, exactMatch);
     }
 
     /** An enum representing the valid suggest modes. */

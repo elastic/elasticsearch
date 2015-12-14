@@ -1,0 +1,79 @@
+---
+"Update a document using reindex":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: twitter
+        body:
+          script:
+            inline: ctx._source.user = "not" + ctx._source.user
+          query:
+            match:
+              user: kimchy
+  - match: {updated: 1}
+  - match: {noops: 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notkimchy
+  - match: { hits.total: 1 }
+
+---
+"Noop":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: twitter
+        body:
+          script:
+            inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+  - match: {updated: 1}
+  - match: {noops: 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notkimchy
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoo
+  - match: { hits.total: 0 }

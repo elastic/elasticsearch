@@ -63,6 +63,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicLong deleted = new AtomicLong(0);
     private final AtomicInteger batches = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
+    private final AtomicLong noops = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
     private final List<Failure> failures = new CopyOnWriteArrayList<>();
 
@@ -128,12 +129,26 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return versionConflicts.get();
     }
 
+    /**
+     * The number of noops (skipped bulk items) as part of this request.
+     */
+    public long noops() {
+        return noops.get();
+    }
+
     public long successfullyProcessed() {
         return updated.get() + created.get() + deleted.get();
     }
 
     public List<Failure> failures() {
         return unmodifiableList(failures);
+    }
+
+    /**
+     * Count a noop.
+     */
+    protected void countNoop() {
+        noops.incrementAndGet();
     }
 
     void initialSearch() {

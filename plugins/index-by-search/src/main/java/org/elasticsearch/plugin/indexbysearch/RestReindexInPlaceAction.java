@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugin.indexbysearch.ReindexInPlaceRequest.ReindexVersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -23,6 +24,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.script.Script;
 
 public class RestReindexInPlaceAction extends BaseRestHandler {
     private IndicesQueriesRegistry indicesQueriesRegistry;
@@ -65,7 +67,13 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
             }
             String versionType = (String) body.v2().remove("version_type");
             if (versionType != null) {
-                internalRequest.versionType(versionType);
+                internalRequest.versionType(ReindexVersionType.fromString(versionType));
+                modified = true;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> script = (Map<String, Object>) body.v2().remove("script");
+            if (script != null) {
+                internalRequest.script(Script.parse(script, false, parseFieldMatcher));
                 modified = true;
             }
             if (modified) {
@@ -83,7 +91,7 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
         }
         String versionType = request.param("version_type");
         if (versionType != null) {
-            internalRequest.versionType(versionType);
+            internalRequest.versionType(ReindexVersionType.fromString(versionType));
         }
 
         // TODO allow the user to modify the batch size? Or pick something better than just a default.

@@ -3,6 +3,7 @@ package org.elasticsearch.plugin.indexbysearch;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.BATCHES;
 import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.FAILURES;
+import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.NOOPS;
 import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.TOOK;
 import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.UPDATED;
 import static org.elasticsearch.plugin.indexbysearch.BulkIndexByScrollResponse.Fields.VERSION_CONFLICTS;
@@ -27,12 +28,13 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     private long updated;
     private int batches;
     private long versionConflicts;
+    private long noops;
     private List<Failure> failures;
 
     public BulkIndexByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, List<Failure> failures) {
+    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
         this.took = took;
         this.updated = updated;
         this.batches = batches;
@@ -100,6 +102,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         static final XContentBuilderString UPDATED = new XContentBuilderString("updated");
         static final XContentBuilderString BATCHES = new XContentBuilderString("batches");
         static final XContentBuilderString VERSION_CONFLICTS = new XContentBuilderString("versionConflicts");
+        static final XContentBuilderString NOOPS = new XContentBuilderString("noops");
         static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
     }
 
@@ -107,9 +110,9 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TOOK, took);
         builder.field(UPDATED, updated);
-        // NOCOMMIT rest tests for batches, version conflicts, and failures
         builder.field(BATCHES, batches);
         builder.field(VERSION_CONFLICTS, versionConflicts);
+        builder.field(NOOPS, noops);
         builder.startArray(FAILURES);
         for (Failure failure: failures) {
             builder.startObject();
@@ -128,6 +131,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         builder.append(",updated=").append(updated);
         builder.append(",batches=").append(batches);
         builder.append(",versionConflicts=").append(versionConflicts);
+        builder.append(",noops=").append(noops);
         builder.append(",failures=").append(failures.size());
         return builder.append("]").toString();
     }

@@ -4,6 +4,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.plugin.indexbysearch.ReindexInPlaceRequest.ReindexVersionType;
+import org.elasticsearch.script.Script;
 
 public class ReindexInPlaceRequestBuilder extends
         AbstractBulkByScrollRequestBuilder<ReindexInPlaceRequest, BulkIndexByScrollResponse, ReindexInPlaceRequestBuilder> {
@@ -24,8 +26,19 @@ public class ReindexInPlaceRequestBuilder extends
         return this;
     }
 
-    public ReindexInPlaceRequestBuilder useReindexVersionType(boolean useReindexVersionType) {
-        request.useReindexVersionType(useReindexVersionType);
+    public ReindexInPlaceRequestBuilder versionType(ReindexVersionType versionType) {
+        request.versionType(versionType);
+        return this;
+    }
+
+    @Override
+    public ReindexInPlaceRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
+        request.abortOnVersionConflict(abortOnVersionConflict);
+        return this;
+    }
+
+    public ReindexInPlaceRequestBuilder script(Script script) {
+        request.script(script);
         return this;
     }
 }

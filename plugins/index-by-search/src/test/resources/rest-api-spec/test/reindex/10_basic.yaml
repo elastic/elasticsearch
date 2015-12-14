@@ -16,6 +16,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
+  - match: {noops: 0}
   - is_true: took
   - is_false: created # This shouldn't be included in the response
 
@@ -48,6 +49,7 @@
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
+  - match: {noops: 0}
   - match: {failures: []}
   - is_true: took
 

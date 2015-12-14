@@ -17,8 +17,8 @@ public class IndexBySearchResponse extends BulkIndexByScrollResponse {
     public IndexBySearchResponse() {
     }
 
-    public IndexBySearchResponse(long took, long created, long updated, int batches, long versionConflicts, List<Failure> failures) {
-        super(took, updated, batches, versionConflicts, failures);
+    public IndexBySearchResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
+        super(took, updated, batches, versionConflicts, noops, failures);
         this.created = created;
     }
 

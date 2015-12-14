@@ -5,6 +5,9 @@ import java.io.IOException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.Script;
 
 /**
  * Request to reindex a set of documents where they are without changing their
@@ -12,10 +15,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
  */
 public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexInPlaceRequest> {
     /**
-     * Should this request use the reindex version type (true, the default) or
-     * the internal version type (false).
+     * Version type to use on the index requests. Defaults to INFER.
      */
-    private boolean useReindexVersionType = true;
+    private ReindexVersionType versionType = ReindexVersionType.INFER;
+
+    private Script script;
 
     public ReindexInPlaceRequest() {
     }
@@ -25,36 +29,33 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
     }
 
     /**
-     * Should this request use the reindex version type (true, the default) or
-     * the internal version type (false).
+     * Version type to use on the index requests.
      */
-    public boolean useReindexVersionType() {
-        return useReindexVersionType;
+    public ReindexVersionType versionType() {
+        return versionType;
     }
 
     /**
-     * Should this request use the reindex version type (true, the default) or
-     * the internal version type (false).
+     * Version type to use on the index requests.
      */
-    public ReindexInPlaceRequest useReindexVersionType(boolean useReindexVersionType) {
-        this.useReindexVersionType = useReindexVersionType;
+    public ReindexInPlaceRequest versionType(ReindexVersionType versionType) {
+        this.versionType = versionType;
         return this;
     }
 
     /**
-     * Sets useReindexVersionType using a REST-friendly string.
+     * Script to use to update the document on reindex.
      */
-    public void versionType(String versionType) {
-        switch (versionType) {
-        case "internal":
-            useReindexVersionType(false);
-            return;
-        case "reindex":
-            useReindexVersionType(true);
-            return;
-        default:
-            throw new IllegalArgumentException("version_type may only be \"internal\" or \"reindex\" but was [" + versionType + "]");
-        }
+    public Script script() {
+        return script;
+    }
+
+    /**
+     * Script to use to update the document on reindex.
+     */
+    public ReindexInPlaceRequest script(Script script) {
+        this.script = script;
+        return this;
     }
 
     @Override
@@ -65,13 +66,20 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        useReindexVersionType = in.readBoolean();
+        versionType = ReindexVersionType.PROTOTYPE.readFrom(in);
+        if (in.readBoolean()) {
+            script = Script.readScript(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(useReindexVersionType);
+        versionType.writeTo(out);
+        out.writeBoolean(script != null);
+        if (script != null) {
+            script.writeTo(out);
+        }
     }
 
     @Override
@@ -79,6 +87,96 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
         StringBuilder b = new StringBuilder();
         b.append("reindex ");
         searchToString(b);
+        if (script != null) {
+            b.append(" updated with [").append(script).append(']');
+        }
         return b.toString();
+    }
+
+    public static enum ReindexVersionType implements Writeable<ReindexVersionType> {
+        /**
+         * Always use the REINDEX version type.
+         */
+        REINDEX(0) {
+            @Override
+            public VersionType versionType(ReindexInPlaceRequest request) {
+                return VersionType.REINDEX;
+            }
+        },
+        /**
+         * Always use the INTERNAL version type.
+         */
+        INTERNAL(1) {
+            @Override
+            public VersionType versionType(ReindexInPlaceRequest request) {
+                return VersionType.INTERNAL;
+            }
+        },
+        /**
+         * Infer the version type from the request. If there is a script then
+         * use INTERNAL, if there isn't then use REINDEX.
+         */
+        INFER(2) {
+            @Override
+            public VersionType versionType(ReindexInPlaceRequest request) {
+                if (request.script() == null) {
+                    return VersionType.REINDEX;
+                }
+                return VersionType.INTERNAL;
+            }
+        };
+
+        /**
+         * Prototype on which to call readFrom to read any instance.
+         */
+        public static ReindexVersionType PROTOTYPE = REINDEX;
+
+        private final byte id;
+
+        private ReindexVersionType(int id) {
+            this.id = (byte) id;
+        }
+
+        public abstract VersionType versionType(ReindexInPlaceRequest request);
+
+        public byte id() {
+            return id;
+        }
+
+        @Override
+        public ReindexVersionType readFrom(StreamInput in) throws IOException {
+            return fromId(in.readByte());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+
+        public static ReindexVersionType fromString(String versionType) {
+            switch (versionType) {
+            case "reindex":
+                return REINDEX;
+            case "internal":
+                return INTERNAL;
+            case "infer":
+                return INFER;
+            default:
+                throw new IllegalArgumentException("ReindexVersionType may only be \"internal\", \"reindex\", or \"infer\" but was [" + versionType + "]");
+            }
+        }
+
+        public static ReindexVersionType fromId(byte id) {
+            switch (id) {
+            case 0:
+                return REINDEX;
+            case 1:
+                return INTERNAL;
+            case 2:
+                return INFER;
+            default:
+                throw new IllegalArgumentException("Unknown id [" + id + "]");
+            }
+        }
     }
 }

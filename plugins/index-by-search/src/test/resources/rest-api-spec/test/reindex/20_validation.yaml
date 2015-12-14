@@ -28,12 +28,12 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /version_type may only be .* but was \[cat\]/
+      catch: /ReindexVersionType may only be .* but was \[cat\]/
       reindex:
         index: test
         version_type: cat
   - do:
-      catch: /version_type may only be .* but was \[cat\]/
+      catch: /ReindexVersionType may only be .* but was \[cat\]/
       reindex:
         index: test
         body:

@@ -21,6 +21,7 @@ package org.elasticsearch.tribe;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -104,6 +105,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
         sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING, true);
+        sb.put(TransportMasterNodeAction.REQUIRE_LOCAL_SETTING, true);
         return sb.build();
     }
 

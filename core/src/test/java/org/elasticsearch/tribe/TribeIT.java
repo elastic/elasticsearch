@@ -50,9 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -181,6 +179,12 @@ public class TribeIT extends ESIntegTestCase {
         } catch (ClusterBlockException e) {
             // all is well!
         }
+    }
+
+    public void testFailOnNonLocalMasterNodeAction() throws Exception {
+        setupTribeNode(Settings.EMPTY);
+
+        assertThrows(tribeClient.admin().indices().prepareCreate("test"), IllegalStateException.class);
     }
 
     public void testIndexWriteBlocks() throws Exception {

@@ -244,6 +244,19 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         listener.get();
     }
 
+    public void testForbiddenNonLocalOperation() throws InterruptedException {
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        clusterService.setState(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        new Action(Settings.builder().put(TransportMasterNodeAction.REQUIRE_LOCAL_SETTING, "true").build(),
+            "testAction", transportService, clusterService, threadPool).execute(request, listener);
+
+        assertTrue(listener.isDone());
+        assertListenerThrows("IllegalStateException should be thrown", listener, IllegalStateException.class);
+    }
+
     public void testMasterNotAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(0));
         clusterService.setState(ClusterStateCreationUtils.state(localNode, null, allNodes));

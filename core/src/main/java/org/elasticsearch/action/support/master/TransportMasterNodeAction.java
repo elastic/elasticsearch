@@ -64,10 +64,12 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     };
 
+    public static final String REQUIRE_LOCAL_SETTING = "action.master.require_local";
+
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 
-    final String executor;
+    private final boolean requireLocal;
 
     protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
@@ -75,7 +77,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.executor = executor();
+        this.requireLocal = settings.getAsBoolean(REQUIRE_LOCAL_SETTING, false);
     }
 
     protected abstract String executor();
@@ -126,7 +128,12 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         protected void doStart() {
             final ClusterState clusterState = observer.observedState();
             final DiscoveryNodes nodes = clusterState.nodes();
-            if (nodes.localNodeMaster() || localExecute(request)) {
+            final boolean local = localExecute(request);
+            if (requireLocal && local == false) {
+                listener.onFailure(new IllegalStateException("Action [{" + actionName + "}] only allowed to execute in local mode"));
+                return;
+            }
+            if (nodes.localNodeMaster() || local) {
                 // check for block, if blocked, retry, else, execute locally
                 final ClusterBlockException blockException = checkBlock(request, clusterState);
                 if (blockException != null) {
@@ -154,7 +161,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         }
                     };
-                    threadPool.executor(executor).execute(new ActionRunnable(delegate) {
+                    threadPool.executor(executor()).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
                             masterOperation(request, clusterService.state(), delegate);

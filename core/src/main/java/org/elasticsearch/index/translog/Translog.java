@@ -279,7 +279,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    boolean isOpen() {
+    /** Returns {@code true} if this {@code Translog} is still open. */
+    public boolean isOpen() {
         return closed.get() == false;
     }
 
@@ -397,7 +398,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @see Index
      * @see org.elasticsearch.index.translog.Translog.Delete
      */
-    public Location add(Operation operation) throws TranslogException {
+    public Location add(Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
@@ -419,7 +420,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert current.assertBytesAtLocation(location, bytes);
                 return location;
             }
-        } catch (AlreadyClosedException ex) {
+        } catch (AlreadyClosedException | IOException ex) {
+            if (current.getTragicException() != null) {
+                try {
+                    close();
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                }
+            }
             throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -433,6 +441,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Snapshots are fixed in time and will not be updated with future operations.
      */
     public Snapshot newSnapshot() {
+        ensureOpen();
         try (ReleasableLock lock = readLock.acquire()) {
             ArrayList<TranslogReader> toOpen = new ArrayList<>();
             toOpen.addAll(recoveredTranslogs);
@@ -497,6 +506,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
+        } catch (AlreadyClosedException | IOException ex) {
+            if (current.getTragicException() != null) {
+                try {
+                    close();
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                }
+            }
+            throw ex;
         }
     }
 
@@ -1296,6 +1314,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
             final TranslogWriter oldCurrent = current;
+            oldCurrent.ensureOpen();
             oldCurrent.sync();
             currentCommittingTranslog = current.immutableReader();
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
@@ -1391,7 +1410,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     private void ensureOpen() {
         if (closed.get()) {
-            throw new AlreadyClosedException("translog is already closed");
+            throw new AlreadyClosedException("translog is already closed", current.getTragicException());
         }
     }
 
@@ -1404,6 +1423,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     TranslogWriter.ChannelFactory getChannelFactory() {
         return TranslogWriter.ChannelFactory.DEFAULT;
+    }
+
+    /** If this {@code Translog} was closed as a side-effect of a tragic exception,
+     *  e.g. disk full while flushing a new segment, this returns the root cause exception.
+     *  Otherwise (no tragic exception has occurred) it returns null. */
+    public Throwable getTragicException() {
+        return current.getTragicException();
     }
 
 }

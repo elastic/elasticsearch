@@ -56,7 +56,7 @@ public class TranslogWriter extends TranslogReader {
     /* the offset in bytes written to the file */
     protected volatile long writtenOffset;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
-    private volatile Throwable tragicEvent;
+    private volatile Throwable tragedy;
 
 
     public TranslogWriter(ShardId shardId, long generation, ChannelReference channelReference) throws IOException {
@@ -94,6 +94,12 @@ public class TranslogWriter extends TranslogReader {
             throw throwable;
         }
     }
+    /** If this {@code TranslogWriter} was closed as a side-effect of a tragic exception,
+     *  e.g. disk full while flushing a new segment, this returns the root cause exception.
+     *  Otherwise (no tragic exception has occurred) it returns null. */
+    public Throwable getTragicException() {
+        return tragedy;
+    }
 
     public enum Type {
 
@@ -125,10 +131,10 @@ public class TranslogWriter extends TranslogReader {
     protected final void closeWithTragicEvent(Throwable throwable) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             if (throwable != null) {
-                if (tragicEvent == null) {
-                    tragicEvent = throwable;
+                if (tragedy == null) {
+                    tragedy = throwable;
                 } else {
-                    tragicEvent.addSuppressed(throwable);
+                    tragedy.addSuppressed(throwable);
                 }
             }
             close();
@@ -316,7 +322,7 @@ public class TranslogWriter extends TranslogReader {
 
     protected final void ensureOpen() {
         if (isClosed()) {
-            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragicEvent);
+            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
         }
     }
 }

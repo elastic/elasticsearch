@@ -124,7 +124,7 @@ public class TranslogTests extends ESTestCase {
         return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
-    protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) {
+    protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
         translog.add(op);
     }
@@ -335,7 +335,7 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    public void testSnapshot() {
+    public void testSnapshot() throws IOException {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         Translog.Snapshot snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(0));
@@ -394,7 +394,7 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot snapshot = translog.newSnapshot();
             fail("translog is closed");
         } catch (AlreadyClosedException ex) {
-            assertThat(ex.getMessage(), containsString("translog-1.tlog is already closed can't increment"));
+            assertEquals(ex.getMessage(), "translog is already closed");
         }
     }
 
@@ -639,7 +639,7 @@ public class TranslogTests extends ESTestCase {
             final String threadId = "writer_" + i;
             writers[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void doRun() throws BrokenBarrierException, InterruptedException {
+                public void doRun() throws BrokenBarrierException, InterruptedException, IOException {
                     barrier.await();
                     int counter = 0;
                     while (run.get()) {
@@ -1287,7 +1287,6 @@ public class TranslogTests extends ESTestCase {
 
     public void testFailFlush() throws IOException {
         Path tempDir = createTempDir();
-        final AtomicBoolean failWrite = new AtomicBoolean();
         final AtomicBoolean simulateDiskFull = new AtomicBoolean();
         TranslogConfig config = getTranslogConfig(tempDir);
         Translog translog = new Translog(config) {
@@ -1303,9 +1302,6 @@ public class TranslogTests extends ESTestCase {
 
                             @Override
                             public int write(ByteBuffer src) throws IOException {
-                                if (failWrite.get()) {
-                                    throw new IOException("boom");
-                                }
                                 if (simulateDiskFull.get()) {
                                     if (src.limit() > 1) {
                                         final int pos = src.position();
@@ -1337,11 +1333,8 @@ public class TranslogTests extends ESTestCase {
                 opsSynced++;
             } catch (IOException ex) {
                 failed = true;
+                assertFalse(translog.isOpen());
                 assertEquals("no space left on device", ex.getMessage());
-            } catch (TranslogException ex) {
-                // we catch IOExceptions in Translog#add -- that's how we got here
-                failed = true;
-                assertTrue(ex.toString(), ex.getMessage().startsWith("Failed to write operation"));
              }
             simulateDiskFull.set(randomBoolean());
         }
@@ -1362,16 +1355,20 @@ public class TranslogTests extends ESTestCase {
             fail("already closed");
         } catch (AlreadyClosedException ex) {
             // all is well
+            assertNotNull(ex.getCause());
+            assertSame(translog.getTragicException(), ex.getCause());
         }
 
         try {
-            translog.close();
-            if (opsAdded != opsSynced) {
-                fail("already closed");
-            }
+            translog.commit();
+            fail("already closed");
         } catch (AlreadyClosedException ex) {
             assertNotNull(ex.getCause());
+            assertSame(translog.getTragicException(), ex.getCause());
         }
+
+        assertFalse(translog.isOpen());
+        translog.close(); // we are closed
         config.setTranslogGeneration(translogGeneration);
         try (Translog tlog = new Translog(config)){
             assertEquals("lastCommitted must be 1 less than current", translogGeneration.translogFileGeneration + 1, tlog.currentFileGeneration());

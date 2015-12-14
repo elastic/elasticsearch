@@ -782,9 +782,13 @@ public class InternalEngine extends Engine {
             // but we are double-checking it's failed and closed
             if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
                 failEngine("already closed by tragic event", indexWriter.getTragicException());
+            } else if (translog.isOpen() == false && translog.getTragicException() != null) {
+                failEngine("already closed by tragic event", translog.getTragicException());
             }
             return true;
-        } else if (t != null && indexWriter.isOpen() == false && indexWriter.getTragicException() == t) {
+        } else if (t != null &&
+            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
+                || (translog.isOpen() == false && translog.getTragicException() == t))) {
             // this spot on - we are handling the tragic event exception here so we have to fail the engine
             // right away
             failEngine(source, t);

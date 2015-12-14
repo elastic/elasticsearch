@@ -19,26 +19,15 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType.CREATE;
 import static org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType.OVERWRITE;
 import static org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType.REFRESH;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 
 public class IndexBySearchOpTypeTests extends IndexBySearchTestCase {
-    private static final int MAX_MUTATIONS = 50;
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;
@@ -135,83 +124,5 @@ public class IndexBySearchOpTypeTests extends IndexBySearchTestCase {
         GetResponse get = client().prepareGet("dest", "test", "test").get();
         assertEquals(fooValue, get.getSource().get("foo"));
         assertEquals(version, get.getVersion());
-    }
-
-    // NOCOMMIT these were useful and probably worth transplanting if possible
-//    public void testUpdateWhileReindexingUsingInternalVersion() throws Exception {
-//        updateWhileReindexingTestCase(false);
-//    }
-//
-//    public void testUpdateWhileReindexingUsingExternalVersion() throws Exception {
-//        updateWhileReindexingTestCase(true);
-//    }
-
-    /**
-     * Mutates a record while reindexing it and asserts that the mutation always
-     * sticks. Reindex should never revert.
-     */
-    private void updateWhileReindexingTestCase(boolean useExternalVersioning) throws Exception {
-        AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
-        indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
-
-        AtomicReference<Throwable> failure = new AtomicReference<>();
-        AtomicBoolean keepReindexing = new AtomicBoolean(true);
-        Thread reindexer = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (keepReindexing.get()) {
-                    try {
-                        IndexBySearchRequestBuilder reindex = newIndexBySearch();
-                        reindex.search().setIndices("test").setTypes("test");
-                        reindex.index().setIndex("test").setType("test");
-                        if (useExternalVersioning) {
-                            reindex.index().setVersionType(VersionType.EXTERNAL);
-                        }
-                        assertThat(reindex.get(), responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
-                                .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
-                        client().admin().indices().prepareRefresh("test").get();
-                    } catch (Throwable t) {
-                        failure.set(t);
-                    }
-                }
-            }
-        });
-        reindexer.start();
-
-        try {
-            for (int i = 0; i < MAX_MUTATIONS; i++) {
-                GetResponse get = client().prepareGet("test", "test", "test").get();
-                assertEquals(value.get(), get.getSource().get("test"));
-                value.set(randomSimpleString(random()));
-                IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
-                        .setRefresh(true);
-                if (useExternalVersioning) {
-                    index.setVersion(get.getVersion() + 1).setVersionType(VersionType.EXTERNAL).get();
-                } else {
-                    while (true) {
-                        try {
-                            /*
-                             * Hacky retry loop for version conflict exceptions.
-                             * These are only possible with internal versioning.
-                             */
-                            index.setVersion(get.getVersion()).get();
-                        } catch (VersionConflictEngineException e) {
-                            logger.info(
-                                    "Caught expected version conflict trying to perform mutation number {} with version {}. Retrying.",
-                                    i, get.getVersion());
-                            get = client().prepareGet("test", "test", "test").get();
-                            continue;
-                        }
-                        break;
-                    }
-                }
-            }
-        } finally {
-            keepReindexing.set(false);
-            reindexer.join(TimeUnit.SECONDS.toMillis(10));
-            if (failure.get() != null) {
-                throw new RuntimeException(failure.get());
-            }
-        }
     }
 }

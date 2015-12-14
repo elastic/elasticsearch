@@ -17,28 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.synced_flush;
+package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 
+public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushRequest, SyncedFlushResponse, SyncedFlushRequestBuilder> {
 
-public class SyncedFlushAction extends Action<SyncedFlushRequest, SyncedFlushResponse, SyncedFlushRequestBuilder> {
-
-    public static final SyncedFlushAction INSTANCE = new SyncedFlushAction();
-    public static final String NAME = "indices:admin/synced_flush";
-
-    private SyncedFlushAction() {
-        super(NAME);
+    public SyncedFlushRequestBuilder(ElasticsearchClient client, SyncedFlushAction action) {
+        super(client, action, new SyncedFlushRequest());
     }
 
-    @Override
-    public SyncedFlushResponse newResponse() {
-        return new SyncedFlushResponse();
+    public SyncedFlushRequestBuilder setIndices(String[] indices) {
+        super.request().indices(indices);
+        return this;
     }
 
-    @Override
-    public SyncedFlushRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SyncedFlushRequestBuilder(client, this);
+    public SyncedFlushRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        super.request().indicesOptions(indicesOptions);
+        return this;
     }
 }

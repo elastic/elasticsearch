@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.synced_flush;
+package org.elasticsearch.action.admin.indices.flush;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;

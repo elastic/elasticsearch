@@ -50,7 +50,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
@@ -300,7 +300,7 @@ public class Requests {
      *
      * @param indices The indices to sync flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The synced flush request
-     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
      */
     public static SyncedFlushRequest syncedFlushRequest(String... indices) {
         return new SyncedFlushRequest(indices);

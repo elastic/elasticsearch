@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.indices.flush;
 
-import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;

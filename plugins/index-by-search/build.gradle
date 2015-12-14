@@ -29,3 +29,11 @@ integTest {
     plugin 'groovy', project(':plugins:lang-groovy')
   }
 }
+
+run {
+  cluster {
+    // Sadly we need groovy so we can test update scripts.
+    systemProperty 'es.script.inline', 'on'
+    plugin 'groovy', project(':plugins:lang-groovy')
+  }
+}

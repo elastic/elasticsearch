@@ -51,12 +51,12 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         builder.startObject(opType);
         if (failure == null) {
             response.toXContent(builder, params);
-            builder.field(Fields.STATUS, response.status());
+            builder.field(Fields.STATUS, response.status().getStatus());
         } else {
             builder.field(Fields._INDEX, failure.getIndex());
             builder.field(Fields._TYPE, failure.getType());
             builder.field(Fields._ID, failure.getId());
-            builder.field(Fields.STATUS, failure.getStatus());
+            builder.field(Fields.STATUS, failure.getStatus().getStatus());
             builder.startObject(Fields.ERROR);
             ElasticsearchException.toXContent(builder, params, failure.getCause());
             builder.endObject();

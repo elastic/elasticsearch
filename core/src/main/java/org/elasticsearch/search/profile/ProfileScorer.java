@@ -151,12 +151,7 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public float matchCost() {
-                profile.startTime(ProfileBreakdown.TimingType.MATCH);
-                try {
-                    return in.matchCost();
-                } finally {
-                    profile.stopAndRecordTime();
-                }
+                return in.matchCost();
             }
         };
     }

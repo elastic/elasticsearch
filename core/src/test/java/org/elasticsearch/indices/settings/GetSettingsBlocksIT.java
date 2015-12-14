@@ -21,6 +21,7 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -40,7 +41,7 @@ public class GetSettingsBlocksIT extends ESIntegTestCase {
                 .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", -1)
                         .put("index.merge.policy.expunge_deletes_allowed", "30")
-                        .put("index.mapper.dynamic", false)));
+                        .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, false)));
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
@@ -49,7 +50,7 @@ public class GetSettingsBlocksIT extends ESIntegTestCase {
                 assertThat(response.getIndexToSettings().size(), greaterThanOrEqualTo(1));
                 assertThat(response.getSetting("test", "index.refresh_interval"), equalTo("-1"));
                 assertThat(response.getSetting("test", "index.merge.policy.expunge_deletes_allowed"), equalTo("30"));
-                assertThat(response.getSetting("test", "index.mapper.dynamic"), equalTo("false"));
+                assertThat(response.getSetting("test", MapperService.INDEX_MAPPER_DYNAMIC_SETTING), equalTo("false"));
             } finally {
                 disableIndexBlock("test", block);
             }

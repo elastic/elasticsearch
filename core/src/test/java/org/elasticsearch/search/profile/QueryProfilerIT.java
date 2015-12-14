@@ -125,13 +125,15 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     .setProfile(false)
                     .addSort("_score", SortOrder.DESC)
                     .addSort("_uid", SortOrder.ASC)
+                    .setPreference("_primary")
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             SearchRequestBuilder profile = client().prepareSearch("test")
                     .setQuery(q)
-                    .setProfile(false)
+                    .setProfile(true)
                     .addSort("_score", SortOrder.DESC)
                     .addSort("_uid", SortOrder.ASC)
+                    .setPreference("_primary")
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
@@ -160,9 +162,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
             for (int j = 0; j < vanillaHits.length; j++) {
                 assertThat("Profile hit #" + j + " has a different ID from Vanilla",
-                        vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
-                //assertTrue("Profile hit #" + j + "'s score [" + profileHits[j].getScore() + "] is not close to Vanilla [" + vanillaHits[j].getScore() + "]",
-                //        nearlyEqual(vanillaHits[j].getScore(), profileHits[j].getScore(), 0.001));
+                    vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
             }
 
         }

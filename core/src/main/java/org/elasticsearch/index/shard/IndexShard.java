@@ -506,12 +506,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void refresh(String source) {
         verifyNotClosed();
-        if (logger.isTraceEnabled()) {
-            logger.trace("refresh with source: {}", source);
+        // nocommit OK to throw EngineClosedExc?
+        long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
+        indexingMemoryController.addRefreshingBytes(shardId, ramBytesUsed);
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("refresh with source: {} indexBufferRAMBytesUsed={}", source, ramBytesUsed);
+            }
+            long time = System.nanoTime();
+            getEngine().refresh(source);
+            refreshMetric.inc(System.nanoTime() - time);
+        } finally {
+            indexingMemoryController.removeRefreshingBytes(shardId, ramBytesUsed);
         }
-        long time = System.nanoTime();
-        getEngine().refresh(source);
-        refreshMetric.inc(System.nanoTime() - time);
     }
 
     public RefreshStats refreshStats() {

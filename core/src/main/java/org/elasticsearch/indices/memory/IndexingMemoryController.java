@@ -58,7 +58,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     public static final String SHARD_MEMORY_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
     /** Hardwired translog buffer size */
-    public static final ByteSizeValue SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("32kb", "SHARD_TRANSLOG_BUFFER");
+    public static final ByteSizeValue SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("8kb", "SHARD_TRANSLOG_BUFFER");
 
     private final ThreadPool threadPool;
     private final IndicesService indicesService;
@@ -74,6 +74,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final ShardsIndicesStatusChecker statusChecker;
+
+    /** How many bytes we are currently moving to disk by the engine to refresh */
+    private final AtomicLong bytesRefreshingNow = new AtomicLong();
+
+    private final Map<ShardId,Long> refreshingBytes = new ConcurrentHashMap<>();
 
     @Inject
     public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
@@ -115,6 +120,15 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                      this.indexingBuffer,
                      SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
+    }
+
+    public void addRefreshingBytes(ShardId shardId, long numBytes) {
+        refreshingBytes.put(shardId, numBytes);
+    }
+
+    public void removeRefreshingBytes(ShardId shardId, long numBytes) {
+        boolean result = refreshingBytes.remove(shardId);
+        assert result;
     }
 
     @Override
@@ -248,29 +262,59 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         @Override
         public synchronized void run() {
 
-            // nocommit lower the translog buffer to 8 KB
-
             // nocommit add defensive try/catch-everything here?  bad if an errant EngineClosedExc kills off this thread!!
 
             // Fast check to sum up how much heap all shards' indexing buffers are using now:
             long totalBytesUsed = 0;
             for (ShardId shardId : availableShards()) {
+                Long refreshingBytes = refreshingBytes.get(shardId);
 
                 // Give shard a chance to transition to inactive so sync'd flush can happen:
                 checkIdle(shardId, inactiveTime.nanos());
 
-                totalBytesUsed += getIndexBufferRAMBytesUsed(shardId);
-                System.out.println("IMC:   " + shardId + " using " + (getIndexBufferRAMBytesUsed(shardId)/1024./1024.) + " MB");
+                // nocommit explain why order is important here!
+                Long refreshingBytes = refreshingBytes.get(shardId);
+
+                long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);
+
+                if (refreshingBytes != null) {
+                    // Only count up bytes not already being refreshed:
+                    shardBytesUsed -= refreshingBytes;
+
+                    // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
+                    // have a negative value here:
+                    if (shardBytesUsed < 0) {
+                        continue;
+                    }
+                }
+
+                totalBytesUsed += shardBytesUsed;
+                System.out.println("IMC:   " + shardId + " using " + (shardBytesUsed/1024./1024.) + " MB");
             }
 
             System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": TOT=" + totalBytesUsed + " vs " + indexingBuffer.bytes());
 
-            if (totalBytesUsed > indexingBuffer.bytes()) {
+            if (totalBytesUsed - bytesRefreshingNow.get() > indexingBuffer.bytes()) {
                 // OK we are using too much; make a queue and ask largest shard(s) to refresh:
                 logger.debug("now refreshing some shards: total indexing bytes used [{}] vs index_buffer_size [{}]", new ByteSizeValue(totalBytesUsed), indexingBuffer);
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
                 for (ShardId shardId : availableShards()) {
+                    // nocommit explain why order is important here!
+                    Long refreshingBytes = refreshingBytes.get(shardId);
+
                     long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);
+
+                    if (refreshingBytes != null) {
+                        // Only count up bytes not already being refreshed:
+                        shardBytesUsed -= refreshingBytes;
+
+                        // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
+                        // have a negative value here:
+                        if (shardBytesUsed < 0) {
+                            continue;
+                        }
+                    }
+
                     if (shardBytesUsed > 0) {
                         queue.add(new ShardAndBytesUsed(shardBytesUsed, shardId));
                     }

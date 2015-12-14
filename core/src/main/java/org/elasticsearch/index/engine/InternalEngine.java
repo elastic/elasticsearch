@@ -102,8 +102,6 @@ public class InternalEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
-    private volatile boolean refreshing;
-
     private final IndexThrottle throttle;
 
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
@@ -489,7 +487,6 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            refreshing = true;
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
@@ -499,8 +496,6 @@ public class InternalEngine extends Engine {
         } catch (Throwable t) {
             failEngine("refresh failed", t);
             throw new RefreshFailedEngineException(shardId, t);
-        } finally {
-            refreshing = false;
         }
 
         // TODO: maybe we should just put a scheduled job in threadPool?
@@ -759,15 +754,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public long indexBufferRAMBytesUsed() {
-        if (refreshing) {
-            // We tell a "white lie" here, pretending that we instantaneously moved all
-            // heap to disk at the start of refresh.  We do this so IMC  behaves as if we
-            // are using no heap, else it will just keep asking us when it should be
-            // asking others:
-            return 0;
-        } else {
-            return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
-        }
+        return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
     @Override

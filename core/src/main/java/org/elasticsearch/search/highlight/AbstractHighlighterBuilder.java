@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,7 +80,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected QueryBuilder<?> highlightQuery;
 
-    protected String order;
+    protected Order order;
 
     protected Boolean highlightFilter;
 
@@ -217,18 +219,26 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * The order of fragments per field. By default, ordered by the order in the
      * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
+     * by score of the fragments, or <tt>none</TT>.
+     */
+    public HB order(String order) {
+        return order(Order.fromString(order));
+    }
+
+    /**
+     * By default, fragments of a field are ordered by the order in the highlighted text.
+     * If set to {@link Order#SCORE}, this changes order to score of the fragments.
      */
     @SuppressWarnings("unchecked")
-    public HB order(String order) {
-        this.order = order;
+    public HB order(Order scoreOrdered) {
+        this.order = scoreOrdered;
         return (HB) this;
     }
 
     /**
-     * @return the value set by {@link #order(String)}
+     * @return the value set by {@link #order(Order)}
      */
-    public String order() {
+    public Order order() {
         return this.order;
     }
 
@@ -395,7 +405,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);
         }
         if (order != null) {
-            builder.field(ORDER_FIELD.getPreferredName(), order);
+            builder.field(ORDER_FIELD.getPreferredName(), order.toString());
         }
         if (highlightFilter != null) {
             builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
@@ -458,7 +468,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
-                    highlightBuilder.order(parser.text());
+                    highlightBuilder.order(Order.fromString(parser.text()));
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
                     highlightBuilder.highlightFilter(parser.booleanValue());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
@@ -578,7 +588,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (in.readBoolean()) {
             highlightQuery(in.readQuery());
         }
-        order(in.readOptionalString());
+        if (in.readBoolean()) {
+            order(Order.PROTOTYPE.readFrom(in));
+        }
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
         boundaryMaxScan(in.readOptionalVInt());
@@ -609,7 +621,11 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (hasQuery) {
             out.writeQuery(highlightQuery);
         }
-        out.writeOptionalString(order);
+        boolean hasSetOrder = order != null;
+        out.writeBoolean(hasSetOrder);
+        if (hasSetOrder) {
+            order.writeTo(out);
+        }
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
         out.writeOptionalVInt(boundaryMaxScan);

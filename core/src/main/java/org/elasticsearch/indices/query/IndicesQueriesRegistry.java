@@ -21,6 +21,7 @@ package org.elasticsearch.indices.query;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
@@ -40,11 +41,12 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        for (QueryParser<?> queryParser : injectedQueryParsers) {
+        for (@SuppressWarnings("unchecked") QueryParser<? extends QueryBuilder> queryParser : injectedQueryParsers) {
             for (String name : queryParser.names()) {
                 queryParsers.put(name, queryParser);
             }
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, queryParser.getBuilderPrototype());
+            @SuppressWarnings("unchecked") NamedWriteable<? extends QueryBuilder> qb = queryParser.getBuilderPrototype();
+            namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
         }
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it

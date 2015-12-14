@@ -103,7 +103,7 @@ public class FlushIT extends ESIntegTestCase {
             result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
         } else {
             logger.info("--> sync flushing index [test]");
-            SyncedFlushResponse indicesResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+            SyncedFlushResponse indicesResult = client().admin().indices().prepareSyncedFlush("test").get();
             result = indicesResult.getShardsResultPerIndex().get("test").get(0);
         }
         assertFalse(result.failed());
@@ -175,7 +175,7 @@ public class FlushIT extends ESIntegTestCase {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        SyncedFlushResponse syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+        SyncedFlushResponse syncedFlushResult = client().admin().indices().prepareSyncedFlush("test").get();
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
@@ -217,7 +217,7 @@ public class FlushIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
 
         // this should not hang but instead immediately return with empty result set
-        List<ShardsSyncedFlushResult> shardsResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").getShardsResultPerIndex().get("test");
+        List<ShardsSyncedFlushResult> shardsResult = client().admin().indices().prepareSyncedFlush("test").get().getShardsResultPerIndex().get("test");
         // just to make sure the test actually tests the right thing
         int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
         assertThat(shardsResult.size(), equalTo(numShards));

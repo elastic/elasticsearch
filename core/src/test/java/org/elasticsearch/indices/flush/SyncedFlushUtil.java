@@ -20,7 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.synced_flush.SyncedFlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,29 +41,6 @@ public class SyncedFlushUtil {
     private SyncedFlushUtil() {
 
     }
-
-    /**
-     * Blocking single index version of {@link SyncedFlushService#attemptSyncedFlush(String[], IndicesOptions, ActionListener)}
-     */
-    public static SyncedFlushResponse attemptSyncedFlush(InternalTestCluster cluster, String index) {
-        if (randomBoolean()) {
-            SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-            LatchedListener<SyncedFlushResponse> listener = new LatchedListener();
-            service.attemptSyncedFlush(new String[]{index}, IndicesOptions.lenientExpandOpen(), listener);
-            try {
-                listener.latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            if (listener.error != null) {
-                throw ExceptionsHelper.convertToElastic(listener.error);
-            }
-            return listener.result;
-        } else {
-            return client().admin().indices().prepareSyncedFlush(index).get();
-        }
-    }
-
 
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}

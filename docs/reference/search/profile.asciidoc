@@ -1,7 +1,7 @@
 [[search-profile]]
 == Profile API
 
-coming[2.1.0]
+coming[2.2.0]
 
 experimental[]
 
@@ -74,7 +74,7 @@ This will yield the following result:
                           "score": 0,
                           "next_doc": 24495,
                           "match": 0,
-                          "weight": 8488388,
+                          "create_weight": 8488388,
                           "build_scorer": 7016015,
                           "advance": 0
                        },
@@ -87,7 +87,7 @@ This will yield the following result:
                                 "score": 0,
                                 "next_doc": 18332,
                                 "match": 0,
-                                "weight": 2945570,
+                                "create_weight": 2945570,
                                 "build_scorer": 1974953,
                                 "advance": 0
                              }
@@ -100,7 +100,7 @@ This will yield the following result:
                                 "score": 0,
                                 "next_doc": 0,
                                 "match": 0,
-                                "weight": 170534,
+                                "create_weight": 170534,
                                 "build_scorer": 331132,
                                 "advance": 0
                              }
@@ -229,7 +229,7 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
   "score": 0,
   "next_doc": 24495,
   "match": 0,
-  "weight": 8488388,
+  "create_weight": 8488388,
   "build_scorer": 7016015,
   "advance": 0
 
@@ -248,7 +248,7 @@ The meaning of the stats are as follows:
 
 [horizontal]
 
-`weight`::
+`create_weight`::
 
     A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
     executes a search against a specific Lucene Index).  This puts Lucene in a tricky spot, since many queries
@@ -259,14 +259,14 @@ The meaning of the stats are as follows:
     object to hold state associated with this particular (IndexSearcher, Query) tuple.  The `weight` metric
     shows how long this process takes
 
-    This may also showing timing associated with caching, if enabled and/or applicable for the query
-
 `build_scorer`::
 
     This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
     iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
     Note, this records the time required to generate the Scorer object, not actuall score the documents.  Some
     queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
+
+    This may also showing timing associated with caching, if enabled and/or applicable for the query
 
 `next_doc`::
 
@@ -279,7 +279,9 @@ The meaning of the stats are as follows:
 
     `advance` is the "lower level" version of next_doc: it serves the same purpose of finding the next matching
     doc, but requires the calling query to perform extra tasks such as identifying and moving past skips, etc.
-    However,  not all queries can use next_doc, so `advance` is also timed for those queries
+    However,  not all queries can use next_doc, so `advance` is also timed for those queries.
+
+    Conjunctions (e.g. `must` clauses in a boolean) are typical consumers of `advance`
 
 `matches`::
 
@@ -376,7 +378,7 @@ For reference, the various collector reason's are:
 
 === `rewrite` Section
 
-    All queries in Lucene undergo a "rewriting" process.  A query (and it's sub-queries) may be rewritten one or
+    All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
     more times, and the process continues until the query stops changing.  This process allows Lucene to perform
     optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
     etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
@@ -467,7 +469,7 @@ And the response:
                               "score": 0,
                               "next_doc": 0,
                               "match": 0,
-                              "weight": 31584,
+                              "create_weight": 31584,
                               "build_scorer": 377872,
                               "advance": 0
                            }
@@ -480,7 +482,7 @@ And the response:
                               "score": 0,
                               "next_doc": 5936,
                               "match": 0,
-                              "weight": 185215,
+                              "create_weight": 185215,
                               "build_scorer": 112551,
                               "advance": 0
                            }
@@ -524,7 +526,7 @@ And the response:
                               "score": 0,
                               "next_doc": 3672,
                               "match": 0,
-                              "weight": 6311,
+                              "create_weight": 6311,
                               "build_scorer": 38310,
                               "advance": 0
                            }

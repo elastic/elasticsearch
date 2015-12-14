@@ -173,10 +173,8 @@ public class TranslogWriter extends TranslogReader {
         if (syncNeeded()) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 ensureOpen();
-                final long offset = writtenOffset;
-                final int opsCount = operationCounter;
-                checkpoint(offset, opsCount, channelReference);
-                lastSyncedOffset = offset;
+                checkpoint(writtenOffset, operationCounter, channelReference);
+                lastSyncedOffset = writtenOffset;
             }
         }
     }

@@ -542,6 +542,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public boolean ensureSynced(Location location) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             if (location.generation == current.generation) { // if we have a new one it's already synced
+                ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
         }

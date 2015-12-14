@@ -38,66 +38,6 @@ import java.util.Set;
 
 public final class QueryRescorer implements Rescorer {
 
-    private static enum ScoreMode {
-        Avg {
-            @Override
-            public float combine(float primary, float secondary) {
-                return (primary + secondary) / 2;
-            }
-
-            @Override
-            public String toString() {
-                return "avg";
-            }
-        },
-        Max {
-            @Override
-            public float combine(float primary, float secondary) {
-                return Math.max(primary, secondary);
-            }
-
-            @Override
-            public String toString() {
-                return "max";
-            }
-        },
-        Min {
-            @Override
-            public float combine(float primary, float secondary) {
-                return Math.min(primary, secondary);
-            }
-
-            @Override
-            public String toString() {
-                return "min";
-            }
-        },
-        Total {
-            @Override
-            public float combine(float primary, float secondary) {
-                return primary + secondary;
-            }
-
-            @Override
-            public String toString() {
-                return "sum";
-            }
-        },
-        Multiply {
-            @Override
-            public float combine(float primary, float secondary) {
-                return primary * secondary;
-            }
-
-            @Override
-            public String toString() {
-                return "product";
-            }
-        };
-
-        public abstract float combine(float primary, float secondary);
-    }
-
     public static final Rescorer INSTANCE = new QueryRescorer();
     public static final String NAME = "query";
 
@@ -170,7 +110,7 @@ public final class QueryRescorer implements Rescorer {
                     rescoreExplain.getValue() * secondaryWeight,
                     "product of:",
                     rescoreExplain, Explanation.match(secondaryWeight, "secondaryWeight"));
-            ScoreMode scoreMode = rescore.scoreMode();
+            QueryRescoreMode scoreMode = rescore.scoreMode();
             return Explanation.match(
                     scoreMode.combine(prim.getValue(), sec.getValue()),
                     scoreMode + " of:",
@@ -228,7 +168,7 @@ public final class QueryRescorer implements Rescorer {
                 // secondary score?
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }
-            
+
             // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
             // incoming first pass hits, instead of allowing recoring of just the top subset:
             Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
@@ -240,13 +180,13 @@ public final class QueryRescorer implements Rescorer {
 
         public QueryRescoreContext(QueryRescorer rescorer) {
             super(NAME, 10, rescorer);
-            this.scoreMode = ScoreMode.Total;
+            this.scoreMode = QueryRescoreMode.Total;
         }
 
         private ParsedQuery parsedQuery;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
-        private ScoreMode scoreMode;
+        private QueryRescoreMode scoreMode;
 
         public void setParsedQuery(ParsedQuery parsedQuery) {
             this.parsedQuery = parsedQuery;
@@ -264,7 +204,7 @@ public final class QueryRescorer implements Rescorer {
             return rescoreQueryWeight;
         }
 
-        public ScoreMode scoreMode() {
+        public QueryRescoreMode scoreMode() {
             return scoreMode;
         }
 
@@ -276,26 +216,13 @@ public final class QueryRescorer implements Rescorer {
             this.queryWeight = queryWeight;
         }
 
-        public void setScoreMode(ScoreMode scoreMode) {
+        public void setScoreMode(QueryRescoreMode scoreMode) {
             this.scoreMode = scoreMode;
         }
 
         public void setScoreMode(String scoreMode) {
-            if ("avg".equals(scoreMode)) {
-                setScoreMode(ScoreMode.Avg);
-            } else if ("max".equals(scoreMode)) {
-                setScoreMode(ScoreMode.Max);
-            } else if ("min".equals(scoreMode)) {
-                setScoreMode(ScoreMode.Min);
-            } else if ("total".equals(scoreMode)) {
-                setScoreMode(ScoreMode.Total);
-            } else if ("multiply".equals(scoreMode)) {
-                setScoreMode(ScoreMode.Multiply);
-            } else {
-                throw new IllegalArgumentException("illegal score_mode [" + scoreMode + "]");
-            }
+            setScoreMode(QueryRescoreMode.fromString(scoreMode));
         }
-
     }
 
     @Override

@@ -42,14 +42,14 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
 
     /**
-     * an order list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstSeqNoInProcessSeqNo}
+     * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstSeqNoInProcessSeqNo}
      * which marks the seqNo the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo;
     final int bitArraysSize;
     long firstSeqNoInProcessSeqNo = 0;
 
-    /** the current local checkpoint, i.e., all seqNo lower&lt;= this number have been completed */
+    /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
     volatile long checkpoint = -1;
 
     /** the next available seqNo - used for seqNo generation */
@@ -92,12 +92,12 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         }
     }
 
-    /** get's the current check point */
+    /** gets the current check point */
     public long getCheckpoint() {
         return checkpoint;
     }
 
-    /** get's the maximum seqno seen so far */
+    /** gets the maximum seqno seen so far */
     public long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
@@ -108,9 +108,9 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      */
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert checkpoint - firstSeqNoInProcessSeqNo < bitArraysSize : "checkpoint to firstSeqNoInProcessSeqNo is larger then a bit set";
+        assert checkpoint < firstSeqNoInProcessSeqNo + bitArraysSize - 1 : "checkpoint should be bellow the end of the first bit set (o.w. current bit set is completed and shouldn't be there)";
+        assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() : "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
         assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) : "updateCheckpoint is called but the bit following the checkpoint is not set";
-        assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() : "checkpoint + 1 doesn't point to the first bit set";
         // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
         FixedBitSet current = processedSeqNo.getFirst();
         do {
@@ -118,7 +118,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
             // the checkpoint always falls in the first bit set or just before. If it falls
             // on the last bit of the current bit set, we can clean it.
             if (checkpoint == firstSeqNoInProcessSeqNo + bitArraysSize - 1) {
-                processedSeqNo.pop();
+                processedSeqNo.removeFirst();
                 firstSeqNoInProcessSeqNo += bitArraysSize;
                 assert checkpoint - firstSeqNoInProcessSeqNo < bitArraysSize;
                 current = processedSeqNo.peekFirst();
@@ -127,7 +127,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     }
 
     /**
-     * gets the bit array for the give seqNo, allocating new ones if needed.
+     * gets the bit array for the given seqNo, allocating new ones if needed.
      */
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);

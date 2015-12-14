@@ -40,9 +40,19 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -133,7 +143,7 @@ public abstract class StreamInput extends InputStream {
      */
     public int readInt() throws IOException {
         return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16)
-                | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
+            | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
     /**

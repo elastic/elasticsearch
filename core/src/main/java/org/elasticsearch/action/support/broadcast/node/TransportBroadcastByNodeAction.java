@@ -416,7 +416,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 e.setIndex(shardRouting.getIndex());
                 e.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = e;
-                logger.debug("[{}] failed to execute operation for shard [{}]", e, actionName, shardRouting.shortSummary());
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                }
             }
         }
     }

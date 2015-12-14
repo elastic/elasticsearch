@@ -39,6 +39,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         this.updated = updated;
         this.batches = batches;
         this.versionConflicts = versionConflicts;
+        this.noops = noops;
         this.failures = failures;
     }
 
@@ -73,6 +74,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         out.writeVLong(updated);
         out.writeVInt(batches);
         out.writeVLong(versionConflicts);
+        out.writeVLong(noops);
         out.writeVInt(failures.size());
         for (Failure failure: failures) {
             failure.writeTo(out);
@@ -86,6 +88,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         updated = in.readVLong();
         batches = in.readVInt();
         versionConflicts = in.readVLong();
+        noops = in.readVLong();
         int failureCount = in.readVInt();
         List<Failure> failures = new ArrayList<>(failureCount);
         for (int i = 0; i < failureCount; i++) {

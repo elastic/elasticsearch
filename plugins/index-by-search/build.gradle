@@ -21,3 +21,11 @@ esplugin {
   description 'The Index By Search plugin allows to index documents in Elasticsearch based on a search.'
   classname 'org.elasticsearch.plugin.indexbysearch.IndexBySearchPlugin'
 }
+
+integTest {
+  cluster {
+    // Sadly we need groovy so we can test update scripts.
+    systemProperty 'es.script.inline', 'on'
+    plugin 'groovy', project(':plugins:lang-groovy')
+  }
+}

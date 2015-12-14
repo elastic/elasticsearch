@@ -198,6 +198,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 }
             }
             BulkRequest request = buildBulk(docsIterable);
+            if (request.requests().isEmpty()) {
+                /*
+                 * If we noop-ed the entire batch then just skip to the next
+                 * batch or the BulkRequest would fail validation.
+                 */
+                startNextScrollRequest();
+                return;
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));
@@ -255,22 +263,26 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 finishHim(null);
                 return;
             }
-            SearchScrollRequest request = new SearchScrollRequest(mainRequest);
-            request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
-            scrollAction.execute(request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    onScrollResponse(response);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    finishHim(e);
-                }
-            });
+            startNextScrollRequest();
         } catch (Throwable t) {
             finishHim(t);
         }
+    }
+
+    void startNextScrollRequest() {
+        SearchScrollRequest request = new SearchScrollRequest(mainRequest);
+        request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
+        scrollAction.execute(request, new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                onScrollResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                finishHim(e);
+            }
+        });
     }
 
     private void recordFailure(Failure failure) {

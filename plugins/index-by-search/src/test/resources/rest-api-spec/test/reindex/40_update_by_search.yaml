@@ -33,7 +33,7 @@
   - match: { hits.total: 1 }
 
 ---
-"Noop":
+"Noop one doc":
   - do:
       index:
         index:  twitter
@@ -44,7 +44,7 @@
       index:
         index:  twitter
         type:   tweet
-        id:     1
+        id:     2
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
@@ -77,3 +77,31 @@
             match:
               user: notfoo
   - match: { hits.total: 0 }
+
+---
+"Noop all docs":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        index: twitter
+        body:
+          script:
+            inline: ctx.op = "noop"
+  - match: {updated: 0}
+  - match: {noops: 2}
+  - do:
+      indices.refresh: {}

@@ -130,12 +130,10 @@ public class TranslogWriter extends TranslogReader {
 
     protected final void closeWithTragicEvent(Throwable throwable) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
-            if (throwable != null) {
-                if (tragedy == null) {
-                    tragedy = throwable;
-                } else {
-                    tragedy.addSuppressed(throwable);
-                }
+            if (tragedy == null) {
+                tragedy = throwable;
+            } else {
+                tragedy.addSuppressed(throwable);
             }
             close();
         }

@@ -1310,7 +1310,7 @@ public class TranslogTests extends ESTestCase {
                                         super.write(src);
                                         src.position(pos);
                                         src.limit(limit);
-                                        throw new IOException("no space left on device");
+                                        throw new IOException("__FAKE__ no space left on device");
                                     }
                                 }
                                 return super.write(src);
@@ -1334,7 +1334,7 @@ public class TranslogTests extends ESTestCase {
             } catch (IOException ex) {
                 failed = true;
                 assertFalse(translog.isOpen());
-                assertEquals("no space left on device", ex.getMessage());
+                assertEquals("__FAKE__ no space left on device", ex.getMessage());
              }
             simulateDiskFull.set(randomBoolean());
         }
@@ -1345,7 +1345,7 @@ public class TranslogTests extends ESTestCase {
                 fail("we are already closed");
             } catch (AlreadyClosedException ex) {
                 assertNotNull(ex.getCause());
-                assertEquals(ex.getCause().getMessage(), "no space left on device");
+                assertEquals(ex.getCause().getMessage(), "__FAKE__ no space left on device");
             }
 
         }

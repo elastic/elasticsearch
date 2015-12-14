@@ -128,10 +128,10 @@ public final class BufferingTranslogWriter extends TranslogWriter {
                 }
                 // we can do this outside of the write lock but we have to protect from
                 // concurrent syncs
+                ensureOpen(); // just for kicks - the checkpoint happens or not either way
                 try {
-                    ensureOpen(); // just for kicks - the checkpoint happens or not either way
                     checkpoint(offsetToSync, opsCounter, channelReference);
-                } catch (IOException ex) {
+                } catch (Throwable ex) {
                     closeWithTragicEvent(ex);
                     throw ex;
                 }

@@ -28,11 +28,11 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.transport.TransportModule;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -111,9 +111,9 @@ final class ExternalNode implements Closeable {
                 case "path.home":
                 case "node.mode":
                 case "node.local":
-                case TransportModule.TRANSPORT_TYPE_KEY:
+                case NetworkModule.TRANSPORT_TYPE_KEY:
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
-                case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
+                case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
                     continue;
                 default:

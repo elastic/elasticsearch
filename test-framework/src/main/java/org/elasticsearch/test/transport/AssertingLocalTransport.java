@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,7 +31,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -51,12 +51,12 @@ public class AssertingLocalTransport extends LocalTransport {
         public String description() {
             return "an asserting transport for testing";
         }
-        public void onModule(TransportModule transportModule) {
-            transportModule.addTransport("mock", AssertingLocalTransport.class);
+        public void onModule(NetworkModule module) {
+            module.registerTransport("mock", AssertingLocalTransport.class);
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(TransportModule.TRANSPORT_TYPE_KEY, "mock").build();
+            return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "mock").build();
         }
     }
 

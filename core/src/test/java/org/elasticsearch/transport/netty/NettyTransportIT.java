@@ -21,13 +21,14 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -40,7 +41,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
@@ -66,7 +66,7 @@ public class NettyTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
     }
 
     @Override
@@ -99,8 +99,8 @@ public class NettyTransportIT extends ESIntegTestCase {
             public String description() {
                 return "an exception throwing transport for testing";
             }
-            public void onModule(TransportModule transportModule) {
-                transportModule.addTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
+            public void onModule(NetworkModule module) {
+                module.registerTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
             }
         }
 

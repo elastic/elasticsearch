@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
@@ -110,13 +111,16 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    protected Translog create(Path path) throws IOException {
+    private Translog create(Path path) throws IOException {
+        return new Translog(getTranslogConfig(path));
+    }
+
+    protected TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.settingsBuilder()
                 .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
-        return new Translog(translogConfig);
+        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) {
@@ -1276,6 +1280,110 @@ public class TranslogTests extends ESTestCase {
                 }
             } catch (Throwable t) {
                 threadExceptions[threadId] = t;
+            }
+        }
+    }
+
+    public void testFailFlush() throws IOException {
+        Path tempDir = createTempDir();
+        final AtomicBoolean failWrite = new AtomicBoolean();
+        final AtomicBoolean simulateDiskFull = new AtomicBoolean();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        Translog translog = new Translog(config) {
+            @Override
+            TranslogWriter.ChannelFactory getChannelFactory() {
+                final TranslogWriter.ChannelFactory factory = super.getChannelFactory();
+
+                return new TranslogWriter.ChannelFactory() {
+                    @Override
+                    public FileChannel open(Path file) throws IOException {
+                        FileChannel channel = factory.open(file);
+                        return new FilterFileChannel(channel) {
+
+                            @Override
+                            public int write(ByteBuffer src) throws IOException {
+                                if (failWrite.get()) {
+                                    throw new IOException("boom");
+                                }
+                                if (simulateDiskFull.get()) {
+                                    if (src.limit() > 1) {
+                                        final int pos = src.position();
+                                        final int limit = src.limit();
+                                        src.limit(limit / 2);
+                                        super.write(src);
+                                        src.position(pos);
+                                        src.limit(limit);
+                                        throw new IOException("no space left on device");
+                                    }
+                                }
+                                return super.write(src);
+                            }
+                        };
+                    }
+                };
+            }
+        };
+
+        List<Translog.Location> locations = new ArrayList<>();
+        int opsSynced = 0;
+        int opsAdded = 0;
+        boolean failed = false;
+        boolean syncFailed = true;
+        while(failed == false) {
+            try {
+                locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
+                opsAdded++;
+                translog.sync();
+                opsSynced++;
+            } catch (IOException ex) {
+                failed = true;
+                assertEquals("no space left on device", ex.getMessage());
+            } catch (Exception ex) {
+                failed = true;
+                assertTrue(ex.toString(), ex.getMessage().startsWith("Failed to write operation"));
+             }
+            simulateDiskFull.set(randomBoolean());
+        }
+        simulateDiskFull.set(false);
+        if (randomBoolean()) {
+            try {
+                locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
+                opsSynced++;
+            } catch (AlreadyClosedException ex) {
+                assertNotNull(ex.getCause());
+                assertEquals(ex.getCause().getMessage(), "no space left on device");
+            }
+
+        }
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        try {
+            translog.newSnapshot();
+            fail("already closed");
+        } catch (AlreadyClosedException ex) {
+            // all is well
+        }
+
+        try {
+            translog.close();
+            if (opsAdded != opsSynced) {
+                fail("already closed");
+            }
+        } catch (AlreadyClosedException ex) {
+            assertNotNull(ex.getCause());
+        }
+        config.setTranslogGeneration(translogGeneration);
+        try (Translog tlog = new Translog(config)){
+            assertEquals("lastCommitted must be 1 less than current", translogGeneration.translogFileGeneration + 1, tlog.currentFileGeneration());
+            assertFalse(tlog.syncNeeded());
+
+            try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
+                assertEquals(opsSynced, snapshot.estimatedTotalOperations());
+                for (int i = 0; i < opsSynced; i++) {
+                    assertEquals("expected operation" + i + " to be in the previous translog but wasn't", tlog.currentFileGeneration() - 1, locations.get(i).generation);
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null", next);
+                    assertEquals(i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
             }
         }
     }

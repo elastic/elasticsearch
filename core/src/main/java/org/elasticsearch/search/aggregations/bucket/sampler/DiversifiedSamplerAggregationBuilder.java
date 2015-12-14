@@ -27,22 +27,35 @@ import java.io.IOException;
 /**
  * Builder for the {@link Sampler} aggregation.
  */
-public class SamplerAggregationBuilder extends ValuesSourceAggregationBuilder<SamplerAggregationBuilder> {
+public class DiversifiedSamplerAggregationBuilder extends ValuesSourceAggregationBuilder<DiversifiedSamplerAggregationBuilder> {
 
     private int shardSize = SamplerAggregator.Factory.DEFAULT_SHARD_SAMPLE_SIZE;
+
+    int maxDocsPerValue = SamplerAggregator.DiversifiedFactory.MAX_DOCS_PER_VALUE_DEFAULT;
+    String executionHint = null;
 
     /**
      * Sole constructor.
      */
-    public SamplerAggregationBuilder(String name) {
-        super(name, InternalSampler.TYPE.name());
+    public DiversifiedSamplerAggregationBuilder(String name) {
+        super(name, SamplerAggregator.DiversifiedFactory.TYPE.name());
     }
 
     /**
      * Set the max num docs to be returned from each shard.
      */
-    public SamplerAggregationBuilder shardSize(int shardSize) {
+    public DiversifiedSamplerAggregationBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
+        return this;
+    }
+
+    public DiversifiedSamplerAggregationBuilder maxDocsPerValue(int maxDocsPerValue) {
+        this.maxDocsPerValue = maxDocsPerValue;
+        return this;
+    }
+
+    public DiversifiedSamplerAggregationBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
         return this;
     }
 
@@ -50,6 +63,13 @@ public class SamplerAggregationBuilder extends ValuesSourceAggregationBuilder<Sa
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (shardSize != SamplerAggregator.Factory.DEFAULT_SHARD_SAMPLE_SIZE) {
             builder.field(SamplerAggregator.SHARD_SIZE_FIELD.getPreferredName(), shardSize);
+        }
+
+        if (maxDocsPerValue != SamplerAggregator.DiversifiedFactory.MAX_DOCS_PER_VALUE_DEFAULT) {
+            builder.field(SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD.getPreferredName(), maxDocsPerValue);
+        }
+        if (executionHint != null) {
+            builder.field(SamplerAggregator.EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
         }
 
         return builder;

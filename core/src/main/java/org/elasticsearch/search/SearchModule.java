@@ -55,6 +55,7 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
@@ -264,6 +265,7 @@ public class SearchModule extends AbstractModule {
         multibinderAggParser.addBinding().to(FilterParser.class);
         multibinderAggParser.addBinding().to(FiltersParser.class);
         multibinderAggParser.addBinding().to(SamplerParser.class);
+        multibinderAggParser.addBinding().to(DiversifiedSamplerParser.class);
         multibinderAggParser.addBinding().to(TermsParser.class);
         multibinderAggParser.addBinding().to(SignificantTermsParser.class);
         multibinderAggParser.addBinding().to(RangeParser.class);

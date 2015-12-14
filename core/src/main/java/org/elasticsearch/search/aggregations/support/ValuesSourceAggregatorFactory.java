@@ -433,7 +433,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public final int doHashCode() {
+    protected final int doHashCode() {
         return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
                 innerHashCode());
     }
@@ -446,7 +446,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public final boolean doEquals(Object obj) {
+    protected final boolean doEquals(Object obj) {
         ValuesSourceAggregatorFactory<?> other = (ValuesSourceAggregatorFactory<?>) obj;
         if (!Objects.equals(field, other.field))
             return false;

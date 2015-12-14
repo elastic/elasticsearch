@@ -82,6 +82,8 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String DEFAULT_MAPPING = "_default_";
+    public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
+    public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -155,7 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), SEARCH_ANALYZER_EXTRACTOR);
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), SEARCH_QUOTE_ANALYZER_EXTRACTOR);
 
-        this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
+        this.dynamic = this.indexSettings.getAsBoolean(INDEX_MAPPER_DYNAMIC_SETTING, INDEX_MAPPER_DYNAMIC_DEFAULT);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +
                 "\"properties\" : {\n" +

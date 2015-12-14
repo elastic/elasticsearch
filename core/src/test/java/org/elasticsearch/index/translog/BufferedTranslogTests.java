@@ -32,12 +32,11 @@ import java.nio.file.Path;
 public class BufferedTranslogTests extends TranslogTests {
 
     @Override
-    protected Translog create(Path path) throws IOException {
+    protected TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.settingsBuilder()
                 .put("index.translog.fs.type", TranslogWriter.Type.BUFFERED.name())
                 .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
                 .build();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, path, build, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
-        return new Translog(translogConfig);
+        return new TranslogConfig(shardId, path, build, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 }

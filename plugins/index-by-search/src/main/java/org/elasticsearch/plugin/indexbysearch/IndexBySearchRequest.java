@@ -25,12 +25,11 @@ import java.io.IOException;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
 
 public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySearchRequest> {
     /**
@@ -40,6 +39,8 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
      * "do not set the version in the index requests that we send for each scroll hit."
      */
     private IndexRequest index;
+
+    private OpType opType = OpType.REFRESH;
 
     public IndexBySearchRequest() {
     }
@@ -67,10 +68,17 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
          */
         if (index.index() == null) {
             e = addValidationError("index must be specified", e);
+            return e;
         }
         if (false == (index.routing() == null || index.routing().startsWith("=") ||
                 "keep".equals(index.routing()) || "discard".equals(index.routing()))) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+        }
+        if (index.version() != Versions.MATCH_ANY) {
+            e = addValidationError("overwriting version not supported but was [" + index.version() + ']', e);
+        }
+        if (index.versionType() != null) {
+            e = addValidationError("overwriting version_type not supported but was [" + index.versionType() + ']', e);
         }
         return e;
     }
@@ -79,68 +87,27 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
         return index;
     }
 
-    @Override
-    public void fillInConditionalDefaults() {
-        super.fillInConditionalDefaults();
-        if (index().versionType() == null) {
-            setupDefaultVersionType();
-        }
+    public IndexBySearchRequest opType(OpType opType) {
+        this.opType = opType;
+        return this;
     }
 
-    void setupDefaultVersionType() {
-        if (index().version() == Versions.NOT_SET) {
-            /*
-             * Not set means just don't set it on the index request. That
-             * doesn't work properly with some VersionTypes so lets just set it
-             * to something simple.
-             */
-            index().versionType(VersionType.INTERNAL);
-            return;
-        }
-        if (destinationSameAsSource()) {
-            // Only writes on versions == and writes the version number
-            index().versionType(VersionType.REINDEX);
-            return;
-        }
-        index().opType(OpType.CREATE);
-    }
-
-    /**
-     * Are the source and the destination "the same". Useful for conditional defaults. The rules are:
-     * <ul>
-     *  <li>Is the source exactly one index? No === false<li>
-     *  <li>Is the single source index the same as the destination index? No === false</li>
-     *  <li>Is the destination type null? Yes === true if the source type is also empty, false otherwise</li>
-     *  <li>Is the source exactly one type? No === false</li>
-     *  <li>true if the single source type is the same as the destination type</li>
-     * </ul>
-     */
-    public boolean destinationSameAsSource() {
-        if (search().indices() == null || search().indices().length != 1) {
-            return false;
-        }
-        if (false == search().indices()[0].equals(index.index())) {
-            return false;
-        }
-        if (index.type() == null) {
-            return search().types() == null || search().types().length == 0;
-        }
-        if (search().types().length != 1) {
-            return false;
-        }
-        return search().types()[0].equals(index.type());
+    public OpType opType() {
+        return opType;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index.readFrom(in);
+        opType = opType.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         index.writeTo(out);
+        opType.writeTo(out);
     }
 
     @Override
@@ -156,16 +123,59 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
     }
 
     /**
-     * Parse and set the version on an index request. This is used to handle
-     * index-by-search specific parsing logic for versions.
+     * Controls how versions are handled during the index-by-search.
      */
-    public static void setVersionOnIndexRequest(IndexRequest indexRequest, String version) {
-        switch (version) {
-        case "not_set":
-            indexRequest.version(Versions.NOT_SET);
-            return;
-        default:
-            throw new IllegalArgumentException("Invalid version: " + version);
+    public static enum OpType implements Writeable<OpType> {
+        OVERWRITE(0),
+        CREATE(1),
+        REFRESH(2);
+
+        /**
+         * Convenient prototype to call readFrom on.
+         */
+        public static final OpType PROTOTYPE = OVERWRITE;
+
+        private byte id;
+
+        private OpType(int id) {
+            this.id = (byte) id;
+        }
+
+        @Override
+        public OpType readFrom(StreamInput in) throws IOException {
+            return fromId(in.readByte());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.write(id);
+        }
+
+        public static OpType fromString(String opType) {
+            switch (opType) {
+            case "overwrite":
+                return OVERWRITE;
+            case "create":
+                return CREATE;
+            case "refresh":
+                return REFRESH;
+            default:
+                throw new IllegalArgumentException(
+                        "OpType must be one of \"overwrite\", \"create\", or \"refresh\" but was [" + opType + ']');
+            }
+        }
+
+        public static OpType fromId(byte id) {
+            switch (id) {
+            case 0:
+                return OVERWRITE;
+            case 1:
+                return CREATE;
+            case 2:
+                return REFRESH;
+            default:
+                throw new IllegalArgumentException("OpType ids vary from 0 to 2 inclusive by was [" + id + ']');
+            }
         }
     }
 }

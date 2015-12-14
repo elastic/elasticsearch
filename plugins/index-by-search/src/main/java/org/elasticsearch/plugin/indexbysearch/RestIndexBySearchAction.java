@@ -38,9 +38,9 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -71,15 +71,13 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
         indexParser.declareString(IndexRequest::index, new ParseField("index"));
         indexParser.declareString(IndexRequest::type, new ParseField("type"));
-        indexParser.declareString((i, v) -> i.versionType(VersionType.fromString(v)), new ParseField("version_type"));
         indexParser.declareString(IndexRequest::routing, new ParseField("routing"));
-        indexParser.declareString(IndexRequest::opType, new ParseField("op_type"));
-        indexParser.declareString(IndexBySearchRequest::setVersionOnIndexRequest, new ParseField("version"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.search(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);
         PARSER.declareInt(IndexBySearchRequest::size, new ParseField("size"));
-        PARSER.declareBoolean(IndexBySearchRequest::abortOnVersionConflict, new ParseField("abort_on_version_conflict"));
+        PARSER.declareString(IndexBySearchRequest::conflicts, new ParseField("conflicts"));
+        PARSER.declareField((p, v, c) -> {v.opType(OpType.fromString(p.text()));}, new ParseField("op_type"), ValueType.STRING);
     }
 
     private IndicesQueriesRegistry indicesQueriesRegistry;

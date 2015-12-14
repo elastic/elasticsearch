@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 
 public class IndexBySearchRequestBuilder extends
         AbstractBulkByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
@@ -50,6 +51,11 @@ public class IndexBySearchRequestBuilder extends
 
     public IndexRequestBuilder index() {
         return index;
+    }
+
+    public IndexBySearchRequestBuilder opType(OpType opType) {
+        request.opType(opType);
+        return this;
     }
 
     @Override

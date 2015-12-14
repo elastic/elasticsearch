@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -90,15 +91,22 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                     index.type(doc.type());
                 }
                 index.source(doc.sourceRef());
-                if (index.version() == Versions.MATCH_ANY /* The default */) {
+                switch (mainRequest.opType()) {
+                case REFRESH:
+                    index.versionType(VersionType.EXTERNAL);
                     index.version(doc.version());
-                } else if (index.version() == Versions.NOT_SET) {
-                    /*
-                     * We borrow NOT_SET here to mean
-                     * "don't set the version parameter" so we set it back to
-                     * the default.
-                     */
+                    break;
+                case OVERWRITE:
+                    index.versionType(VersionType.INTERNAL);
                     index.version(Versions.MATCH_ANY);
+                    break;
+                case CREATE:
+                    // Matches deleted or absent entirely.
+                    index.versionType(VersionType.INTERNAL);
+                    index.version(Versions.MATCH_DELETED);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown op_type [" + mainRequest.opType() + ']');
                 }
 
                 copyMetadata(index, doc);

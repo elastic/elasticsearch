@@ -29,7 +29,7 @@ import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.VersionType;
+import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 
 /**
  * Tests failure capturing and abort-on-failure behavior of index-by-search.
@@ -65,19 +65,20 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
     }
 
     public void testVersionConflictsRecorded() throws Exception {
+        // Just put something in the way of the copy.
+        indexRandom(true,
+                client().prepareIndex("dest", "test", "1").setSource("test", "test"));
+
         indexDocs(100);
 
         IndexBySearchRequestBuilder copy = newIndexBySearch().abortOnVersionConflict(true);
         copy.search().setIndices("source");
         copy.index().setIndex("dest");
-        /*
-         * Use internal versioning to cause a version conflict. The target is
-         * empty and internal versioning will refuse to create the document.
-         */
-        copy.index().setVersionType(VersionType.INTERNAL);
+        // Refresh will cause the conflict to prevent the write.
+        copy.opType(OpType.REFRESH);
 
         IndexBySearchResponse response = copy.get();
-        assertThat(response, responseMatcher().batches(1).versionConflicts(greaterThan(0l)).failures(greaterThan(0)));
+        assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.failures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
         }
@@ -87,7 +88,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(1)).setSource("test", "words words"));
+            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

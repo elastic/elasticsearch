@@ -79,3 +79,29 @@
               from: 1
           index:
             index: dest
+
+---
+"overwriting version is not supported":
+  - do:
+      catch: /.*\[index\] unknown field \[version\].*/
+      index_by_search:
+        body:
+          index:
+            version: 10
+
+---
+"overwriting version type is not supported":
+  - do:
+      catch: /.*\[index\] unknown field \[version_type\].*/
+      index_by_search:
+        body:
+          index:
+            version_type: external
+
+---
+"bad conflicts is error":
+  - do:
+      catch: /.*conflicts may only be "proceed" or "abort" but was \[cat\]/
+      index_by_search:
+        body:
+          conflicts: cat

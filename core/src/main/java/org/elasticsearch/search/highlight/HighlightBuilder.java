@@ -44,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -315,7 +316,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.postTags(highlighterBuilder.postTags);
         }
         if (highlighterBuilder.order != null) {
-            targetOptionsBuilder.scoreOrdered("score".equals(highlighterBuilder.order));
+            targetOptionsBuilder.scoreOrdered(highlighterBuilder.order == Order.SCORE);
         }
         if (highlighterBuilder.highlightFilter != null) {
             targetOptionsBuilder.highlightFilter(highlighterBuilder.highlightFilter);
@@ -557,6 +558,38 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             out.writeVInt(fragmentOffset);
             out.writeOptionalStringArray(matchedFields);
             writeOptionsTo(out);
+        }
+    }
+
+    public enum Order implements Writeable<Order> {
+        NONE, SCORE;
+
+        static Order PROTOTYPE = NONE;
+
+        @Override
+        public Order readFrom(StreamInput in) throws IOException {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= values().length) {
+                throw new IOException("Unknown Order ordinal [" + ordinal + "]");
+            }
+            return values()[ordinal];
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal());
+        }
+
+        public static Order fromString(String order) {
+            if (order.toUpperCase(Locale.ROOT).equals(SCORE.name())) {
+                return Order.SCORE;
+            }
+            return NONE;
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 }

@@ -805,7 +805,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.aggregations = aggregations;
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
-                    builder.highlightBuilder = HighlightBuilder.fromXContent(context);
+                    builder.highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     builder.innerHitsBuilder = xContentBuilder.bytes();

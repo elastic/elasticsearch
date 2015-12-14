@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -148,7 +149,6 @@ public class HighlightBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
-            System.out.println(highlightBuilder);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -487,7 +487,12 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(highlightQuery);
         }
         if (randomBoolean()) {
-            highlightBuilder.order(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                highlightBuilder.order(randomFrom(Order.values()));
+            } else {
+                // also test the string setter
+                highlightBuilder.order(randomFrom(Order.values()).toString());
+            }
         }
         if (randomBoolean()) {
             highlightBuilder.highlightFilter(randomBoolean());
@@ -556,7 +561,11 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(new TermQueryBuilder(randomAsciiOfLengthBetween(11, 20), randomAsciiOfLengthBetween(11, 20)));
             break;
         case 8:
-            highlightBuilder.order(randomAsciiOfLengthBetween(11, 20));
+            if (highlightBuilder.order() == Order.NONE) {
+                highlightBuilder.order(Order.SCORE);
+            } else {
+                highlightBuilder.order(Order.NONE);
+            }
             break;
         case 9:
             highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));

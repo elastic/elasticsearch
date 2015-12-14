@@ -61,13 +61,13 @@ public final class BufferingTranslogWriter extends TranslogWriter {
                 }
                 writtenOffset += data.length();
                 totalOffset += data.length();
-                return new Translog.Location(generation, offset, data.length());
+            } else {
+                if (data.length() > buffer.length - bufferCount) {
+                    flush();
+                }
+                data.writeTo(bufferOs);
+                totalOffset += data.length();
             }
-            if (data.length() > buffer.length - bufferCount) {
-                flush();
-            }
-            data.writeTo(bufferOs);
-            totalOffset += data.length();
             operationCounter++;
             return new Translog.Location(generation, offset, data.length());
         }
@@ -109,29 +109,28 @@ public final class BufferingTranslogWriter extends TranslogWriter {
     }
 
     @Override
-    public synchronized boolean syncNeeded() {
+    public boolean syncNeeded() {
         return totalOffset != lastSyncedOffset;
     }
 
     @Override
-    public void sync() throws IOException {
-        if (!syncNeeded()) {
-            return;
-        }
-        synchronized (this) {
-            ensureOpen();
+    public synchronized void sync() throws IOException {
+        if (syncNeeded()) {
+            ensureOpen(); // this call gives a better exception that the incRef if we are closed by a tragic event
             channelReference.incRef();
             try {
                 final long offsetToSync;
+                final int opsCounter;
                 try (ReleasableLock lock = writeLock.acquire()) {
                     flush();
                     offsetToSync = totalOffset;
+                    opsCounter = operationCounter;
                 }
                 // we can do this outside of the write lock but we have to protect from
                 // concurrent syncs
                 try {
-                    ensureOpen();
-                    checkpoint(offsetToSync, operationCounter, channelReference);
+                    ensureOpen(); // just for kicks - the checkpoint happens or not either way
+                    checkpoint(offsetToSync, opsCounter, channelReference);
                 } catch (IOException ex) {
                     closeWithTragicEvent(ex);
                     throw ex;

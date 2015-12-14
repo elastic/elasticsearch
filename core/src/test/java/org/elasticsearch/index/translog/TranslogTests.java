@@ -26,6 +26,7 @@ import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -1328,7 +1329,6 @@ public class TranslogTests extends ESTestCase {
         int opsSynced = 0;
         int opsAdded = 0;
         boolean failed = false;
-        boolean syncFailed = true;
         while(failed == false) {
             try {
                 locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
@@ -1338,7 +1338,8 @@ public class TranslogTests extends ESTestCase {
             } catch (IOException ex) {
                 failed = true;
                 assertEquals("no space left on device", ex.getMessage());
-            } catch (Exception ex) {
+            } catch (TranslogException ex) {
+                // we catch IOExceptions in Translog#add -- that's how we got here
                 failed = true;
                 assertTrue(ex.toString(), ex.getMessage().startsWith("Failed to write operation"));
              }
@@ -1348,7 +1349,7 @@ public class TranslogTests extends ESTestCase {
         if (randomBoolean()) {
             try {
                 locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
-                opsSynced++;
+                fail("we are already closed");
             } catch (AlreadyClosedException ex) {
                 assertNotNull(ex.getCause());
                 assertEquals(ex.getCause().getMessage(), "no space left on device");
@@ -1383,6 +1384,23 @@ public class TranslogTests extends ESTestCase {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
                     assertEquals(i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+        }
+    }
+
+    public void testTranslogOpsCountIsCorrect() throws IOException {
+        List<Translog.Location> locations = new ArrayList<>();
+        int numOps = randomIntBetween(100, 200);
+        LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
+        for (int opsAdded = 0; opsAdded < numOps; opsAdded++) {
+            locations.add(translog.add(new Translog.Index("test", "" + opsAdded, lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8")))));
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                assertEquals(opsAdded+1, snapshot.estimatedTotalOperations());
+                for (int i = 0; i < opsAdded; i++) {
+                    assertEquals("expected operation" + i + " to be in the current translog but wasn't", translog.currentFileGeneration(), locations.get(i).generation);
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null", next);
                 }
             }
         }

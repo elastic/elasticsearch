@@ -55,7 +55,8 @@ public class TranslogWriter extends TranslogReader {
     protected volatile int operationCounter;
     /* the offset in bytes written to the file */
     protected volatile long writtenOffset;
-    protected volatile Throwable tragicEvent;
+    /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
+    private volatile Throwable tragicEvent;
 
 
     public TranslogWriter(ShardId shardId, long generation, ChannelReference channelReference) throws IOException {
@@ -163,13 +164,15 @@ public class TranslogWriter extends TranslogReader {
     /**
      * write all buffered ops to disk and fsync file
      */
-    public void sync() throws IOException {
+    public synchronized void sync() throws IOException { // synchronized to ensure only one sync happens a time
         // check if we really need to sync here...
         if (syncNeeded()) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 ensureOpen();
-                lastSyncedOffset = writtenOffset;
-                checkpoint(lastSyncedOffset, operationCounter, channelReference);
+                final long offset = writtenOffset;
+                final int opsCount = operationCounter;
+                checkpoint(offset, opsCount, channelReference);
+                lastSyncedOffset = offset;
             }
         }
     }

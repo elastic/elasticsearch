@@ -22,6 +22,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -31,6 +33,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 
 public class DynamicMappingIntegrationIT extends ESIntegTestCase {
+
+    public void testDynamicDisabled() throws IOException {
+        Settings settings = Settings.settingsBuilder().put("index.mapper.dynamic", false).build();
+        String name = internalCluster().startNode(settings);
+
+        try {
+            client(name).prepareIndex("index", "type", "1").setSource("foo", 3).get();
+            fail("Indexing request should have failed");
+        } catch (TypeMissingException e) {
+            // expected
+        }
+    }
 
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here

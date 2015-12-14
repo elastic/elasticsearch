@@ -383,11 +383,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        if (!dynamic) {
-            throw new TypeMissingException(index(), type, "trying to auto create mapping, but dynamic mapping is disabled");
-        }
+        checkIfAddMappingAllowed(type);
         mapper = parse(type, null, true);
         return new DocumentMapperForType(mapper, mapper.mapping());
+    }
+
+    public void checkIfAddMappingAllowed(String type) {
+        if (!mappers.containsKey(type) && !dynamic) {
+            throw new TypeMissingException(index(), type, "trying to auto create mapping, but dynamic mapping is disabled");
+        }
     }
 
     /**

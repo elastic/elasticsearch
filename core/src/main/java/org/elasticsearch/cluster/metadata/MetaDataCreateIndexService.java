@@ -318,6 +318,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             continue;
                         }
                         try {
+                            mapperService.checkIfAddMappingAllowed(entry.getKey());
                             // apply the default here, its the first time we parse it
                             mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
                         } catch (Exception e) {

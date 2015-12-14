@@ -67,16 +67,19 @@ cloud:
             protocol: https
 ----
 
-In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be
-`http` or `https`):
+In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
+(note that protocol can be `http` or `https`):
 
 [source,yaml]
 ----
 cloud:
     aws:
         protocol: https
-        proxy_host: proxy1.company.com
-        proxy_port: 8083
+        proxy:
+            host: proxy1.company.com
+            port: 8083
+            username: myself
+            password: theBestPasswordEver!
 ----
 
 You can also set different proxies for `ec2` and `s3`:
@@ -86,11 +89,17 @@ You can also set different proxies for `ec2` and `s3`:
 cloud:
     aws:
         s3:
-            proxy_host: proxy1.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy1.company.com
+                port: 8083
+                username: myself1
+                password: theBestPasswordEver1!
         ec2:
-            proxy_host: proxy2.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy2.company.com
+                port: 8083
+                username: myself2
+                password: theBestPasswordEver2!
 ----
 
 [[repository-s3-usage-region]]

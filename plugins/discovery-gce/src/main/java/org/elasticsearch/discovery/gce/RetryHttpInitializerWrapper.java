@@ -20,13 +20,18 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential;
 import com.google.api.client.http.*;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
+
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 
 public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
@@ -59,6 +64,21 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
         this.wrappedCredential = Objects.requireNonNull(wrappedCredential);
         this.sleeper = sleeper;
         this.maxWait = maxWait;
+    }
+    
+    // Use only for testing
+    static MockGoogleCredential.Builder newMockCredentialBuilder() {
+        // TODO: figure out why GCE is so bad like this
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        return AccessController.doPrivileged(new PrivilegedAction<MockGoogleCredential.Builder>() {
+            @Override
+            public MockGoogleCredential.Builder run() {
+                return new MockGoogleCredential.Builder();
+            }
+        });
     }
 
     @Override

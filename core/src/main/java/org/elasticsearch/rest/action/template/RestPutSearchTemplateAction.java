@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -59,6 +59,6 @@ public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return MustacheScriptEngineService.NAME;
+        return Template.DEFAULT_LANG;
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.update;
 
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -40,6 +38,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -48,7 +47,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.CREATED;
 
 /**
  */
@@ -123,38 +121,6 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
 
-        client.update(updateRequest, new RestBuilderListener<UpdateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion());
-
-                shardInfo.toXContent(builder, request);
-                if (response.getGetResult() != null) {
-                    builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
-                    builder.endObject();
-                }
-
-                builder.endObject();
-                RestStatus status = shardInfo.status();
-                if (response.isCreated()) {
-                    status = CREATED;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
-    }
-
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
+        client.update(updateRequest, new RestStatusToXContentListener<>(channel));
     }
 }

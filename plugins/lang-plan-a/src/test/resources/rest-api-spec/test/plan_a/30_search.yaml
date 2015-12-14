@@ -1,0 +1,97 @@
+# Integration tests for Plan-A search scripting
+#
+"Plan-A Query":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        index:
+            index: test
+            type: test
+            id: 2
+            body: { "test": "value beck", "num1": 2.0 }
+    - do:
+        index:
+            index: test
+            type: test
+            id: 3
+            body: { "test": "value beck", "num1": 3.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "input.doc.num1.0 > 1;"
+                            lang: plan-a
+                script_fields:
+                    sNum1:
+                        script: 
+                            inline: "input.doc.num1.0;"
+                            lang: plan-a
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 3.0 }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "input.doc.num1.0 > input.param1;"
+                            lang: plan-a
+                            params:
+                                param1: 1
+
+                script_fields:
+                    sNum1:
+                        script:
+                            inline: "return input.doc.num1.0;"
+                            lang: plan-a
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 3.0 }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "input.doc.num1.0 > input.param1;"
+                            lang: plan-a
+                            params:
+                                param1: -1
+
+                script_fields:
+                    sNum1:
+                        script: 
+                            inline: "input.doc.num1.0;"
+                            lang: plan-a
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0.fields.sNum1.0: 1.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.2.fields.sNum1.0: 3.0 }
+

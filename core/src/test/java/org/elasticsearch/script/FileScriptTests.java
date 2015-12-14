@@ -19,21 +19,15 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.ContextAndHeaderHolder;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.containsString;
 
 // TODO: these really should just be part of ScriptService tests, there is nothing special about them
 public class FileScriptTests extends ESTestCase {

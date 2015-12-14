@@ -50,8 +50,12 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     @Inject
     public InternalAwsS3Service(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
-        settingsFilter.addFilter("cloud.aws.access_key");
-        settingsFilter.addFilter("cloud.aws.secret_key");
+        settingsFilter.addFilter(CLOUD_AWS.KEY);
+        settingsFilter.addFilter(CLOUD_AWS.SECRET);
+        settingsFilter.addFilter(CLOUD_AWS.PROXY_PASSWORD);
+        settingsFilter.addFilter(CLOUD_S3.KEY);
+        settingsFilter.addFilter(CLOUD_S3.SECRET);
+        settingsFilter.addFilter(CLOUD_S3.PROXY_PASSWORD);
         settingsFilter.addFilter("access_key");
         settingsFilter.addFilter("secret_key");
     }
@@ -59,9 +63,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     @Override
     public synchronized AmazonS3 client() {
         String endpoint = getDefaultEndpoint();
-        String account = settings.get("cloud.aws.access_key");
-        String key = settings.get("cloud.aws.secret_key");
-
+        String account = settings.get(CLOUD_S3.KEY, settings.get(CLOUD_AWS.KEY));
+        String key = settings.get(CLOUD_S3.SECRET, settings.get(CLOUD_AWS.SECRET));
         return getClient(endpoint, null, account, key, null);
     }
 
@@ -79,8 +82,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             endpoint = getDefaultEndpoint();
         }
         if (account == null || key == null) {
-            account = settings.get("cloud.aws.access_key");
-            key = settings.get("cloud.aws.secret_key");
+            account = settings.get(CLOUD_S3.KEY, settings.get(CLOUD_AWS.KEY));
+            key = settings.get(CLOUD_S3.SECRET, settings.get(CLOUD_AWS.SECRET));
         }
 
         return getClient(endpoint, protocol, account, key, maxRetries);
@@ -99,8 +102,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
         if (protocol == null) {
-            protocol = settings.get("cloud.aws.protocol", "https").toLowerCase(Locale.ROOT);
-            protocol = settings.get("cloud.aws.s3.protocol", protocol).toLowerCase(Locale.ROOT);
+            protocol = settings.get(CLOUD_AWS.PROTOCOL, "https").toLowerCase(Locale.ROOT);
+            protocol = settings.get(CLOUD_S3.PROTOCOL, protocol).toLowerCase(Locale.ROOT);
         }
 
         if ("http".equals(protocol)) {
@@ -111,18 +114,25 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             throw new IllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
 
-        String proxyHost = settings.get("cloud.aws.proxy_host");
-        proxyHost = settings.get("cloud.aws.s3.proxy_host", proxyHost);
+        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST, settings.get(CLOUD_AWS.DEPRECATED_PROXY_HOST));
+        proxyHost = settings.get(CLOUD_S3.PROXY_HOST, settings.get(CLOUD_S3.DEPRECATED_PROXY_HOST, proxyHost));
         if (proxyHost != null) {
-            String portString = settings.get("cloud.aws.proxy_port", "80");
-            portString = settings.get("cloud.aws.s3.proxy_port", portString);
+            String portString = settings.get(CLOUD_AWS.PROXY_PORT, settings.get(CLOUD_AWS.DEPRECATED_PROXY_PORT, "80"));
+            portString = settings.get(CLOUD_S3.PROXY_PORT, settings.get(CLOUD_S3.DEPRECATED_PROXY_PORT, portString));
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
             }
-            clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
+            String proxyUsername = settings.get(CLOUD_S3.PROXY_USERNAME, settings.get(CLOUD_AWS.PROXY_USERNAME));
+            String proxyPassword = settings.get(CLOUD_S3.PROXY_PASSWORD, settings.get(CLOUD_AWS.PROXY_PASSWORD));
+
+            clientConfiguration
+                .withProxyHost(proxyHost)
+                .withProxyPort(proxyPort)
+                .withProxyUsername(proxyUsername)
+                .withProxyPassword(proxyPassword);
         }
 
         if (maxRetries != null) {
@@ -131,7 +141,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
 
         // #155: we might have 3rd party users using older S3 API version
-        String awsSigner = settings.get("cloud.aws.s3.signer", settings.get("cloud.aws.signer"));
+        String awsSigner = settings.get(CLOUD_S3.SIGNER, settings.get(CLOUD_AWS.SIGNER));
         if (awsSigner != null) {
             logger.debug("using AWS API signer [{}]", awsSigner);
             AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
@@ -161,11 +171,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
 
     private String getDefaultEndpoint() {
         String endpoint = null;
-        if (settings.get("cloud.aws.s3.endpoint") != null) {
-            endpoint = settings.get("cloud.aws.s3.endpoint");
+        if (settings.get(CLOUD_S3.ENDPOINT) != null) {
+            endpoint = settings.get(CLOUD_S3.ENDPOINT);
             logger.debug("using explicit s3 endpoint [{}]", endpoint);
-        } else if (settings.get("cloud.aws.region") != null) {
-            String region = settings.get("cloud.aws.region").toLowerCase(Locale.ROOT);
+        } else if (settings.get(CLOUD_AWS.REGION) != null) {
+            String region = settings.get(CLOUD_AWS.REGION).toLowerCase(Locale.ROOT);
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
         }

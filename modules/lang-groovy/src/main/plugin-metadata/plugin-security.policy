@@ -23,6 +23,7 @@ grant {
   // needed by IndyInterface
   permission java.lang.RuntimePermission "getClassLoader";
   // needed by groovy engine
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by GroovyScriptEngineService to close its classloader (why?)
   permission java.lang.RuntimePermission "closeClassLoader";

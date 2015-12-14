@@ -18,24 +18,14 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.*;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.common.Strings.hasLength;
 
 /**
  * In the simplest case, parse template string and variables from the request,

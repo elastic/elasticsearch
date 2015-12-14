@@ -84,7 +84,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptParseException;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -205,15 +204,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MockScriptEngine mockScriptEngine = new MockScriptEngine();
                         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
                         multibinder.addBinding().toInstance(mockScriptEngine);
-                        try {
-                            Class.forName("com.github.mustachejava.Mustache");
-                        } catch(ClassNotFoundException e) {
-                            throw new IllegalStateException("error while loading mustache", e);
-                        }
-                        MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);
                         Set<ScriptEngineService> engines = new HashSet<>();
                         engines.add(mockScriptEngine);
-                        engines.add(mustacheScriptEngineService);
                         List<ScriptContext.Plugin> customContexts = new ArrayList<>();
                         bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customContexts));
                         try {
@@ -836,21 +828,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         AbstractQueryTestCase delegate;
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getDeclaredMethod("get", GetRequest.class))) {
+            if (method.equals(Client.class.getMethod("get", GetRequest.class))) {
                 return new PlainActionFuture<GetResponse>() {
                     @Override
                     public GetResponse get() throws InterruptedException, ExecutionException {
                         return delegate.executeGet((GetRequest) args[0]);
                     }
                 };
-            } else if (method.equals(Client.class.getDeclaredMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
+            } else if (method.equals(Client.class.getMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
                     return new PlainActionFuture<MultiTermVectorsResponse>() {
                         @Override
                         public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
                             return delegate.executeMultiTermVectors((MultiTermVectorsRequest) args[0]);
                         }
                     };
-            } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
+            } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);

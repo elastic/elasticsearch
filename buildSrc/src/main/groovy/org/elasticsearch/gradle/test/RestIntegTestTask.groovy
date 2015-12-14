@@ -57,12 +57,12 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         RestSpecHack.configureDependencies(project)
         project.afterEvaluate {
             dependsOn(RestSpecHack.configureTask(project, includePackaged))
-            systemProperty('tests.cluster', "localhost:${clusterConfig.baseTransportPort}")
         }
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
-            ClusterFormationTasks.setup(project, this, clusterConfig)
+            Object clusterUri = ClusterFormationTasks.setup(project, this, clusterConfig)
+            systemProperty('tests.cluster', clusterUri)
         }
     }
 

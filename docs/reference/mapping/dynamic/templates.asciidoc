@@ -148,13 +148,14 @@ PUT my_index/my_type/1
 [[match-pattern]]
 ==== `match_pattern`
 
-The `match_pattern` parameter behaves just like the `match` parameter, but
-supports full Java regular expression matching on the field name instead of
-simple wildcards, for instance:
+The `match_pattern` parameter adjusts the behavior of the `match` parameter
+such that it supports full Java regular expression matching on the field name
+instead of simple wildcards, for instance:
 
 [source,js]
 --------------------------------------------------
-  "match_pattern": "^profit_\d+$"
+  "match_pattern": "regex",
+  "match": "^profit_\d+$"
 --------------------------------------------------
 
 [[path-match-unmatch]]

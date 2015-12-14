@@ -94,7 +94,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesMetaData.repository("test-repo-2").type(), equalTo("fs"));
 
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
-        GetRepositoriesResponse repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
+        GetRepositoriesResponse repositoriesResponse = client.admin().cluster()
+            .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*")).get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(2));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());

@@ -1502,7 +1502,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (randomBoolean()) {
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                             new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
-                } else if (isInternalCluster()) {
+                } else {
                     client().admin().indices().syncedFlush(syncedFlushRequest(indices).indicesOptions(IndicesOptions.lenientExpandOpen()),
                         new LatchedActionListener<SyncedFlushResponse>(newLatch(inFlightAsyncOperations)));
                 }

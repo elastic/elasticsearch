@@ -416,6 +416,30 @@ public class HighlightBuilderTests extends ESTestCase {
         System.out.println(Math.log(1/(double)(1+1)) + 1.0);
     }
 
+    /**
+     * test ordinals of {@link Order}, since serialization depends on it
+     */
+    public void testValidOrderOrdinals() {
+        assertThat(Order.NONE.ordinal(), equalTo(0));
+        assertThat(Order.SCORE.ordinal(), equalTo(1));
+    }
+
+    public void testOrderSerialization() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.NONE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(0));
+            }
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.SCORE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(1));
+            }
+        }
+    }
+
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (randomBoolean()) {

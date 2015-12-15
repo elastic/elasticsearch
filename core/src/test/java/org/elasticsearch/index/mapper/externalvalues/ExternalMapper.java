@@ -95,9 +95,6 @@ public class ExternalMapper extends FieldMapper {
 
         @Override
         public ExternalMapper build(BuilderContext context) {
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(ContentPath.Type.FULL);
-
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
@@ -107,7 +104,6 @@ public class ExternalMapper extends FieldMapper {
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
-            context.path().pathType(origPathType);
             setupFieldType(context);
 
             return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,

@@ -207,11 +207,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public T multiFieldPathType(ContentPath.Type pathType) {
-            multiFieldsBuilder.pathType(pathType);
-            return builder;
-        }
-
         public T addMultiField(Mapper.Builder mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
@@ -242,7 +237,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected String buildFullName(BuilderContext context) {
-            return context.path().fullPathAsText(name);
+            return context.path().pathAsText(name);
         }
 
         protected void setupFieldType(BuilderContext context) {
@@ -540,18 +535,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(ContentPath.Type.FULL, ImmutableOpenMap.<String, FieldMapper>of());
+            return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
 
             private final ImmutableOpenMap.Builder<String, Mapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
-            private ContentPath.Type pathType = ContentPath.Type.FULL;
-
-            public Builder pathType(ContentPath.Type pathType) {
-                this.pathType = pathType;
-                return this;
-            }
 
             public Builder add(Mapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder);
@@ -560,13 +549,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
             @SuppressWarnings("unchecked")
             public MultiFields build(FieldMapper.Builder mainFieldBuilder, BuilderContext context) {
-                if (pathType == ContentPath.Type.FULL && mapperBuilders.isEmpty()) {
+                if (mapperBuilders.isEmpty()) {
                     return empty();
-                } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
-                    ContentPath.Type origPathType = context.path().pathType();
-                    context.path().pathType(pathType);
                     context.path().add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
@@ -577,18 +562,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         mapperBuilders.put(key, mapper);
                     }
                     context.path().remove();
-                    context.path().pathType(origPathType);
                     ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
-                    return new MultiFields(pathType, mappers.build());
+                    return new MultiFields(mappers.build());
                 }
             }
         }
 
-        private final ContentPath.Type pathType;
         private final ImmutableOpenMap<String, FieldMapper> mappers;
 
-        private MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
-            this.pathType = pathType;
+        private MultiFields(ImmutableOpenMap<String, FieldMapper> mappers) {
             ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
             for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
@@ -609,21 +591,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
             context = context.createMultiFieldContext();
 
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(pathType);
-
             context.path().add(mainField.simpleName());
             for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
             context.path().remove();
-            context.path().pathType(origPathType);
         }
 
         public MultiFields merge(MultiFields mergeWith) {
-            if (pathType != mergeWith.pathType) {
-                throw new IllegalArgumentException("Can't change path type from [" + pathType + "] to [" + mergeWith.pathType + "]");
-            }
             ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = ImmutableOpenMap.builder(mappers);
 
             for (ObjectCursor<FieldMapper> cursor : mergeWith.mappers.values()) {
@@ -642,7 +617,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
 
             ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
-            return new MultiFields(pathType, mappers);
+            return new MultiFields(mappers);
         }
 
         public Iterator<Mapper> iterator() {
@@ -650,9 +625,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (pathType != ContentPath.Type.FULL) {
-                builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
-            }
             if (!mappers.isEmpty()) {
                 // sort the mappers so we get consistent serialization format
                 Mapper[] sortedMappers = mappers.values().toArray(Mapper.class);

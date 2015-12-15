@@ -52,7 +52,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -304,7 +304,7 @@ public final class XMoreLikeThis {
     /**
      * For idf() calculations.
      */
-    private TFIDFSimilarity similarity;// = new DefaultSimilarity();
+    private TFIDFSimilarity similarity;// = new ClassicSimilarity();
 
     /**
      * IndexReader to use
@@ -346,7 +346,7 @@ public final class XMoreLikeThis {
      * Constructor requiring an IndexReader.
      */
     public XMoreLikeThis(IndexReader ir) {
-        this(ir, new DefaultSimilarity());
+        this(ir, new ClassicSimilarity());
     }
 
     public XMoreLikeThis(IndexReader ir, TFIDFSimilarity sim) {

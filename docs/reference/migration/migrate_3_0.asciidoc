@@ -205,6 +205,10 @@ cluster settings please use the settings update API and set their superseded key
 The `index.translog.flush_threshold_ops` setting is not supported anymore. In order to control flushes based on the transaction log
 growth use `index.translog.flush_threshold_size` instead.
 
+==== Similarity settings
+
+The 'default' similarity has been renamed to 'classic'.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

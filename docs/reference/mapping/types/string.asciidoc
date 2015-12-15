@@ -166,7 +166,7 @@ Defaults depend on the <<mapping-index,`index`>> setting:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `default`, which uses TF/IDF.
+    to `classic`, which uses TF/IDF.
 
 <<term-vector,`term_vector`>>::
 

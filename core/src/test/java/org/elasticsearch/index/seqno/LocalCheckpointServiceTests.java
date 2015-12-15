@@ -26,8 +26,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
@@ -96,6 +102,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         }
         assertThat(checkpointService.checkpoint, equalTo(maxOps - 1L));
         assertThat(checkpointService.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
+        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentPrimary() throws InterruptedException {
@@ -136,6 +143,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         checkpointService.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(checkpointService.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentReplica() throws InterruptedException {
@@ -143,19 +151,15 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         final int opsPerThread = randomIntBetween(10, 20);
         final int maxOps = opsPerThread * threads.length;
         final long unFinishedSeq = randomIntBetween(0, maxOps - 2); // make sure we always index the last seqNo to simplify maxSeq checks
-        Set<Integer> seqNoList = new HashSet<>();
-        for (int i = 0; i < maxOps; i++) {
-            seqNoList.add(i);
-        }
+        Set<Integer> seqNos = IntStream.range(0, maxOps).boxed().collect(Collectors.toSet());
 
         final Integer[][] seqNoPerThread = new Integer[threads.length][];
         for (int t = 0; t < threads.length - 1; t++) {
-            int size = Math.min(seqNoList.size(), randomIntBetween(opsPerThread - 4, opsPerThread + 4));
-            seqNoPerThread[t] = randomSubsetOf(size, seqNoList).toArray(new Integer[size]);
-            Arrays.sort(seqNoPerThread[t]);
-            seqNoList.removeAll(Arrays.asList(seqNoPerThread[t]));
+            int size = Math.min(seqNos.size(), randomIntBetween(opsPerThread - 4, opsPerThread + 4));
+            seqNoPerThread[t] = randomSubsetOf(size, seqNos).toArray(new Integer[size]);
+            seqNos.removeAll(Arrays.asList(seqNoPerThread[t]));
         }
-        seqNoPerThread[threads.length - 1] = seqNoList.toArray(new Integer[seqNoList.size()]);
+        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[seqNos.size()]);
         logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         for (int t = 0; t < threads.length; t++) {
@@ -177,7 +181,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                         }
                     }
                 }
-            }, "testConcurrentPrimary_" + threadId);
+            }, "testConcurrentReplica_" + threadId);
             threads[t].start();
         }
         for (Thread thread : threads) {
@@ -187,6 +191,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
         checkpointService.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
 }

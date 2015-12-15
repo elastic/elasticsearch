@@ -42,15 +42,15 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
 
     /**
-     * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstSeqNoInProcessSeqNo}
+     * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstProcessedSeqNo}
      * which marks the seqNo the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo;
     final int bitArraysSize;
-    long firstSeqNoInProcessSeqNo = 0;
+    long firstProcessedSeqNo = 0;
 
     /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
-    volatile long checkpoint = -1;
+    volatile long checkpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
     /** the next available seqNo - used for seqNo generation */
     volatile long nextSeqNo = 0;
@@ -108,19 +108,22 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      */
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert checkpoint < firstSeqNoInProcessSeqNo + bitArraysSize - 1 : "checkpoint should be bellow the end of the first bit set (o.w. current bit set is completed and shouldn't be there)";
-        assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() : "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
-        assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) : "updateCheckpoint is called but the bit following the checkpoint is not set";
+        assert checkpoint < firstProcessedSeqNo + bitArraysSize - 1 :
+            "checkpoint should be below the end of the first bit set (o.w. current bit set is completed and shouldn't be there)";
+        assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() :
+            "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
+        assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) :
+            "updateCheckpoint is called but the bit following the checkpoint is not set";
         // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
         FixedBitSet current = processedSeqNo.getFirst();
         do {
             checkpoint++;
             // the checkpoint always falls in the first bit set or just before. If it falls
             // on the last bit of the current bit set, we can clean it.
-            if (checkpoint == firstSeqNoInProcessSeqNo + bitArraysSize - 1) {
+            if (checkpoint == firstProcessedSeqNo + bitArraysSize - 1) {
                 processedSeqNo.removeFirst();
-                firstSeqNoInProcessSeqNo += bitArraysSize;
-                assert checkpoint - firstSeqNoInProcessSeqNo < bitArraysSize;
+                firstProcessedSeqNo += bitArraysSize;
+                assert checkpoint - firstProcessedSeqNo < bitArraysSize;
                 current = processedSeqNo.peekFirst();
             }
         } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
@@ -131,8 +134,8 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      */
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= firstSeqNoInProcessSeqNo;
-        int bitSetOffset = ((int) (seqNo - firstSeqNoInProcessSeqNo)) / bitArraysSize;
+        assert seqNo >= firstProcessedSeqNo;
+        int bitSetOffset = ((int) (seqNo - firstProcessedSeqNo)) / bitArraysSize;
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
@@ -143,7 +146,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
     private int seqNoToBitSetOffset(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= firstSeqNoInProcessSeqNo;
-        return ((int) (seqNo - firstSeqNoInProcessSeqNo)) % bitArraysSize;
+        assert seqNo >= firstProcessedSeqNo;
+        return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;
     }
 }

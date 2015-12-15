@@ -250,7 +250,7 @@ public class ThreadPool extends AbstractComponent {
         this.estimatedTimeThread.start();
     }
 
-    public void setNodeSettingsService(ClusterSettings clusterSettings) {
+    public void setClusterSettings(ClusterSettings clusterSettings) {
         if(settingsListenerIsSet.compareAndSet(false, true)) {
             clusterSettings.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> validate(s.getAsGroups()));
         } else {

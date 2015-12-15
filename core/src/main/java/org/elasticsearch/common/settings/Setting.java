@@ -30,11 +30,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  */
@@ -117,7 +115,7 @@ public class Setting<T> extends ToXContentToBytes {
         try {
             return parser.apply(value);
         } catch (ElasticsearchParseException ex) {
-            throw ex;
+            throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (Exception t) {
             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + getKey() + "]", t);
         }
@@ -146,6 +144,7 @@ public class Setting<T> extends ToXContentToBytes {
         builder.field("key", key);
         builder.field("type", scope.name());
         builder.field("dynamic", dynamic);
+        builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();
         return builder;
@@ -163,9 +162,9 @@ public class Setting<T> extends ToXContentToBytes {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> accept) {
+    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
         if (isDynamic()) {
-            return new Updater(consumer, logger, accept);
+            return new Updater(consumer, logger, validator);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }
@@ -222,6 +221,9 @@ public class Setting<T> extends ToXContentToBytes {
         public boolean hasChanged(Settings current, Settings previous) {
             final String newValue = getRaw(current);
             final String value = getRaw(previous);
+            assert isGroupSetting() == false : "group settings must override this method";
+            assert value != null : "value was null but can't be unless default is null which is invalid";
+
             return value.equals(newValue) == false;
         }
 
@@ -258,14 +260,26 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
-                throw new ElasticsearchParseException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return value;
         }, dynamic, scope);
     }
 
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, scope);
+    }
+
+    public static int parseInt(String s, int minValue, String key) {
+        int value = Integer.parseInt(s);
+        if (value < minValue) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        return value;
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> Integer.toString(defaultValue), Integer::parseInt, dynamic, scope);
+        return intSetting(key, defaultValue, Integer.MIN_VALUE, dynamic, scope);
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, boolean dynamic, Scope scope) {
@@ -306,7 +320,7 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger, Consumer<Settings> accept) {
+            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger, Consumer<Settings> validator) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
                 }
@@ -325,7 +339,7 @@ public class Setting<T> extends ToXContentToBytes {
                         Settings currentSettings = get(current);
                         Settings previousSettings = get(previous);
                         try {
-                            accept.accept(currentSettings);
+                            validator.accept(currentSettings);
                         } catch (Exception | AssertionError e) {
                             throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
                         }
@@ -350,7 +364,7 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, defaultValue, (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
             if (timeValue.millis() < minValue.millis()) {
-                throw new ElasticsearchParseException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return timeValue;
         }, dynamic, scope);
@@ -368,7 +382,7 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
             final double d = Double.parseDouble(s);
             if (d < minValue) {
-                throw new ElasticsearchParseException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return d;
         }, dynamic, scope);

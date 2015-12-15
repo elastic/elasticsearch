@@ -174,6 +174,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
         /**
          * Returns the instance value for the current settings. This method is stateless and idempotent.
+         * This method will throw an exception if the source of this value is invalid.
          */
         T getValue(Settings current, Settings previous);
 

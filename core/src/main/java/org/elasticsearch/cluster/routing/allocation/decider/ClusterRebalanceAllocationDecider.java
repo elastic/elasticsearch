@@ -79,7 +79,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         }
     }
 
-    private ClusterRebalanceType type;
+    private volatile ClusterRebalanceType type;
 
     @Inject
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
@@ -95,7 +95,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
 
-    public void setType(ClusterRebalanceType type) {
+    private void setType(ClusterRebalanceType type) {
         this.type = type;
     }
 

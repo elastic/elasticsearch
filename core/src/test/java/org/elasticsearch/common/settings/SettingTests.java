@@ -47,7 +47,7 @@ public class SettingTests extends ESTestCase {
         try {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
-        } catch (ElasticsearchParseException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized", ex.getMessage());
         }
 

@@ -135,5 +135,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportService.TRACE_LOG_EXCLUDE_SETTING,
         TransportService.TRACE_LOG_INCLUDE_SETTING,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
-        ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING)));
+        ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
+        InternalClusterService.CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING,
+        HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
+        HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING)));
 }

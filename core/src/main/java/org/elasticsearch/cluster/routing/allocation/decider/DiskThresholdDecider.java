@@ -550,7 +550,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     /**
      * Checks if a watermark string is a valid percentage or byte size value,
-     * returning true if valid, false if invalid.
+     * @return the watermark value given
      */
     public static String validWatermarkSetting(String watermark, String settingName) {
         try {

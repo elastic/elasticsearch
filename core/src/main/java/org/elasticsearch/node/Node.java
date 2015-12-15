@@ -202,7 +202,7 @@ public class Node implements Releasable {
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setNodeSettingsService(injector.getInstance(ClusterSettings.class));
+            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

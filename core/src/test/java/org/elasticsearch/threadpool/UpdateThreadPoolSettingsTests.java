@@ -92,7 +92,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
 
             clusterSettings.applySettings(
                     settingsBuilder()
@@ -118,7 +118,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.CACHED);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
@@ -169,7 +169,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testFixedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
             Settings settings = clusterSettings.applySettings(settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", "15")
@@ -224,7 +224,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testScalingExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(1));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
             assertThat(info(threadPool, threadPoolName).getKeepAlive().minutes(), equalTo(5L));
@@ -262,7 +262,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
             assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
 
             final CountDownLatch latch = new CountDownLatch(1);
@@ -299,7 +299,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testCustomThreadPool").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setNodeSettingsService(clusterSettings);
+            threadPool.setClusterSettings(clusterSettings);
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;
             boolean foundPool2 = false;

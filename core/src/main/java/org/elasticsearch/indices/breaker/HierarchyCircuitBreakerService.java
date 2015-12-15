@@ -50,13 +50,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.byteSizeSetting("indices.breaker.fielddata.limit", "60%", true, Setting.Scope.CLUSTER);
     public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting("indices.breaker.fielddata.overhead", 1.03d, 0.0d, true, Setting.Scope.CLUSTER);
-    public static final String FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING = "indices.breaker.fielddata.type";
+    public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING =  new Setting<>("indices.breaker.fielddata.type", "memory", CircuitBreaker.Type::parseValue, false, Setting.Scope.CLUSTER);
 
     public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.byteSizeSetting("indices.breaker.request.limit", "40%", true, Setting.Scope.CLUSTER);
     public static final Setting<Double> REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting("indices.breaker.request.overhead", 1.0d, 0.0d, true, Setting.Scope.CLUSTER);
-    public static final String REQUEST_CIRCUIT_BREAKER_TYPE_SETTING = "indices.breaker.request.type";
+    public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, false, Setting.Scope.CLUSTER);
 
-    public static final String DEFAULT_BREAKER_TYPE = "memory";
+
 
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
@@ -71,13 +71,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(),
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                CircuitBreaker.Type.parseValue(settings.get(FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
+                FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
         );
 
         this.requestSettings = new BreakerSettings(CircuitBreaker.REQUEST,
                 REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(),
                 REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                CircuitBreaker.Type.parseValue(settings.get(REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, DEFAULT_BREAKER_TYPE))
+                REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
         );
 
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(), 1.0, CircuitBreaker.Type.PARENT);
@@ -93,10 +93,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
     }
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
-        long newRequestLimitBytes = newRequestMax == null ? HierarchyCircuitBreakerService.this.requestSettings.getLimit() : newRequestMax.bytes();
-        newRequestOverhead = newRequestOverhead == null ? HierarchyCircuitBreakerService.this.requestSettings.getOverhead() : newRequestOverhead;
-
-        BreakerSettings newRequestSettings = new BreakerSettings(CircuitBreaker.REQUEST, newRequestLimitBytes, newRequestOverhead,
+        BreakerSettings newRequestSettings = new BreakerSettings(CircuitBreaker.REQUEST, newRequestMax.bytes(), newRequestOverhead,
                 HierarchyCircuitBreakerService.this.requestSettings.getType());
         registerBreaker(newRequestSettings);
         HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;

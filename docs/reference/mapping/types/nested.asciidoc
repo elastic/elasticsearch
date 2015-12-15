@@ -144,8 +144,8 @@ GET my_index/_search
 --------------------------------------------------
 // AUTOSENSE
 <1> The `user` field is mapped as type `nested` instead of type `object`.
-<2> This query doesn't match because `Alice` and `White` are not in the same nested object.
-<3> This query matches because `Alice` and `White` are in the same nested object.
+<2> This query matches because `Alice` and `White` are in the same nested object.
+<3> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
 <4> `inner_hits` allow us to highlight the matching nested documents.
 
 

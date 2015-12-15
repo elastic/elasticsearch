@@ -308,7 +308,7 @@ public class FiltersIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        filters("tags").otherBucketKey("foobar")
+                        filters("tags").otherBucket(true).otherBucketKey("foobar")
                         .filter("tag1", termQuery("tag", "tag1"))
                         .filter("tag2", termQuery("tag", "tag2")))
                 .execute().actionGet();

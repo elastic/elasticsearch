@@ -123,4 +123,4 @@ doesn't take the query into account that is part of request.
 
 `exact_match`::
      Indicate whether to include the text input as a suggest candidate
-     if a term is found to match it exactly.
+     if a term is found to match it exactly. Defaults to false.

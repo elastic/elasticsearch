@@ -37,7 +37,6 @@ import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
  * <pre>
@@ -65,7 +64,6 @@ public class AttachmentMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "attachment";
 
     public static class Defaults {
-        public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
 
         public static final AttachmentFieldType FIELD_TYPE = new AttachmentFieldType();
         static {
@@ -108,8 +106,6 @@ public class AttachmentMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, AttachmentMapper> {
 
-        private ContentPath.Type pathType = Defaults.PATH_TYPE;
-
         private Boolean ignoreErrors = null;
 
         private Integer defaultIndexedChars = null;
@@ -138,11 +134,6 @@ public class AttachmentMapper extends FieldMapper {
             super(name, new AttachmentFieldType());
             this.builder = this;
             this.contentBuilder = stringField(FieldNames.CONTENT);
-        }
-
-        public Builder pathType(ContentPath.Type pathType) {
-            this.pathType = pathType;
-            return this;
         }
 
         public Builder content(Mapper.Builder content) {
@@ -192,8 +183,6 @@ public class AttachmentMapper extends FieldMapper {
 
         @Override
         public AttachmentMapper build(BuilderContext context) {
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(pathType);
 
             FieldMapper contentMapper;
             if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
@@ -219,8 +208,6 @@ public class AttachmentMapper extends FieldMapper {
             FieldMapper contentLength = (FieldMapper) contentLengthBuilder.build(context);
             FieldMapper language = (FieldMapper) languageBuilder.build(context);
             context.path().remove();
-
-            context.path().pathType(origPathType);
 
             if (defaultIndexedChars == null && context.indexSettings() != null) {
                 defaultIndexedChars = context.indexSettings().getAsInt("index.mapping.attachment.indexed_chars", 100000);
@@ -257,7 +244,7 @@ public class AttachmentMapper extends FieldMapper {
 
             defaultFieldType.freeze();
             this.setupFieldType(context);
-            return new AttachmentMapper(name, fieldType, defaultFieldType, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
+            return new AttachmentMapper(name, fieldType, defaultFieldType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
                     dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
                     language, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -309,10 +296,7 @@ public class AttachmentMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.pathType(parsePathType(name, fieldNode.toString()));
-                    iterator.remove();
-                } else if (fieldName.equals("fields")) {
+                if (fieldName.equals("fields")) {
                     Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
                     for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
                         Map.Entry<String, Object> entry1 = fieldsIterator.next();
@@ -375,8 +359,6 @@ public class AttachmentMapper extends FieldMapper {
         }
     }
 
-    private final ContentPath.Type pathType;
-
     private final int defaultIndexedChars;
 
     private final boolean ignoreErrors;
@@ -401,13 +383,12 @@ public class AttachmentMapper extends FieldMapper {
 
     private final FieldMapper languageMapper;
 
-    public AttachmentMapper(String simpleName, MappedFieldType type, MappedFieldType defaultFieldType, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
+    public AttachmentMapper(String simpleName, MappedFieldType type, MappedFieldType defaultFieldType, int defaultIndexedChars, Boolean ignoreErrors,
                             Boolean defaultLangDetect, FieldMapper contentMapper,
                             FieldMapper dateMapper, FieldMapper titleMapper, FieldMapper nameMapper, FieldMapper authorMapper,
                             FieldMapper keywordsMapper, FieldMapper contentTypeMapper, FieldMapper contentLengthMapper,
                             FieldMapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, type, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;
         this.defaultLangDetect = defaultLangDetect;
@@ -602,7 +583,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // ignore this for now
     }
 
@@ -626,9 +607,6 @@ public class AttachmentMapper extends FieldMapper {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);
-        if (indexCreatedBefore2x) {
-            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
-        }
 
         builder.startObject("fields");
         contentMapper.toXContent(builder, params);

@@ -33,12 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -74,7 +72,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     }
 
     public static class Defaults {
-        public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
@@ -83,7 +80,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     }
 
     public abstract static class Builder<T extends Builder, Y extends BaseGeoPointFieldMapper> extends FieldMapper.Builder<T, Y> {
-        protected ContentPath.Type pathType = Defaults.PATH_TYPE;
 
         protected boolean enableLatLon = Defaults.ENABLE_LATLON;
 
@@ -104,12 +100,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         @Override
         public GeoPointFieldType fieldType() {
             return (GeoPointFieldType)fieldType;
-        }
-
-        @Override
-        public T multiFieldPathType(ContentPath.Type pathType) {
-            this.pathType = pathType;
-            return builder;
         }
 
         @Override
@@ -159,13 +149,10 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
 
         public abstract Y build(BuilderContext context, String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
+                                Settings indexSettings, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
                                 StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo);
 
         public Y build(Mapper.BuilderContext context) {
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(pathType);
-
             GeoPointFieldType geoPointFieldType = (GeoPointFieldType)fieldType;
 
             DoubleFieldMapper latMapper = null;
@@ -191,9 +178,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 geoPointFieldType.setGeoHashEnabled(geoHashMapper.fieldType(), geoHashPrecision, enableGeoHashPrefix);
             }
             context.path().remove();
-            context.path().pathType(origPathType);
 
-            return build(context, name, fieldType, defaultFieldType, context.indexSettings(), origPathType,
+            return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
                     latMapper, lonMapper, geoHashMapper, multiFieldsBuilder.build(this, context), ignoreMalformed(context), copyTo);
         }
     }
@@ -365,17 +351,14 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
     protected final DoubleFieldMapper lonMapper;
 
-    protected final ContentPath.Type pathType;
-
     protected final StringFieldMapper geoHashMapper;
 
     protected Explicit<Boolean> ignoreMalformed;
 
     protected BaseGeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                      ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper,
+                                      DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.pathType = pathType;
         this.latMapper = latMapper;
         this.lonMapper = lonMapper;
         this.geoHashMapper = geoHashMapper;
@@ -388,17 +371,11 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         BaseGeoPointFieldMapper gpfmMergeWith = (BaseGeoPointFieldMapper) mergeWith;
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            if (gpfmMergeWith.ignoreMalformed.explicit()) {
-                this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
-            }
+        if (gpfmMergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
     }
 
@@ -441,8 +418,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        ContentPath.Type origPathType = context.path().pathType();
-        context.path().pathType(pathType);
         context.path().add(simpleName());
 
         GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
@@ -487,7 +462,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
 
         context.path().remove();
-        context.path().pathType(origPathType);
         return null;
     }
 
@@ -512,9 +486,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || pathType != Defaults.PATH_TYPE) {
-            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
-        }
         if (includeDefaults || fieldType().isLatLonEnabled() != GeoPointFieldMapper.Defaults.ENABLE_LATLON) {
             builder.field("lat_lon", fieldType().isLatLonEnabled());
         }

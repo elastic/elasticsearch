@@ -19,8 +19,16 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.*;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -37,7 +45,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.NodeShouldNotConnectException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -394,7 +409,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 e.setIndex(shardRouting.getIndex());
                 e.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = e;
-                logger.debug("[{}] failed to execute operation for shard [{}]", e, actionName, shardRouting.shortSummary());
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                }
             }
         }
     }

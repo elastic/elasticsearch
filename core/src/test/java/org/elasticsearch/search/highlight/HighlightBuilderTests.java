@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -148,7 +149,6 @@ public class HighlightBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
-            System.out.println(highlightBuilder);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -416,6 +416,30 @@ public class HighlightBuilderTests extends ESTestCase {
         System.out.println(Math.log(1/(double)(1+1)) + 1.0);
     }
 
+    /**
+     * test ordinals of {@link Order}, since serialization depends on it
+     */
+    public void testValidOrderOrdinals() {
+        assertThat(Order.NONE.ordinal(), equalTo(0));
+        assertThat(Order.SCORE.ordinal(), equalTo(1));
+    }
+
+    public void testOrderSerialization() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.NONE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(0));
+            }
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.SCORE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(1));
+            }
+        }
+    }
+
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (randomBoolean()) {
@@ -426,9 +450,9 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
-     * create random shape that is put under test
+     * create random highlight builder that is put under test
      */
-    private static HighlightBuilder randomHighlighterBuilder() {
+    public static HighlightBuilder randomHighlighterBuilder() {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());
@@ -487,7 +511,12 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(highlightQuery);
         }
         if (randomBoolean()) {
-            highlightBuilder.order(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                highlightBuilder.order(randomFrom(Order.values()));
+            } else {
+                // also test the string setter
+                highlightBuilder.order(randomFrom(Order.values()).toString());
+            }
         }
         if (randomBoolean()) {
             highlightBuilder.highlightFilter(randomBoolean());
@@ -556,7 +585,11 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(new TermQueryBuilder(randomAsciiOfLengthBetween(11, 20), randomAsciiOfLengthBetween(11, 20)));
             break;
         case 8:
-            highlightBuilder.order(randomAsciiOfLengthBetween(11, 20));
+            if (highlightBuilder.order() == Order.NONE) {
+                highlightBuilder.order(Order.SCORE);
+            } else {
+                highlightBuilder.order(Order.NONE);
+            }
             break;
         case 9:
             highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));

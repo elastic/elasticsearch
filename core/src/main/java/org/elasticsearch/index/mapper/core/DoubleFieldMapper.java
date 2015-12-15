@@ -80,8 +80,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (DoubleFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
@@ -371,11 +370,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {
-            mergeResult.addConflict("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
+            throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
         }
 
         List<String> conflicts = new ArrayList<>();
@@ -383,13 +382,13 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         parentJoinFieldType.checkCompatibility(fieldMergeWith.parentJoinFieldType, conflicts, true); // same here
         if (childJoinFieldType != null) {
             // TODO: this can be set to false when the old parent/child impl is removed, we can do eager global ordinals loading per type.
-            childJoinFieldType.checkCompatibility(fieldMergeWith.childJoinFieldType, conflicts, mergeResult.updateAllTypes() == false);
+            childJoinFieldType.checkCompatibility(fieldMergeWith.childJoinFieldType, conflicts, updateAllTypes == false);
         }
-        for (String conflict : conflicts) {
-            mergeResult.addConflict(conflict);
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Merge conflicts: " + conflicts);
         }
 
-        if (active() && mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (active()) {
             childJoinFieldType = fieldMergeWith.childJoinFieldType.clone();
         }
     }

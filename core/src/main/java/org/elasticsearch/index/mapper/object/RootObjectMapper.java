@@ -95,7 +95,7 @@ public class RootObjectMapper extends ObjectMapper {
 
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable Settings settings) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
             FormatDateTimeFormatter[] dates = null;
             if (dynamicDateTimeFormatters == null) {
@@ -106,7 +106,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 dates = dynamicDateTimeFormatters.toArray(new FormatDateTimeFormatter[dynamicDateTimeFormatters.size()]);
             }
-            return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
+            return new RootObjectMapper(name, enabled, dynamic, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
                     dateDetection, numericDetection);
@@ -196,13 +196,21 @@ public class RootObjectMapper extends ObjectMapper {
 
     private volatile DynamicTemplate dynamicTemplates[];
 
-    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
+    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
-        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
+        super(name, name, enabled, Nested.NO, dynamic, mappers);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+    }
+
+    /** Return a copy of this mapper that has the given {@code mapper} as a
+     *  sub mapper. */
+    public RootObjectMapper copyAndPutMapper(Mapper mapper) {
+        RootObjectMapper clone = (RootObjectMapper) clone();
+        clone.putMapper(mapper);
+        return clone;
     }
 
     @Override
@@ -253,25 +261,29 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
+    public RootObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (RootObjectMapper) super.merge(mergeWith, updateAllTypes);
+    }
+
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            // merge them
-            List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
-            for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-                boolean replaced = false;
-                for (int i = 0; i < mergedTemplates.size(); i++) {
-                    if (mergedTemplates.get(i).name().equals(template.name())) {
-                        mergedTemplates.set(i, template);
-                        replaced = true;
-                    }
-                }
-                if (!replaced) {
-                    mergedTemplates.add(template);
+        // merge them
+        List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
+        for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
+            boolean replaced = false;
+            for (int i = 0; i < mergedTemplates.size(); i++) {
+                if (mergedTemplates.get(i).name().equals(template.name())) {
+                    mergedTemplates.set(i, template);
+                    replaced = true;
                 }
             }
-            this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+            if (!replaced) {
+                mergedTemplates.add(template);
+            }
         }
+        this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
     }
 
     @Override

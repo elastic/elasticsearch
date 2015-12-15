@@ -30,17 +30,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isIn;
 
 public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaultConfiguration() throws IOException {

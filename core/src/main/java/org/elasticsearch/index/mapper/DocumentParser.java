@@ -234,9 +234,6 @@ class DocumentParser implements Closeable {
             nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
         }
 
-        ContentPath.Type origPathType = context.path().pathType();
-        context.path().pathType(mapper.pathType());
-
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();
@@ -267,12 +264,11 @@ class DocumentParser implements Closeable {
                 if (update == null) {
                     update = newUpdate;
                 } else {
-                    MapperUtils.merge(update, newUpdate);
+                    update = update.merge(newUpdate, false);
                 }
             }
         }
         // restore the enable path flag
-        context.path().pathType(origPathType);
         if (nested.isNested()) {
             ParseContext.Document nestedDoc = context.doc();
             ParseContext.Document parentDoc = nestedDoc.getParent();
@@ -341,7 +337,7 @@ class DocumentParser implements Closeable {
                 context.path().remove();
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                 if (builder == null) {
-                    builder = MapperBuilders.object(currentFieldName).enabled(true).pathType(mapper.pathType());
+                    builder = MapperBuilders.object(currentFieldName).enabled(true);
                     // if this is a non root object, then explicitly set the dynamic behavior if set
                     if (!(mapper instanceof RootObjectMapper) && mapper.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
                         ((ObjectMapper.Builder) builder).dynamic(mapper.dynamic());
@@ -610,7 +606,7 @@ class DocumentParser implements Closeable {
             return null;
         }
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fullName(context.path().fullPathAsText(currentFieldName));
+        final MappedFieldType existingFieldType = context.mapperService().fullName(context.path().pathAsText(currentFieldName));
         Mapper.Builder builder = null;
         if (existingFieldType != null) {
             // create a builder of the same type
@@ -695,7 +691,7 @@ class DocumentParser implements Closeable {
             if (paths.length > 1) {
                 ObjectMapper parent = context.root();
                 for (int i = 0; i < paths.length-1; i++) {
-                    mapper = context.docMapper().objectMappers().get(context.path().fullPathAsText(paths[i]));
+                    mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
                     if (mapper == null) {
                         // One mapping is missing, check if we are allowed to create a dynamic one.
                         ObjectMapper.Dynamic dynamic = parent.dynamic();
@@ -713,12 +709,12 @@ class DocumentParser implements Closeable {
                                     if (!(parent instanceof RootObjectMapper) && parent.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
                                         ((ObjectMapper.Builder) builder).dynamic(parent.dynamic());
                                     }
-                                    builder = MapperBuilders.object(paths[i]).enabled(true).pathType(parent.pathType());
+                                    builder = MapperBuilders.object(paths[i]).enabled(true);
                                 }
                                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                                 mapper = (ObjectMapper) builder.build(builderContext);
                                 if (mapper.nested() != ObjectMapper.Nested.NO) {
-                                    throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().fullPathAsText(paths[i]) + "]) through `copy_to`");
+                                    throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
                                 }
                                 break;
                             case FALSE:
@@ -759,7 +755,7 @@ class DocumentParser implements Closeable {
     private static <M extends Mapper> M parseAndMergeUpdate(M mapper, ParseContext context) throws IOException {
         final Mapper update = parseObjectOrField(context, mapper);
         if (update != null) {
-            MapperUtils.merge(mapper, update);
+            mapper = (M) mapper.merge(update, false);
         }
         return mapper;
     }

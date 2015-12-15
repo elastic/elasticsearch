@@ -29,6 +29,7 @@ List projects = [
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',
+  'plugins:repository-hdfs',
   'plugins:repository-s3',
   'plugins:jvm-example',
   'plugins:site-example',

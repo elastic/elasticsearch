@@ -18,10 +18,9 @@ The S3 repository plugin adds support for using S3 as a repository.
 
 The Azure repository plugin adds support for using Azure as a repository.
 
-https://github.com/elastic/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS Repository]::
+<<repository-hdfs,HDFS Repository>>::
 
-The Hadoop HDFS Repository plugin adds support for using an HDFS file system
-as a repository.
+The Hadoop HDFS Repository plugin adds support for using HDFS as a repository.
 
 
 [float]
@@ -39,4 +38,6 @@ This community plugin appears to have been abandoned:
 include::repository-azure.asciidoc[]
 
 include::repository-s3.asciidoc[]
+
+include::repository-hdfs.asciidoc[]
 

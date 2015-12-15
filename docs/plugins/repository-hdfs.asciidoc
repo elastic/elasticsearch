@@ -8,7 +8,7 @@ The HDFS repository plugin adds support for using HDFS File System as a reposito
 [float]
 ==== Installation
 
-This plugin can be installed using the plugin manager:
+This plugin can be installed using the plugin manager using _one_ of the following packages:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -17,14 +17,14 @@ sudo bin/plugin install repository-hdfs-hadoop2
 sudo bin/plugin install repository-hdfs-lite
 ----------------------------------------------------------------
 
-The plugin must be installed on every node in the cluster, and each node must
+The chosen plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 [[repository-hdfs-remove]]
 [float]
 ==== Removal
 
-The plugin can be removed with the following command:
+The plugin can be removed by specifying the _installed_ package using _one_ of the following commands:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -76,6 +76,7 @@ additional permissions which are not provided by the plugin.
 
 In this case there are several workarounds:
 * add the permission into `plugin-security.policy` (available in the plugin folder)
+
 * disable the security manager through `es.security.manager.enabled=false` configurations setting - NOT RECOMMENDED
 
 If you find yourself in such a situation, please let us know what Hadoop distro version and OS you are using and what permission is missing

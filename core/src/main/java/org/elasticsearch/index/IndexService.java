@@ -93,7 +93,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
 
-    @Inject
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
                         ShardStoreDeleter shardStoreDeleter,

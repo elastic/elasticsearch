@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,7 +47,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -73,7 +78,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
+public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
@@ -145,7 +150,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      */
     @Nullable
     public IndexShard getShardOrNull(int shardId) {
-         return shards.get(shardId);
+        return shards.get(shardId);
     }
 
     /**
@@ -159,13 +164,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return indexShard;
     }
 
-    public Set<Integer> shardIds() { return shards.keySet(); }
+    public Set<Integer> shardIds() {
+        return shards.keySet();
+    }
 
     public IndexCache cache() {
         return indexCache;
     }
 
-    public IndexFieldDataService fieldData() { return indexFieldData; }
+    public IndexFieldDataService fieldData() {
+        return indexFieldData;
+    }
 
     public AnalysisService analysisService() {
         return this.analysisService;
@@ -206,7 +215,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private long getAvgShardSizeInBytes() throws IOException {
         long sum = 0;
         int count = 0;
-        for(IndexShard indexShard : this) {
+        for (IndexShard indexShard : this) {
             sum += indexShard.store().stats().sizeInBytes();
             count++;
         }
@@ -253,17 +262,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
                 // that's being relocated/replicated we know how large it will become once it's done copying:
                 // Count up how many shards are currently on each data path:
-                Map<Path,Integer> dataPathToShardCount = new HashMap<>();
-                for(IndexShard shard : this) {
+                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
+                for (IndexShard shard : this) {
                     Path dataPath = shard.shardPath().getRootStatePath();
                     Integer curCount = dataPathToShardCount.get(dataPath);
                     if (curCount == null) {
                         curCount = 0;
                     }
-                    dataPathToShardCount.put(dataPath, curCount+1);
+                    dataPathToShardCount.put(dataPath, curCount + 1);
                 }
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
-                                                       dataPathToShardCount);
+                    dataPathToShardCount);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
@@ -276,7 +285,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
-                    (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
+                (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> nodeServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
@@ -461,6 +470,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             }
         }
     }
+
     /**
      * Returns the filter associated with listed filtering aliases.
      * <p>

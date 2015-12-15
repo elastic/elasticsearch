@@ -19,6 +19,7 @@
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
@@ -34,6 +35,7 @@ public class IngestRunner {
         settings.put("http.cors.allow-origin", "*");
         settings.put("script.inline", "on");
         settings.put("cluster.name", IngestRunner.class.getSimpleName());
+        settings.put(DiscoveryService.SETTING_DISCOVERY_SEED, 0L);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), Version.CURRENT, Collections.singleton(IngestPlugin.class));

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.rest;
+package org.elasticsearch.smoketest;
 
 import org.elasticsearch.test.rest.RestTestCandidate;
 

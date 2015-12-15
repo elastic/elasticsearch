@@ -19,18 +19,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.actions.logging.LoggingLevel;
@@ -39,6 +36,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,7 +45,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -94,7 +94,7 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        try (Node node = NodeBuilder.nodeBuilder().settings(SETTINGS).data(false).node()) {
+        try (Node node = new Node(Settings.builder().put(SETTINGS).put("node.data", false).build()).start()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {

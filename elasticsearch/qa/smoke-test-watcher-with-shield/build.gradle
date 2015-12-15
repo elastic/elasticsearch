@@ -15,7 +15,8 @@ integTest {
   dependsOn copyWatcherRestTests
   systemProperty 'tests.rest.blacklist',
     ['hijack/10_basic/*',
-     'array_compare_watch/10_basic/Basic array_compare watch'].join(',')
+     'array_compare_watch/10_basic/Basic array_compare watch',
+     'getting_started/10_monitor_cluster_health/Getting started - Monitor cluster health'].join(',')
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
@@ -28,7 +29,7 @@ integTest {
                  'bin/x-pack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crapy_role'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://localhost:${node.httpPort()}",
+      ant.get(src: "http://${node.httpUri()}",
               dest: tmpFile.toString(),
               username: 'test_admin',
               password: 'changeme',

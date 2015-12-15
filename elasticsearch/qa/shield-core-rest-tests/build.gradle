@@ -37,7 +37,7 @@ integTest {
                  'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://localhost:${node.httpPort()}",
+      ant.get(src: "http://${node.httpUri()}",
               dest: tmpFile.toString(),
               username: 'test_user',
               password: 'changeme',

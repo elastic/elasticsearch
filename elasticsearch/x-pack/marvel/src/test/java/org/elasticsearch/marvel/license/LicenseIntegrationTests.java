@@ -11,21 +11,18 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.rest.RestModule;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -100,7 +97,7 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         }
 
         @Override
-        public void onModule(RestModule module) {
+        public void onModule(NetworkModule module) {
         }
 
         @Override

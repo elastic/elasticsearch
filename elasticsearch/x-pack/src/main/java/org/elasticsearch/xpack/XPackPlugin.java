@@ -12,17 +12,15 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.watcher.WatcherPlugin;
 
 import java.security.AccessController;
@@ -128,7 +126,7 @@ public class XPackPlugin extends Plugin {
         marvelPlugin.onModule(module);
     }
 
-    public void onModule(RestModule module) {
+    public void onModule(NetworkModule module) {
         licensePlugin.onModule(module);
         shieldPlugin.onModule(module);
         watcherPlugin.onModule(module);
@@ -138,14 +136,6 @@ public class XPackPlugin extends Plugin {
         licensePlugin.onModule(module);
         shieldPlugin.onModule(module);
         watcherPlugin.onModule(module);
-    }
-
-    public void onModule(TransportModule module) {
-        shieldPlugin.onModule(module);
-    }
-
-    public void onModule(HttpServerModule module) {
-        shieldPlugin.onModule(module);
     }
 
     public void onModule(AuthorizationModule module) {

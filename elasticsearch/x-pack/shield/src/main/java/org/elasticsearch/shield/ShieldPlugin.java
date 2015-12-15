@@ -12,12 +12,11 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.action.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
@@ -48,11 +47,15 @@ import org.elasticsearch.shield.transport.ShieldTransportModule;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -141,6 +144,9 @@ public class ShieldPlugin extends Plugin {
         }
 
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
+        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, ShieldPlugin.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, ShieldPlugin.NAME);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, ShieldPlugin.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         addQueryCacheSettings(settingsBuilder);
@@ -185,30 +191,25 @@ public class ShieldPlugin extends Plugin {
         module.registerAction(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class);
     }
 
-    public void onModule(TransportModule module) {
+    public void onModule(NetworkModule module) {
+        // we want to expose the shield rest action even when the plugin is disabled
+        module.registerRestHandler(RestShieldInfoAction.class);
+
         if (enabled == false) {
             return;
         }
-        module.setTransport(ShieldNettyTransport.class, ShieldPlugin.NAME);
+
+        module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
         if (clientMode) {
-            module.setTransportService(ShieldClientTransportService.class, ShieldPlugin.NAME);
+            module.registerTransportService(ShieldPlugin.NAME, ShieldClientTransportService.class);
         } else {
-            module.setTransportService(ShieldServerTransportService.class, ShieldPlugin.NAME);
+            module.registerTransportService(ShieldPlugin.NAME, ShieldServerTransportService.class);
         }
-    }
 
-    public void onModule(HttpServerModule module) {
-        if (enabled && clientMode == false) {
-            module.setHttpServerTransport(ShieldNettyHttpServerTransport.class, ShieldPlugin.NAME);
+        if (clientMode == false) {
+            module.registerRestHandler(RestClearRealmCacheAction.class);
+            module.registerHttpTransport(ShieldPlugin.NAME, ShieldNettyHttpServerTransport.class);
         }
-    }
-
-    public void onModule(RestModule module) {
-        if (enabled && clientMode == false) {
-            module.addRestAction(RestClearRealmCacheAction.class);
-        }
-        // we want to expose the shield rest action even when the plugin is disabled
-        module.addRestAction(RestShieldInfoAction.class);
     }
 
     public void onModule(AuthorizationModule module) {

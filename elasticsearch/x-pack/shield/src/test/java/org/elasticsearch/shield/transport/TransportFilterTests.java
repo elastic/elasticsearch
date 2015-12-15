@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
@@ -24,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
@@ -291,12 +291,12 @@ public class TransportFilterTests extends ESIntegTestCase {
             public String description() {
                 return "a mock transport service for testing";
             }
-            public void onModule(TransportModule transportModule) {
-                transportModule.addTransportService("filter-mock", InternalPluginServerTransportService.class);
+            public void onModule(NetworkModule module) {
+                module.registerTransportService("filter-mock", InternalPluginServerTransportService.class);
             }
             @Override
             public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "filter-mock").build();
+                return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "filter-mock").build();
             }
         }
 

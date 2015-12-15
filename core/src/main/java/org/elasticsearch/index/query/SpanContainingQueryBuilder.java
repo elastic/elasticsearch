@@ -71,9 +71,9 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("big");
+        builder.field(SpanContainingQueryParser.BIG_FIELD.getPreferredName());
         big.toXContent(builder, params);
-        builder.field("little");
+        builder.field(SpanContainingQueryParser.LITTLE_FIELD.getPreferredName());
         little.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();

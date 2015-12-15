@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -31,7 +32,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
@@ -126,7 +128,11 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (unit == null) {
             throw new IllegalArgumentException("distance unit must not be null");
         }
-        this.distance = DistanceUnit.parse(distance, unit, DistanceUnit.DEFAULT);
+        double newDistance = DistanceUnit.parse(distance, unit, DistanceUnit.DEFAULT);
+        if (newDistance <= 0.0) {
+            throw new IllegalArgumentException("distance must be greater than zero");
+        }
+        this.distance = newDistance;
         return this;
     }
 
@@ -170,7 +176,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      **/
     public GeoDistanceQueryBuilder optimizeBbox(String optimizeBbox) {
         if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBox must not be null");
+            throw new IllegalArgumentException("optimizeBbox must not be null");
         }
         switch (optimizeBbox) {
             case "none":
@@ -203,6 +209,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected Query doToQuery(QueryShardContext shardContext) throws IOException {
+        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+        }
+
+        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+        }
+
         QueryValidationException exception = checkLatLon(shardContext.indexVersionCreated().before(Version.V_2_0_0));
         if (exception != null) {
             throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
@@ -214,39 +229,35 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
 
-        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+        if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
+            GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
+            IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
+            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
-        return query;
+        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        return new GeoPointDistanceQuery(fieldType.names().fullName(), center.lon(), center.lat(), normDistance);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(fieldName).value(center.lon()).value(center.lat()).endArray();
-        builder.field("distance", distance);
-        builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
-        builder.field("optimize_bbox", optimizeBbox);
-        builder.field("validation_method", validationMethod);
+        builder.field(GeoDistanceQueryParser.DISTANCE_FIELD.getPreferredName(), distance);
+        builder.field(GeoDistanceQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
+        builder.field(GeoDistanceQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        builder.field(GeoDistanceQueryParser.VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(center, geoDistance, optimizeBbox, distance, validationMethod);
     }
 
     @Override
-    public boolean doEquals(GeoDistanceQueryBuilder other) {
+    protected boolean doEquals(GeoDistanceQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 (distance == other.distance) &&
                 Objects.equals(validationMethod, other.validationMethod) &&

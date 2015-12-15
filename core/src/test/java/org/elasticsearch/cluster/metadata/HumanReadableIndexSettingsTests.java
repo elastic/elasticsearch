@@ -24,13 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
-
-    @Test
     public void testHumanReadableSettings() {
         Version versionCreated = randomVersion(random());
         Version versionUpgraded = randomVersion(random());

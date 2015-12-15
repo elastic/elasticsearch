@@ -25,11 +25,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -39,8 +41,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testMatchTypeOnly() throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject().startObject("person").startArray("dynamic_templates").startObject().startObject("test")
@@ -66,8 +66,6 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
 
     }
 
-
-    @Test
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         IndexService index = createIndex("test");
@@ -124,7 +122,6 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotNull(fieldMapper);
     }
 
-    @Test
     public void testSimpleWithXContentTraverse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         IndexService index = createIndex("test");

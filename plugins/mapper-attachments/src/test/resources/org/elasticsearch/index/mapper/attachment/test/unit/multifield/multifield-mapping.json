@@ -1,0 +1,56 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "fields": {
+                    "content": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "date": {
+                        "type": "date",
+                        "fields": {
+                            "string": { "type": "string" }
+                        }
+                    },
+                    "title": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "name": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": {
+                                "type": "string",
+                                "store": true
+                            }
+                        }
+                    },
+                    "author": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "keywords": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "content_type": {
+                        "type": "string",
+                        "fields": {
+                            "suggest": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -63,7 +63,22 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 }'
 --------------------------------------------------
 
-Alternatively, you can use a glob pattern to associate an alias to
+Multiple indices can be specified for an action with the `indices` array syntax:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+To specify multiple aliases in one action, the corresponding `aliases` array
+syntax exists as well.
+
+For the example above, a glob pattern can also be used to associate an alias to
 more than one index that share a common name:
 
 [source,js]

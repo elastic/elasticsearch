@@ -34,7 +34,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -51,7 +50,10 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
@@ -79,8 +81,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
-    public void restoreOldSnapshots() throws Exception {
+    public void testRestoreOldSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";
         List<String> repoVersions = repoVersions();
@@ -91,7 +92,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
 
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
+        for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version) field.get(Version.class);
                 if (v.snapshot()) continue;
@@ -115,7 +116,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
     public void testRestoreUnsupportedSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";

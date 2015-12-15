@@ -23,11 +23,9 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 
 /**
@@ -39,8 +37,8 @@ public class IndexQueryCache extends AbstractIndexComponent implements QueryCach
     final IndicesQueryCache indicesQueryCache;
 
     @Inject
-    public IndexQueryCache(Index index, @IndexSettings Settings indexSettings, IndicesQueryCache indicesQueryCache) {
-        super(index, indexSettings);
+    public IndexQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache) {
+        super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
     }
 
@@ -52,7 +50,7 @@ public class IndexQueryCache extends AbstractIndexComponent implements QueryCach
     @Override
     public void clear(String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
-        indicesQueryCache.clearIndex(index.getName());
+        indicesQueryCache.clearIndex(index().getName());
     }
 
     @Override

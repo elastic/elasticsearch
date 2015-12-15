@@ -37,9 +37,9 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,51 +56,21 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
-    private final MetaDataService metaDataService;
-
     @Inject
     public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction, MetaDataService metaDataService) {
+                                      NodeIndexDeletedAction nodeIndexDeletedAction) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
-        this.metaDataService = metaDataService;
     }
 
-    public void deleteIndex(final Request request, final Listener userListener) {
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
+    public void deleteIndices(final Request request, final Listener userListener) {
+        Collection<String> indices = Arrays.asList(request.indices);
+        final DeleteIndexListener listener = new DeleteIndexListener(userListener);
 
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            deleteIndex(request, userListener, mdLock);
-            return;
-        }
-
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
-                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
-                        return;
-                    }
-                } catch (InterruptedException e) {
-                    userListener.onFailure(e);
-                    return;
-                }
-
-                deleteIndex(request, userListener, mdLock);
-            }
-        });
-    }
-
-    private void deleteIndex(final Request request, final Listener userListener, Semaphore mdLock) {
-        final DeleteIndexListener listener = new DeleteIndexListener(mdLock, userListener);
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index " + indices, new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {
@@ -114,34 +84,32 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                if (!currentState.metaData().hasConcreteIndex(request.index)) {
-                    throw new IndexNotFoundException(request.index);
-                }
-
-                logger.info("[{}] deleting index", request.index);
-
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                routingTableBuilder.remove(request.index);
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+                ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
-                MetaData newMetaData = MetaData.builder(currentState.metaData())
-                        .remove(request.index)
-                        .build();
+                for (final String index: indices) {
+                    if (!currentState.metaData().hasConcreteIndex(index)) {
+                        throw new IndexNotFoundException(index);
+                    }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(
-                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build());
+                    logger.debug("[{}] deleting index", index);
 
-                ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
-
+                    routingTableBuilder.remove(index);
+                    clusterBlocksBuilder.removeIndexBlocks(index);
+                    metaDataBuilder.remove(index);
+                }
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().size();
                 // add the notifications that the store was deleted from *data* nodes
                 count += currentState.nodes().dataNodes().size();
-                final AtomicInteger counter = new AtomicInteger(count);
+                final AtomicInteger counter = new AtomicInteger(count * indices.size());
+
                 // this listener will be notified once we get back a notification based on the cluster state change below.
                 final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
                     @Override
-                    public void onNodeIndexDeleted(String index, String nodeId) {
-                        if (index.equals(request.index)) {
+                    public void onNodeIndexDeleted(String deleted, String nodeId) {
+                        if (indices.contains(deleted)) {
                             if (counter.decrementAndGet() == 0) {
                                 listener.onResponse(new Response(true));
                                 nodeIndexDeletedAction.remove(this);
@@ -150,8 +118,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     }
 
                     @Override
-                    public void onNodeIndexStoreDeleted(String index, String nodeId) {
-                        if (index.equals(request.index)) {
+                    public void onNodeIndexStoreDeleted(String deleted, String nodeId) {
+                        if (indices.contains(deleted)) {
                             if (counter.decrementAndGet() == 0) {
                                 listener.onResponse(new Response(true));
                                 nodeIndexDeletedAction.remove(this);
@@ -160,15 +128,16 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     }
                 };
                 nodeIndexDeletedAction.add(nodeIndexDeleteListener);
-
-                listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onResponse(new Response(false));
-                        nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
-                    }
+                listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, () -> {
+                    listener.onResponse(new Response(false));
+                    nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
                 });
 
+                MetaData newMetaData = metaDataBuilder.build();
+                ClusterBlocks blocks = clusterBlocksBuilder.build();
+                RoutingAllocation.Result routingResult = allocationService.reroute(
+                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
+                        "deleted indices [" + indices + "]");
                 return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
             }
 
@@ -181,19 +150,16 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     class DeleteIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
-        private final Semaphore mdLock;
         private final Listener listener;
         volatile ScheduledFuture<?> future;
 
-        private DeleteIndexListener(Semaphore mdLock, Listener listener) {
-            this.mdLock = mdLock;
+        private DeleteIndexListener(Listener listener) {
             this.listener = listener;
         }
 
         @Override
         public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.release();
                 FutureUtils.cancel(future);
                 listener.onResponse(response);
             }
@@ -202,15 +168,13 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         @Override
         public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.release();
                 FutureUtils.cancel(future);
                 listener.onFailure(t);
             }
         }
     }
 
-
-    public static interface Listener {
+    public interface Listener {
 
         void onResponse(Response response);
 
@@ -219,13 +183,13 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     public static class Request {
 
-        final String index;
+        final String[] indices;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
-        public Request(String index) {
-            this.index = index;
+        public Request(String[] indices) {
+            this.indices = indices;
         }
 
         public Request timeout(TimeValue timeout) {

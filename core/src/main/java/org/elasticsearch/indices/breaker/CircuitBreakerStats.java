@@ -74,7 +74,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
     }
 
     public static CircuitBreakerStats readOptionalCircuitBreakerStats(StreamInput in) throws IOException {
-        CircuitBreakerStats stats = in.readOptionalStreamable(new CircuitBreakerStats());
+        CircuitBreakerStats stats = in.readOptionalStreamable(CircuitBreakerStats::new);
         return stats;
     }
 

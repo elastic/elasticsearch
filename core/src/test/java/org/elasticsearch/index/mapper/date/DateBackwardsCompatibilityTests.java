@@ -40,6 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -174,7 +175,8 @@ public class DateBackwardsCompatibilityTests extends ESSingleNodeTestCase {
             createIndex(Version.CURRENT, mapping);
             fail("Expected a MapperParsingException, but did not happen");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), is("mapping [" + type + "]"));
+            assertThat(e.getMessage(), containsString("Failed to parse mapping [" + type + "]"));
+            assertThat(e.getMessage(), containsString("Epoch [epoch_seconds] is not supported as dynamic date format"));
         }
     }
 

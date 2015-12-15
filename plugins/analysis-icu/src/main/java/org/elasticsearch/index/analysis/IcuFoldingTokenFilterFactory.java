@@ -21,15 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.icu.ICUFoldingFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
@@ -46,12 +44,13 @@ import com.ibm.icu.text.UnicodeSet;
 public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
     private final String unicodeSetFilter;
 
-    @Inject public IcuFoldingTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.unicodeSetFilter = settings.get("unicodeSetFilter");
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
 
         // The ICUFoldingFilter is in fact implemented as a ICUNormalizer2Filter.
         // ICUFoldingFilter lacks a constructor for adding filtering so we implemement it here

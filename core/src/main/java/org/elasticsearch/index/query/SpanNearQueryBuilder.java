@@ -125,14 +125,14 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.startArray("clauses");
+        builder.startArray(SpanNearQueryParser.CLAUSES_FIELD.getPreferredName());
         for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("slop", slop);
-        builder.field("in_order", inOrder);
-        builder.field("collect_payloads", collectPayloads);
+        builder.field(SpanNearQueryParser.SLOP_FIELD.getPreferredName(), slop);
+        builder.field(SpanNearQueryParser.IN_ORDER_FIELD.getPreferredName(), inOrder);
+        builder.field(SpanNearQueryParser.COLLECT_PAYLOADS_FIELD.getPreferredName(), collectPayloads);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

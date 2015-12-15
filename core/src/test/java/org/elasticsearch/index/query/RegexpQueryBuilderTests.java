@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +62,6 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         assertThat(regexpQuery.getField(), equalTo(queryBuilder.fieldName()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -82,5 +80,25 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         } catch (IllegalArgumentException e) {
             // expected
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"regexp\" : {\n" + 
+                "    \"name.first\" : {\n" + 
+                "      \"value\" : \"s.*y\",\n" + 
+                "      \"flags_value\" : 7,\n" + 
+                "      \"max_determinized_states\" : 20000,\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+
+        RegexpQueryBuilder parsed = (RegexpQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "s.*y", parsed.value());
+        assertEquals(json, 20000, parsed.maxDeterminizedStates());
     }
 }

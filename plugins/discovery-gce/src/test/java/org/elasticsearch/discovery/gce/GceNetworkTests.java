@@ -23,7 +23,6 @@ import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,28 +35,24 @@ import static org.hamcrest.Matchers.containsString;
  * Related to https://github.com/elastic/elasticsearch/issues/13605
  */
 public class GceNetworkTests extends ESTestCase {
-
     /**
      * Test for network.host: _gce_
      */
-    @Test
-    public void networkHostGceDefault() throws IOException {
+    public void testNetworkHostGceDefault() throws IOException {
         resolveGce("_gce_", InetAddress.getByName("10.240.0.2"));
     }
 
     /**
      * Test for network.host: _gce:privateIp_
      */
-    @Test
-    public void networkHostPrivateIp() throws IOException {
+    public void testNetworkHostPrivateIp() throws IOException {
         resolveGce("_gce:privateIp_", InetAddress.getByName("10.240.0.2"));
     }
 
     /**
      * Test for network.host: _gce:hostname_
      */
-    @Test
-    public void networkHostPrivateDns() throws IOException {
+    public void testNetworkHostPrivateDns() throws IOException {
         resolveGce("_gce:hostname_", InetAddress.getByName("localhost"));
     }
 
@@ -65,8 +60,7 @@ public class GceNetworkTests extends ESTestCase {
      * Test for network.host: _gce:doesnotexist_
      * This should raise an IllegalArgumentException as this setting does not exist
      */
-    @Test
-    public void networkHostWrongSetting() throws IOException {
+    public void testNetworkHostWrongSetting() throws IOException {
         resolveGce("_gce:doesnotexist_", (InetAddress) null);
     }
 
@@ -75,8 +69,7 @@ public class GceNetworkTests extends ESTestCase {
      * network.host: _gce:privateIp:0_
      * network.host: _gce:privateIp:1_
      */
-    @Test
-    public void networkHostPrivateIpInterface() throws IOException {
+    public void testNetworkHostPrivateIpInterface() throws IOException {
         resolveGce("_gce:privateIp:0_", InetAddress.getByName("10.240.0.2"));
         resolveGce("_gce:privateIp:1_", InetAddress.getByName("10.150.0.1"));
     }
@@ -85,9 +78,8 @@ public class GceNetworkTests extends ESTestCase {
      * Test that we don't have any regression with network host core settings such as
      * network.host: _local_
      */
-    @Test
     public void networkHostCoreLocal() throws IOException {
-        resolveGce("_local_", new NetworkService(Settings.EMPTY).resolveBindHostAddress(NetworkService.DEFAULT_NETWORK_HOST));
+        resolveGce("_local_", new NetworkService(Settings.EMPTY).resolveBindHostAddresses(new String[] { NetworkService.DEFAULT_NETWORK_HOST }));
     }
 
     /**
@@ -115,7 +107,7 @@ public class GceNetworkTests extends ESTestCase {
         GceComputeServiceMock mock = new GceComputeServiceMock(nodeSettings, networkService);
         networkService.addCustomNameResolver(new GceNameResolver(nodeSettings, mock));
         try {
-            InetAddress[] addresses = networkService.resolveBindHostAddress(null);
+            InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
             if (expected == null) {
                 fail("We should get a IllegalArgumentException when setting network.host: _gce:doesnotexist_");
             }

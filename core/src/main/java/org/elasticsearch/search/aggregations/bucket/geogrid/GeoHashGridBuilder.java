@@ -30,8 +30,8 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
 
 
     private String field;
-    private int precision = GeoHashGridParser.DEFAULT_PRECISION;
-    private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
+    private int precision = GeoHashGridParams.DEFAULT_PRECISION;
+    private int requiredSize = GeoHashGridParams.DEFAULT_MAX_NUM_CELLS;
     private int shardSize = 0;
 
     /**
@@ -54,11 +54,7 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
      * precision, the more fine-grained this aggregation will be.
      */
     public GeoHashGridBuilder precision(int precision) {
-        if ((precision < 1) || (precision > 12)) {
-            throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
-                    + "must be between 1 and 12");
-        }
-        this.precision = precision;
+        this.precision = GeoHashGridParams.checkPrecision(precision);
         return this;
     }
 
@@ -85,14 +81,14 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
         if (field != null) {
             builder.field("field", field);
         }
-        if (precision != GeoHashGridParser.DEFAULT_PRECISION) {
-            builder.field("precision", precision);
+        if (precision != GeoHashGridParams.DEFAULT_PRECISION) {
+            builder.field(GeoHashGridParams.FIELD_PRECISION.getPreferredName(), precision);
         }
-        if (requiredSize != GeoHashGridParser.DEFAULT_MAX_NUM_CELLS) {
-            builder.field("size", requiredSize);
+        if (requiredSize != GeoHashGridParams.DEFAULT_MAX_NUM_CELLS) {
+            builder.field(GeoHashGridParams.FIELD_SIZE.getPreferredName(), requiredSize);
         }
         if (shardSize != 0) {
-            builder.field("shard_size", shardSize);
+            builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
         }
 
         return builder.endObject();

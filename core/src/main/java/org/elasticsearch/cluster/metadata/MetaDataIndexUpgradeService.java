@@ -26,14 +26,14 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
-import java.util.Locale;
+import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -49,12 +49,12 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
-    private final ScriptService scriptService;
+    private final MapperRegistry mapperRegistry;
 
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, ScriptService scriptService) {
+    public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry) {
         super(settings);
-        this.scriptService = scriptService;
+        this.mapperRegistry = mapperRegistry;
     }
 
     /**
@@ -82,7 +82,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
      */
     private boolean isUpgraded(IndexMetaData indexMetaData) {
-        return indexMetaData.upgradeVersion().onOrAfter(Version.V_3_0_0);
+        return indexMetaData.getUpgradedVersion().onOrAfter(Version.V_3_0_0);
     }
 
     /**
@@ -102,7 +102,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.creationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
+        if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             // The index was created with elasticsearch that was using Lucene 5.2.1
             return true;
         }
@@ -150,6 +150,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.flush_threshold_period",
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
+                                    "index.shard.inactive_time",
                                     UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
 
     /**
@@ -160,7 +161,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
-            Settings settings = indexMetaData.settings();
+            Settings settings = indexMetaData.getSettings();
             Settings.Builder newSettings = null;
             for(String byteSizeSetting : INDEX_BYTES_SIZE_SETTINGS) {
                 String value = settings.get(byteSizeSetting);
@@ -199,7 +200,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             if (newSettings != null) {
                 // At least one setting was changed:
                 return IndexMetaData.builder(indexMetaData)
-                    .version(indexMetaData.version())
+                    .version(indexMetaData.getVersion())
                     .settings(newSettings.build())
                     .build();
             }
@@ -214,14 +215,14 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks the mappings for compatibility with the current version
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
-        Index index = new Index(indexMetaData.getIndex());
-        Settings settings = indexMetaData.settings();
         try {
-            SimilarityService similarityService = new SimilarityService(index, settings);
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            try (AnalysisService analysisService = new FakeAnalysisService(index, settings)) {
-                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityService, scriptService)) {
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList());
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+
+            try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
+                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
@@ -230,7 +231,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "], reason: [" + ex.getMessage() + "]", ex);
+            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "]", ex);
         }
     }
 
@@ -238,7 +239,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Marks index as upgraded so we don't have to test it again
      */
     private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 
@@ -254,8 +255,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             }
         };
 
-        public FakeAnalysisService(Index index, Settings indexSettings) {
-            super(index, indexSettings);
+        public FakeAnalysisService(IndexSettings indexSettings) {
+            super(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
         @Override

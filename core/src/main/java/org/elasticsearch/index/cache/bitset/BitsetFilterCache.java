@@ -32,27 +32,23 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -70,54 +66,29 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
-    private static final Listener DEFAULT_NOOP_LISTENER =  new Listener() {
-        @Override
-        public void onCache(ShardId shardId, Accountable accountable) {
-        }
-
-        @Override
-        public void onRemoval(ShardId shardId, Accountable accountable) {
-        }
-    };
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
-    private volatile Listener listener = DEFAULT_NOOP_LISTENER;
+    private final Listener listener;
     private final BitSetProducerWarmer warmer;
+    private final IndicesWarmer indicesWarmer;
 
-    private IndicesWarmer indicesWarmer;
-
-    @Inject
-    public BitsetFilterCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
-        this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
-        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
-        this.warmer = new BitSetProducerWarmer();
-    }
-
-
-    @Inject(optional = true)
-    public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
-        this.indicesWarmer = indicesWarmer;
-        indicesWarmer.addListener(warmer);
-    }
-
-    /**
-     * Sets a listener that is invoked for all subsequent cache and removal events.
-     * @throws IllegalStateException if the listener is set more than once
-     */
-    public void setListener(Listener listener) {
+    public BitsetFilterCache(IndexSettings indexSettings, IndicesWarmer indicesWarmer, Listener listener) {
+        super(indexSettings);
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
-        if (this.listener != DEFAULT_NOOP_LISTENER) {
-            throw new IllegalStateException("can't set listener more than once");
-        }
+        this.loadRandomAccessFiltersEagerly = this.indexSettings.getSettings().getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
+        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
+        this.warmer = new BitSetProducerWarmer();
+        this.indicesWarmer = indicesWarmer;
+        indicesWarmer.addListener(warmer);
         this.listener = listener;
     }
+    
 
 
     public BitSetProducer getBitSetProducer(Query query) {
@@ -131,10 +102,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     @Override
     public void close() {
-        if (indicesWarmer != null) {
+        try {
             indicesWarmer.removeListener(warmer);
+        } finally {
+            clear("close");
         }
-        clear("close");
     }
 
     public void clear(String reason) {
@@ -231,10 +203,10 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
     }
 
-    final class BitSetProducerWarmer extends IndicesWarmer.Listener {
+    final class BitSetProducerWarmer implements IndicesWarmer.Listener {
 
         @Override
-        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }
@@ -260,9 +232,9 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
+            final Executor executor = indicesWarmer.getExecutor();
+            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
+            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
                     executor.execute(() -> {
                         try {
@@ -283,7 +255,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher) {
             return TerminationHandle.NO_WAIT;
         }
 

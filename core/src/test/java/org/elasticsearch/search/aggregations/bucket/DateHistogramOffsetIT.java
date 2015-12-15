@@ -31,7 +31,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -84,8 +83,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         indexRandom(true, reqs);
     }
 
-    @Test
-    public void singleValue_WithPositiveOffset() throws Exception {
+    public void testSingleValueWithPositiveOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, 1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
@@ -107,8 +105,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         checkBucketFor(buckets.get(1), new DateTime(2014, 3, 11, 2, 0, DateTimeZone.UTC), 3l);
     }
 
-    @Test
-    public void singleValue_WithNegativeOffset() throws Exception {
+    public void testSingleValueWithNegativeOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, -1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
@@ -133,8 +130,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     /**
      * Set offset so day buckets start at 6am. Index first 12 hours for two days, with one day gap.
      */
-    @Test
-    public void singleValue_WithOffset_MinDocCount() throws Exception {
+    public void testSingleValueWithOffsetMinDocCount() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 12, 1, 0);
         prepareIndex(date("2014-03-14T00:00:00+00:00"), 12, 1, 13);
 

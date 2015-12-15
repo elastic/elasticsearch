@@ -22,10 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -50,7 +51,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(new Template(templateBase.toString()));
+        return new TemplateQueryBuilder(new Template(templateBase.toString(), ScriptType.INLINE, "mockscript", null, null));
     }
 
     @Override
@@ -58,7 +59,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         assertEquals(templateBase.toQuery(context), query);
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             new TemplateQueryBuilder(null);
@@ -68,12 +68,23 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         }
     }
 
+    /**
+     * Override superclass test since template query doesn't support boost and queryName, so
+     * we need to mutate other existing field in the test query.
+     */
     @Override
-    protected void assertBoost(TemplateQueryBuilder queryBuilder, Query query) throws IOException {
-        //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
+    public void testUnknownField() throws IOException {
+        TemplateQueryBuilder testQuery = createTestQueryBuilder();
+        String testQueryAsString = toXContent(testQuery, randomFrom(XContentType.JSON, XContentType.YAML)).string();
+        String queryAsString = testQueryAsString.replace("inline", "bogusField");
+        try {
+            parseQuery(queryAsString);
+            fail("ScriptParseException expected.");
+        } catch (ScriptParseException e) {
+            assertTrue(e.getMessage().contains("bogusField"));
+        }
     }
 
-    @Test
     public void testJSONGeneration() throws IOException {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "filled");
@@ -84,7 +95,27 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         builder.doXContent(content, null);
         content.endObject();
         content.close();
-        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
+        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"lang\":\"mustache\",\"params\":{\"template\":\"filled\"}}}",
+                content.string());
     }
 
+    public void testRawEscapedTemplate() throws IOException {
+        String expectedTemplateString = "{\"match_{{template}}\": {}}\"";
+        String query = "{\"template\": {\"query\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null, null,
+                params));
+        assertParsedQuery(query, expectedBuilder);
+    }
+
+    public void testRawTemplate() throws IOException {
+        String expectedTemplateString = "{\"match_{{template}}\":{}}";
+        String query = "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null,
+                XContentType.JSON, params));
+        assertParsedQuery(query, expectedBuilder);
+    }
 }

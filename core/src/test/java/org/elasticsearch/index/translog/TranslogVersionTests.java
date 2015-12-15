@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for reading old and new translog files
  */
 public class TranslogVersionTests extends ESTestCase {
-
-    @Test
     public void testV0LegacyTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v0.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
@@ -62,7 +59,6 @@ public class TranslogVersionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testV1ChecksummedTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
@@ -95,7 +91,6 @@ public class TranslogVersionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCorruptedTranslogs() throws Exception {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
@@ -135,7 +130,6 @@ public class TranslogVersionTests extends ESTestCase {
 
     }
 
-    @Test
     public void testTruncatedTranslog() throws Exception {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-truncated.binary");

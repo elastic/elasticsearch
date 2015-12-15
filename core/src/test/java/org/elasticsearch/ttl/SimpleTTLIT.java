@@ -170,7 +170,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
                     if (rarely()) {
                         client().admin().indices().prepareFlush("test").get();
                     } else if (rarely()) {
-                        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+                        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
                     }
                     IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
                     // TTL deletes two docs, but it is indexed in the primary shard and replica shard.

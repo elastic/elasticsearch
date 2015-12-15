@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
@@ -54,9 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 public class CopyToMapperTests extends ESSingleNodeTestCase {
-
     @SuppressWarnings("unchecked")
-    @Test
     public void testCopyToFieldsParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("copy_test")
@@ -135,8 +132,6 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
     public void testCopyToFieldsInnerObjectParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
@@ -172,35 +167,130 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
-    public void testCopyToFieldsNonExistingInnerObjectParsing() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-
+    public void testCopyToDynamicInnerObjectParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
                 .startObject("copy_test")
-                .field("type", "string")
-                .field("copy_to", "very.inner.field")
+                    .field("type", "string")
+                    .field("copy_to", "very.inner.field")
                 .endObject()
-
-                .endObject().endObject().endObject().string();
+            .endObject()
+            .endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
+                .field("new_field", "bar")
                 .endObject().bytes();
+
+        ParseContext.Document doc = docMapper.parse("test", "type1", "1", json).rootDoc();
+        assertThat(doc.getFields("copy_test").length, equalTo(1));
+        assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
+
+        assertThat(doc.getFields("very.inner.field").length, equalTo(1));
+        assertThat(doc.getFields("very.inner.field")[0].stringValue(), equalTo("foo"));
+
+        assertThat(doc.getFields("new_field").length, equalTo(1));
+        assertThat(doc.getFields("new_field")[0].stringValue(), equalTo("bar"));
+    }
+
+    public void testCopyToDynamicInnerInnerObjectParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+                .startObject("copy_test")
+                    .field("type", "string")
+                    .field("copy_to", "very.far.inner.field")
+                .endObject()
+                .startObject("very")
+                    .field("type", "object")
+                    .startObject("properties")
+                        .startObject("far")
+                            .field("type", "object")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        BytesReference json = jsonBuilder().startObject()
+            .field("copy_test", "foo")
+            .field("new_field", "bar")
+            .endObject().bytes();
+
+        ParseContext.Document doc = docMapper.parse("test", "type1", "1", json).rootDoc();
+        assertThat(doc.getFields("copy_test").length, equalTo(1));
+        assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
+
+        assertThat(doc.getFields("very.far.inner.field").length, equalTo(1));
+        assertThat(doc.getFields("very.far.inner.field")[0].stringValue(), equalTo("foo"));
+
+        assertThat(doc.getFields("new_field").length, equalTo(1));
+        assertThat(doc.getFields("new_field")[0].stringValue(), equalTo("bar"));
+    }
+
+    public void testCopyToStrictDynamicInnerObjectParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .field("dynamic", "strict")
+                .startObject("properties")
+                    .startObject("copy_test")
+                        .field("type", "string")
+                        .field("copy_to", "very.inner.field")
+                    .endObject()
+                .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        BytesReference json = jsonBuilder().startObject()
+            .field("copy_test", "foo")
+            .endObject().bytes();
 
         try {
             docMapper.parse("test", "type1", "1", json).rootDoc();
             fail();
         } catch (MapperParsingException ex) {
-            assertThat(ex.getMessage(), startsWith("attempt to copy value to non-existing object"));
+            assertThat(ex.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [type1] is not allowed"));
         }
     }
 
-    @Test
-    public void testCopyToFieldMerge() throws Exception {
+    public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+                .startObject("copy_test")
+                    .field("type", "string")
+                    .field("copy_to", "very.far.field")
+                .endObject()
+                .startObject("very")
+                    .field("type", "object")
+                    .startObject("properties")
+                        .startObject("far")
+                            .field("type", "object")
+                            .field("dynamic", "strict")
+                        .endObject()
+                    .endObject()
+                .endObject()
 
+            .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        BytesReference json = jsonBuilder().startObject()
+            .field("copy_test", "foo")
+            .endObject().bytes();
+
+        try {
+            docMapper.parse("test", "type1", "1", json).rootDoc();
+            fail();
+        } catch (MapperParsingException ex) {
+          assertThat(ex.getMessage(), startsWith("mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
+        }
+    }
+
+    public void testCopyToFieldMerge() throws Exception {
         String mappingBefore = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
@@ -343,6 +433,41 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             assertFieldValue(root, "target", 3L, 5L, 7L);
             assertFieldValue(root, "n1.target");
             assertFieldValue(root, "n1.n2.target");
+        }
+    }
+
+    public void testCopyToDynamicNestedObjectParsing() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .startArray("dynamic_templates")
+                .startObject()
+                    .startObject("objects")
+                        .field("match_mapping_type", "object")
+                        .startObject("mapping")
+                            .field("type", "nested")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endArray()
+            .startObject("properties")
+                .startObject("copy_test")
+                    .field("type", "string")
+                    .field("copy_to", "very.inner.field")
+                .endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        BytesReference json = jsonBuilder().startObject()
+            .field("copy_test", "foo")
+            .field("new_field", "bar")
+            .endObject().bytes();
+
+        try {
+          docMapper.parse("test", "type1", "1", json).rootDoc();
+          fail();
+        } catch (MapperParsingException ex) {
+            assertThat(ex.getMessage(), startsWith("It is forbidden to create dynamic nested objects ([very]) through `copy_to`"));
         }
     }
 

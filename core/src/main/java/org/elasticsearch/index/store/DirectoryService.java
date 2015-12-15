@@ -20,8 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -31,7 +30,7 @@ import java.io.IOException;
  */
 public abstract class DirectoryService extends AbstractIndexShardComponent {
 
-    protected DirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    protected DirectoryService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
     }
 

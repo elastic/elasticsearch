@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -48,8 +47,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
-
-    @Test
     public void testRepositoryCreation() throws Exception {
         Client client = client();
 
@@ -97,7 +94,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesMetaData.repository("test-repo-2").type(), equalTo("fs"));
 
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
-        GetRepositoriesResponse repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
+        GetRepositoriesResponse repositoriesResponse = client.admin().cluster()
+            .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*")).get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(2));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
@@ -123,7 +121,6 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         return null;
     }
 
-    @Test
     public void testMisconfiguredRepository() throws Exception {
         Client client = client();
 
@@ -170,8 +167,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
-    public void repositoryAckTimeoutTest() throws Exception {
+    public void testRepositoryAckTimeout() throws Exception {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(Settings.settingsBuilder()
@@ -201,8 +197,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    @Test
-    public void repositoryVerificationTest() throws Exception {
+    public void testRepositoryVerification() throws Exception {
         Client client = client();
 
         Settings settings = Settings.settingsBuilder()
@@ -236,8 +231,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
-    public void repositoryVerificationTimeoutTest() throws Exception {
+    public void testRepositoryVerificationTimeout() throws Exception {
         Client client = client();
 
         Settings settings = Settings.settingsBuilder()

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
@@ -76,7 +75,6 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testNetworkPartitionDuringReplicaIndexOp() throws Exception {
         final String INDEX = "testidx";
 
@@ -117,12 +115,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         logger.info("--> preventing index/replica operations");
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
+                internalCluster().getInstance(TransportService.class, replicaNode),
                 singleton(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
+                internalCluster().getInstance(TransportService.class, primaryNode),
                 singleton(IndexAction.NAME + "[r]")
         );
 

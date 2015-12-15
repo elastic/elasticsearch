@@ -19,12 +19,7 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public class DummyAnalysisPlugin extends Plugin {
     /**
@@ -43,13 +38,12 @@ public class DummyAnalysisPlugin extends Plugin {
         return "Analysis Dummy Plugin";
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new DummyIndicesAnalysisModule());
-    }
 
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new DummyAnalysisBinderProcessor());
+        module.registerAnalyzer("dummy", (a, b, c, d) -> new DummyAnalyzerProvider());
+        module.registerTokenFilter("dummy_token_filter", (a, b, c, d) -> new DummyTokenFilterFactory());
+        module.registerTokenizer("dummy_tokenizer", (a, b, c, d) -> new DummyTokenizerFactory());
+        module.registerCharFilter("dummy_char_filter", (a, b, c, d) -> new DummyCharFilterFactory());
     }
 
 }

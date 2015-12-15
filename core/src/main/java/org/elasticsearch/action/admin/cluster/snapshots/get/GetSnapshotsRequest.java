@@ -41,6 +41,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
+    private boolean ignoreUnavailable;
+
     public GetSnapshotsRequest() {
     }
 
@@ -112,11 +114,28 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    /**
+     * Set to true to ignore unavailable snapshots
+     *
+     * @return this request
+     */
+    public GetSnapshotsRequest ignoreUnavailable(boolean ignoreUnavailable) {
+        this.ignoreUnavailable = ignoreUnavailable;
+        return this;
+    }
+    /**
+     * @return Whether snapshots should be ignored when unavailable (corrupt or temporarily not fetchable)
+     */
+    public boolean ignoreUnavailable() {
+        return ignoreUnavailable;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         repository = in.readString();
         snapshots = in.readStringArray();
+        ignoreUnavailable = in.readBoolean();
     }
 
     @Override
@@ -124,5 +143,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
+        out.writeBoolean(ignoreUnavailable);
     }
 }

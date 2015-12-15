@@ -63,7 +63,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("filter");
+        builder.field(ConstantScoreQueryParser.INNER_QUERY_FIELD.getPreferredName());
         filterBuilder.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();

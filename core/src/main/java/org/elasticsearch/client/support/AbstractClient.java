@@ -96,6 +96,10 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -139,6 +143,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -152,10 +160,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -177,9 +181,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -208,10 +212,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
@@ -228,18 +228,10 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountAction;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.exists.ExistsRequestBuilder;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
@@ -271,8 +263,6 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.support.AdapterActionFuture;
-import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.*;
@@ -603,48 +593,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<CountResponse> count(final CountRequest request) {
-        AdapterActionFuture<CountResponse, SearchResponse> actionFuture = new AdapterActionFuture<CountResponse, SearchResponse>() {
-            @Override
-            protected CountResponse convert(SearchResponse listenerResponse) {
-                return new CountResponse(listenerResponse);
-            }
-        };
-        execute(SearchAction.INSTANCE, request.toSearchRequest(), actionFuture);
-        return actionFuture;
-    }
-
-    @Override
-    public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
-            @Override
-            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
-                return new CountResponse(response);
-            }
-        });
-    }
-
-    @Override
-    public CountRequestBuilder prepareCount(String... indices) {
-        return new CountRequestBuilder(this, CountAction.INSTANCE).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<ExistsResponse> exists(final ExistsRequest request) {
-        return execute(ExistsAction.INSTANCE, request);
-    }
-
-    @Override
-    public void exists(final ExistsRequest request, final ActionListener<ExistsResponse> listener) {
-        execute(ExistsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ExistsRequestBuilder prepareExists(String... indices) {
-        return new ExistsRequestBuilder(this, ExistsAction.INSTANCE).setIndices(indices);
     }
 
     @Override
@@ -1413,18 +1361,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
-            return execute(OptimizeAction.INSTANCE, request);
+        public ActionFuture<ForceMergeResponse> forceMerge(final ForceMergeRequest request) {
+            return execute(ForceMergeAction.INSTANCE, request);
         }
 
         @Override
-        public void optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
-            execute(OptimizeAction.INSTANCE, request, listener);
+        public void forceMerge(final ForceMergeRequest request, final ActionListener<ForceMergeResponse> listener) {
+            execute(ForceMergeAction.INSTANCE, request, listener);
         }
 
         @Override
-        public OptimizeRequestBuilder prepareOptimize(String... indices) {
-            return new OptimizeRequestBuilder(this, OptimizeAction.INSTANCE).setIndices(indices);
+        public ForceMergeRequestBuilder prepareForceMerge(String... indices) {
+            return new ForceMergeRequestBuilder(this, ForceMergeAction.INSTANCE).setIndices(indices);
         }
 
         @Override

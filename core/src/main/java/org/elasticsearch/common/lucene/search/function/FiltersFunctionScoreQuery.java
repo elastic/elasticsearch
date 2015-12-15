@@ -123,8 +123,9 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (getBoost() != 1.0F) {
-            return super.rewrite(reader);
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
         }
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery)

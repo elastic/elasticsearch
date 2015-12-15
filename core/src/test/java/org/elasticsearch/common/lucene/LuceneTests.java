@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -28,10 +29,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
@@ -39,15 +40,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 
+ *
  */
 public class LuceneTests extends ESTestCase {
-
-
-    /*
+    /**
      * simple test that ensures that we bump the version on Upgrade
      */
-    @Test
     public void testVersion() {
         // note this is just a silly sanity check, we test it in lucene, and we point to it this way
         assertEquals(Lucene.VERSION, Version.LATEST);
@@ -358,5 +356,17 @@ public class LuceneTests extends ESTestCase {
 
         w.close();
         dir.close();
+    }
+
+    /**
+     * Test that the "unmap hack" is detected as supported by lucene.
+     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
+     * <p>
+     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
+     * Additionally this checks we did not screw up the security logic around the hack.
+     */
+    public void testMMapHackSupported() throws Exception {
+        // add assume's here if needed for certain platforms, but we should know if it does not work.
+        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
     }
 }

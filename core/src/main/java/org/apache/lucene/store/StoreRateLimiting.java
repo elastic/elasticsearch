@@ -36,7 +36,7 @@ public class StoreRateLimiting {
         void onPause(long nanos);
     }
 
-    public static enum Type {
+    public enum Type {
         NONE,
         MERGE,
         ALL;

@@ -22,32 +22,15 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RestoreSource;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
@@ -70,35 +53,16 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
@@ -113,7 +77,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link IndexShard#restoreFromRepository(ShardRouting, IndexShardRepository, DiscoveryNode)} )}
+ * {@link IndexShard#restoreFromRepository(IndexShardRepository, DiscoveryNode)} )}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property.
  * <p>
@@ -251,14 +215,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 createIndexService.validateIndexName(renamedIndex, currentState);
-                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.settings());
+                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.getSettings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
-                                if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
+                                if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
                                 } else {
-                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.getAliases().keys()) {
                                         aliases.add(alias.value);
                                     }
                                 }
@@ -273,22 +237,22 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndex, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
-                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.version(), currentIndexMetaData.version() + 1));
+                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
-                                    if (!snapshotIndexMetaData.aliases().isEmpty()) {
+                                    if (!snapshotIndexMetaData.getAliases().isEmpty()) {
                                         indexMdBuilder.removeAllAliases();
                                     }
                                     /// Add existing aliases
-                                    for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.aliases().values()) {
+                                    for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.getAliases().values()) {
                                         indexMdBuilder.putAlias(alias.value);
                                     }
                                 } else {
-                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.getAliases().keys()) {
                                         aliases.add(alias.value);
                                     }
                                 }
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.indexUUID()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.updateBlocks(updatedIndexMetaData);
@@ -324,7 +288,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                     RoutingTable rt = rtBuilder.build();
                     ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rt).build();
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rt).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(
+                            ClusterState.builder(updatedState).routingTable(rt).build(),
+                            "restored snapshot [" + snapshotId + "]");
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
@@ -359,7 +325,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 private void validateExistingIndex(IndexMetaData currentIndexMetaData, IndexMetaData snapshotIndexMetaData, String renamedIndex, boolean partial) {
                     // Index exist - checking that it's closed
-                    if (currentIndexMetaData.state() != IndexMetaData.State.CLOSE) {
+                    if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         // TODO: Enable restore for open indices
                         throw new SnapshotRestoreException(snapshotId, "cannot restore index [" + renamedIndex + "] because it's open");
                     }
@@ -384,7 +350,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     }
                     Settings normalizedChangeSettings = Settings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.settings().getAsMap());
+                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.getSettings().getAsMap());
                     List<String> simpleMatchPatterns = new ArrayList<>();
                     for (String ignoredSetting : ignoreSettings) {
                         if (!Regex.isSimpleMatchPattern(ignoredSetting)) {

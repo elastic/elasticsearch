@@ -457,40 +457,40 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", value);
-        builder.startArray("fields");
+        builder.field(MultiMatchQueryParser.QUERY_FIELD.getPreferredName(), value);
+        builder.startArray(MultiMatchQueryParser.FIELDS_FIELD.getPreferredName());
         for (Map.Entry<String, Float> fieldEntry : this.fieldsBoosts.entrySet()) {
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
-        builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));
-        builder.field("operator", operator.toString());
+        builder.field(MultiMatchQueryParser.TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        builder.field(MultiMatchQueryParser.OPERATOR_FIELD.getPreferredName(), operator.toString());
         if (analyzer != null) {
-            builder.field("analyzer", analyzer);
+            builder.field(MultiMatchQueryParser.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field("slop", slop);
+        builder.field(MultiMatchQueryParser.SLOP_FIELD.getPreferredName(), slop);
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field("prefix_length", prefixLength);
-        builder.field("max_expansions", maxExpansions);
+        builder.field(MultiMatchQueryParser.PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        builder.field(MultiMatchQueryParser.MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+            builder.field(MultiMatchQueryParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
         if (fuzzyRewrite != null) {
-            builder.field("fuzzy_rewrite", fuzzyRewrite);
+            builder.field(MultiMatchQueryParser.FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
         if (useDisMax != null) {
-            builder.field("use_dis_max", useDisMax);
+            builder.field(MultiMatchQueryParser.USE_DIS_MAX_FIELD.getPreferredName(), useDisMax);
         }
         if (tieBreaker != null) {
-            builder.field("tie_breaker", tieBreaker);
+            builder.field(MultiMatchQueryParser.TIE_BREAKER_FIELD.getPreferredName(), tieBreaker);
         }
-        builder.field("lenient", lenient);
+        builder.field(MultiMatchQueryParser.LENIENT_FIELD.getPreferredName(), lenient);
         if (cutoffFrequency != null) {
-            builder.field("cutoff_frequency", cutoffFrequency);
+            builder.field(MultiMatchQueryParser.CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
-        builder.field("zero_terms_query", zeroTermsQuery.toString());
+        builder.field(MultiMatchQueryParser.ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -504,7 +504,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         if (analyzer != null) {
-            if (context.analysisService().analyzer(analyzer) == null) {
+            if (context.getAnalysisService().analyzer(analyzer) == null) {
                 throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
             }
             multiMatchQuery.setAnalyzer(analyzer);
@@ -539,19 +539,13 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             }
         }
 
-        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.mapperService(), fieldsBoosts);
+        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
 
         Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
         if (query == null) {
             return null;
         }
         return query;
-    }
-
-    @Override
-    protected void setFinalBoost(Query query) {
-        // we need to preserve the boost that came out of the parsing phase
-        query.setBoost(boost * query.getBoost());
     }
 
     private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {

@@ -26,17 +26,20 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.Accountable;
@@ -51,7 +54,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +69,6 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
-
     private void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
@@ -402,11 +403,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
             break;
         }
-        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term("type", "parent")));
-        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        Nested nested = createNested(parentFilter, childFilter);
+        Query parentFilter = new TermQuery(new Term("type", "parent"));
+        Query childFilter = Queries.not(parentFilter);
+        Nested nested = createNested(searcher, parentFilter, childFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
         assertTrue(topDocs.scoreDocs.length > 0);
@@ -464,7 +465,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         }
     }
 
-    @Test
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
@@ -555,7 +555,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
-    @Test
     public void testTermsEnum() throws Exception {
         fillExtendedMvSet();
         LeafReaderContext atomicReaderContext = refreshReader();
@@ -591,7 +590,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(size, equalTo(3));
     }
 
-    @Test
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();

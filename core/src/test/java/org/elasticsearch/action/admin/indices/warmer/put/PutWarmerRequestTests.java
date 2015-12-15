@@ -20,14 +20,12 @@ package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PutWarmerRequestTests extends ESTestCase {
-
-    @Test // issue 4196
+    // issue 4196
     public void testThatValidationWithoutSpecifyingSearchRequestFails() {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest("foo");
         ActionRequestValidationException validationException = putWarmerRequest.validate();

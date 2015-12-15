@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -94,18 +95,28 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (point == null) {
-                    point = new GeoPoint();
+                if (fieldName == null) {
+                    if (point == null) {
+                        point = new GeoPoint();
+                    }
+                    GeoUtils.parseGeoPoint(parser, point);
+                    fieldName = currentFieldName;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                            "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
                 }
-                GeoUtils.parseGeoPoint(parser, point);
-                fieldName = currentFieldName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
-                fieldName = currentFieldName;
-                if (point == null) {
-                    point = new GeoPoint();
+                if (fieldName == null) {
+                    fieldName = currentFieldName;
+                    if (point == null) {
+                        point = new GeoPoint();
+                    }
+                    GeoUtils.parseGeoPoint(parser, point);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                            "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
                 }
-                GeoUtils.parseGeoPoint(parser, point);
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
@@ -162,20 +173,38 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
+                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
+                    if (fieldName == null || fieldName.equals(maybeFieldName)) {
+                        fieldName = maybeFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
+                    }
                     if (point == null) {
                         point = new GeoPoint();
                     }
                     point.resetLat(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
+                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
+                    if (fieldName == null || fieldName.equals(maybeFieldName)) {
+                        fieldName = maybeFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
+                    }
                     if (point == null) {
                         point = new GeoPoint();
                     }
                     point.resetLon(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
+                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
+                    if (fieldName == null || fieldName.equals(maybeFieldName)) {
+                        fieldName = maybeFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
+                    }
                     point = GeoPoint.fromGeohash(parser.text());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {
@@ -189,11 +218,16 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
-                    if (point == null) {
-                        point = new GeoPoint();
+                    if (fieldName == null) {
+                        if (point == null) {
+                            point = new GeoPoint();
+                        }
+                        point.resetFromString(parser.text());
+                        fieldName = currentFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
                     }
-                    point.resetFromString(parser.text());
-                    fieldName = currentFieldName;
                 }
             }
         }

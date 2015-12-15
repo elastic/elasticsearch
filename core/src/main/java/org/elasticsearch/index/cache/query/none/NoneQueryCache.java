@@ -22,11 +22,9 @@ package org.elasticsearch.index.cache.query.none;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  *
@@ -34,8 +32,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class NoneQueryCache extends AbstractIndexComponent implements QueryCache {
 
     @Inject
-    public NoneQueryCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    public NoneQueryCache(IndexSettings indexSettings) {
+        super(indexSettings);
         logger.debug("Using no query cache");
     }
 

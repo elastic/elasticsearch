@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,22 +33,23 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 /**
  */
 public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
-
     /**
-     * Simple upgrade test for function score
+     * Simple upgrade test for function score.
      */
-    @Test
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
-
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject()

@@ -26,15 +26,17 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -45,7 +47,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -60,7 +64,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() {
         // a write operation might still be in flight when the test has finished
-        // so we should not check the operation counter here 
+        // so we should not check the operation counter here
     }
 
     /**
@@ -68,7 +72,6 @@ public class ExceptionRetryIT extends ESIntegTestCase {
      * If auto generated ids are used this must not lead to duplicate ids
      * see https://github.com/elasticsearch/elasticsearch/issues/8788
      */
-    @Test
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -80,7 +83,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
         for (NodeStats dataNode : nodeStats.getNodes()) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {

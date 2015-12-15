@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -118,11 +117,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
+        builder.field(NestedQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field("path", path);
+        builder.field(NestedQueryParser.PATH_FIELD.getPreferredName(), path);
         if (scoreMode != null) {
-            builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
+            builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
         }
         printBoostAndQueryName(builder);
         if (queryInnerHits != null) {
@@ -187,7 +186,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
-        final Filter childFilter;
+        final Query childFilter;
         final ObjectMapper parentObjectMapper;
         final Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
@@ -213,7 +212,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalStateException("start object expected but was: [" + token + "]");
                 }
-                InnerHitsSubSearchContext innerHits = context.indexQueryParserService().getInnerHitsQueryParserHelper().parse(parser);
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
 

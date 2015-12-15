@@ -24,12 +24,14 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -54,28 +57,15 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.Future;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -268,7 +258,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public void testOldIndexes() throws Exception {
         setupCluster();
 
-        Collections.shuffle(indexes, getRandom());
+        Collections.shuffle(indexes, random());
         for (String index : indexes) {
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
@@ -277,52 +267,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
-        setupCluster();
-        Collections.shuffle(unsupportedIndexes, getRandom());
-        for (String index : unsupportedIndexes) {
-            assertUnsupportedIndexHandling(index);
-        }
-    }
-
-    /**
-     * Waits for the index to show up in the cluster state in closed state
-     */
-    void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(() -> {
-                            ClusterState state = client().admin().cluster().prepareState().get().getState();
-                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-                        }
-                )
-        );
-    }
-
-    /**
-     * Checks that the given index cannot be opened due to incompatible version
-     */
-    void assertUnsupportedIndexHandling(String index) throws Exception {
-        long startTime = System.currentTimeMillis();
-        logger.info("--> Testing old index " + index);
-        String indexName = loadIndex(index);
-        // force reloading dangling indices with a cluster state republish
-        client().admin().cluster().prepareReroute().get();
-        ensureClosed(indexName);
-        try {
-            client().admin().indices().prepareOpen(indexName).get();
-            fail("Shouldn't be able to open an old index");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("was created before v2.0.0.beta1 and wasn't upgraded"));
-        }
-        unloadIndex(indexName);
-        logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
-    }
-
     void assertOldIndexWorks(String index) throws Exception {
         Version version = extractVersion(index);
         String indexName = loadIndex(index);
         importIndex(indexName);
-        assertIndexSanity(indexName);
+        assertIndexSanity(indexName, version);
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
@@ -342,11 +291,22 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
 
-    void assertIndexSanity(String indexName) {
+    void assertIndexSanity(String indexName, Version indexCreated) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices(indexName).get();
         assertEquals(1, getIndexResponse.indices().length);
         assertEquals(indexName, getIndexResponse.indices()[0]);
+        Version actualVersionCreated = Version.indexCreated(getIndexResponse.getSettings().get(indexName));
+        assertEquals(indexCreated, actualVersionCreated);
         ensureYellow(indexName);
+        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
+        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
+        for (IndexShardSegments indexShardSegments : segments) {
+            for (ShardSegments shardSegments : indexShardSegments) {
+                for (Segment segment : shardSegments) {
+                    assertEquals(indexCreated.luceneVersion, segment.version);
+                }
+            }
+        }
         SearchResponse test = client().prepareSearch(indexName).get();
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
     }
@@ -368,13 +328,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
-
-        logger.info("--> testing missing filter");
-        // the field for the missing filter here needs to be different than the exists filter above, to avoid being found in the cache
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.missingQuery("long_sort"));
-        searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertEquals(0, searchRsp.getHits().getTotalHits());
     }
 
     void assertBasicAggregationWorks(String indexName) {

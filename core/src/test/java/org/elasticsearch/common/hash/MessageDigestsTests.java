@@ -20,13 +20,10 @@
 package org.elasticsearch.common.hash;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-
-import static org.junit.Assert.*;
 
 public class MessageDigestsTests extends ESTestCase {
     private void assertHash(String expected, String test, MessageDigest messageDigest) {
@@ -34,7 +31,6 @@ public class MessageDigestsTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    @Test
     public void testMd5() throws Exception {
         assertHash("d41d8cd98f00b204e9800998ecf8427e", "", MessageDigests.md5());
         assertHash("900150983cd24fb0d6963f7d28e17f72", "abc", MessageDigests.md5());
@@ -44,7 +40,6 @@ public class MessageDigestsTests extends ESTestCase {
         assertHash("1055d3e698d289f2af8663725127bd4b", "The quick brown fox jumps over the lazy cog", MessageDigests.md5());
     }
 
-    @Test
     public void testSha1() throws Exception {
         assertHash("da39a3ee5e6b4b0d3255bfef95601890afd80709", "", MessageDigests.sha1());
         assertHash("a9993e364706816aba3e25717850c26c9cd0d89d", "abc", MessageDigests.sha1());
@@ -54,7 +49,6 @@ public class MessageDigestsTests extends ESTestCase {
         assertHash("de9f2c7fd25e1b3afad3e85a0bd17d9b100db4b3", "The quick brown fox jumps over the lazy cog", MessageDigests.sha1());
     }
 
-    @Test
     public void testSha256() throws Exception {
         assertHash("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "", MessageDigests.sha256());
         assertHash("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "abc", MessageDigests.sha256());
@@ -64,7 +58,6 @@ public class MessageDigestsTests extends ESTestCase {
         assertHash("e4c4d8f3bf76b692de791a173e05321150f7a345b46484fe427f6acc7ecc81be", "The quick brown fox jumps over the lazy cog", MessageDigests.sha256());
     }
 
-    @Test
     public void testToHexString() throws Exception {
         for (int i = 0; i < 1024; i++) {
             BigInteger expected = BigInteger.probablePrime(256, random());

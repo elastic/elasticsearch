@@ -47,14 +47,14 @@ public final class ExceptionsHelper {
         if (t instanceof RuntimeException) {
             return (RuntimeException) t;
         }
-        return new ElasticsearchException(t.getMessage(), t);
+        return new ElasticsearchException(t);
     }
 
     public static ElasticsearchException convertToElastic(Throwable t) {
         if (t instanceof ElasticsearchException) {
             return (ElasticsearchException) t;
         }
-        return new ElasticsearchException(t.getMessage(), t);
+        return new ElasticsearchException(t);
     }
 
     public static RestStatus status(Throwable t) {
@@ -160,7 +160,7 @@ public final class ExceptionsHelper {
             main = useOrSuppress(main, ex);
         }
         if (main != null) {
-            throw new ElasticsearchException(main.getMessage(), main);
+            throw new ElasticsearchException(main);
         }
     }
 

@@ -559,7 +559,7 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readText();
         type = in.readText();
-        nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
+        nestedIdentity = in.readOptionalStreamable(InternalNestedIdentity::new);
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -810,7 +810,7 @@ public class InternalSearchHit implements SearchHit {
         public void readFrom(StreamInput in) throws IOException {
             field = in.readOptionalText();
             offset = in.readInt();
-            child = in.readOptionalStreamable(new InternalNestedIdentity());
+            child = in.readOptionalStreamable(InternalNestedIdentity::new);
         }
 
         @Override

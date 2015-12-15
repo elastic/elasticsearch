@@ -39,17 +39,13 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         return Queries.newMatchNoDocsQuery();
-    }
-
-    @Override
-    protected void setFinalBoost(Query query) {
-        //no-op this query doesn't support boost
     }
 
     @Override

@@ -22,17 +22,16 @@ package org.elasticsearch.watcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Test;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class ResourceWatcherServiceTests extends ESTestCase {
-
-    @Test
     public void testSettings() throws Exception {
         ThreadPool threadPool = new ThreadPool("test");
 
@@ -65,8 +64,6 @@ public class ResourceWatcherServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-
-    @Test
     public void testHandle() throws Exception {
         ThreadPool threadPool = new ThreadPool("test");
         Settings settings = Settings.builder().build();

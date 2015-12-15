@@ -27,20 +27,16 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class StartRecoveryRequestTests extends ESTestCase {
-
-    @Test
     public void testSerialization() throws Exception {
         Version targetNodeVersion = randomVersion(random());
         StartRecoveryRequest outRequest = new StartRecoveryRequest(

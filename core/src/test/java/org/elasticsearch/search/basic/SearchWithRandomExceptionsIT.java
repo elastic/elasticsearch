@@ -32,12 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.engine.MockEngineSupportModule;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
@@ -159,8 +159,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             public String description() {
                 return "a mock reader wrapper that throws random exceptions for testing";
             }
-            public void onModule(MockEngineSupportModule module) {
-                module.wrapperImpl = RandomExceptionDirectoryReaderWrapper.class;
+            public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
+                module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);
             }
         }
 

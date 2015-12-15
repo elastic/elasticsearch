@@ -24,11 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -44,13 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -93,7 +83,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+            String autoExpandReplicas = indexMetaData.getSettings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
             if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
                 try {
                     final int min;
@@ -102,7 +92,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     final int dash = autoExpandReplicas.indexOf('-');
                     if (-1 == dash) {
                         logger.warn("failed to set [{}] for index [{}], it should be dash delimited [{}]",
-                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), autoExpandReplicas);
+                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), autoExpandReplicas);
                         continue;
                     }
                     final String sMin = autoExpandReplicas.substring(0, dash);
@@ -110,7 +100,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         min = Integer.parseInt(sMin);
                     } catch (NumberFormatException e) {
                         logger.warn("failed to set [{}] for index [{}], minimum value is not a number [{}]",
-                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), sMin);
+                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), sMin);
                         continue;
                     }
                     String sMax = autoExpandReplicas.substring(dash + 1);
@@ -121,7 +111,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             max = Integer.parseInt(sMax);
                         } catch (NumberFormatException e) {
                             logger.warn("failed to set [{}] for index [{}], maximum value is neither [{}] nor a number [{}]",
-                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), ALL_NODES_VALUE, sMax);
+                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), ALL_NODES_VALUE, sMax);
                             continue;
                         }
                     }
@@ -134,7 +124,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     // same value, nothing to do there
-                    if (numberOfReplicas == indexMetaData.numberOfReplicas()) {
+                    if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
                         continue;
                     }
 
@@ -144,10 +134,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             nrReplicasChanged.put(numberOfReplicas, new ArrayList<String>());
                         }
 
-                        nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.index());
+                        nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
                     }
                 } catch (Exception e) {
-                    logger.warn("[{}] failed to parse auto expand replicas", e, indexMetaData.index());
+                    logger.warn("[{}] failed to parse auto expand replicas", e, indexMetaData.getIndex());
                 }
             }
         }
@@ -219,7 +209,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("update-settings",
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -237,7 +228,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 Set<String> openIndices = new HashSet<>();
                 Set<String> closeIndices = new HashSet<>();
                 for (String index : actualIndices) {
-                    if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
+                    if (currentState.metaData().index(index).getState() == IndexMetaData.State.OPEN) {
                         openIndices.add(index);
                     } else {
                         closeIndices.add(index);
@@ -323,7 +314,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
-                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
+                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 return updatedState;
@@ -334,7 +325,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
 
-        clusterService.submitStateUpdateTask("update-index-compatibility-versions", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("update-index-compatibility-versions", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -348,10 +339,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     String index = entry.getKey();
                     IndexMetaData indexMetaData = metaDataBuilder.get(index);
                     if (indexMetaData != null) {
-                        if (Version.CURRENT.equals(indexMetaData.creationVersion()) == false) {
+                        if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
-                                            .settings(settingsBuilder().put(indexMetaData.settings())
+                                            .settings(settingsBuilder().put(indexMetaData.getSettings())
                                                             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )

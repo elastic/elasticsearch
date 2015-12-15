@@ -53,8 +53,8 @@
           "type" : "list",
           "description" : "A comma-separated list of document types for the `indexing` index metric"
         }
-      },
-      "body": null
-    }
+      }
+    },
+    "body": null
   }
 }

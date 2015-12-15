@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.*;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -67,6 +68,10 @@ public class PluginManager {
             "plugin.bat",
             "service.bat"));
 
+    static final Set<String> MODULES = unmodifiableSet(newHashSet(
+            "lang-expression",
+            "lang-groovy"));
+
     static final Set<String> OFFICIAL_PLUGINS = unmodifiableSet(newHashSet(
             "analysis-icu",
             "analysis-kuromoji",
@@ -78,13 +83,14 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
-            "lang-expression",
-            "lang-groovy",
             "lang-javascript",
+            "lang-plan-a",
             "lang-python",
+            "mapper-attachments",
             "mapper-murmur3",
             "mapper-size",
             "repository-azure",
+            "repository-hdfs",
             "repository-s3",
             "store-smb"));
 
@@ -120,7 +126,7 @@ public class PluginManager {
             checkForForbiddenName(pluginHandle.name);
         } else {
             // if we have no name but url, use temporary name that will be overwritten later
-            pluginHandle = new PluginHandle("temp_name" + new Random().nextInt(), null, null);
+            pluginHandle = new PluginHandle("temp_name" + Randomness.get().nextInt(), null, null);
         }
 
         Path pluginFile = download(pluginHandle, terminal);
@@ -220,9 +226,10 @@ public class PluginManager {
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
 
-        // check for jar hell before any copying
-        if (info.isJvm()) {
-            jarHellCheck(root, info.isIsolated());
+        // don't let luser install plugin as a module...
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(info.getName())) {
+            throw new IOException("plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
         }
 
         // update name in handle based on 'name' property found in descriptor file
@@ -230,6 +237,11 @@ public class PluginManager {
         final Path extractLocation = pluginHandle.extractedDir(environment);
         if (Files.exists(extractLocation)) {
             throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
+        }
+
+        // check for jar hell before any copying
+        if (info.isJvm()) {
+            jarHellCheck(root, info.isIsolated());
         }
 
         // read optional security policy (extra permissions)
@@ -511,7 +523,7 @@ public class PluginManager {
         if (removed) {
             terminal.println("Removed %s", name);
         } else {
-            terminal.println("Plugin %s not found. Run plugin --list to get list of installed plugins.", name);
+            terminal.println("Plugin %s not found. Run \"plugin list\" to get list of installed plugins.", name);
         }
     }
 
@@ -574,7 +586,7 @@ public class PluginManager {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
+                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.shortHash(), name, version, name, version));
                     }
                     addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
                 } else {

@@ -22,13 +22,12 @@ package org.elasticsearch.indices.cache.query.terms;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-public class TermsLookupTests extends ESTestCase {
+import static org.hamcrest.Matchers.containsString;
 
-    @Test
+public class TermsLookupTests extends ESTestCase {
     public void testTermsLookup() {
         String index = randomAsciiOfLengthBetween(1, 10);
         String type = randomAsciiOfLengthBetween(1, 10);
@@ -44,23 +43,28 @@ public class TermsLookupTests extends ESTestCase {
         assertEquals(routing, termsLookup.routing());
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testIllegalArguments() {
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
         String path = randomAsciiOfLength(5);
         switch (randomIntBetween(0, 2)) {
         case 0:
-            type = null; break;
+            type = null;
+            break;
         case 1:
-            id = null; break;
+            id = null;
+            break;
         case 2:
-            path = null; break;
+            path = null;
+            break;
         }
-        new TermsLookup(null, type, id, path);
+        try {
+            new TermsLookup(null, type, id, path);
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
+        }
     }
 
-    @Test
     public void testSerialization() throws IOException {
         TermsLookup termsLookup = randomTermsLookup();
         try (BytesStreamOutput output = new BytesStreamOutput()) {

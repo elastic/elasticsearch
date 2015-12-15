@@ -84,13 +84,12 @@ field support has the following parameters on top of the already
 existing sort options:
 
 `nested_path`::
-    Defines the on what nested object to sort. The actual
-    sort field must be a direct field inside this nested object. The default
-    is to use the most immediate inherited nested object from the sort
-    field.
+    Defines on which nested object to sort. The actual
+    sort field must be a direct field inside this nested object.
+    When sorting by nested field, this field is mandatory.
 
 `nested_filter`::
-    A filter the inner objects inside the nested path
+    A filter that the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
@@ -98,7 +97,7 @@ existing sort options:
 ===== Nested sorting example
 
 In the below example `offer` is a field of type `nested`.
-The `nested_path` needs to be specified other elasticsearch doesn't on what nested level sort values need to be captured.
+The `nested_path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------

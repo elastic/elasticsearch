@@ -59,7 +59,7 @@ public class InnerHitsParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext searchContext) throws Exception {
-        QueryShardContext context = searchContext.queryParserService().getShardContext();
+        QueryShardContext context = searchContext.indexShard().getQueryShardContext();
         context.reset(parser);
         Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, context, searchContext);
         if (innerHitsMap != null) {
@@ -149,7 +149,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         if (documentMapper == null) {
             throw new IllegalArgumentException("type [" + type + "] doesn't exist");
         }
-        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), context.mapperService(), documentMapper);
+        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), context.getMapperService(), documentMapper);
     }
 
     private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryShardContext context, SearchContext searchContext, String nestedPath) throws Exception {
@@ -178,7 +178,7 @@ public class InnerHitsParseElement implements SearchParseElement {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(fieldName)) {
-                    Query q = searchContext.queryParserService().parseInnerQuery(context);
+                    Query q = context.parseInnerQuery();
                     query = new ParsedQuery(q, context.copyNamedQueries());
                 } else if ("inner_hits".equals(fieldName)) {
                     childInnerHits = parseInnerHits(parser, context, searchContext);

@@ -30,9 +30,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,10 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class IndexBalanceTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(IndexBalanceTests.class);
 
-    @Test
     public void testBalanceAllNodesStarted() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -86,7 +85,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -103,7 +102,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
@@ -128,7 +127,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the more shards");
@@ -175,7 +174,6 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
     }
 
-    @Test
     public void testBalanceIncrementallyStartNodes() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -216,7 +214,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -234,7 +232,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
@@ -260,7 +258,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the backup shard");
@@ -298,14 +296,14 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the backup shard");
@@ -338,7 +336,6 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
     }
 
-    @Test
     public void testBalanceAllNodesStartedAddIndex() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -369,7 +366,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -386,7 +383,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
@@ -411,7 +408,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the more shards");
@@ -461,7 +458,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test1").shards().size(), equalTo(3));
 
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -478,7 +475,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
@@ -503,7 +500,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the more shards");

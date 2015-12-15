@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -54,6 +55,9 @@ public class TranslogWriter extends TranslogReader {
     protected volatile int operationCounter;
     /* the offset in bytes written to the file */
     protected volatile long writtenOffset;
+    /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
+    private volatile Throwable tragedy;
+
 
     public TranslogWriter(ShardId shardId, long generation, ChannelReference channelReference) throws IOException {
         super(generation, channelReference, channelReference.getChannel().position());
@@ -65,10 +69,10 @@ public class TranslogWriter extends TranslogReader {
         this.lastSyncedOffset = channelReference.getChannel().position();;
     }
 
-    public static TranslogWriter create(Type type, ShardId shardId, String translogUUID, long fileGeneration, Path file, Callback<ChannelReference> onClose, int bufferSize) throws IOException {
+    public static TranslogWriter create(Type type, ShardId shardId, String translogUUID, long fileGeneration, Path file, Callback<ChannelReference> onClose, int bufferSize, ChannelFactory channelFactory) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int headerLength = CodecUtil.headerLength(TRANSLOG_CODEC) + ref.length + RamUsageEstimator.NUM_BYTES_INT;
-        final FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
+        final FileChannel channel = channelFactory.open(file);
         try {
             // This OutputStreamDataOutput is intentionally not closed because
             // closing it will close the FileChannel
@@ -89,6 +93,12 @@ public class TranslogWriter extends TranslogReader {
             }
             throw throwable;
         }
+    }
+    /** If this {@code TranslogWriter} was closed as a side-effect of a tragic exception,
+     *  e.g. disk full while flushing a new segment, this returns the root cause exception.
+     *  Otherwise (no tragic exception has occurred) it returns null. */
+    public Throwable getTragicException() {
+        return tragedy;
     }
 
     public enum Type {
@@ -118,18 +128,33 @@ public class TranslogWriter extends TranslogReader {
         }
     }
 
+    protected final void closeWithTragicEvent(Throwable throwable) throws IOException {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            if (tragedy == null) {
+                tragedy = throwable;
+            } else {
+                tragedy.addSuppressed(throwable);
+            }
+            close();
+        }
+    }
 
     /**
      * add the given bytes to the translog and return the location they were written at
      */
     public Translog.Location add(BytesReference data) throws IOException {
-        ensureOpen();
         final long position;
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             position = writtenOffset;
-            data.writeTo(channel);
+            try {
+                data.writeTo(channel);
+            } catch (Throwable e) {
+                closeWithTragicEvent(e);
+                throw e;
+            }
             writtenOffset = writtenOffset + data.length();
-            operationCounter = operationCounter + 1;
+            operationCounter++;;
         }
         return new Translog.Location(generation, position, data.length());
     }
@@ -143,12 +168,13 @@ public class TranslogWriter extends TranslogReader {
     /**
      * write all buffered ops to disk and fsync file
      */
-    public void sync() throws IOException {
+    public synchronized void sync() throws IOException { // synchronized to ensure only one sync happens a time
         // check if we really need to sync here...
         if (syncNeeded()) {
             try (ReleasableLock lock = writeLock.acquire()) {
+                ensureOpen();
+                checkpoint(writtenOffset, operationCounter, channelReference);
                 lastSyncedOffset = writtenOffset;
-                checkpoint(lastSyncedOffset, operationCounter, channelReference);
             }
         }
     }
@@ -200,9 +226,9 @@ public class TranslogWriter extends TranslogReader {
      * returns a new immutable reader which only exposes the current written operation *
      */
     public ImmutableTranslogReader immutableReader() throws TranslogException {
-        ensureOpen();
         if (channelReference.tryIncRef()) {
             try (ReleasableLock lock = writeLock.acquire()) {
+                ensureOpen();
                 flush();
                 ImmutableTranslogReader reader = new ImmutableTranslogReader(this.generation, channelReference, firstOperationOffset, writtenOffset, operationCounter);
                 channelReference.incRef(); // for new reader
@@ -263,15 +289,6 @@ public class TranslogWriter extends TranslogReader {
     }
 
     @Override
-    protected final void doClose() throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
-            sync();
-        } finally {
-            super.doClose();
-        }
-    }
-
-    @Override
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             Channels.readFromFileChannelWithEofException(channel, position, buffer);
@@ -287,5 +304,21 @@ public class TranslogWriter extends TranslogReader {
         final Path checkpointFile = translogFile.resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint checkpoint = new Checkpoint(syncPosition, numOperations, generation);
         Checkpoint.write(checkpointFile, checkpoint, options);
+    }
+
+    static class ChannelFactory {
+
+        static final ChannelFactory DEFAULT = new ChannelFactory();
+
+        // only for testing until we have a disk-full FileSystemt
+        public FileChannel open(Path file) throws IOException {
+            return FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
+        }
+    }
+
+    protected final void ensureOpen() {
+        if (isClosed()) {
+            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
+        }
     }
 }

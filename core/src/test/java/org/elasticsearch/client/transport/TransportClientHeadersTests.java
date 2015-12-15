@@ -46,7 +46,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -75,7 +74,6 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         return client;
     }
 
-    @Test
     public void testWithSniffing() throws Exception {
         TransportClient client = TransportClient.builder()
             .settings(Settings.builder()

@@ -19,15 +19,14 @@
 package org.elasticsearch;
 
 import junit.framework.TestCase;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
@@ -91,7 +90,7 @@ public class NamingConventionTests extends ESTestCase {
                             } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
                                 if (isTestCase(clazz)) {
                                     missingSuffix.add(clazz);
-                                } else if (junit.framework.Test.class.isAssignableFrom(clazz) || hasTestAnnotation(clazz)) {
+                                } else if (junit.framework.Test.class.isAssignableFrom(clazz)) {
                                     pureUnitTest.add(clazz);
                                 }
                             }
@@ -100,16 +99,6 @@ public class NamingConventionTests extends ESTestCase {
                         throw new RuntimeException(e);
                     }
                     return FileVisitResult.CONTINUE;
-                }
-
-                private boolean hasTestAnnotation(Class<?> clazz) {
-                    for (Method method : clazz.getDeclaredMethods()) {
-                        if (method.getAnnotation(Test.class) != null) {
-                            return true;
-                        }
-                    }
-                    return false;
-
                 }
 
                 private boolean isTestCase(Class<?> clazz) {
@@ -145,7 +134,6 @@ public class NamingConventionTests extends ESTestCase {
         assertTrue(innerClasses.remove(InnerTests.class));
         assertTrue(notImplementing.remove(NotImplementingTests.class));
         assertTrue(pureUnitTest.remove(PlainUnit.class));
-        assertTrue(pureUnitTest.remove(PlainUnitTheSecond.class));
 
         String classesToSubclass = String.join(
                 ",",
@@ -187,11 +175,4 @@ public class NamingConventionTests extends ESTestCase {
     public static final class WrongNameTheSecond extends ESTestCase {}
 
     public static final class PlainUnit extends TestCase {}
-
-    public static final class PlainUnitTheSecond {
-        @Test
-        public void foo() {
-        }
-    }
-
 }

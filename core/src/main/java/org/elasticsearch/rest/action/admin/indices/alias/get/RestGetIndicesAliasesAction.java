@@ -70,10 +70,10 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
 
                 final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
                 for (IndexMetaData indexMetaData : metaData) {
-                    builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
                     builder.startObject("aliases");
 
-                    for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                    for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                         if (isAllAliasesRequested || Regex.simpleMatch(aliases, cursor.value.alias())) {
                             AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
                         }

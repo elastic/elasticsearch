@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,7 +53,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertThat(prefixQuery.getPrefix().text(), equalTo(queryBuilder.value()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -75,7 +73,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         }
     }
 
-    @Test
     public void testBlendedRewriteMethod() throws IOException {
         for (String rewrite : Arrays.asList("top_terms_blended_freqs_10", "topTermsBlendedFreqs10")) {
             Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
@@ -84,5 +81,17 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
             assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
             assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0 } }}";
+
+        PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki", parsed.value());
+        assertEquals(json, 2.0, parsed.boost(), 0.00001);
+        assertEquals(json, "user", parsed.fieldName());
     }
 }

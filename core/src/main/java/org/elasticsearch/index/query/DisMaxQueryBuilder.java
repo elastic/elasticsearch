@@ -88,8 +88,8 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("tie_breaker", tieBreaker);
-        builder.startArray("queries");
+        builder.field(DisMaxQueryParser.TIE_BREAKER_FIELD.getPreferredName(), tieBreaker);
+        builder.startArray(DisMaxQueryParser.QUERIES_FIELD.getPreferredName());
         for (QueryBuilder queryBuilder : queries) {
             queryBuilder.toXContent(builder, params);
         }

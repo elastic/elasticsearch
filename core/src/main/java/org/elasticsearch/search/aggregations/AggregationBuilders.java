@@ -55,6 +55,8 @@ import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
@@ -285,6 +287,13 @@ public class AggregationBuilders {
      */
     public static GeoBoundsBuilder geoBounds(String name) {
         return new GeoBoundsBuilder(name);
+    }
+
+    /**
+     * Create a new {@link GeoCentroid} aggregation with the given name.
+     */
+    public static GeoCentroidBuilder geoCentroid(String name) {
+        return new GeoCentroidBuilder(name);
     }
 
     /**

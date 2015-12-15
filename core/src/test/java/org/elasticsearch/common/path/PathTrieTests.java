@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -33,8 +33,15 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class PathTrieTests extends ESTestCase {
 
+    public static final PathTrie.Decoder NO_DECODER = new PathTrie.Decoder() {
+        @Override
+        public String decode(String value) {
+            return value;
+        }
+    };
+    
     public void testPath() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("/a/b/c", "walla");
         trie.insert("a/d/g", "kuku");
         trie.insert("x/b/c", "lala");
@@ -61,13 +68,13 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testEmptyPath() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("/", "walla");
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
 
     public void testDifferentNamesOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("/a/{type}", "test1");
         trie.insert("/b/{name}", "test2");
 
@@ -81,7 +88,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testSameNameOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("/a/c/{name}", "test1");
         trie.insert("/b/{name}", "test2");
 
@@ -95,7 +102,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testPreferNonWildcardExecution() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("{test}", "test1");
         trie.insert("b", "test2");
         trie.insert("{test}/a", "test3");
@@ -111,7 +118,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testSamePathConcreteResolution() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("{x}/{y}/{z}", "test1");
         trie.insert("{x}/_y/{k}", "test2");
 
@@ -127,7 +134,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testNamedWildcardAndLookupWithWildcard() {
-        PathTrie<String> trie = new PathTrie<>();
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("x/{test}", "test1");
         trie.insert("{test}/a", "test2");
         trie.insert("/{test}", "test3");
@@ -155,24 +162,20 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("test"), equalTo("*"));
     }
 
-    public void testSplitPath() {
-        PathTrie<String> trie = new PathTrie<>();
-        assertThat(trie.splitPath("/a/"), arrayContaining("a"));
-        assertThat(trie.splitPath("/a/b"),arrayContaining("a", "b"));
-        assertThat(trie.splitPath("/a/b/c"), arrayContaining("a", "b", "c"));
-        assertThat(trie.splitPath("/a/b/<c/d>"), arrayContaining("a", "b", "<c/d>"));
-        assertThat(trie.splitPath("/a/b/<c/d>/d"), arrayContaining("a", "b", "<c/d>", "d"));
-
-        assertThat(trie.splitPath("/<logstash-{now}>/_search"), arrayContaining("<logstash-{now}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/d}>/_search"), arrayContaining("<logstash-{now/d}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>/log/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>", "log", "_search"));
-
-        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>", "_search"));
-        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>", "_search"));
+    //https://github.com/elastic/elasticsearch/issues/14177
+    //https://github.com/elastic/elasticsearch/issues/13665
+    public void testEscapedSlashWithinUrl() {
+        PathTrie<String> pathTrie = new PathTrie<>(RestUtils.REST_DECODER);
+        pathTrie.insert("/{index}/{type}/{id}", "test");
+        HashMap<String, String> params = new HashMap<>();
+        assertThat(pathTrie.retrieve("/index/type/a%2Fe", params), equalTo("test"));
+        assertThat(params.get("index"), equalTo("index"));
+        assertThat(params.get("type"), equalTo("type"));
+        assertThat(params.get("id"), equalTo("a/e"));
+        params.clear();
+        assertThat(pathTrie.retrieve("/<logstash-{now%2Fd}>/type/id", params), equalTo("test"));
+        assertThat(params.get("index"), equalTo("<logstash-{now/d}>"));
+        assertThat(params.get("type"), equalTo("type"));
+        assertThat(params.get("id"), equalTo("id"));
     }
-
 }

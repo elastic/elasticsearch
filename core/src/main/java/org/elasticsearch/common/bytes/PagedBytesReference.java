@@ -311,6 +311,10 @@ public class PagedBytesReference implements BytesReference {
             return true;
         }
 
+        if (obj == null) {
+            return false;
+        }
+
         if (!(obj instanceof PagedBytesReference)) {
             return BytesReference.Helper.bytesEqual(this, (BytesReference) obj);
         }

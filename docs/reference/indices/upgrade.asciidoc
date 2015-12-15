@@ -70,7 +70,7 @@ $ curl -XPOST 'http://localhost:9200/twitter/_upgrade'
 
 NOTE: Upgrading is an I/O intensive operation, and is limited to processing a
 single shard per node at a time.  It also is not allowed to run at the same
-time as optimize.
+time as an optimize/force-merge.
 
 This call will block until the upgrade is complete. If the http connection
 is lost, the request will continue in the background, and

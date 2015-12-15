@@ -19,17 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
+import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-
-import java.util.regex.Pattern;
 
 /**
  * Builder for the {@code IPv4Range} aggregation.
  */
 public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
-
-    private static final Pattern MASK_PATTERN = Pattern.compile("[\\.|/]");
 
     /**
      * Sole constructor.
@@ -43,7 +40,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      *
      * @param key  the key to use for this range in the response
      * @param from the lower bound on the distances, inclusive
-     * @parap to   the upper bound on the distances, exclusive
+     * @param to   the upper bound on the distances, exclusive
      */
     public IPv4RangeBuilder addRange(String key, String from, String to) {
         ranges.add(new Range(key, from, to));
@@ -61,11 +58,13 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      * Add a range based on a CIDR mask.
      */
     public IPv4RangeBuilder addMaskRange(String key, String mask) {
-        long[] fromTo = cidrMaskToMinMax(mask);
-        if (fromTo == null) {
-            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]");
+        long[] fromTo;
+        try {
+            fromTo = Cidrs.cidrMaskToMinMax(mask);
+        } catch (IllegalArgumentException e) {
+            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]", e);
         }
-        ranges.add(new Range(key, fromTo[0] < 0 ? null : fromTo[0], fromTo[1] < 0 ? null : fromTo[1]));
+        ranges.add(new Range(key, fromTo[0] == 0 ? null : fromTo[0], fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1]));
         return this;
     }
 
@@ -107,60 +106,5 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      */
     public IPv4RangeBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
-    }
-
-    /**
-     * Computes the min &amp; max ip addresses (represented as long values - same way as stored in index) represented by the given CIDR mask
-     * expression. The returned array has the length of 2, where the first entry represents the {@code min} address and the second the {@code max}.
-     * A {@code -1} value for either the {@code min} or the {@code max}, represents an unbounded end. In other words:
-     *
-     * <p>
-     * {@code min == -1 == "0.0.0.0" }
-     * </p>
-     *
-     * and
-     *
-     * <p>
-     * {@code max == -1 == "255.255.255.255" }
-     * </p>
-     */
-    static long[] cidrMaskToMinMax(String cidr) {
-        String[] parts = MASK_PATTERN.split(cidr);
-        if (parts.length != 5) {
-            return null;
-        }
-        int addr = (( Integer.parseInt(parts[0]) << 24 ) & 0xFF000000)
-                | (( Integer.parseInt(parts[1]) << 16 ) & 0xFF0000)
-                | (( Integer.parseInt(parts[2]) << 8 ) & 0xFF00)
-                |  ( Integer.parseInt(parts[3]) & 0xFF);
-
-        int mask = (-1) << (32 - Integer.parseInt(parts[4]));
-
-        if (Integer.parseInt(parts[4]) == 0) {
-            mask = 0 << 32;
-        }
-
-        int from = addr & mask;
-        long longFrom = intIpToLongIp(from);
-        if (longFrom == 0) {
-            longFrom = -1;
-        }
-
-        int to = from + (~mask);
-        long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range is non-inclusive on the "to" side
-
-        if (longTo == InternalIPv4Range.MAX_IP) {
-            longTo = -1;
-        }
-
-        return new long[] { longFrom, longTo };
-    }
-
-    private static long intIpToLongIp(int i) {
-        long p1 = ((long) ((i >> 24 ) & 0xFF)) << 24;
-        int p2 = ((i >> 16 ) & 0xFF) << 16;
-        int p3 = ((i >>  8 ) & 0xFF) << 8;
-        int p4 = i & 0xFF;
-        return p1 + p2 + p3 + p4;
     }
 }

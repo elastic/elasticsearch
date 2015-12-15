@@ -1,0 +1,250 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import com.bmuschko.gradle.nexus.NexusPlugin
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+// common maven publishing configuration
+subprojects {
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
+  plugins.withType(NexusPlugin).whenPluginAdded {
+    modifyPom {
+      project {
+        url 'https://github.com/elastic/elasticsearch'
+        inceptionYear '2009'
+
+        scm {
+          url 'https://github.com/elastic/elasticsearch'
+          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
+          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
+        }
+
+        licenses {
+          license {
+            name 'The Apache Software License, Version 2.0'
+            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            distribution 'repo'
+          }
+        }
+      }
+    }
+    extraArchive {
+      javadoc = true
+      tests = false
+    }
+    // we have our own username/password prompts so that they only happen once
+    // TODO: add gpg signing prompts
+    project.gradle.taskGraph.whenReady { taskGraph ->
+      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
+        Console console = System.console()
+        if (project.hasProperty('nexusUsername') == false) {
+          String nexusUsername = console.readLine('\nNexus username: ')
+          project.rootProject.allprojects.each {
+            it.ext.nexusUsername = nexusUsername
+          }
+        }
+        if (project.hasProperty('nexusPassword') == false) {
+          String nexusPassword = new String(console.readPassword('\nNexus password: '))
+          project.rootProject.allprojects.each {
+            it.ext.nexusPassword = nexusPassword
+          }
+        }
+      }
+    }
+  }
+}
+
+allprojects {
+  // injecting groovy property variables into all projects
+  project.ext {
+    // for eclipse hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+  }
+}
+
+subprojects {
+  project.afterEvaluate {
+    // include license and notice in jars
+    tasks.withType(Jar) {
+      into('META-INF') {
+        from project.rootProject.rootDir
+        include 'LICENSE.txt'
+        include 'NOTICE.txt'
+      }
+    }
+    // ignore missing javadocs
+    tasks.withType(Javadoc) { Javadoc javadoc ->
+      // the -quiet here is because of a bug in gradle, in that adding a string option
+      // by itself is not added to the options. By adding quiet, both this option and
+      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+      // command already adds -quiet, so we are just duplicating it
+      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+      javadoc.options.encoding='UTF8'
+      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    }
+  }
+
+  /* Sets up the dependencies that we build as part of this project but
+    register as thought they were external to resolve internally. We register
+    them as external dependencies so the build plugin that we use can be used
+    to build elasticsearch plugins outside of the elasticsearch source tree. */
+  ext.projectSubstitutions = [
+    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
+    "org.elasticsearch:elasticsearch:${version}": ':core',
+    "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
+  ]
+  configurations.all {
+    resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
+      projectSubstitutions.each { k,v ->
+        subs.substitute(subs.module(k)).with(subs.project(v))
+      }
+    }
+  }
+}
+
+// Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
+// important because, while dependencies.all will pickup future dependencies,
+// it is not necessarily true that the task exists in both projects at the time
+// the dependency is added.
+gradle.projectsEvaluated {
+  allprojects {
+    if (project.path == ':test-framework') {
+      // :test-framework:test cannot run before and after :core:test
+      return
+    }
+    configurations.all {
+      dependencies.all { Dependency dep ->
+        Project upstreamProject = null
+        if (dep instanceof ProjectDependency) {
+          upstreamProject = dep.dependencyProject
+        } else {
+          // gradle doesn't apply substitutions until resolve time, so they won't
+          // show up as a ProjectDependency above
+          String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+          if (substitution != null) {
+            upstreamProject = findProject(substitution)
+          }
+        }
+        if (upstreamProject != null) {
+          if (project.path == upstreamProject.path) {
+            // TODO: distribution integ tests depend on themselves (!), fix that
+            return
+          }
+          for (String taskName : ['test', 'integTest']) {
+            Task task = project.tasks.findByName(taskName)
+            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
+            if (task != null && upstreamTask != null) {
+              task.mustRunAfter(upstreamTask)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// intellij configuration
+allprojects {
+  apply plugin: 'idea'
+}
+
+idea {
+  project {
+    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
+    vcs = 'Git'
+  }
+}
+// Make sure gradle idea was run before running anything in intellij (including import).
+File ideaMarker = new File(projectDir, '.local-idea-is-configured')
+tasks.idea.doLast {
+  ideaMarker.setText('', 'UTF-8')
+}
+if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
+  throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
+}
+// add buildSrc itself as a groovy project
+task buildSrcIdea(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanIdea', 'ideaModule']
+}
+tasks.idea.dependsOn(buildSrcIdea)
+
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+
+  plugins.withType(JavaBasePlugin) {
+    eclipse.classpath.defaultOutputDir = new File(project.buildDir, 'eclipse')
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build/eclipse/" + i
+      }
+    }
+  }
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.cleanEclipse {
+    delete '.settings'
+  }
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+}
+
+// add buildSrc itself as a groovy project
+task buildSrcEclipse(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanEclipse', 'eclipse']
+}
+tasks.eclipse.dependsOn(buildSrcEclipse)
+
+// we need to add the same --debug-jvm option as
+// the real RunTask has, so we can pass it through
+class Run extends DefaultTask {
+  boolean debug = false
+
+  @org.gradle.api.internal.tasks.options.Option(
+        option = "debug-jvm",
+        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+  )
+  public void setDebug(boolean enabled) {
+    project.project(':distribution').run.clusterConfig.debug = enabled
+  }
+}
+task run(type: Run) {
+  dependsOn ':distribution:run'
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+  impliesSubProjects = true
+}

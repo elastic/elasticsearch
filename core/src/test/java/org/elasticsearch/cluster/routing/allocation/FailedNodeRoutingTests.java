@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -39,11 +38,9 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FailedNodeRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(FailedNodeRoutingTests.class);
 
-    @Test
-    public void simpleFailedNodeTest() {
+    public void testSimpleFailedNodeTest() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
@@ -62,7 +59,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         logger.info("start 4 nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("start all the primary shards, replicas will start initializing");
@@ -93,7 +90,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         )
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

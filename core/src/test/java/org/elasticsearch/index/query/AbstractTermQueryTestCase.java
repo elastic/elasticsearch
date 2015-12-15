@@ -21,13 +21,10 @@ package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
-import org.junit.Test;
-
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
-
     @Override
     protected final QB doCreateTestQueryBuilder() {
         String fieldName = null;
@@ -75,7 +72,6 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
 
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
-    @Test
     public void testIllegalArguments() throws QueryShardException {
         try {
             if (randomBoolean()) {

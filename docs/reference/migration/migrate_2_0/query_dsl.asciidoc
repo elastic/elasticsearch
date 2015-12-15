@@ -1,3 +1,4 @@
+[[breaking_20_query_dsl_changes]]
 === Query DSL changes
 
 ==== Queries and filters merged

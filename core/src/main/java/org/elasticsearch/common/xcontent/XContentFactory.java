@@ -25,6 +25,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 /**
  * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link XContentBuilder}.
@@ -216,65 +216,9 @@ public class XContentFactory {
         }
         si.mark(GUESS_HEADER_LENGTH);
         try {
-            final int firstInt = si.read(); // this must be an int since we need to respect the method contract
-            if (firstInt == -1) {
-                return null;
-            }
-
-            final int secondInt = si.read(); // this must be an int since we need to respect the method contract
-            if (secondInt == -1) {
-               return null;
-            }
-            final byte first = (byte) (0xff & firstInt);
-            final byte second = (byte) (0xff & secondInt);
-            if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
-                int third = si.read();
-                if (third == SmileConstants.HEADER_BYTE_3) {
-                    return XContentType.SMILE;
-                }
-            }
-            if (first == '{' || second == '{') {
-                return XContentType.JSON;
-            }
-            if (first == '-' && second == '-') {
-                int third = si.read();
-                if (third == '-') {
-                    return XContentType.YAML;
-                }
-            }
-            // CBOR logic similar to CBORFactory#hasCBORFormat
-            if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
-                return XContentType.CBOR;
-            }
-            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first)) {
-                // Actually, specific "self-describe tag" is a very good indicator
-                int third = si.read();
-                if (third == -1) {
-                    return null;
-                }
-                if (first == (byte) 0xD9 && second == (byte) 0xD9 && third == (byte) 0xF7) {
-                    return XContentType.CBOR;
-                }
-            }
-            // for small objects, some encoders just encode as major type object, we can safely
-            // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
-            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, first)) {
-                return XContentType.CBOR;
-            }
-
-            for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
-                int val = si.read();
-                if (val == -1) {
-                    return null;
-                }
-                if (val == '{') {
-                    return XContentType.JSON;
-                }
-                if (Character.isWhitespace(val) == false) {
-                    break;
-                }
-            }
-            return null;
+            final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
+            final int read = Streams.readFully(si, firstBytes);
+            return xContentType(new BytesArray(firstBytes, 0, read));
         } finally {
             si.reset();
         }
@@ -329,8 +273,14 @@ public class XContentFactory {
             return XContentType.CBOR;
         }
 
+        int jsonStart = 0;
+        // JSON may be preceded by UTF-8 BOM
+        if (length > 3 && first == (byte) 0xEF && bytes.get(1) == (byte) 0xBB && bytes.get(2) == (byte) 0xBF) {
+            jsonStart = 3;
+        }
+
         // a last chance for JSON
-        for (int i = 0; i < length; i++) {
+        for (int i = jsonStart; i < length; i++) {
             byte b = bytes.get(i);
             if (b == '{') {
                 return XContentType.JSON;

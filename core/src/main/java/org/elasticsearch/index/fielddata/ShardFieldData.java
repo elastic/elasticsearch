@@ -21,14 +21,10 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;

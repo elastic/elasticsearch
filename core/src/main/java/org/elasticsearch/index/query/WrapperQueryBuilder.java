@@ -20,9 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -96,7 +94,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", source);
+        builder.field(WrapperQueryParser.QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
     }
 
@@ -108,17 +106,13 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            final QueryShardContext contextCopy = new QueryShardContext(context);
             contextCopy.reset(qSourceParser);
-            QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
+            contextCopy.parseFieldMatcher(context.parseFieldMatcher());
+            QueryBuilder<?> result = contextCopy.parseContext().parseInnerQueryBuilder();
             context.combineNamedQueries(contextCopy);
             return result.toQuery(context);
         }
-    }
-
-    @Override
-    protected void setFinalBoost(Query query) {
-        //no-op this query doesn't support boost
     }
 
     @Override

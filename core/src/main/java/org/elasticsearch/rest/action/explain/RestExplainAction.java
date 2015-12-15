@@ -22,17 +22,16 @@ package org.elasticsearch.rest.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -50,9 +49,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestExplainAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+
     @Inject
-    public RestExplainAction(Settings settings, RestController controller, Client client) {
+    public RestExplainAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
@@ -65,22 +67,11 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.preference(request.param("preference"));
         String queryString = request.param("q");
         if (RestActions.hasBodyContent(request)) {
-            explainRequest.source(RestActions.getRestContent(request));
+            BytesReference restContent = RestActions.getRestContent(request);
+            explainRequest.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
         } else if (queryString != null) {
-            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
-            queryStringBuilder.defaultField(request.param("df"));
-            queryStringBuilder.analyzer(request.param("analyzer"));
-            queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
-            queryStringBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryStringBuilder.lenient(request.paramAsBoolean("lenient", null));
-            String defaultOperator = request.param("default_operator");
-            if (defaultOperator != null) {
-                queryStringBuilder.defaultOperator(Operator.fromString(defaultOperator));
-            }
-
-            QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
-            querySourceBuilder.setQuery(queryStringBuilder);
-            explainRequest.source(querySourceBuilder);
+            QueryBuilder<?> query = RestActions.urlParamsToQueryBuilder(request);
+            explainRequest.query(query);
         }
 
         String sField = request.param("fields");

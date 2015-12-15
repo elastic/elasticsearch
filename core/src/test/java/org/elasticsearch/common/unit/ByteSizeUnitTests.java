@@ -20,17 +20,19 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.common.unit.ByteSizeUnit.*;
+import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class ByteSizeUnitTests extends ESTestCase {
-
-    @Test
     public void testBytes() {
         assertThat(BYTES.toBytes(1), equalTo(1l));
         assertThat(BYTES.toKB(1024), equalTo(1l));
@@ -38,7 +40,6 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(BYTES.toGB(1024 * 1024 * 1024), equalTo(1l));
     }
 
-    @Test
     public void testKB() {
         assertThat(KB.toBytes(1), equalTo(1024l));
         assertThat(KB.toKB(1), equalTo(1l));
@@ -46,7 +47,6 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(KB.toGB(1024 * 1024), equalTo(1l));
     }
 
-    @Test
     public void testMB() {
         assertThat(MB.toBytes(1), equalTo(1024l * 1024));
         assertThat(MB.toKB(1), equalTo(1024l));
@@ -54,7 +54,6 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(MB.toGB(1024), equalTo(1l));
     }
 
-    @Test
     public void testGB() {
         assertThat(GB.toBytes(1), equalTo(1024l * 1024 * 1024));
         assertThat(GB.toKB(1), equalTo(1024l * 1024));
@@ -62,7 +61,6 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(GB.toGB(1), equalTo(1l));
     }
 
-    @Test
     public void testTB() {
         assertThat(TB.toBytes(1), equalTo(1024l * 1024 * 1024 * 1024));
         assertThat(TB.toKB(1), equalTo(1024l * 1024 * 1024));
@@ -71,7 +69,6 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(TB.toTB(1), equalTo(1l));
     }
 
-    @Test
     public void testPB() {
         assertThat(PB.toBytes(1), equalTo(1024l * 1024 * 1024 * 1024 * 1024));
         assertThat(PB.toKB(1), equalTo(1024l * 1024 * 1024 * 1024));

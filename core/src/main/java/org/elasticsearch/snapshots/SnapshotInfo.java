@@ -324,7 +324,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
      * @return deserialized snapshot info or null
      */
     public static SnapshotInfo readOptionalSnapshotInfo(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(new SnapshotInfo());
+        return in.readOptionalStreamable(SnapshotInfo::new);
     }
 
 }

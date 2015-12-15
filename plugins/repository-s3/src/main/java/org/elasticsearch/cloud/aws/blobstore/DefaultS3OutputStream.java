@@ -133,7 +133,11 @@ public class DefaultS3OutputStream extends S3OutputStream {
             // Every implementation of the Java platform is required to support MD5 (see MessageDigest)
             throw new RuntimeException(impossible);
         }
-        PutObjectResult putObjectResult = blobStore.client().putObject(bucketName, blobName, inputStream, md);
+
+        PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, inputStream, md)
+                .withStorageClass(blobStore.getStorageClass())
+                .withCannedAcl(blobStore.getCannedACL());
+        PutObjectResult putObjectResult = blobStore.client().putObject(putRequest);
 
         String localMd5 = Base64.encodeAsString(messageDigest.digest());
         String remoteMd5 = putObjectResult.getContentMd5();
@@ -165,12 +169,16 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     protected String doInitialize(S3BlobStore blobStore, String bucketName, String blobName, boolean serverSideEncryption) {
-        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName);
+        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName)
+                .withCannedACL(blobStore.getCannedACL())
+                .withStorageClass(blobStore.getStorageClass());
+
         if (serverSideEncryption) {
             ObjectMetadata md = new ObjectMetadata();
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
             request.setObjectMetadata(md);
         }
+
         return blobStore.client().initiateMultipartUpload(request).getUploadId();
     }
 

@@ -223,12 +223,20 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw requestBlockException;
             }
 
-            logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            if (logger.isTraceEnabled()) {
+                logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            }
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
             for (ShardRouting shard : shardIt.asUnordered()) {
-                if (shard.assignedToNode()) {
+                // send a request to the shard only if it is assigned to a node that is in the local node's cluster state
+                // a scenario in which a shard can be assigned but to a node that is not in the local node's cluster state
+                // is when the shard is assigned to the master node, the local node has detected the master as failed
+                // and a new master has not yet been elected; in this situation the local node will have removed the
+                // master node from the local cluster state, but the shards assigned to the master will still be in the
+                // routing table as such
+                if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                     String nodeId = shard.currentNodeId();
                     if (!nodeIds.containsKey(nodeId)) {
                         nodeIds.put(nodeId, new ArrayList<>());
@@ -294,7 +302,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
-            logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            if (logger.isTraceEnabled()) {
+                logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            }
 
             // this is defensive to protect against the possibility of double invocation
             // the current implementation of TransportService#sendRequest guards against this
@@ -345,7 +355,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
-            logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            }
             final Object[] shardResultOrExceptions = new Object[totalShards];
 
             int shardIndex = -1;
@@ -369,10 +381,14 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex, final ShardRouting shardRouting) {
             try {
-                logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
                 ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
                 shardResults[shardIndex] = result;
-                logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
             } catch (Throwable t) {
                 BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
                 e.setIndex(shardRouting.getIndex());

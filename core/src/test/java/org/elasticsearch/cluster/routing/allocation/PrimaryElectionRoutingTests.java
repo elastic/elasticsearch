@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -41,10 +40,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(PrimaryElectionRoutingTests.class);
 
-    @Test
     public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
         AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
@@ -63,7 +60,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shard (on node1)");
@@ -81,7 +78,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Adding third node and reroute and kill first node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3")).remove("node1")).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -95,7 +92,6 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
-    @Test
     public void testRemovingInitializingReplicasIfPrimariesFails() {
         AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
@@ -113,7 +109,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
+        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("Start the primary shards");
@@ -132,7 +128,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode(nodeIdRemaining))
         ).build();
-        rerouteResult = allocation.reroute(clusterState);
+        rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         routingNodes = clusterState.getRoutingNodes();
 

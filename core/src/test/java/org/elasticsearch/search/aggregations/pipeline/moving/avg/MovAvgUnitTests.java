@@ -21,18 +21,24 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class MovAvgUnitTests extends ESTestCase {
-
-    @Test
     public void testSimpleMovAvgModel() {
         MovAvgModel model = new SimpleModel();
 
@@ -61,7 +67,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimplePredictionModel() {
         MovAvgModel model = new SimpleModel();
 
@@ -87,7 +92,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testLinearMovAvgModel() {
         MovAvgModel model = new LinearModel();
 
@@ -119,7 +123,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testLinearPredictionModel() {
         MovAvgModel model = new LinearModel();
 
@@ -150,7 +153,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEWMAMovAvgModel() {
         double alpha = randomDouble();
         MovAvgModel model = new EwmaModel(alpha);
@@ -185,7 +187,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEWMAPredictionModel() {
         double alpha = randomDouble();
         MovAvgModel model = new EwmaModel(alpha);
@@ -218,7 +219,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testHoltLinearMovAvgModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -267,7 +267,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testHoltLinearPredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -313,7 +312,6 @@ public class MovAvgUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testHoltWintersMultiplicativePadModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -353,8 +351,8 @@ public class MovAvgUnitTests extends ESTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -381,7 +379,6 @@ public class MovAvgUnitTests extends ESTestCase {
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
 
-    @Test
     public void testHoltWintersMultiplicativePadPredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -424,8 +421,8 @@ public class MovAvgUnitTests extends ESTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -455,7 +452,6 @@ public class MovAvgUnitTests extends ESTestCase {
 
     }
 
-    @Test
     public void testHoltWintersAdditiveModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -494,8 +490,8 @@ public class MovAvgUnitTests extends ESTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -522,7 +518,6 @@ public class MovAvgUnitTests extends ESTestCase {
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
 
-    @Test
     public void testHoltWintersAdditivePredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -564,8 +559,8 @@ public class MovAvgUnitTests extends ESTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -594,9 +589,7 @@ public class MovAvgUnitTests extends ESTestCase {
 
     }
 
-    @Test
     public void testNumericValidation() {
-
         List<MovAvgModel.AbstractModelParser> parsers = new ArrayList<>(5);
 
         // Simple and Linear don't have any settings to test

@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -116,8 +115,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) throws IOException {
         this(fieldName, new BytesArray(new byte[1]), indexedShapeId, indexedShapeType);
         if (shape != null) {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            shape.toXContent(builder, EMPTY_PARAMS);
             this.shapeBytes = shape.buildAsBytes(XContentType.JSON);
             if (this.shapeBytes.length() == 0) {
                 throw new IllegalArgumentException("shape must not be empty");
@@ -294,12 +291,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
             Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
-            Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
+            Query intersects = strategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
             query = new ConstantScoreQuery(bool.build());
         } else {
-            query = strategy.makeQuery(getArgs(shape, relation));
+            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shape, relation)));
         }
         return query;
     }
@@ -364,6 +361,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             return new SpatialArgs(SpatialOperation.Intersects, shape.build());
         case WITHIN:
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
+        case CONTAINS:
+            return new SpatialArgs(SpatialOperation.Contains, shape.build());
         default:
             throw new IllegalArgumentException("invalid relation [" + relation + "]");
         }

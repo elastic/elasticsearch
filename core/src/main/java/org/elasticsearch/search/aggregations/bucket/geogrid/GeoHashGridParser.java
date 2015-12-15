@@ -20,7 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -58,16 +60,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
         return InternalGeoHashGrid.TYPE.name();
     }
 
-    public static final int DEFAULT_PRECISION = 5;
-    public static final int DEFAULT_MAX_NUM_CELLS = 10000;
-
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         ValuesSourceParser vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context).build();
 
-        int precision = DEFAULT_PRECISION;
-        int requiredSize = DEFAULT_MAX_NUM_CELLS;
+        int precision = GeoHashGridParams.DEFAULT_PRECISION;
+        int requiredSize = GeoHashGridParams.DEFAULT_MAX_NUM_CELLS;
         int shardSize = -1;
 
         XContentParser.Token token;
@@ -77,14 +76,18 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 currentFieldName = parser.currentName();
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if ("precision".equals(currentFieldName)) {
-                    precision = parser.intValue();
-                } else if ("size".equals(currentFieldName)) {
+            } else if (token == XContentParser.Token.VALUE_NUMBER ||
+                    token == XContentParser.Token.VALUE_STRING) { //Be lenient and also allow numbers enclosed in quotes
+                if (context.parseFieldMatcher().match(currentFieldName, GeoHashGridParams.FIELD_PRECISION)) {
+                    precision = GeoHashGridParams.checkPrecision(parser.intValue());
+                } else if (context.parseFieldMatcher().match(currentFieldName, GeoHashGridParams.FIELD_SIZE)) {
                     requiredSize = parser.intValue();
-                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, GeoHashGridParams.FIELD_SHARD_SIZE)) {
                     shardSize = parser.intValue();
                 }
+            } else if (token != XContentParser.Token.START_OBJECT) {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
@@ -112,9 +115,9 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
     static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
-        private int precision;
-        private int requiredSize;
-        private int shardSize;
+        private final int precision;
+        private final int requiredSize;
+        private final int shardSize;
 
         public GeoGridFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize) {
             super(name, InternalGeoHashGrid.TYPE.name(), config);
@@ -150,9 +153,11 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         private static class CellValues extends SortingNumericDocValues {
             private MultiGeoPointValues geoValues;
+            private int precision;
 
-            protected CellValues(MultiGeoPointValues geoValues) {
+            protected CellValues(MultiGeoPointValues geoValues, int precision) {
                 this.geoValues = geoValues;
+                this.precision = precision;
             }
 
             @Override
@@ -161,7 +166,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 resize(geoValues.count());
                 for (int i = 0; i < count(); ++i) {
                     GeoPoint target = geoValues.valueAt(i);
-                    values[i] = XGeoHashUtils.longEncode(target.getLon(), target.getLat(), XGeoHashUtils.PRECISION);
+                    values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(), precision);
                 }
                 sort();
             }
@@ -188,7 +193,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-                return new CellValues(valuesSource.geoPointValues(ctx));
+                return new CellValues(valuesSource.geoPointValues(ctx), precision);
             }
 
             @Override
@@ -203,5 +208,4 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         }
     }
-
 }

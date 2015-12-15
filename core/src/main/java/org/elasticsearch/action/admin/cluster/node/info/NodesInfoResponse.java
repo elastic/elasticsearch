@@ -77,7 +77,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", nodeInfo.getVersion());
-            builder.field("build", nodeInfo.getBuild().hashShort());
+            builder.field("build_hash", nodeInfo.getBuild().shortHash());
 
             if (nodeInfo.getServiceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {

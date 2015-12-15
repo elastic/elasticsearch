@@ -29,6 +29,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /** A {@link Query} that only matches documents that are greater than or equal
  *  to a configured doc ID. */
@@ -43,7 +44,7 @@ public final class MinDocQuery extends Query {
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode() + minDoc;
+        return Objects.hash(super.hashCode(), minDoc);
     }
 
     @Override

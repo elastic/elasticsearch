@@ -553,10 +553,10 @@ public class CommonStats implements Streamable, ToXContent {
         if (in.readBoolean()) {
             segments = SegmentsStats.readSegmentsStats(in);
         }
-        translog = in.readOptionalStreamable(new TranslogStats());
-        suggest = in.readOptionalStreamable(new SuggestStats());
-        requestCache = in.readOptionalStreamable(new RequestCacheStats());
-        recoveryStats = in.readOptionalStreamable(new RecoveryStats());
+        translog = in.readOptionalStreamable(TranslogStats::new);
+        suggest = in.readOptionalStreamable(SuggestStats::new);
+        requestCache = in.readOptionalStreamable(RequestCacheStats::new);
+        recoveryStats = in.readOptionalStreamable(RecoveryStats::new);
     }
 
     @Override

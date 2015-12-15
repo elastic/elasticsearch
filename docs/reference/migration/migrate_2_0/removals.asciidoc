@@ -1,3 +1,4 @@
+[[breaking_20_removed_features]]
 === Removed features
 
 ==== Rivers have been removed

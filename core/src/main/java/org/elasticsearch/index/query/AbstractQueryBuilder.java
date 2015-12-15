@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanBoostQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
@@ -64,9 +67,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
-        builder.field("boost", boost);
+        builder.field(BOOST_FIELD.getPreferredName(), boost);
         if (queryName != null) {
-            builder.field("_name", queryName);
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
         }
     }
 
@@ -74,26 +77,18 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     public final Query toQuery(QueryShardContext context) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
-            setFinalBoost(query);
+            if (boost != DEFAULT_BOOST) {
+                if (query instanceof SpanQuery) {
+                    query = new SpanBoostQuery((SpanQuery) query, boost);
+                } else {
+                    query = new BoostQuery(query, boost);
+                }
+            }
             if (queryName != null) {
                 context.addNamedQuery(queryName, query);
             }
         }
         return query;
-    }
-
-    /**
-     * Sets the main boost to the query obtained by converting the current query into a lucene query.
-     * The default behaviour is to set the main boost, after verifying that we are not overriding any non default boost
-     * value that was previously set to the lucene query. That case would require some manual decision on how to combine
-     * the main boost with the boost coming from lucene by overriding this method.
-     * @throws IllegalStateException if the lucene query boost has already been set
-     */
-    protected void setFinalBoost(Query query) {
-        if (query.getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new IllegalStateException("lucene query boost is already set, override setFinalBoost to define how to combine lucene boost with main boost");
-        }
-        query.setBoost(boost);
     }
 
     @Override
@@ -112,7 +107,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract Query doToQuery(QueryShardContext context) throws IOException;
 
     /**
-     * Returns the query name for the query.
+     * Sets the query name for the query.
      */
     @SuppressWarnings("unchecked")
     @Override
@@ -122,7 +117,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     }
 
     /**
-     * Sets the query name for the query.
+     * Returns the query name for the query.
      */
     @Override
     public final String queryName() {

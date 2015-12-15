@@ -21,14 +21,11 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 
 public class CancellableThreadsTests extends ESTestCase {
-
     public static class CustomException extends RuntimeException {
-
         public CustomException(String msg) {
             super(msg);
         }
@@ -53,7 +50,6 @@ public class CancellableThreadsTests extends ESTestCase {
     }
 
 
-    @Test
     public void testCancellableThreads() throws InterruptedException {
         Thread[] threads = new Thread[randomIntBetween(3, 10)];
         final TestPlan[] plans = new TestPlan[threads.length];

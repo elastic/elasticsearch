@@ -47,13 +47,15 @@ public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();

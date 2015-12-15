@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,8 +93,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void testDocCount_topLevel() throws Exception {
+    public void testDocCountopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds((long) minRandomValue, (long) maxRandomValue))
@@ -132,8 +130,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void testDocCount_asSubAgg() throws Exception {
+    public void testDocCountAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -185,8 +182,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_topLevel() throws Exception {
+    public void testMetricTopLevel() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -224,8 +220,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_topLevelDefaultPercents() throws Exception {
+    public void testMetricTopLevelDefaultPercents() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -263,8 +258,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_asSubAgg() throws Exception {
+    public void testMetricAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -321,8 +315,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_asSubAggWithInsertZeros() throws Exception {
+    public void testMetricAsSubAggWithInsertZeros() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -380,7 +373,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").exclude("tag.*").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -404,7 +396,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testWrongPercents() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").exclude("tag.*").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -432,7 +423,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testBadPercents() throws Exception {
         Double[] badPercents = {-1.0, 110.0};
 
@@ -453,7 +443,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testBadPercents_asSubAgg() throws Exception {
         Double[] badPercents = {-1.0, 110.0};
 
@@ -481,7 +470,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testNested() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -547,7 +535,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNestedWithDecimal() throws Exception {
         Double[] percent = {99.9};
         SearchResponse response = client()

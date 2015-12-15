@@ -26,11 +26,6 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
-import org.junit.After;
-import org.junit.Before;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Base class for AWS tests that require credentials.
@@ -40,35 +35,6 @@ import java.util.Map;
  */
 @ThirdParty
 public abstract class AbstractAwsTestCase extends ESIntegTestCase {
-
-    /**
-     * Those properties are set by the AWS SDK v1.9.4 and if not ignored,
-     * lead to tests failure (see AbstractRandomizedTest#IGNORED_INVARIANT_PROPERTIES)
-     */
-    private static final String[] AWS_INVARIANT_PROPERTIES = {
-            "com.sun.org.apache.xml.internal.dtm.DTMManager",
-            "javax.xml.parsers.DocumentBuilderFactory"
-    };
-
-    private Map<String, String> properties = new HashMap<>();
-
-    @Before
-    public void saveProperties() {
-        for (String p : AWS_INVARIANT_PROPERTIES) {
-            properties.put(p, System.getProperty(p));
-        }
-    }
-
-    @After
-    public void restoreProperties() {
-        for (String p : AWS_INVARIANT_PROPERTIES) {
-            if (properties.get(p) != null) {
-                System.setProperty(p, properties.get(p));
-            } else {
-                System.clearProperty(p);
-            }
-        }
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

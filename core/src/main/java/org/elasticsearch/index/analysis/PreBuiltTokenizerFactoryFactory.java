@@ -21,9 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
-public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory {
+import java.io.IOException;
+
+public class PreBuiltTokenizerFactoryFactory implements AnalysisModule.AnalysisProvider<TokenizerFactory> {
 
     private final TokenizerFactory tokenizerFactory;
 
@@ -31,8 +36,7 @@ public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory 
         this.tokenizerFactory = tokenizerFactory;
     }
 
-    @Override
-    public TokenizerFactory create(String name, Settings settings) {
+    public TokenizerFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltTokenizers preBuiltTokenizers = PreBuiltTokenizers.getOrDefault(name, null);

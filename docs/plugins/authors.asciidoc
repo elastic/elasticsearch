@@ -112,7 +112,7 @@ directory in the root of the plugin should be served.
 === Testing your plugin
 
 When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory.  Use `bin/plugin install file://path/to/your/plugin`
+`plugins/` directory.  Use `bin/plugin install file:///path/to/your/plugin`
 to install your plugin for testing.
 
 You may also load your plugin within the test framework for integration tests.

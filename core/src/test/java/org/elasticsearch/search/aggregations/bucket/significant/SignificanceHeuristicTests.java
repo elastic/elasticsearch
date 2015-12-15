@@ -28,39 +28,31 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -79,8 +71,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     // test that stream output can actually be read - does not replace bwc test
-    @Test
-    public void streamResponse() throws Exception {
+    public void testStreamResponse() throws Exception {
         Version version = randomVersion(random());
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -88,33 +79,37 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
-
         sigTerms[0].writeTo(out);
 
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(version);
-
         sigTerms[1].readFrom(in);
 
         assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
+        InternalSignificantTerms.Bucket originalBucket = (InternalSignificantTerms.Bucket) sigTerms[0].buckets.get(0);
+        InternalSignificantTerms.Bucket streamedBucket = (InternalSignificantTerms.Bucket) sigTerms[1].buckets.get(0);
+        assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
+        assertThat(originalBucket.getSupersetDf(), equalTo(streamedBucket.getSupersetDf()));
+        assertThat(originalBucket.getSubsetDf(), equalTo(streamedBucket.getSubsetDf()));
+        assertThat(streamedBucket.getSubsetSize(), equalTo(10l));
+        assertThat(streamedBucket.getSupersetSize(), equalTo(20l));
     }
 
     InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         InternalSignificantTerms[] sTerms = new InternalSignificantTerms[2];
         ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
         if (randomBoolean()) {
-            BytesRef term = new BytesRef("123.0");
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
-                    (List<PipelineAggregator>) Collections.EMPTY_LIST, null);
+                    Collections.emptyList(), null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, (List<PipelineAggregator>) Collections.EMPTY_LIST,
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.emptyList(),
                     null);
             sTerms[1] = new SignificantStringTerms();
         }
@@ -130,10 +125,59 @@ public class SignificanceHeuristicTests extends ESTestCase {
         return heuristics.get(randomInt(3));
     }
 
+    public void testReduce() {
+        List<InternalAggregation> aggs = createInternalAggregations();
+        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, null);
+        assertThat(reducedAgg.getBuckets().size(), equalTo(2));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8l));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16l));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10l));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetSize(), equalTo(30l));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetDf(), equalTo(8l));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetSize(), equalTo(16l));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetDf(), equalTo(10l));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetSize(), equalTo(30l));
+    }
+
+    // Create aggregations as they might come from three different shards and return as list.
+    private List<InternalAggregation> createInternalAggregations() {
+
+        String type = randomBoolean() ? "long" : "string";
+        SignificanceHeuristic significanceHeuristic = getRandomSignificanceheuristic();
+
+        List<InternalAggregation> aggs = new ArrayList<>();
+        List<InternalSignificantTerms.Bucket> terms0Buckets = new ArrayList<>();
+        terms0Buckets.add(createBucket(type, 4, 4, 5, 10, 0));
+        aggs.add(createAggregation(type, significanceHeuristic, terms0Buckets, 4, 10));
+        List<InternalSignificantTerms.Bucket> terms1Buckets = new ArrayList<>();
+        terms0Buckets.add(createBucket(type, 4, 4, 5, 10, 1));
+        aggs.add(createAggregation(type, significanceHeuristic, terms1Buckets, 4, 10));
+        List<InternalSignificantTerms.Bucket> terms01Buckets = new ArrayList<>();
+        terms0Buckets.add(createBucket(type, 4, 8, 5, 10, 0));
+        terms0Buckets.add(createBucket(type, 4, 8, 5, 10, 1));
+        aggs.add(createAggregation(type, significanceHeuristic, terms01Buckets, 8, 10));
+        return aggs;
+    }
+
+    private InternalSignificantTerms createAggregation(String type, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, long subsetSize, long supersetSize) {
+        if (type.equals("string")) {
+            return new SignificantStringTerms(subsetSize, supersetSize, "sig_terms", 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
+        } else {
+            return new SignificantLongTerms(subsetSize, supersetSize, "sig_terms", ValueFormatter.RAW, 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
+        }
+    }
+
+    private InternalSignificantTerms.Bucket createBucket(String type, long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
+        if (type.equals("string")) {
+            return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF, subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY);
+        } else {
+            return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY, ValueFormatter.RAW);
+        }
+    }
+
     // test that
     // 1. The output of the builders can actually be parsed
     // 2. The parser does not swallow parameters after a significance heuristic was defined
-    @Test
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
@@ -308,7 +352,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAssertions() throws Exception {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
@@ -317,8 +360,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         testAssertions(JLHScore.INSTANCE);
     }
 
-    @Test
-    public void basicScoreProperties() {
+    public void testBasicScoreProperties() {
         basicScoreProperties(JLHScore.INSTANCE, true);
         basicScoreProperties(new GND(true), true);
         basicScoreProperties(PercentageScore.INSTANCE, true);
@@ -327,7 +369,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
-
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
@@ -347,8 +388,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
 
-    @Test
-    public void scoreMutual() throws Exception {
+    public void testScoreMutual() throws Exception {
         SignificanceHeuristic heuristic = new MutualInformation(true, true);
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
@@ -384,7 +424,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
     }
 
-    @Test
     public void testGNDCornerCases() throws Exception {
         GND gnd = new GND(true);
         //term is only in the subset, not at all in the other set but that is because the other set is empty.

@@ -19,14 +19,10 @@
 
 package org.elasticsearch.common.xcontent.yaml;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
-import org.elasticsearch.common.bytes.BytesReference;
+import com.fasterxml.jackson.core.JsonGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -34,8 +30,8 @@ import java.io.OutputStream;
  */
 public class YamlXContentGenerator extends JsonXContentGenerator {
 
-    public YamlXContentGenerator(BaseJsonGenerator generator) {
-        super(generator);
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
+        super(jsonGenerator, os, filters);
     }
 
     @Override
@@ -49,46 +45,7 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        YAMLParser parser;
-        if (content.hasArray()) {
-            parser = YamlXContent.yamlFactory.createParser(content.array(), content.arrayOffset(), content.length());
-        } else {
-            parser = YamlXContent.yamlFactory.createParser(content.streamInput());
-        }
-        try {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content, offset, length)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
+    protected boolean supportsRawWrites() {
+        return false;
     }
 }

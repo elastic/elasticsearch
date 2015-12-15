@@ -25,7 +25,11 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -34,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -55,20 +60,36 @@ import org.python.util.PythonInterpreter;
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     private final PythonInterpreter interp;
-
+    
     @Inject
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
         // classloader created here
-        SecurityManager sm = System.getSecurityManager();
+        final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
         this.interp = AccessController.doPrivileged(new PrivilegedAction<PythonInterpreter> () {
             @Override
             public PythonInterpreter run() {
-                return PythonInterpreter.threadLocalStateInterpreter(null);
+                // snapshot our context here for checks, as the script has no permissions
+                final AccessControlContext engineContext = AccessController.getContext();
+                PythonInterpreter interp = PythonInterpreter.threadLocalStateInterpreter(null);
+                if (sm != null) {
+                    interp.getSystemState().setClassLoader(new ClassLoader(getClass().getClassLoader()) {
+                        @Override
+                        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                            try {
+                                engineContext.checkPermission(new ClassPermission(name));
+                            } catch (SecurityException e) {
+                                throw new ClassNotFoundException(name, e);
+                            }
+                            return super.loadClass(name, resolve);
+                        }
+                    });
+                }
+                return interp;
             }
         });
     }

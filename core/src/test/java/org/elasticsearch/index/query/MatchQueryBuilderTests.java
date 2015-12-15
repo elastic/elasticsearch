@@ -26,18 +26,17 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
-
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
@@ -45,12 +44,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (fieldName.equals(DATE_FIELD_NAME)) {
             assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
-        Object value = "";
+        Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10) + " ");
+                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -134,8 +133,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
             Query expectedTermQuery = fieldType.termQuery(queryValue, context);
-            // the real query will have boost applied, so we set it to our expeced as well
-            expectedTermQuery.setBoost(queryBuilder.boost());
             assertEquals(expectedTermQuery, query);
         }
 
@@ -169,7 +166,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
-            String actualTermLc = fuzzyQuery.getTerm().text().toString().toLowerCase(Locale.ROOT);
+            String actualTermLc = fuzzyQuery.getTerm().text().toLowerCase(Locale.ROOT);
             assertThat(actualTermLc, equalTo(originalTermLc));
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
@@ -228,10 +225,103 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    @Test(expected = QueryShardException.class)
     public void testBadAnalyzer() throws IOException {
         MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
-        matchQuery.toQuery(createShardContext());
+        try {
+            matchQuery.toQuery(createShardContext());
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
+        }
+    }
+
+    public void testPhrasePrefixMatchQuery() throws IOException {
+        String json1 = "{\n" + 
+                "    \"match_phrase_prefix\" : {\n" + 
+                "        \"message\" : \"this is a test\"\n" + 
+                "    }\n" + 
+                "}";
+
+        String expected = "{\n" + 
+                "  \"match\" : {\n" + 
+                "    \"message\" : {\n" + 
+                "      \"query\" : \"this is a test\",\n" + 
+                "      \"type\" : \"phrase_prefix\",\n" + 
+                "      \"operator\" : \"OR\",\n" + 
+                "      \"slop\" : 0,\n" + 
+                "      \"prefix_length\" : 0,\n" + 
+                "      \"max_expansions\" : 50,\n" + 
+                "      \"fuzzy_transpositions\" : true,\n" + 
+                "      \"lenient\" : false,\n" + 
+                "      \"zero_terms_query\" : \"NONE\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json1);
+        checkGeneratedJson(expected, qb);
+        
+        String json2 = "{\n" + 
+                "    \"match\" : {\n" + 
+                "        \"message\" : {\n" + 
+                "            \"query\" : \"this is a test\",\n" + 
+                "            \"type\" : \"phrase_prefix\"\n" + 
+                "        }\n" + 
+                "    }\n" + 
+                "}";
+        qb = (MatchQueryBuilder) parseQuery(json2);
+        checkGeneratedJson(expected, qb);
+
+        String json3 = "{\n" + 
+                "    \"match_phrase_prefix\" : {\n" + 
+                "        \"message\" : {\n" + 
+                "            \"query\" : \"this is a test\",\n" + 
+                "            \"max_expansions\" : 10\n" + 
+                "        }\n" + 
+                "    }\n" + 
+                "}";
+        expected = "{\n" + 
+                "  \"match\" : {\n" + 
+                "    \"message\" : {\n" + 
+                "      \"query\" : \"this is a test\",\n" + 
+                "      \"type\" : \"phrase_prefix\",\n" + 
+                "      \"operator\" : \"OR\",\n" + 
+                "      \"slop\" : 0,\n" + 
+                "      \"prefix_length\" : 0,\n" + 
+                "      \"max_expansions\" : 10,\n" + 
+                "      \"fuzzy_transpositions\" : true,\n" + 
+                "      \"lenient\" : false,\n" + 
+                "      \"zero_terms_query\" : \"NONE\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+        qb = (MatchQueryBuilder) parseQuery(json3);
+        checkGeneratedJson(expected, qb);
+    }
+
+    public void testSimpleMatchQuery() throws IOException {
+        String json = "{\n" + 
+                "  \"match\" : {\n" + 
+                "    \"message\" : {\n" + 
+                "      \"query\" : \"to be or not to be\",\n" + 
+                "      \"type\" : \"boolean\",\n" + 
+                "      \"operator\" : \"AND\",\n" + 
+                "      \"slop\" : 0,\n" + 
+                "      \"prefix_length\" : 0,\n" + 
+                "      \"max_expansions\" : 50,\n" + 
+                "      \"fuzzy_transpositions\" : true,\n" + 
+                "      \"lenient\" : false,\n" + 
+                "      \"zero_terms_query\" : \"ALL\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, qb);
+
+        assertEquals(json, "to be or not to be", qb.value());
+        assertEquals(json, Operator.AND, qb.operator());
     }
 }

@@ -775,7 +775,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
 
         // set similarity
-        mltQuery.setSimilarity(context.searchSimilarity());
+        mltQuery.setSimilarity(context.getSearchSimilarity());
 
         // set query parameters
         mltQuery.setMaxQueryTerms(maxQueryTerms);
@@ -796,9 +796,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // set analyzer
-        Analyzer analyzerObj = context.analysisService().analyzer(analyzer);
+        Analyzer analyzerObj = context.getAnalysisService().analyzer(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.mapperService().searchAnalyzer();
+            analyzerObj = context.getMapperService().searchAnalyzer();
         }
         mltQuery.setAnalyzer(analyzerObj);
 

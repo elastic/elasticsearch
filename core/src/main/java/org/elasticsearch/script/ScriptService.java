@@ -246,8 +246,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         // TODO: fix this through some API or something, thats wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
         boolean expression = "expression".equals(script.getLang());
-        boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey()) ||
-                               scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey());
+        boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
         if (expression && notSupported) {
             throw new ScriptException("scripts of type [" + script.getType() + "]," +
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");

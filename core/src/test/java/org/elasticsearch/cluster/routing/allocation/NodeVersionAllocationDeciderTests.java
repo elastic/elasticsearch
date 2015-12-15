@@ -25,16 +25,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,10 +48,8 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 
-    @Test
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -86,7 +83,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("start two nodes and fully start the shards");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -127,7 +124,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put(newNode("node3", VersionUtils.getPreviousVersion())))
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -143,7 +140,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put(newNode("node4")))
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -167,8 +164,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-
-    @Test
     public void testRandom() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -199,7 +194,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
             int numNodes = between(1, 20);
             if (nodes.size() > numNodes) {
-                Collections.shuffle(nodes, getRandom());
+                Collections.shuffle(nodes, random());
                 nodes = nodes.subList(0, numNodes);
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
@@ -218,7 +213,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testRollingRestart() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -289,7 +283,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
         logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
 
-        RoutingTable routingTable = service.reroute(clusterState).routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertRecoveryNodeVersions(routingNodes);

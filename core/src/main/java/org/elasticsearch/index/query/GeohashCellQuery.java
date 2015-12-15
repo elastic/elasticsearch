@@ -20,10 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,8 +75,8 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryShardContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
-        MappedFieldType geoHashMapper = fieldType.geohashFieldType();
+    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+        MappedFieldType geoHashMapper = fieldType.geoHashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
@@ -131,7 +132,7 @@ public class GeohashCellQuery {
         }
 
         public Builder point(double lat, double lon) {
-            this.geohash = XGeoHashUtils.stringEncode(lon, lat);
+            this.geohash = GeoHashUtils.stringEncode(lon, lat);
             return this;
         }
 
@@ -184,15 +185,15 @@ public class GeohashCellQuery {
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
                 throw new QueryShardException(context, "failed to parse [{}] query. missing [{}] field [{}]", NAME,
-                        GeoPointFieldMapper.CONTENT_TYPE, fieldName);
+                        BaseGeoPointFieldMapper.CONTENT_TYPE, fieldName);
             }
 
-            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
                 throw new QueryShardException(context, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
             }
 
-            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-            if (!geoFieldType.isGeohashPrefixEnabled()) {
+            BaseGeoPointFieldMapper.GeoPointFieldType geoFieldType = ((BaseGeoPointFieldMapper.GeoPointFieldType) fieldType);
+            if (!geoFieldType.isGeoHashPrefixEnabled()) {
                 throw new QueryShardException(context, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME,
                         fieldName);
             }
@@ -205,7 +206,7 @@ public class GeohashCellQuery {
 
             Query query;
             if (neighbors) {
-                query = create(context, geoFieldType, geohash, XGeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                query = create(context, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
                 query = create(context, geoFieldType, geohash, null);
             }
@@ -318,19 +319,25 @@ public class GeohashCellQuery {
                         parser.nextToken();
                         boost = parser.floatValue();
                     } else {
-                        fieldName = field;
-                        token = parser.nextToken();
-                        if (token == Token.VALUE_STRING) {
-                            // A string indicates either a geohash or a lat/lon
-                            // string
-                            String location = parser.text();
-                            if (location.indexOf(",") > 0) {
-                                geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                        if (fieldName == null) {
+                            fieldName = field;
+                            token = parser.nextToken();
+                            if (token == Token.VALUE_STRING) {
+                                // A string indicates either a geohash or a
+                                // lat/lon
+                                // string
+                                String location = parser.text();
+                                if (location.indexOf(",") > 0) {
+                                    geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                                } else {
+                                    geohash = location;
+                                }
                             } else {
-                                geohash = location;
+                                geohash = GeoUtils.parseGeoPoint(parser).geohash();
                             }
                         } else {
-                            geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                            throw new ParsingException(parser.getTokenLocation(), "[" + NAME +
+                                    "] field name already set to [" + fieldName + "] but found [" + field + "]");
                         }
                     }
                 } else {

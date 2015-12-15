@@ -177,7 +177,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
         InetAddress ipAddress = null;
         try {
-            ipAddress = networkService.resolvePublishHostAddress(null);
+            ipAddress = networkService.resolvePublishHostAddresses(null);
             logger.trace("ip of current node: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(

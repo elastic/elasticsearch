@@ -66,6 +66,22 @@ public class GeoUtils {
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
 
+    /** Returns the maximum distance/radius from the point 'center' before overlapping */
+    public static double maxRadialDistance(GeoPoint center) {
+        if (Math.abs(center.lat()) == 90.0) {
+            return SloppyMath.haversin(center.lat(), center.lon(), 0, center.lon())*1000.0;
+        }
+        return SloppyMath.haversin(center.lat(), center.lon(), center.lat(), (180.0 + center.lon()) % 360)*1000.0;
+    }
+
+    /** Returns the minimum between the provided distance 'initialRadius' and the
+     * maximum distance/radius from the point 'center' before overlapping
+     **/
+    public static double maxRadialDistance(GeoPoint center, double initialRadius) {
+        final double maxRadius = maxRadialDistance(center);
+        return Math.min(initialRadius, maxRadius);
+    }
+
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
         if (Double.isNaN(latitude) || Double.isInfinite(latitude) || latitude < GeoUtils.MIN_LAT || latitude > GeoUtils.MAX_LAT) {
@@ -285,38 +301,46 @@ public class GeoUtils {
      * @param normLon Whether to normalize longitude.
      */
     public static void normalizePoint(GeoPoint point, boolean normLat, boolean normLon) {
-        double lat = point.lat();
-        double lon = point.lon();
-        
-        normLat = normLat && (lat>90 || lat <= -90);
-        normLon = normLon && (lon>180 || lon <= -180);
-        
+        double[] pt = {point.lon(), point.lat()};
+        normalizePoint(pt, normLon, normLat);
+        point.reset(pt[1], pt[0]);
+    }
+
+    public static void normalizePoint(double[] lonLat) {
+        normalizePoint(lonLat, true, true);
+    }
+
+    public static void normalizePoint(double[] lonLat, boolean normLon, boolean normLat) {
+        assert lonLat != null && lonLat.length == 2;
+
+        normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
+
         if (normLat) {
-            lat = centeredModulus(lat, 360);
+            lonLat[1] = centeredModulus(lonLat[1], 360);
             boolean shift = true;
-            if (lat < -90) {
-                lat = -180 - lat;
-            } else if (lat > 90) {
-                lat = 180 - lat;
+            if (lonLat[1] < -90) {
+                lonLat[1] = -180 - lonLat[1];
+            } else if (lonLat[1] > 90) {
+                lonLat[1] = 180 - lonLat[1];
             } else {
                 // No need to shift the longitude, and the latitude is normalized
                 shift = false;
             }
             if (shift) {
                 if (normLon) {
-                    lon += 180;
+                    lonLat[0] += 180;
                 } else {
                     // Longitude won't be normalized,
                     // keep it in the form x+k*360 (with x in ]-180;180])
                     // by only changing x, assuming k is meaningful for the user application.
-                    lon += normalizeLon(lon) > 0 ? -180 : 180;
+                    lonLat[0] += normalizeLon(lonLat[0]) > 0 ? -180 : 180;
                 }
             }
         }
         if (normLon) {
-            lon = centeredModulus(lon, 360);
+            lonLat[0] = centeredModulus(lonLat[0], 360);
         }
-        point.reset(lat, lon);
     }
 
     private static double centeredModulus(double dividend, double divisor) {

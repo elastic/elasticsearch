@@ -25,10 +25,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,8 +50,6 @@ public class MultiOrdinalsTests extends ESTestCase {
         return builder.build(settings.build());
     }
 
-
-    @Test
     public void testRandomValues() throws IOException {
         Random random = getRandom();
         int numDocs = 100 + random.nextInt(1000);
@@ -182,7 +185,6 @@ public class MultiOrdinalsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testOrdinals() throws Exception {
         int maxDoc = 7;
         long maxOrds = 32;
@@ -227,7 +229,6 @@ public class MultiOrdinalsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testMultiValuesDocsWithOverlappingStorageArrays() throws Exception {
         int maxDoc = 7;
         long maxOrds = 15;

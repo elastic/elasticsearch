@@ -20,11 +20,11 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -90,7 +89,7 @@ public abstract class DocValuesIndexFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
             final Names fieldNames = fieldType.names();
@@ -102,17 +101,11 @@ public abstract class DocValuesIndexFieldData {
 
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
                 assert numericType == null;
-                return new BinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
+                return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
             } else if (numericType != null) {
-                if (TimestampFieldMapper.NAME.equals(fieldNames.indexName())
-                        || Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
-                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                } else {
-                    // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY
-                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                }
+                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldNames, numericType, fieldType.fieldDataType());
             } else {
-                return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, fieldType.fieldDataType());
+                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldNames, breakerService, fieldType.fieldDataType());
             }
         }
 

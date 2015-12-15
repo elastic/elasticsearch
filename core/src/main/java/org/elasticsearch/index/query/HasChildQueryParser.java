@@ -33,7 +33,12 @@ import java.io.IOException;
  */
 public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
 
-    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    public static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    public static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    public static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
+    public static final ParseField MIN_CHILDREN_FIELD = new ParseField("min_children");
+    public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     @Override
     public String[] names() {
@@ -61,23 +66,23 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iqb = parseContext.parseInnerQueryBuilder();
-                } else if ("inner_hits".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
                     queryInnerHits = new QueryInnerHits(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     childType = parser.text();
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
                     scoreMode = parseScoreMode(parser.text());
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_CHILDREN_FIELD)) {
                     minChildren = parser.intValue(true);
-                } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_CHILDREN_FIELD)) {
                     maxChildren = parser.intValue(true);
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");

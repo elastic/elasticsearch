@@ -23,16 +23,16 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -53,7 +53,6 @@ public class CorsRegexIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testThatRegularExpressionWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
@@ -66,34 +65,29 @@ public class CorsRegexIT extends ESIntegTestCase {
         assertThat(response.getHeaders().get("Access-Control-Allow-Credentials"), is("true"));
     }
 
-    @Test
     public void testThatRegularExpressionReturnsNullOnNonMatch() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", "http://evil-host:9200").execute();
         assertResponseWithOriginheader(response, "null");
     }
 
-    @Test
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").execute();
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
     }
 
-    @Test
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/").execute();
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
     }
 
-    @Test
     public void testThatPreFlightRequestWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
         HttpResponse response = httpClient().method("OPTIONS").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
         assertResponseWithOriginheader(response, corsValue);
     }
 
-    @Test
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws Exception {
         HttpResponse response = httpClient().method("OPTIONS").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", "http://evil-host:9200").execute();
         assertResponseWithOriginheader(response, "null");

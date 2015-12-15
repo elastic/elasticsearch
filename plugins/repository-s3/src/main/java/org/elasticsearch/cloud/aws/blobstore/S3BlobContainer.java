@@ -25,9 +25,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.support.AbstractLegacyBlobContainer;
+import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,7 +40,7 @@ import java.util.Map;
 /**
  *
  */
-public class S3BlobContainer extends AbstractLegacyBlobContainer {
+public class S3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
 
@@ -67,16 +69,7 @@ public class S3BlobContainer extends AbstractLegacyBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        try {
-            blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
-        } catch (AmazonClientException e) {
-            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
-        }
-    }
-
-    @Override
-    public InputStream openInput(String blobName) throws IOException {
+    public InputStream readBlob(String blobName) throws IOException {
         int retry = 0;
         while (retry <= blobStore.numberOfRetries()) {
             try {
@@ -99,9 +92,32 @@ public class S3BlobContainer extends AbstractLegacyBlobContainer {
     }
 
     @Override
-    public OutputStream createOutput(final String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        try (OutputStream stream = createOutput(blobName)) {
+            Streams.copy(inputStream, stream);
+        }
+    }
+
+    @Override
+    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
+        try (OutputStream stream = createOutput(blobName)) {
+            bytes.writeTo(stream);
+        }
+    }
+
+    @Override
+    public void deleteBlob(String blobName) throws IOException {
+        try {
+            blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
+        } catch (AmazonClientException e) {
+            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
+        }
+    }
+
+    private OutputStream createOutput(final String blobName) throws IOException {
         // UploadS3OutputStream does buffering & retry logic internally
-        return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName), blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
+        return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName),
+                blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
     }
 
     @Override

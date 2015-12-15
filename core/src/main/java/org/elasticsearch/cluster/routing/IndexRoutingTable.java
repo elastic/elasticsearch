@@ -130,9 +130,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         ArrayList<String> failures = new ArrayList<>();
 
         // check the number of shards
-        if (indexMetaData.numberOfShards() != shards().size()) {
+        if (indexMetaData.getNumberOfShards() != shards().size()) {
             Set<Integer> expected = new HashSet<>();
-            for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                 expected.add(i);
             }
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
@@ -143,9 +143,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetaData.numberOfReplicas()) {
+            if (routingNumberOfReplicas != indexMetaData.getNumberOfReplicas()) {
                 failures.add("Shard [" + indexShardRoutingTable.shardId().id()
-                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
+                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.getNumberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index())) {
@@ -419,9 +419,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId));
-                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+            for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.getIndex(), shardId));
+                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
                     if (asNew && ignoreShards.contains(shardId)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
                         indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(index, shardId, null, i == 0, unassignedInfo));
@@ -441,9 +441,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId));
-                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+            for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.getIndex(), shardId));
+                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(index, shardId, null, i == 0, unassignedInfo));
                 }
                 shards.put(shardId, indexShardRoutingBuilder.build());

@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SimpleIpMappingTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testSimpleMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("ip").field("type", "ip").endObject().endObject()
@@ -57,12 +54,10 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("ip"), is("2130706433"));
     }
 
-    @Test
     public void testThatValidIpCanBeConvertedToLong() throws Exception {
         assertThat(IpFieldMapper.ipToLong("127.0.0.1"), is(2130706433L));
     }
 
-    @Test
     public void testThatInvalidIpThrowsException() throws Exception {
         try {
             IpFieldMapper.ipToLong("127.0.011.1111111");
@@ -72,7 +67,6 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testThatIpv6AddressThrowsException() throws Exception {
         try {
             IpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
@@ -82,7 +76,6 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testIgnoreMalformedOption() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field1")
                 .field("type", "ip").field("ignore_malformed", true).endObject().startObject("field2").field("type", "ip")

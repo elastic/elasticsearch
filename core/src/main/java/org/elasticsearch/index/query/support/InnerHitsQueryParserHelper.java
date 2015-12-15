@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
@@ -34,22 +33,15 @@ import java.io.IOException;
 
 public class InnerHitsQueryParserHelper {
 
-    private final SortParseElement sortParseElement;
-    private final FetchSourceParseElement sourceParseElement;
-    private final HighlighterParseElement highlighterParseElement;
-    private final ScriptFieldsParseElement scriptFieldsParseElement;
-    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
+    public static final InnerHitsQueryParserHelper INSTANCE = new InnerHitsQueryParserHelper();
 
-    @Inject
-    public InnerHitsQueryParserHelper(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, ScriptFieldsParseElement scriptFieldsParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement) {
-        this.sortParseElement = sortParseElement;
-        this.sourceParseElement = sourceParseElement;
-        this.highlighterParseElement = highlighterParseElement;
-        this.scriptFieldsParseElement = scriptFieldsParseElement;
-        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
-    }
+    private static final SortParseElement sortParseElement = new SortParseElement();
+    private static final FetchSourceParseElement sourceParseElement = new FetchSourceParseElement();
+    private static final HighlighterParseElement highlighterParseElement = new HighlighterParseElement();
+    private static final ScriptFieldsParseElement scriptFieldsParseElement = new ScriptFieldsParseElement();
+    private static final FieldDataFieldsParseElement fieldDataFieldsParseElement = new FieldDataFieldsParseElement();
 
-    public InnerHitsSubSearchContext parse(XContentParser parser) throws IOException {
+    public static InnerHitsSubSearchContext parse(XContentParser parser) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
         String innerHitName = null;

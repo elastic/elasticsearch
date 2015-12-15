@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -50,13 +49,11 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RandomAllocationDeciderTests extends ESAllocationTestCase {
-
     /* This test will make random allocation decision on a growing and shrinking
      * cluster leading to a random distribution of the shards. After a certain
      * amount of iterations the test allows allocation unless the same shard is
      * already allocated on a node and balances the cluster to gain optimal
      * balance.*/
-    @Test
     public void testRandomDecisions() {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(Settings.EMPTY,
@@ -108,7 +105,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
-            routingTable = strategy.reroute(clusterState).routingTable();
+            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
@@ -134,7 +131,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int iterations = 0;
         do {
             iterations++;
-            routingTable = strategy.reroute(clusterState).routingTable();
+            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))

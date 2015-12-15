@@ -20,14 +20,12 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
+
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class AWSSignersTests extends ESTestCase {
-
-    @Test
     public void testSigners() {
         assertThat(signerTester(null), is(false));
         assertThat(signerTester("QueryStringSignerType"), is(true));

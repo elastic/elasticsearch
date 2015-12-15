@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
@@ -83,7 +83,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 

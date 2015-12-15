@@ -1,3 +1,4 @@
+[[breaking_20_stats_info_and_literal_cat_literal_changes]]
 === Stats, info, and `cat` changes
 
 ==== Sigar removed

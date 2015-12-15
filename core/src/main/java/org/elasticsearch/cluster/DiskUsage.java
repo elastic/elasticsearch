@@ -33,7 +33,7 @@ public class DiskUsage {
     final long freeBytes;
 
     /**
-     * Create a new DiskUsage, if {@code totalBytes} is 0, {@get getFreeDiskAsPercentage}
+     * Create a new DiskUsage, if {@code totalBytes} is 0, {@link #getFreeDiskAsPercentage()}
      * will always return 100.0% free
      */
     public DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes) {

@@ -67,7 +67,7 @@ public class TranslogRecoveryPerformer {
                 numOps++;
             }
         } catch (Throwable t) {
-            throw new BatchOperationException(shardId, "failed to apply batch translog operation [" + t.getMessage() + "]", numOps, t);
+            throw new BatchOperationException(shardId, "failed to apply batch translog operation", numOps, t);
         }
         return numOps;
     }

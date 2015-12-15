@@ -126,7 +126,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 suggestion = new PhraseSuggestion();
                 break;
             default:
-                suggestion = new Suggestion<Entry<? extends Option>>();
+                suggestion = new Suggestion();
                 break;
             }
             suggestion.readFrom(in);

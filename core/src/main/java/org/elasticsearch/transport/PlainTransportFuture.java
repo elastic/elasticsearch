@@ -59,7 +59,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
-            throw new ElasticsearchTimeoutException(e.getMessage());
+            throw new ElasticsearchTimeoutException(e);
         } catch (InterruptedException e) {
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {

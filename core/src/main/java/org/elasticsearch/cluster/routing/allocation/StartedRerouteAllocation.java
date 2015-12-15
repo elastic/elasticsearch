@@ -36,7 +36,7 @@ public class StartedRerouteAllocation extends RoutingAllocation {
     private final List<? extends ShardRouting> startedShards;
 
     public StartedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards, ClusterInfo clusterInfo) {
-        super(deciders, routingNodes, nodes, clusterInfo);
+        super(deciders, routingNodes, nodes, clusterInfo, System.nanoTime());
         this.startedShards = startedShards;
     }
 

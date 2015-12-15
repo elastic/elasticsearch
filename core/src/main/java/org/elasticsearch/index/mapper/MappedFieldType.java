@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -228,9 +229,9 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    public final void checkTypeName(MappedFieldType other, List<String> conflicts) {
+    private final void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
             throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
         }
@@ -242,6 +243,8 @@ public abstract class MappedFieldType extends FieldType {
      * Otherwise, only properties which must never change in an index are checked.
      */
     public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+        checkTypeName(other);
+
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
@@ -481,6 +484,10 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
+        if (numericType() != null) {
+            throw new QueryShardException(context, "Cannot use regular expression to filter numeric field [" + names.fullName + "]");
+        }
+
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);

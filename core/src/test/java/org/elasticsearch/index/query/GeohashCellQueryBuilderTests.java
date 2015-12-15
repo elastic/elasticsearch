@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.spatial4j.core.shape.Point;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -27,12 +29,14 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
-import org.junit.Test;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder> {
 
@@ -81,28 +85,65 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         super.testToQuery();
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testNullField() {
-        if (randomBoolean()) {
-            new Builder(null, new GeoPoint());
-        } else {
-            new Builder("", new GeoPoint());
+        try {
+            if (randomBoolean()) {
+                new Builder(null, new GeoPoint());
+            } else {
+                new Builder("", new GeoPoint());
+            }
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("fieldName must not be null"));
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testNullGeoPoint() {
-        if (randomBoolean()) {
-            new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
-        } else {
-            new Builder(GEO_POINT_FIELD_NAME, "");
+        try {
+            if (randomBoolean()) {
+                new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
+            } else {
+                new Builder(GEO_POINT_FIELD_NAME, "");
+            }
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("geohash or point must be defined"));
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testInvalidPrecision() {
         GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        builder.precision(-1);
+        try {
+            builder.precision(-1);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("precision must be greater than 0"));
+        }
     }
 
+    public void testLocationParsing() throws IOException {
+        Point point = RandomShapeGenerator.xRandomPoint(getRandom());
+        Builder pointTestBuilder = new GeohashCellQuery.Builder("pin", new GeoPoint(point.getY(), point.getX()));
+        String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.getY() + ",\"lon\": " + point.getX() + "}}}";
+        assertParsedQuery(pointTest1, pointTestBuilder);
+        String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.getY() + "," + point.getX() + "\"}}";
+        assertParsedQuery(pointTest2, pointTestBuilder);
+        String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.getX() + "," + point.getY() + "]}}";
+        assertParsedQuery(pointTest3, pointTestBuilder);
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geohash_cell\" : {\n" + 
+                "    \"neighbors\" : true,\n" + 
+                "    \"precision\" : 3,\n" + 
+                "    \"pin\" : \"t4mk70fgk067\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeohashCellQuery.Builder parsed = (GeohashCellQuery.Builder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 3, parsed.precision().intValue());
+    }
 }

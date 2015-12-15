@@ -22,11 +22,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -37,8 +40,6 @@ import static org.hamcrest.Matchers.is;
 /**
  */
 public class FileInfoTests extends ESTestCase {
-
-    @Test
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {
@@ -71,7 +72,6 @@ public class FileInfoTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInvalidFieldsInFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {

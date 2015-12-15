@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -41,19 +40,20 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SuggestStatsIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfReplicas() {
         return 0;
     }
 
-    @Test
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();

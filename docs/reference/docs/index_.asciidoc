@@ -41,7 +41,7 @@ The index operation is successful in the case `successful` is at least 1.
 
 NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, a  quorum is
         required). In that case, `total` will be equal to the total shards based on the index replica settings and
-        `successful` will be equal to the number of shard started (primary plus replicas). As there were no failures,
+        `successful` will be equal to the number of shards started (primary plus replicas). As there were no failures,
         the `failed` will be 0.
 
 [float]
@@ -231,7 +231,7 @@ the `routing` parameter provided: "kimchy".
 When setting up explicit mapping, the `_routing` field can be optionally
 used to direct the index operation to extract the routing value from the
 document itself. This does come at the (very minimal) cost of an
-additional document parsing pass. If the `_routing` mapping is defined,
+additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
 

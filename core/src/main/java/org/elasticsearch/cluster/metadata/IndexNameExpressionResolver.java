@@ -76,7 +76,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Translates the provided index expression into actual concrete indices.
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
      * @param options           defines how the aliases or indices need to be resolved to concrete indices
@@ -94,7 +94,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Translates the provided index expression into actual concrete indices.
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
      * @param options           defines how the aliases or indices need to be resolved to concrete indices
@@ -141,7 +141,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
         }
 
-        List<String> concreteIndices = new ArrayList<>(expressions.size());
+        final Set<String> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null) {
@@ -253,7 +253,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 // Shouldn't happen
                 throw new IndexNotFoundException(index);
             }
-            AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
+            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
             boolean filteringRequired = aliasMetaData != null && aliasMetaData.filteringRequired();
             if (!filteringRequired) {
                 return null;
@@ -272,7 +272,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 throw new IndexNotFoundException(index);
             }
 
-            AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
+            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
             // Check that this is an alias for the current index
             // Otherwise - skip it
             if (aliasMetaData != null) {
@@ -804,6 +804,19 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
             return beforePlaceHolderSb.toString();
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff the given expression resolves to the given index name otherwise <code>false</code>
+     */
+    public final boolean matchesIndex(String indexName, String expression, ClusterState state) {
+        final String[] concreteIndices = concreteIndices(state, IndicesOptions.lenientExpandOpen(), expression);
+        for (String index : concreteIndices) {
+            if (Regex.simpleMatch(index, indexName)) {
+                return true;
+            }
+        }
+        return indexName.equals(expression);
     }
 
 }

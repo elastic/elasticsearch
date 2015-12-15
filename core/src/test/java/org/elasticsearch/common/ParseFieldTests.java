@@ -19,15 +19,14 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.EnumSet;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class ParseFieldTests extends ESTestCase {
-
-    @Test
     public void testParse() {
         String[] values = new String[]{"foo_bar", "fooBar"};
         ParseField field = new ParseField(randomFrom(values));
@@ -68,7 +67,6 @@ public class ParseFieldTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAllDeprecated() {
         String[] values = new String[]{"like_text", "likeText"};
 

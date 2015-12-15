@@ -22,9 +22,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -38,7 +39,6 @@ public class CorsRegexDefaultIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
 
-    @Test
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
@@ -48,7 +48,6 @@ public class CorsRegexDefaultIT extends ESIntegTestCase {
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
     }
 
-    @Test
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/").execute();
 

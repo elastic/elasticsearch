@@ -90,13 +90,8 @@ public class QueryPhase implements SearchPhase {
         parseElements.put("indices_boost", new IndicesBoostParseElement());
         parseElements.put("indicesBoost", new IndicesBoostParseElement());
         parseElements.put("query", new QueryParseElement());
-        parseElements.put("queryBinary", new QueryBinaryParseElement());
-        parseElements.put("query_binary", new QueryBinaryParseElement());
-        parseElements.put("filter", new PostFilterParseElement()); // For bw comp reason, should be removed in version 1.1
         parseElements.put("post_filter", new PostFilterParseElement());
         parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("filterBinary", new FilterBinaryParseElement());
-        parseElements.put("filter_binary", new FilterBinaryParseElement());
         parseElements.put("sort", new SortParseElement());
         parseElements.put("trackScores", new TrackScoresParseElement());
         parseElements.put("track_scores", new TrackScoresParseElement());

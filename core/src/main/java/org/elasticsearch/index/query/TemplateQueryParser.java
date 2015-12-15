@@ -21,8 +21,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.*;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -90,4 +89,6 @@ public class TemplateQueryParser implements QueryParser<TemplateQueryBuilder> {
     public TemplateQueryBuilder getBuilderPrototype() {
         return TemplateQueryBuilder.PROTOTYPE;
     }
+
+
 }

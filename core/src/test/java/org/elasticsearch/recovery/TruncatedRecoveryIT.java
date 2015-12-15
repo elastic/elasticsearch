@@ -29,16 +29,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.IndexRecoveryIT;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,14 +60,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class TruncatedRecoveryIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
-        return builder.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockTransportService.TestPlugin.class);
     }
@@ -76,8 +70,11 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * we just throw an exception to make sure the recovery fails and we leave some half baked files on the target.
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
-    @Test
     public void testCancelRecoveryAndResume() throws Exception {
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            IndexRecoveryIT.setChunkSize(settings, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
+        }
+
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
@@ -86,7 +83,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             }
         }
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         // we use 2 nodes a lucky and unlucky one
         // the lucky one holds the primary
         // the unlucky one gets the replica and the truncated leftovers
@@ -115,13 +112,13 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
         client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
-        client().admin().indices().prepareOptimize().setMaxNumSegments(1).setFlush(true).get();
+        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {

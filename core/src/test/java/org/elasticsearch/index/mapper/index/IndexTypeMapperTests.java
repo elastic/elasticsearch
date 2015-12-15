@@ -57,7 +57,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
                 .startObject("_index").field("enabled", false).endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
-        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
+        IndexFieldMapper indexMapper = docMapper.metadataMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -74,7 +74,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
+        IndexFieldMapper indexMapper = docMapper.metadataMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -128,7 +128,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
-        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
+        IndexFieldMapper indexMapper = docMapper.metadataMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(true));
         assertThat(indexMapper.fieldType().stored(), equalTo(true));
 

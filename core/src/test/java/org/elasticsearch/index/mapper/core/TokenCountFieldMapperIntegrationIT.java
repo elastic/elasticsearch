@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -31,7 +32,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +39,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     @ParametersFactory
@@ -65,8 +68,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to get the token count in a search response.
      */
-    @Test
-    public void searchReturnsTokenCount() throws IOException {
+    public void testSearchReturnsTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchById("single"), "single");
@@ -80,8 +82,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to search by token count.
      */
-    @Test
-    public void searchByTokenCount() throws IOException {
+    public void testSearchByTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
@@ -94,8 +95,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to search by token count.
      */
-    @Test
-    public void facetByTokenCount() throws IOException {
+    public void testFacetByTokenCount() throws IOException {
         init();
 
         String facetField = randomFrom(Arrays.asList(

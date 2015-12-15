@@ -20,10 +20,10 @@
 package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
+
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.StringReader;
 
@@ -33,10 +33,7 @@ import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisS
  * Test
  */
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
-
-    @Test
     public void testDefaultSetting() throws Exception {
-
         Settings settings = Settings.settingsBuilder()
             .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
@@ -59,10 +56,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
         assertEquals(expectedOutput, output.toString());
     }
 
-
-    @Test
     public void testNameAndModeSetting() throws Exception {
-
         Settings settings = Settings.settingsBuilder()
             .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")

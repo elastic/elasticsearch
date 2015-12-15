@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
@@ -61,7 +61,6 @@ import static org.hamcrest.Matchers.*;
 
 @TestLogging("discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
-
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
 
@@ -224,7 +223,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 
-    @Test
     public void testSimpleClusterStatePublishing() throws Exception {
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT).setAsMaster();
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
@@ -304,9 +302,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromFull(nodeC.clusterState, clusterState);
     }
 
-    @Test
     public void testUnexpectedDiffPublishing() throws Exception {
-
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -330,7 +326,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
     }
 
-    @Test
     public void testDisablingDiffPublishing() throws Exception {
         Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, false).build();
 
@@ -368,7 +363,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
     /**
      * Test not waiting on publishing works correctly (i.e., publishing times out)
      */
-    @Test
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = scaledRandomIntBetween(5, 50);
@@ -416,9 +410,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSerializationFailureDuringDiffPublishing() throws Exception {
-
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -665,7 +657,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         logger.info("--> committing states");
 
-        Collections.shuffle(states, random());
+        Randomness.shuffle(states);
         for (ClusterState state : states) {
             node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state.stateUUID()), channel);
             assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
@@ -726,7 +718,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     private void assertProperMetaDataForVersion(MetaData metaData, long version) {
         for (long i = 1; i <= version; i++) {
             assertThat(metaData.index("test" + i), notNullValue());
-            assertThat(metaData.index("test" + i).numberOfShards(), equalTo((int) i));
+            assertThat(metaData.index("test" + i).getNumberOfShards(), equalTo((int) i));
         }
         assertThat(metaData.index("test" + (version + 1)), nullValue());
         assertThat(metaData.transientSettings().get("test"), equalTo(Long.toString(version)));

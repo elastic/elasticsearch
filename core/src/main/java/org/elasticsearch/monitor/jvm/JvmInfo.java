@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.lang.management.*;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,7 @@ public class JvmInfo implements Streamable, ToXContent {
         JvmInfo info = new JvmInfo();
         info.pid = pid;
         info.startTime = runtimeMXBean.getStartTime();
-        info.version = runtimeMXBean.getSystemProperties().get("java.version");
+        info.version = System.getProperty("java.version");
         info.vmName = runtimeMXBean.getVmName();
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
@@ -84,7 +85,7 @@ public class JvmInfo implements Streamable, ToXContent {
             }
         }
         info.classPath = runtimeMXBean.getClassPath();
-        info.systemProperties = runtimeMXBean.getSystemProperties();
+        info.systemProperties = Collections.unmodifiableMap(runtimeMXBean.getSystemProperties());
 
         List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
         info.gcCollectors = new String[gcMxBeans.size()];
@@ -104,6 +105,11 @@ public class JvmInfo implements Streamable, ToXContent {
     }
 
     public static JvmInfo jvmInfo() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new ManagementPermission("monitor"));
+            sm.checkPropertyAccess("*");
+        }
         return INSTANCE;
     }
 

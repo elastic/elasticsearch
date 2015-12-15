@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
-
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
@@ -57,7 +55,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new SpanNearQueryBuilder(null, 1);
@@ -73,5 +70,47 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         } catch (IllegalArgumentException e) {
             // ecpected
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_near\" : {\n" + 
+                "    \"clauses\" : [ {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value1\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value2\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value3\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    } ],\n" + 
+                "    \"slop\" : 12,\n" + 
+                "    \"in_order\" : false,\n" + 
+                "    \"collect_payloads\" : false,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 3, parsed.clauses().size());
+        assertEquals(json, 12, parsed.slop());
+        assertEquals(json, false, parsed.inOrder());
+        assertEquals(json, false, parsed.collectPayloads());
     }
 }

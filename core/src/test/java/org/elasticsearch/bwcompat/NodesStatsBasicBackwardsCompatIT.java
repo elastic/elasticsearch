@@ -25,17 +25,14 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilde
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.lang.reflect.Method;
 
 
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE,  numClientNodes = 0)
 public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
-
-    @Test
     public void testNodeStatsSetIndices() throws Exception {
         createIndex("test");
 
@@ -54,7 +51,6 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
         }
     }
 
-    @Test
     public void testNodeStatsSetRandom() throws Exception {
         createIndex("test");
 
@@ -73,7 +69,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
             NodesStatsRequestBuilder nsBuilder = tc.admin().cluster().prepareNodesStats();
 
             Class c = nsBuilder.getClass();
-            for (Method method : c.getDeclaredMethods()) {
+            for (Method method : c.getMethods()) {
                 if (method.getName().startsWith("set")) {
                     if (method.getParameterTypes().length == 1 && method.getParameterTypes()[0] == boolean.class) {
                         method.invoke(nsBuilder, randomBoolean());

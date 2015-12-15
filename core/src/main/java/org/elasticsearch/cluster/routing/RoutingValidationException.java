@@ -39,7 +39,7 @@ public class RoutingValidationException extends RoutingException {
 
     public RoutingValidationException(StreamInput in) throws IOException {
         super(in);
-        validation = in.readOptionalStreamable(new RoutingTableValidation());
+        validation = in.readOptionalStreamable(RoutingTableValidation::new);
     }
 
     @Override

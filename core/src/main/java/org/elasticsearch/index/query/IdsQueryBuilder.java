@@ -90,8 +90,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.array("types", types);
-        builder.startArray("values");
+        builder.array(IdsQueryParser.TYPE_FIELD.getPreferredName(), types);
+        builder.startArray(IdsQueryParser.VALUES_FIELD.getPreferredName());
         for (String value : ids) {
             builder.value(value);
         }
@@ -115,7 +115,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             if (types.length == 0) {
                 typesForQuery = context.queryTypes();
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-                typesForQuery = context.mapperService().types();
+                typesForQuery = context.getMapperService().types();
             } else {
                 typesForQuery = new HashSet<>();
                 Collections.addAll(typesForQuery, types);

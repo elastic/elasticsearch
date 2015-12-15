@@ -20,6 +20,8 @@
 package org.elasticsearch.node.internal;
 
 import java.nio.charset.StandardCharsets;
+
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -125,11 +127,11 @@ public class InternalSettingsPreparer {
         if (useSystemProperties(input)) {
             if (loadDefaults) {
                 for (String prefix : PROPERTY_DEFAULTS_PREFIXES) {
-                    output.putProperties(prefix, System.getProperties());
+                    output.putProperties(prefix, BootstrapInfo.getSystemProperties());
                 }
             }
             for (String prefix : PROPERTY_PREFIXES) {
-                output.putProperties(prefix, System.getProperties(), PROPERTY_DEFAULTS_PREFIXES);
+                output.putProperties(prefix, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIXES);
             }
         }
         output.replacePropertyPlaceholders();

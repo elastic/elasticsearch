@@ -70,7 +70,6 @@ setup() {
     # Install scripts used to test script filters and search templates before
     # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
     # them.
-    ESPLUGIN_COMMAND_USER=root install_and_check_plugin lang groovy
     install_elasticsearch_test_scripts
     service elasticsearch start
     wait_for_elasticsearch_status

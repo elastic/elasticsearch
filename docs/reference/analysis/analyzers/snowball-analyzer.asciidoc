@@ -15,7 +15,7 @@ filter>>.
 
 The Snowball Analyzer is a stemming analyzer from Lucene that is
 originally based on the snowball project from
-http://snowball.tartarus.org[snowball.tartarus.org].
+http://snowballstem.org[snowballstem.org].
 
 Sample usage:
 

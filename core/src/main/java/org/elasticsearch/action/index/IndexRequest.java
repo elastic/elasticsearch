@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +35,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -134,7 +137,8 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     private String parent;
     @Nullable
     private String timestamp;
-    private long ttl = -1;
+    @Nullable
+    private TimeValue ttl;
 
     private BytesReference source;
 
@@ -226,6 +230,12 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        }
+
+        if (ttl != null) {
+            if (ttl.millis() < 0) {
+                validationException = addValidationError("ttl must not be negative", validationException);
+            }
         }
         return validationException;
     }
@@ -322,22 +332,33 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the relative ttl value. It musts be &gt; 0 as it makes little sense otherwise. Setting it
-     * to <tt>null</tt> will reset to have no ttl.
+     * Sets the ttl value as a time value expression.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
-        if (ttl == null) {
-            this.ttl = -1;
-            return this;
-        }
-        if (ttl <= 0) {
-            throw new IllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
-        }
+    public IndexRequest ttl(String ttl) {
+        this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
+        return this;
+    }
+
+    /**
+     * Sets the ttl as a {@link TimeValue} instance.
+     */
+    public IndexRequest ttl(TimeValue ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public long ttl() {
+    /**
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
+     */
+    public IndexRequest ttl(long ttl) {
+        this.ttl = new TimeValue(ttl);
+        return this;
+    }
+
+    /**
+     * Returns the ttl as a {@link TimeValue}
+     */
+    public TimeValue ttl() {
         return this.ttl;
     }
 
@@ -561,15 +582,24 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         return this.versionType;
     }
 
+    private Version getVersion(MetaData metaData, String concreteIndex) {
+        // this can go away in 3.0 but is here now for easy backporting - since in 2.x we need the version on the timestamp stuff
+        final IndexMetaData indexMetaData = metaData.getIndices().get(concreteIndex);
+        if (indexMetaData == null) {
+            throw new IndexNotFoundException(concreteIndex);
+        }
+        return Version.indexCreated(indexMetaData.getSettings());
+    }
+
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, index));
+
         // resolve timestamp if provided externally
         if (timestamp != null) {
-            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
                     mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                    version);
+                    getVersion(metaData, concreteIndex));
         }
         // extract values if needed
         if (mappingMd != null) {
@@ -592,8 +622,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
                         if (timestamp != null) {
-                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
-                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), version);
+                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
                         }
                     }
                 } catch (MapperParsingException e) {
@@ -642,8 +671,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
-                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), version);
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
             }
         }
     }
@@ -656,7 +684,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         timestamp = in.readOptionalString();
-        ttl = in.readLong();
+        ttl = in.readBoolean() ? TimeValue.readTimeValue(in) : null;
         source = in.readBytesReference();
 
         opType = OpType.fromId(in.readByte());
@@ -673,7 +701,12 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         out.writeOptionalString(timestamp);
-        out.writeLong(ttl);
+        if (ttl == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            ttl.writeTo(out);
+        }
         out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);

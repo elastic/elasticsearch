@@ -2,7 +2,7 @@
 === `_all` field
 
 The `_all` field is a special _catch-all_ field which concatenates the values
-of all of the other fields into one big string, which is then
+of all of the other fields into one big string, using space as a delimiter, which is then
 <<analysis,analyzed>> and indexed, but not stored.  This means that it can be
 searched, but not retrieved.
 

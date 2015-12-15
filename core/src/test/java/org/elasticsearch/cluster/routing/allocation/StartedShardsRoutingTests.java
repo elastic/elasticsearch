@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -40,9 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StartedShardsRoutingTests extends ESAllocationTestCase {
-
-    @Test
-    public void tesStartedShardsMatching() {
+    public void testStartedShardsMatching() {
         AllocationService allocation = createAllocationService();
 
         logger.info("--> building initial cluster state");

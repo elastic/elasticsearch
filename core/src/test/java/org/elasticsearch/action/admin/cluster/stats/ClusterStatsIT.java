@@ -21,21 +21,22 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
@@ -55,7 +56,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
-    @Test
     public void testNodeCounts() {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
@@ -84,11 +84,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
-    @Test
     public void testIndicesShardStats() {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
-
 
         prepareCreate("test1").setSettings("number_of_shards", 2, "number_of_replicas", 1).get();
         ensureYellow();
@@ -129,7 +127,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -160,5 +157,32 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
+    }
+
+    public void testAllocatedProcessors() throws Exception {
+        // stop all other nodes
+        internalCluster().ensureAtMostNumDataNodes(0);
+
+        // start one node with 7 processors.
+        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS, 7).build()).get();
+        waitForNodes(1);
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(7));
+    }
+
+    public void testClusterStatusWhenStateNotRecovered() throws Exception {
+        // stop all other nodes
+        internalCluster().ensureAtMostNumDataNodes(0);
+
+        internalCluster().startNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        // wait for the cluster status to settle
+        ensureGreen();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 }

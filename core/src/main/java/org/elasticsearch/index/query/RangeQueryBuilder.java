@@ -233,15 +233,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("from", convertToStringIfBytesRef(this.from));
-        builder.field("to", convertToStringIfBytesRef(this.to));
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
+        builder.field(RangeQueryParser.FROM_FIELD.getPreferredName(), convertToStringIfBytesRef(this.from));
+        builder.field(RangeQueryParser.TO_FIELD.getPreferredName(), convertToStringIfBytesRef(this.to));
+        builder.field(RangeQueryParser.INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
+        builder.field(RangeQueryParser.INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         if (timeZone != null) {
-            builder.field("time_zone", timeZone.getID());
+            builder.field(RangeQueryParser.TIME_ZONE_FIELD.getPreferredName(), timeZone.getID());
         }
         if (format != null) {
-            builder.field("format", format.format());
+            builder.field(RangeQueryParser.FORMAT_FIELD.getPreferredName(), format.format());
         }
         printBoostAndQueryName(builder);
         builder.endObject();

@@ -68,7 +68,7 @@ update, or bulk request.  This setting accepts the following parameters:
 
     (default) `fsync` and commit after every request. In the event
     of hardware failure, all acknowledged writes will already have been
-    commited to disk.
+    committed to disk.
 
 `async`::
 

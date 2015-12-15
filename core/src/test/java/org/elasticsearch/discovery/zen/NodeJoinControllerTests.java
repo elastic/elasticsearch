@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -86,7 +87,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             pendingJoins.add(joinNodeAsync(node));
         }
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
         for (int i = randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
             nodes.add(node);
@@ -119,7 +120,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             pendingJoins.add(future);
             assertThat(future.isDone(), equalTo(false));
         }
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
         for (Future<Void> future : pendingJoins) {
             try {
                 future.get();
@@ -243,7 +244,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         // add
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -268,7 +269,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -284,7 +285,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         logger.debug("--> testing accumulation stopped");
         nodeJoinController.startAccumulatingJoins();
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
 
     }
 
@@ -315,7 +316,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodesToJoin.add(node);
             }
         }
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -487,17 +488,17 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         @Override
         public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
         public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
-        public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+        protected RoutingAllocation.Result reroute(ClusterState clusterState, String reason, boolean debug) {
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
     }
 

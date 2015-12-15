@@ -82,9 +82,10 @@ The following parameters are accepted by `string` fields:
 
 <<doc-values,`doc_values`>>::
 
-    Can the field use on-disk index-time doc values for sorting, aggregations,
-    or scripting? Accepts `true` or `false`. Defaults to `true` for
-    `not_analyzed` fields. Analyzed fields do not support doc values.
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    or `false`. Defaults to `true` for `not_analyzed` fields. Analyzed fields
+    do not support doc values.
 
 <<fielddata,`fielddata`>>::
 

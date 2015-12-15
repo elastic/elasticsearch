@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -78,7 +77,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
         // new cluster state will have initializing shards on node 1
-        RoutingTable routingTableNewClusterState = strategy.reroute(init).routingTable();
+        RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
         if (initializing == false) {
             // pretend all initialized, nothing happened
             ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState).metaData(metaDataOldClusterState).build();
@@ -131,7 +130,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .routingTable(routingTableIndexCreated)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        RoutingTable routingTableInitializing = strategy.reroute(init).routingTable();
+        RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
         ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
         RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
 
@@ -184,14 +183,13 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().index(), equalTo("test"));
+            assertThat(indices.next().getNewMetaData().getIndex(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));
         }
     }
 
-    @Test
     public void testVersionChangeIsAlwaysWritten() throws Exception {
         // test that version changes are always written
         boolean initializing = randomBoolean();
@@ -203,7 +201,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNewShardsAlwaysWritten() throws Exception {
         // make sure new shards on data only node always written
         boolean initializing = true;
@@ -215,7 +212,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testAllUpToDateNothingWritten() throws Exception {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
@@ -227,7 +223,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNoWriteIfNothingChanged() throws Exception {
         boolean initializing = false;
         boolean versionChanged = false;
@@ -239,7 +234,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testWriteClosedIndex() throws Exception {
         // test that the closing of an index is written also on data only node
         boolean masterEligible = randomBoolean();

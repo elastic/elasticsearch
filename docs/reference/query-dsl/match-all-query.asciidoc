@@ -15,3 +15,14 @@ The `_score` can be changed with the `boost` parameter:
 --------------------------------------------------
 { "match_all": { "boost" : 1.2 }}
 --------------------------------------------------
+
+[[query-dsl-match-none-query]]
+[float]
+== Match None Query
+
+This is the inverse of the `match_all` query, which matches no documents.
+
+[source,js]
+--------------------------------------------------
+{ "match_none": {} }
+--------------------------------------------------

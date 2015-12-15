@@ -30,7 +30,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -72,9 +71,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -85,6 +84,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new VersionFieldMapper(indexSettings);
         }
     }
 
@@ -118,7 +122,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public VersionFieldMapper(Settings indexSettings) {
+    private VersionFieldMapper(Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
     }
 
@@ -162,7 +166,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         // nothing to do
     }
 }

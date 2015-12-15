@@ -28,14 +28,22 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -45,8 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleAllTests extends ESTestCase {
-
-    @Test
     public void testBoostOnEagerTokenizer() throws Exception {
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "all", 2.0f);
@@ -91,7 +97,6 @@ public class SimpleAllTests extends ESTestCase {
         assertFalse(ts.incrementToken());
     }
 
-    @Test
     public void testAllEntriesRead() throws Exception {
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something", 1.0f);
@@ -122,7 +127,6 @@ public class SimpleAllTests extends ESTestCase {
         assertEquals(scoreDoc.score, expl.getValue(), 0.00001f);
     }
 
-    @Test
     public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -169,7 +173,6 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testSimpleAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -217,7 +220,6 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testMultipleTokensAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -268,7 +270,6 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testMultipleTokensAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -319,7 +320,6 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testNoTokensWithKeywordAnalyzer() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));

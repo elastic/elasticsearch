@@ -23,14 +23,11 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testDefault() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.limit_default.type", "limit")
@@ -55,7 +52,6 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
-    @Test
     public void testSettings() throws IOException {
         {
             Settings settings = Settings.settingsBuilder()

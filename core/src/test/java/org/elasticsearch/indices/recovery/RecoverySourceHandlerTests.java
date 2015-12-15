@@ -22,39 +22,44 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.store.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.CorruptionUtils;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.is;
-
 public class RecoverySourceHandlerTests extends ESTestCase {
-
-    private final ShardId shardId = new ShardId(new Index("index"), 1);
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("index"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final NodeSettingsService service = new NodeSettingsService(Settings.EMPTY);
 
     public void testSendFiles() throws Throwable {
@@ -233,7 +238,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         return newStore(path, true);
     }
     private Store newStore(Path path, boolean checkIndex) throws IOException {
-        DirectoryService directoryService = new DirectoryService(shardId, Settings.EMPTY) {
+        DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
             @Override
             public long throttleTimeInNanos() {
                 return 0;
@@ -248,7 +253,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 return baseDirectoryWrapper;
             }
         };
-        return new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId,  INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
 

@@ -670,14 +670,14 @@ public final class XMoreLikeThis {
         float bestScore = -1;
 
         while ((scoreTerm = q.pop()) != null) {
-            TermQuery tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
+            Query tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
 
             if (boost) {
                 if (bestScore == -1) {
                     bestScore = (scoreTerm.score);
                 }
                 float myScore = (scoreTerm.score);
-                tq.setBoost(boostFactor * myScore / bestScore);
+                tq = new BoostQuery(tq, boostFactor * myScore / bestScore);
             }
 
             try {

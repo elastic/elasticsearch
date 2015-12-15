@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FieldsParseElement;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
@@ -46,15 +47,19 @@ public class TopHitsParser implements Aggregator.Parser {
     private final HighlighterParseElement highlighterParseElement;
     private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
     private final ScriptFieldsParseElement scriptFieldsParseElement;
+    private final FieldsParseElement fieldsParseElement;
 
     @Inject
-    public TopHitsParser(FetchPhase fetchPhase, SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
+    public TopHitsParser(FetchPhase fetchPhase, SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement,
+            HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement,
+            ScriptFieldsParseElement scriptFieldsParseElement, FieldsParseElement fieldsParseElement) {
         this.fetchPhase = fetchPhase;
         this.sortParseElement = sortParseElement;
         this.sourceParseElement = sourceParseElement;
         this.highlighterParseElement = highlighterParseElement;
         this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
         this.scriptFieldsParseElement = scriptFieldsParseElement;
+        this.fieldsParseElement = fieldsParseElement;
     }
 
     @Override
@@ -75,6 +80,8 @@ public class TopHitsParser implements Aggregator.Parser {
                     sortParseElement.parse(parser, subSearchContext);
                 } else if ("_source".equals(currentFieldName)) {
                     sourceParseElement.parse(parser, subSearchContext);
+                } else if ("fields".equals(currentFieldName)) {
+                    fieldsParseElement.parse(parser, subSearchContext);
                 } else if (token.isValue()) {
                     switch (currentFieldName) {
                         case "from":

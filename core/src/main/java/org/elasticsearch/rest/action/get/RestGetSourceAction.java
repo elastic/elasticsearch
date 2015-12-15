@@ -26,7 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -77,7 +76,7 @@ public class RestGetSourceAction extends BaseRestHandler {
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
-                    XContentHelper.writeDirect(response.getSourceInternal(), builder, request);
+                    builder.rawValue(response.getSourceInternal());
                     return new BytesRestResponse(OK, builder);
                 }
             }

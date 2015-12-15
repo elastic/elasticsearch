@@ -25,16 +25,16 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class HttpPublishPortIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
@@ -44,7 +44,6 @@ public class HttpPublishPortIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testHttpPublishPort() throws Exception {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get();
         assertThat(response.getNodes(), arrayWithSize(greaterThanOrEqualTo(1)));

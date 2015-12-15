@@ -19,14 +19,9 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.IcuIndicesAnalysisModule;
+import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
-import java.util.Collections;
 
 /**
  *
@@ -43,15 +38,15 @@ public class AnalysisICUPlugin extends Plugin {
         return "UTF related ICU analysis support";
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new IcuIndicesAnalysisModule());
-    }
-
     /**
      * Automatically called with the analysis module.
      */
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new IcuAnalysisBinderProcessor());
+        module.registerCharFilter("icu_normalizer", IcuNormalizerCharFilterFactory::new);
+        module.registerTokenizer("icu_tokenizer", IcuTokenizerFactory::new);
+        module.registerTokenFilter("icu_normalizer", IcuNormalizerTokenFilterFactory::new);
+        module.registerTokenFilter("icu_folding", IcuFoldingTokenFilterFactory::new);
+        module.registerTokenFilter("icu_collation", IcuCollationTokenFilterFactory::new);
+        module.registerTokenFilter("icu_transform", IcuTransformTokenFilterFactory::new);
     }
 }

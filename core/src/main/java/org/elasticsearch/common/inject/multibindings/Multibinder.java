@@ -331,6 +331,6 @@ public abstract class Multibinder<T> {
 
         NullPointerException npe = new NullPointerException(name);
         throw new ConfigurationException(singleton(
-                new Message(emptyList(), npe.toString(), npe)));
+                new Message(emptyList(), npe)));
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -40,11 +39,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class SimpleTimestampIT  extends ESIntegTestCase {
-
-    @Test
+public class SimpleTimestampIT extends ESIntegTestCase {
     public void testSimpleTimestamp() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).endObject().endObject().endObject())
                 .execute().actionGet();
@@ -94,7 +90,7 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
     }
 
-    @Test // issue 5053
+    // issue #5053
     public void testThatUpdatingMappingShouldNotRemoveTimestampConfiguration() throws Exception {
         String index = "foo";
         String type = "mytype";
@@ -114,7 +110,6 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
         assertTimestampMappingEnabled(index, type, true);
     }
 
-    @Test
     public void testThatTimestampCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
         String type = "mytype";

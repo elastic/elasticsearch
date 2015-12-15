@@ -1,5 +1,4 @@
----
-"Default index":
+setup:
   - do:
       indices.create:
           index:  test_2
@@ -23,6 +22,9 @@
   - do:
       indices.refresh:
         index: [test_1, test_2]
+
+---
+"Basic search":
 
   - do:
       search:
@@ -62,3 +64,14 @@
   - match: {hits.hits.0._index: test_2 }
   - match: {hits.hits.0._type:  test   }
   - match: {hits.hits.0._id:    "42"   }
+
+---
+"Search body without query element":
+
+    - do:
+        catch: request
+        search:
+          body:
+            match:
+              foo: bar
+

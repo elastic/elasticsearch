@@ -126,11 +126,11 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 });
                 return;
             }
-            TransportRequestOptions transportRequestOptions = TransportRequestOptions.options();
+            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
             if (request.timeout() != null) {
-                transportRequestOptions.withTimeout(request.timeout());
+                builder.withTimeout(request.timeout());
             }
-            transportRequestOptions.withCompress(transportCompress());
+            builder.withCompress(transportCompress());
             for (int i = 0; i < nodesIds.length; i++) {
                 final String nodeId = nodesIds[i];
                 final int idx = i;
@@ -145,7 +145,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                     } else {
                         NodeRequest nodeRequest = newNodeRequest(nodeId, request);
-                        transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions, new BaseTransportResponseHandler<NodeResponse>() {
+                        transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(), new BaseTransportResponseHandler<NodeResponse>() {
                             @Override
                             public NodeResponse newInstance() {
                                 return newNodeResponse();

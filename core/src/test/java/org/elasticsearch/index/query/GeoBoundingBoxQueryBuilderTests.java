@@ -21,22 +21,25 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Rectangle;
+
 import org.apache.lucene.search.*;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
     private static Double[] brokenDoubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
-    
+
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
@@ -48,7 +51,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             switch (path) {
             case 0:
                 builder.setCorners(
-                        new GeoPoint(box.getMaxY(), box.getMinX()), 
+                        new GeoPoint(box.getMaxY(), box.getMinX()),
                         new GeoPoint(box.getMinY(), box.getMaxX()));
                 break;
             case 1:
@@ -80,38 +83,51 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         return builder;
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testValidationNullFieldname() {
-        new GeoBoundingBoxQueryBuilder(null);
+        try {
+            new GeoBoundingBoxQueryBuilder(null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Field name must not be empty."));
+        }
     }
 
-
-    @Test(expected = IllegalArgumentException.class)
     public void testValidationNullType() {
         GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        qb.type((GeoExecType) null);
+        try {
+            qb.type((GeoExecType) null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Type is not allowed to be null."));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testValidationNullTypeString() {
         GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        qb.type((String) null);
+        try {
+            qb.type((String) null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("cannot parse type from null string"));
+        }
     }
 
-    @Test
     @Override
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }
-    
-    @Test(expected = QueryShardException.class)
+
     public void testExceptionOnMissingTypes() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        super.testToQuery();
+        try {
+            super.testToQuery();
+            fail("Expected IllegalArgumentException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), is("failed to find geo_point field [mapped_geo_point]"));
+        }
     }
 
-    @Test
     public void testBrokenCoordinateCannotBeSet() {
         PointTester[] testers = { new TopTester(), new LeftTester(), new BottomTester(), new RightTester() };
 
@@ -128,7 +144,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
-    @Test
     public void testBrokenCoordinateCanBeSetWithIgnoreMalformed() {
         PointTester[] testers = { new TopTester(), new LeftTester(), new BottomTester(), new RightTester() };
 
@@ -140,8 +155,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
-
-    @Test
     public void testValidation() {
         PointTester[] testers = { new TopTester(), new LeftTester(), new BottomTester(), new RightTester() };
 
@@ -183,7 +196,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testTopBottomCannotBeFlipped() {
         GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
         double top = builder.topLeft().getLat();
@@ -192,11 +204,15 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         double right = builder.bottomRight().getLon();
 
         assumeTrue("top should not be equal to bottom for flip check", top != bottom);
-        System.out.println("top: " + top + " bottom: " + bottom);
-        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(bottom, left, top, right);
+        logger.info("top: {} bottom: {}", top, bottom);
+        try {
+            builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(bottom, left, top, right);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("top is below bottom corner:"));
+        }
     }
 
-    @Test
     public void testTopBottomCanBeFlippedOnIgnoreMalformed() {
         GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
         double top = builder.topLeft().getLat();
@@ -208,19 +224,17 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(bottom, left, top, right);
     }
 
-    @Test
     public void testLeftRightCanBeFlipped() {
         GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
         double top = builder.topLeft().getLat();
         double left = builder.topLeft().getLon();
         double bottom = builder.bottomRight().getLat();
         double right = builder.bottomRight().getLon();
-        
+
         builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(top, right, bottom, left);
         builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, right, bottom, left);
     }
 
-    @Test
     public void testNormalization() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
@@ -243,18 +257,21 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             }
         }
     }
-    
-    @Test
-    public void checkStrictnessDefault() {
+
+    public void testStrictnessDefault() {
         assertFalse("Someone changed the default for coordinate validation - were the docs changed as well?", GeoValidationMethod.DEFAULT_LENIENT_PARSING);
     }
 
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.type() == GeoExecType.INDEXED) {
-            assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+            if (queryBuilder.type() == GeoExecType.INDEXED) {
+                assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+            } else {
+                assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+            }
         } else {
-            assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+            assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
         }
     }
 
@@ -311,7 +328,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public class RightTester extends PointTester {
         public RightTester() {
             super(randomDoubleBetween(GeoUtils.MAX_LON, Double.MAX_VALUE, true));
-        } 
+        }
 
         @Override
         public void fillIn(double coordinate, GeoBoundingBoxQueryBuilder qb) {
@@ -319,7 +336,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
-    @Test
     public void testParsingAndToQuery1() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -333,7 +349,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertGeoBoundingBoxQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery2() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -353,7 +368,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertGeoBoundingBoxQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery3() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -367,7 +381,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertGeoBoundingBoxQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery4() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -381,7 +394,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertGeoBoundingBoxQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery5() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -395,7 +407,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertGeoBoundingBoxQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery6() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -410,14 +421,47 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "}\n";
         assertGeoBoundingBoxQuery(query);
     }
-    
+
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
+        if (queryShardContext().indexVersionCreated().before(Version.V_2_2_0)) {
+            InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
+            assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+            assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));
+            assertThat(filter.topLeft().lon(), closeTo(-70, 1E-5));
+            assertThat(filter.bottomRight().lat(), closeTo(30, 1E-5));
+            assertThat(filter.bottomRight().lon(), closeTo(-80, 1E-5));
+        } else {
+            GeoPointInBBoxQuery q = (GeoPointInBBoxQuery) parsedQuery;
+            assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
+            assertThat(q.getMaxLat(), closeTo(40, 1E-5));
+            assertThat(q.getMinLon(), closeTo(-70, 1E-5));
+            assertThat(q.getMinLat(), closeTo(30, 1E-5));
+            assertThat(q.getMaxLon(), closeTo(-80, 1E-5));
+        }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geo_bbox\" : {\n" + 
+                "    \"pin.location\" : {\n" + 
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" + 
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" + 
+                "    },\n" + 
+                "    \"validation_method\" : \"STRICT\",\n" + 
+                "    \"type\" : \"MEMORY\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, "pin.location", parsed.fieldName());
+        assertEquals(json, -74.1, parsed.topLeft().getLon(), 0.0001);
+        assertEquals(json, 40.73, parsed.topLeft().getLat(), 0.0001);
+        assertEquals(json, -71.12, parsed.bottomRight().getLon(), 0.0001);
+        assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
+        assertEquals(json, 1.0, parsed.boost(), 0.0001);
+        assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 }

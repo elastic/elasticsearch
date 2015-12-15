@@ -28,16 +28,13 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,116 +42,78 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.*;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
 /**
  *
  */
-public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService> {
+public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService>, IndexService.ShardStoreDeleter {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
-
-    private final InternalIndicesLifecycle indicesLifecycle;
-
-    private final IndicesAnalysisService indicesAnalysisService;
-
-    private final Injector injector;
-
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final TimeValue shardsClosedTimeout;
-
-    private volatile Map<String, IndexServiceInjectorPair> indices = emptyMap();
-
-    static class IndexServiceInjectorPair {
-        private final IndexService indexService;
-        private final Injector injector;
-
-        public IndexServiceInjectorPair(IndexService indexService, Injector injector) {
-            this.indexService = indexService;
-            this.injector = injector;
-        }
-
-        public IndexService getIndexService() {
-            return indexService;
-        }
-
-        public Injector getInjector() {
-            return injector;
-        }
-    }
-
+    private final AnalysisRegistry analysisRegistry;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
-
     private final OldShardsStats oldShardsStats = new OldShardsStats();
-
-    @Inject
-    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector, NodeEnvironment nodeEnv) {
-        super(settings);
-        this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
-        this.indicesAnalysisService = indicesAnalysisService;
-        this.injector = injector;
-        this.pluginsService = injector.getInstance(PluginsService.class);
-        this.indicesLifecycle.addListener(oldShardsStats);
-        this.nodeEnv = nodeEnv;
-        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
-    }
+    private final IndexStoreConfig indexStoreConfig;
+    private final MapperRegistry mapperRegistry;
 
     @Override
     protected void doStart() {
+    }
+
+    @Inject
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
+            NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry,
+            IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+            ClusterService clusterService, MapperRegistry mapperRegistry) {
+        super(settings);
+        this.pluginsService = pluginsService;
+        this.nodeEnv = nodeEnv;
+        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
+        this.indexStoreConfig = new IndexStoreConfig(settings);
+        this.analysisRegistry = analysisRegistry;
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.mapperRegistry = mapperRegistry;
+        nodeSettingsService.addListener(indexStoreConfig);
     }
 
     @Override
@@ -165,16 +124,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         Set<String> indices = new HashSet<>(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final String index : indices) {
-            indicesStopExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        removeIndex(index, "shutdown", false);
-                    } catch (Throwable e) {
-                        logger.warn("failed to remove index on stop [" + index + "]", e);
-                    } finally {
-                        latch.countDown();
-                    }
+            indicesStopExecutor.execute(() -> {
+                try {
+                    removeIndex(index, "shutdown", false);
+                } catch (Throwable e) {
+                    logger.warn("failed to remove index on stop [" + index + "]", e);
+                } finally {
+                    latch.countDown();
                 }
             });
         }
@@ -191,12 +147,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     protected void doClose() {
-        IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
-            indicesAnalysisService);
-    }
-
-    public IndicesLifecycle indicesLifecycle() {
-        return this.indicesLifecycle;
+        IOUtils.closeWhileHandlingException(analysisRegistry);
     }
 
     /**
@@ -241,8 +192,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
 
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-        for (IndexServiceInjectorPair value : indices.values()) {
-            IndexService indexService = value.getIndexService();
+        for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
                     if (indexShard.routingEntry() == null) {
@@ -273,7 +223,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     public Iterator<IndexService> iterator() {
-        return indices.values().stream().map((p) -> p.getIndexService()).iterator();
+        return indices.values().iterator();
     }
 
     public boolean hasIndex(String index) {
@@ -286,12 +236,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     @Nullable
     public IndexService indexService(String index) {
-        IndexServiceInjectorPair indexServiceInjectorPair = indices.get(index);
-        if (indexServiceInjectorPair == null) {
-            return null;
-        } else {
-            return indexServiceInjectorPair.getIndexService();
-        }
+        return indices.get(index);
     }
 
     /**
@@ -305,58 +250,53 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData) {
+
+
+    /**
+     * Creates a new {@link IndexService} for the given metadata.
+     * @param indexMetaData the index metadata to create the index for
+     * @param builtInListeners a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the per-index listeners
+     * @throws IndexAlreadyExistsException if the index already exists.
+     */
+    public synchronized IndexService createIndex(final NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
-        final Settings settings = indexMetaData.getSettings();
+        final String indexName = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList(), indexNameMatcher);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
         }
-
-        indicesLifecycle.beforeIndexCreated(index, settings);
-
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
                 indexMetaData.getIndex(),
-                settings.get(SETTING_NUMBER_OF_SHARDS),
-                settings.get(SETTING_NUMBER_OF_REPLICAS),
-                IndexMetaData.isIndexUsingShadowReplicas(settings) ? "s" : "");
+                idxSettings.getNumberOfShards(),
+                idxSettings.getNumberOfReplicas(),
+                idxSettings.isShadowReplicaIndex() ? "s" : "");
 
-        Settings indexSettings = settingsBuilder()
-                .put(this.settings)
-                .put(indexMetaData.getSettings())
-                .build();
-
-        ModulesBuilder modules = new ModulesBuilder();
-        modules.add(new IndexNameModule(index));
-        modules.add(new IndexSettingsModule(index, indexSettings));
-        // plugin modules must be added here, before others or we can get crazy injection errors...
-        for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
-            modules.add(pluginModule);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        pluginsService.onIndexModule(indexModule);
+        for (IndexEventListener listener : builtInListeners) {
+            indexModule.addIndexEventListener(listener);
         }
-        modules.add(new IndexStoreModule(indexSettings));
-        modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
-        modules.add(new SimilarityModule(index, indexSettings));
-        modules.add(new IndexCacheModule(indexSettings));
-        modules.add(new IndexModule(indexMetaData));
-        pluginsService.processModules(modules);
-
-        Injector indexInjector;
+        indexModule.addIndexEventListener(oldShardsStats);
+        final IndexEventListener listener = indexModule.freeze();
+        listener.beforeIndexCreated(index, idxSettings.getSettings());
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry);
+        boolean success = false;
         try {
-            indexInjector = modules.createChildInjector(injector);
-        } catch (CreationException e) {
-            throw new IndexCreationException(index, Injectors.getFirstErrorFailure(e));
-        } catch (Throwable e) {
-            throw new IndexCreationException(index, e);
+            assert indexService.getIndexEventListener() == listener;
+            listener.afterIndexCreated(indexService);
+            indices = newMapBuilder(indices).put(index.name(), indexService).immutableMap();
+            success = true;
+            return indexService;
+        } finally {
+            if (success == false) {
+                indexService.close("plugins_failed", true);
+            }
         }
 
-        IndexService indexService = indexInjector.getInstance(IndexService.class);
-
-        indicesLifecycle.afterIndexCreated(indexService);
-
-        indices = newMapBuilder(indices).put(index.name(), new IndexServiceInjectorPair(indexService, indexInjector)).immutableMap();
-        return indexService;
     }
 
     /**
@@ -372,50 +312,30 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private void removeIndex(String index, String reason, boolean delete) {
         try {
             final IndexService indexService;
-            final Injector indexInjector;
+            final IndexEventListener listener;
             synchronized (this) {
                 if (indices.containsKey(index) == false) {
                     return;
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", index, reason);
-                Map<String, IndexServiceInjectorPair> newIndices = new HashMap<>(indices);
-                IndexServiceInjectorPair remove = newIndices.remove(index);
-                indexService = remove.getIndexService();
-                indexInjector = remove.getInjector();
+                Map<String, IndexService> newIndices = new HashMap<>(indices);
+                indexService = newIndices.remove(index);
                 indices = unmodifiableMap(newIndices);
+                listener = indexService.getIndexEventListener();
             }
 
-            indicesLifecycle.beforeIndexClosed(indexService);
+            listener.beforeIndexClosed(indexService);
             if (delete) {
-                indicesLifecycle.beforeIndexDeleted(indexService);
+                listener.beforeIndexDeleted(indexService);
             }
-            Stream<Closeable> closeables = pluginsService.indexServices().stream().map(p -> indexInjector.getInstance(p));
-            IOUtils.close(closeables::iterator);
-
             logger.debug("[{}] closing index service (reason [{}])", index, reason);
             indexService.close(reason, delete);
-
-            logger.debug("[{}] closing index cache (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexCache.class).close();
-            logger.debug("[{}] clearing index field data (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexFieldDataService.class).clear();
-            logger.debug("[{}] closing analysis service (reason [{}])", index, reason);
-            indexInjector.getInstance(AnalysisService.class).close();
-
-            logger.debug("[{}] closing mapper service (reason [{}])", index, reason);
-            indexInjector.getInstance(MapperService.class).close();
-            logger.debug("[{}] closing index query parser service (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexQueryParserService.class).close();
-
-            logger.debug("[{}] closing index service (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexStore.class).close();
-
             logger.debug("[{}] closed... (reason [{}])", index, reason);
-            indicesLifecycle.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
+            listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
             if (delete) {
-                final Settings indexSettings = indexService.getIndexSettings();
-                indicesLifecycle.afterIndexDeleted(indexService.index(), indexSettings);
+                final IndexSettings indexSettings = indexService.getIndexSettings();
+                listener.afterIndexDeleted(indexService.index(), indexSettings.getSettings());
                 // now we are done - try to wipe data on disk if possible
                 deleteIndexStore(reason, indexService.index(), indexSettings, false);
             }
@@ -424,7 +344,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
     }
 
-    static class OldShardsStats extends IndicesLifecycle.Listener {
+    static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
         final GetStats getStats = new GetStats();
@@ -435,16 +355,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         final RecoveryStats recoveryStats = new RecoveryStats();
 
         @Override
-        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                                        @IndexSettings Settings indexSettings) {
+        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
             if (indexShard != null) {
-                getStats.add(indexShard.getStats());
-                indexingStats.add(indexShard.indexingStats(), false);
-                searchStats.add(indexShard.searchStats(), false);
-                mergeStats.add(indexShard.mergeStats());
-                refreshStats.add(indexShard.refreshStats());
-                flushStats.add(indexShard.flushStats());
-                recoveryStats.addAsOld(indexShard.recoveryStats());
+                getStats.addTotals(indexShard.getStats());
+                indexingStats.addTotals(indexShard.indexingStats());
+                searchStats.addTotals(indexShard.searchStats());
+                mergeStats.addTotals(indexShard.mergeStats());
+                refreshStats.addTotals(indexShard.refreshStats());
+                flushStats.addTotals(indexShard.flushStats());
+                recoveryStats.addTotals(indexShard.recoveryStats());
             }
         }
     }
@@ -472,7 +391,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
                 deleteIndexStore(reason, metaData, clusterState, true);
             } catch (IOException e) {
-                logger.warn("[{}] failed to delete closed index", e, metaData.index());
+                logger.warn("[{}] failed to delete closed index", e, metaData.getIndex());
             }
         }
     }
@@ -484,9 +403,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState, boolean closed) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
-                String indexName = metaData.index();
+                String indexName = metaData.getIndex();
                 if (indices.containsKey(indexName)) {
-                    String localUUid = indices.get(indexName).getIndexService().indexUUID();
+                    String localUUid = indices.get(indexName).indexUUID();
                     throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
                 if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
@@ -496,13 +415,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
             }
-            Index index = new Index(metaData.index());
-            final Settings indexSettings = buildIndexSettings(metaData);
+            Index index = new Index(metaData.getIndex());
+            final IndexSettings indexSettings = buildIndexSettings(metaData);
             deleteIndexStore(reason, index, indexSettings, closed);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, Settings indexSettings, boolean closed) throws IOException {
+    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings, boolean closed) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
@@ -534,7 +453,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
+    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
         nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
@@ -542,7 +461,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     /**
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
-     * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
+     * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
@@ -555,7 +474,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException {
         final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndex());
 
-        final Settings indexSettings = buildIndexSettings(metaData);
+        final IndexSettings indexSettings = buildIndexSettings(metaData);
         if (canDeleteShardContent(shardId, indexSettings) == false) {
             throw new IllegalStateException("Can't delete shard " + shardId);
         }
@@ -583,15 +502,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * given index. If the index uses a shared filesystem this method always
      * returns false.
      * @param index {@code Index} to check whether deletion is allowed
-     * @param indexSettings {@code Settings} for the given index
+     * @param indexSettings {@code IndexSettings} for the given index
      * @return true if the index can be deleted on this node
      */
-    public boolean canDeleteIndexContents(Index index, Settings indexSettings, boolean closed) {
-        final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(index.name());
+    public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings, boolean closed) {
+        final IndexService indexService = this.indices.get(index.name());
         // Closed indices may be deleted, even if they are on a shared
         // filesystem. Since it is closed we aren't deleting it for relocation
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false || closed) {
-            if (indexServiceInjectorPair == null && nodeEnv.hasNodeFile()) {
+        if (indexSettings.isOnSharedFilesystem() == false || closed) {
+            if (indexService == null && nodeEnv.hasNodeFile()) {
                 return true;
             }
         } else {
@@ -610,25 +529,16 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * </ul>
      *
      * @param shardId the shard to delete.
-     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
-    public boolean canDeleteShardContent(ShardId shardId, IndexMetaData metaData) {
-        // we need the metadata here since we have to build the complete settings
-        // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
-        // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
-        assert shardId.getIndex().equals(metaData.getIndex());
-        final Settings indexSettings = buildIndexSettings(metaData);
-        return canDeleteShardContent(shardId, indexSettings);
-    }
-
-    private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
-        final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(shardId.getIndex());
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-            if (indexServiceInjectorPair != null && nodeEnv.hasNodeFile()) {
-                final IndexService indexService = indexServiceInjectorPair.getIndexService();
+    public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+        assert shardId.getIndex().equals(indexSettings.getIndex().name());
+        final IndexService indexService = this.indices.get(shardId.getIndex());
+        if (indexSettings.isOnSharedFilesystem() == false) {
+            if (indexService != null && nodeEnv.hasNodeFile()) {
                 return indexService.hasShard(shardId.id()) == false;
             } else if (nodeEnv.hasNodeFile()) {
-                if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
+                if (indexSettings.hasCustomDataPath()) {
                     return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
                 } else {
                     return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
@@ -640,20 +550,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return false;
     }
 
-    private Settings buildIndexSettings(IndexMetaData metaData) {
+    private IndexSettings buildIndexSettings(IndexMetaData metaData) {
         // play safe here and make sure that we take node level settings into account.
         // we might run on nodes where we use shard FS and then in the future don't delete
         // actual content.
-        Settings.Builder builder = settingsBuilder();
-        builder.put(settings);
-        builder.put(metaData.getSettings());
-        return builder.build();
+        return new IndexSettings(metaData, settings, Collections.emptyList());
     }
 
     /**
      * Adds a pending delete for the given index shard.
      */
-    public void addPendingDelete(ShardId shardId, @IndexSettings Settings settings) {
+    public void addPendingDelete(ShardId shardId, IndexSettings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
@@ -667,7 +574,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index.
      */
-    public void addPendingDelete(Index index, @IndexSettings Settings settings) {
+    public void addPendingDelete(Index index, IndexSettings settings) {
         PendingDelete pendingDelete = new PendingDelete(index, settings);
         addPendingDelete(index, pendingDelete);
     }
@@ -686,13 +593,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private static final class PendingDelete implements Comparable<PendingDelete> {
         final String index;
         final int shardId;
-        final Settings settings;
+        final IndexSettings settings;
         final boolean deleteIndex;
 
         /**
          * Creates a new pending delete of an index
          */
-        public PendingDelete(ShardId shardId, Settings settings) {
+        public PendingDelete(ShardId shardId, IndexSettings settings) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
             this.settings = settings;
@@ -702,7 +609,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         /**
          * Creates a new pending delete of a shard
          */
-        public PendingDelete(Index index, Settings settings) {
+        public PendingDelete(Index index, IndexSettings settings) {
             this.index = index.getName();
             this.shardId = -1;
             this.settings = settings;
@@ -734,7 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, @IndexSettings Settings indexSettings, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
@@ -786,14 +693,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                     if (remove.isEmpty() == false) {
                         logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
-                        try {
-                            Thread.sleep(sleepTime);
-                            sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
-                            logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
-                        } catch (InterruptedException e) {
-                            Thread.interrupted();
-                            return;
-                        }
+                        Thread.sleep(sleepTime);
+                        sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
+                        logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
                 } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }
@@ -811,4 +713,16 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             return deleteList.size();
         }
     }
+
+    /**
+     * Returns this nodes {@link IndicesQueriesRegistry}
+     */
+    public IndicesQueriesRegistry getIndicesQueryRegistry() {
+        return indicesQueriesRegistry;
+    }
+
+    public AnalysisRegistry getAnalysis() {
+        return analysisRegistry;
+    }
+
 }

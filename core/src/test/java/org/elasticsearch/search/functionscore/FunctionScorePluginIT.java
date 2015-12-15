@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.util.Collection;
 
@@ -52,13 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class FunctionScorePluginIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(CustomDistanceScorePlugin.class);
     }
 
-    @Test
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()

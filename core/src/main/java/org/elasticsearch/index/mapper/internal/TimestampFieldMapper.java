@@ -33,7 +33,6 @@ import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -165,9 +164,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
@@ -218,6 +217,11 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
             return builder;
         }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new TimestampFieldMapper(indexSettings, fieldType);
+        }
     }
 
     public static final class TimestampFieldType extends DateFieldMapper.DateFieldType {
@@ -255,11 +259,11 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     private final String defaultTimestamp;
     private final Boolean ignoreMissing;
 
-    public TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
     }
 
-    protected TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,
+    private TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,
                                    String defaultTimestamp, Boolean ignoreMissing, Settings indexSettings) {
         super(NAME, fieldType, defaultFieldType, indexSettings);
         this.enabledState = enabledState;
@@ -375,7 +379,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         TimestampFieldMapper timestampFieldMapperMergeWith = (TimestampFieldMapper) mergeWith;
         super.merge(mergeWith, mergeResult);
         if (!mergeResult.simulate()) {

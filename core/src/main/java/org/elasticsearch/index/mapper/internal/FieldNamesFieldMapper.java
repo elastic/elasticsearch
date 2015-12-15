@@ -104,9 +104,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().before(Version.V_1_3_0)) {
                 throw new IllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0. Is your cluster running multiple datanode versions?");
             }
@@ -126,6 +126,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new FieldNamesFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -200,11 +205,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
 
-    public FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), indexSettings);
     }
 
-    public FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
+    private FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         if (this.pre13Index) {

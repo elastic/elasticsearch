@@ -75,7 +75,7 @@ representation of the geo point, the filter can accept it as well:
 [source,js]
 --------------------------------------------------
 {
-    "boost" : {
+    "bool" : {
         "must" : {
             "match_all" : {}
         },

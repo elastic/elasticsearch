@@ -18,22 +18,20 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.apache.lucene.util.XGeoHashUtils;
-import org.junit.Test;
 
 
 
 /**
- * Tests for {@link org.apache.lucene.util.XGeoHashUtils}
+ * Tests for {@link org.apache.lucene.util.GeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
-    @Test
     public void testGeohashAsLongRoutines()  {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
         //Ensure that for all points at all supported levels of precision
-        // that the long encoding of a geohash is compatible with its 
+        // that the long encoding of a geohash is compatible with its
         // String based counterpart
         for (double lat=-90;lat<90;lat++)
         {
@@ -41,13 +39,13 @@ public class GeoHashTests extends ESTestCase {
             {
                 for(int p=1;p<=12;p++)
                 {
-                    long geoAsLong = XGeoHashUtils.longEncode(lng, lat, p);
+                    long geoAsLong = GeoHashUtils.longEncode(lng, lat, p);
 
                     // string encode from geohashlong encoded location
-                    String geohashFromLong = XGeoHashUtils.stringEncode(geoAsLong);
+                    String geohashFromLong = GeoHashUtils.stringEncode(geoAsLong);
 
                     // string encode from full res lat lon
-                    String geohash = XGeoHashUtils.stringEncode(lng, lat, p);
+                    String geohash = GeoHashUtils.stringEncode(lng, lat, p);
 
                     // ensure both strings are the same
                     assertEquals(geohash, geohashFromLong);

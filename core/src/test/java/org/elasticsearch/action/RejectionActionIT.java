@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -56,8 +55,7 @@ public class RejectionActionIT extends ESIntegTestCase {
     }
 
 
-    @Test
-    public void simulateSearchRejectionLoad() throws Throwable {
+    public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "1").get();
         }

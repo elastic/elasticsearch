@@ -22,7 +22,9 @@
   - match: { indices._all.fields.number.max_doc: 1 }
   - match: { indices._all.fields.number.doc_count: 1 }
   - match: { indices._all.fields.number.min_value: 123 }
+  - match: { indices._all.fields.number.min_value_as_string: "123" }
   - match: { indices._all.fields.number.max_value: 123 }
+  - match: { indices._all.fields.number.max_value_as_string: "123" }
 
 ---
 "Basic field stats with level set to indices":
@@ -49,7 +51,9 @@
   - match: { indices.test_1.fields.number.max_doc: 1 }
   - match: { indices.test_1.fields.number.doc_count: 1 }
   - match: { indices.test_1.fields.number.min_value: 123 }
+  - match: { indices.test_1.fields.number.min_value_as_string: "123" }
   - match: { indices.test_1.fields.number.max_value: 123 }
+  - match: { indices.test_1.fields.number.max_value_as_string: "123" }
 
 ---
 "Field stats with filtering":

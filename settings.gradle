@@ -1,0 +1,87 @@
+rootProject.name = 'elasticsearch'
+
+List projects = [
+  'rest-api-spec',
+  'core',
+  'distribution:integ-test-zip',
+  'distribution:zip',
+  'distribution:tar',
+  'distribution:deb',
+  'distribution:rpm',
+  'test-framework',
+  'modules:lang-expression',
+  'modules:lang-groovy',
+  'modules:lang-mustache',
+  'plugins:analysis-icu',
+  'plugins:analysis-kuromoji',
+  'plugins:analysis-phonetic',
+  'plugins:analysis-smartcn',
+  'plugins:analysis-stempel',
+  'plugins:delete-by-query',
+  'plugins:discovery-azure',
+  'plugins:discovery-ec2',
+  'plugins:discovery-gce',
+  'plugins:discovery-multicast',
+  'plugins:lang-javascript',
+  'plugins:lang-plan-a',
+  'plugins:lang-python',
+  'plugins:mapper-attachments',
+  'plugins:mapper-murmur3',
+  'plugins:mapper-size',
+  'plugins:repository-azure',
+  'plugins:repository-hdfs',
+  'plugins:repository-s3',
+  'plugins:jvm-example',
+  'plugins:site-example',
+  'plugins:store-smb',
+  'qa:evil-tests',
+  'qa:smoke-test-client',
+  'qa:smoke-test-multinode',
+  'qa:smoke-test-plugins',
+  'qa:vagrant',
+]
+
+boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+if (isEclipse) {
+  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
+  // for core-src and core-tests
+  projects << 'core-tests'
+}
+
+include projects.toArray(new String[0])
+
+if (isEclipse) {
+  project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
+  project(":core").buildFileName = 'eclipse-build.gradle'
+  project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
+  project(":core-tests").buildFileName = 'eclipse-build.gradle'
+}
+
+/**
+  * Iterates over sub directories, looking for build.gradle, and adds a project if found
+  * for that dir with the given path prefix. Note that this requires each level
+  * of the dir hiearchy to have a build.gradle. Otherwise we would have to iterate
+  * all files/directories in the source tree to find all projects.
+  */
+void addSubProjects(String path, File dir) {
+  if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
+  if (new File(dir, 'build.gradle').exists() == false) return;
+
+  String projectName = "${path}:${dir.name}"
+  include projectName
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
+
+// look for extra plugins for elasticsearch
+File xplugins = new File(rootProject.projectDir.parentFile, 'x-plugins')
+if (xplugins.exists()) {
+  include ':x-plugins'
+  project(':x-plugins').projectDir = xplugins
+  for (File extraPluginDir : xplugins.listFiles()) {
+    addSubProjects(':x-plugins', extraPluginDir)
+  }
+}
+

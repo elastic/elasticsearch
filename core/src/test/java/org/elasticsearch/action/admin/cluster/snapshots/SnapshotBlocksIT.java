@@ -30,10 +30,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,7 +84,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
     public void testCreateSnapshotWithBlocks() {
         logger.info("-->  creating a snapshot is allowed when the cluster is read only");
         try {
@@ -102,7 +100,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         assertThat(response.status(), equalTo(RestStatus.OK));
     }
 
-    @Test
     public void testCreateSnapshotWithIndexBlocks() {
         logger.info("-->  creating a snapshot is not blocked when an index is read only");
         try {
@@ -123,7 +120,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteSnapshotWithBlocks() {
         logger.info("-->  deleting a snapshot is allowed when the cluster is read only");
         try {
@@ -134,7 +130,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRestoreSnapshotWithBlocks() {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
         assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
@@ -156,7 +151,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
     }
 
-    @Test
     public void testGetSnapshotWithBlocks() {
         // This test checks that the Get Snapshot operation is never blocked, even if the cluster is read only.
         try {
@@ -169,7 +163,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSnapshotStatusWithBlocks() {
         // This test checks that the Snapshot Status operation is never blocked, even if the cluster is read only.
         try {

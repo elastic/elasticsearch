@@ -62,7 +62,7 @@ public final class CommitStats implements Streamable, ToXContent {
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(new CommitStats());
+        return in.readOptionalStreamable(CommitStats::new);
     }
 
 

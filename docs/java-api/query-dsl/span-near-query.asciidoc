@@ -5,11 +5,11 @@ See {ref}/query-dsl-span-near-query.html[Span Near Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = spanNearQuery()
-    .clause(spanTermQuery("field","value1"))    <1>
+QueryBuilder qb = spanNearQuery(
+    spanTermQuery("field","value1"),            <1>
+    12)                                         <2>
     .clause(spanTermQuery("field","value2"))    <1>
     .clause(spanTermQuery("field","value3"))    <1>
-    .slop(12)                                   <2>
     .inOrder(false)                             <3>
     .collectPayloads(false);                    <4>
 --------------------------------------------------

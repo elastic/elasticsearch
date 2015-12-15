@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * An {@ClusterInfoRequest} that fetches {@link org.elasticsearch.search.warmer.IndexWarmersMetaData} for
+ * A {@link ClusterInfoRequest} that fetches {@link org.elasticsearch.search.warmer.IndexWarmersMetaData} for
  * a list or all existing index warmers in the cluster-state
  */
 public class GetWarmersRequest extends ClusterInfoRequest<GetWarmersRequest> {

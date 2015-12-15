@@ -20,13 +20,11 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 public class LongObjectHashMapTests extends ESSingleNodeTestCase {
-
-    @Test
-    public void duel() {
+    public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
         final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);

@@ -37,8 +37,8 @@ document:
 
 Attachment datatype::
 
-    See the https://github.com/elastic/elasticsearch-mapper-attachments[mapper attachment plugin]
-    which supports indexing ``attachments'' like Microsoft Office formats, Open
+    See the {plugins}/mapper-attachments.html[`mapper-attachments`] plugin
+    which supports indexing `attachments` like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
 
 [float]

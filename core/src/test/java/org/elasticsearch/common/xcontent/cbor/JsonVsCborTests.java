@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -36,9 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class JsonVsCborTests extends ESTestCase {
-
-    @Test
-    public void compareParsingTokens() throws IOException {
+    public void testCompareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();
         XContentGenerator xsonGen = XContentFactory.xContent(XContentType.CBOR).createGenerator(xsonOs);
 

@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
@@ -47,7 +47,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -59,7 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ESExceptionTests extends ESTestCase {
     private static final ToXContent.Params PARAMS = ToXContent.EMPTY_PARAMS;
 
-    @Test
     public void testStatus() {
         ElasticsearchException exception = new ElasticsearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
@@ -142,7 +140,7 @@ public class ESExceptionTests extends ESTestCase {
                     new SearchShardTarget("node_1", "foo", 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", "foo", 2));
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1});
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", randomBoolean() ? failure1.getCause() : failure.getCause(), new ShardSearchFailure[]{failure, failure1});
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, PARAMS);
@@ -163,6 +161,21 @@ public class ESExceptionTests extends ESTestCase {
             ex.toXContent(builder, PARAMS);
             builder.endObject();
             String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
+            assertEquals(expected, builder.string());
+        }
+        {
+            ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                    new SearchShardTarget("node_1", "foo", 1));
+            ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                    new SearchShardTarget("node_1", "foo", 2));
+            NullPointerException nullPointerException = new NullPointerException();
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", nullPointerException, new ShardSearchFailure[]{failure, failure1});
+            assertEquals(nullPointerException, ex.getCause());
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            ex.toXContent(builder, PARAMS);
+            builder.endObject();
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}],\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
             assertEquals(expected, builder.string());
         }
     }
@@ -323,12 +336,7 @@ public class ESExceptionTests extends ESTestCase {
             } else {
                 assertEquals(e.getCause().getClass(), NotSerializableExceptionWrapper.class);
             }
-            // TODO: fix this test
-            // on java 9, expected:<sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)>
-            //            but was:<sun.reflect.NativeMethodAccessorImpl.invoke0(java.base@9.0/Native Method)>
-            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-                assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
-            }
+            assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), t);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), ex);

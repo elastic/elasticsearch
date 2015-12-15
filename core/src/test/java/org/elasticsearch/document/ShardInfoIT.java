@@ -19,7 +19,7 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,11 +42,9 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class ShardInfoIT extends ESIntegTestCase {
-
     private int numCopies;
     private int numNodes;
 
-    @Test
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
         IndexResponse indexResponse = client().prepareIndex("idx", "type").setSource("{}").get();
@@ -56,15 +53,13 @@ public class ShardInfoIT extends ESIntegTestCase {
         assertShardInfo(deleteResponse);
     }
 
-    @Test
     public void testUpdate() throws Exception {
         prepareIndex(1);
         UpdateResponse updateResponse = client().prepareUpdate("idx", "type", "1").setDoc("{}").setDocAsUpsert(true).get();
         assertShardInfo(updateResponse);
     }
 
-    @Test
-    public void testBulk_withIndexAndDeleteItems() throws Exception {
+    public void testBulkWithIndexAndDeleteItems() throws Exception {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
@@ -86,8 +81,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testBulk_withUpdateItems() throws Exception {
+    public void testBulkWithUpdateItems() throws Exception {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
@@ -123,11 +117,11 @@ public class ShardInfoIT extends ESIntegTestCase {
         }
     }
 
-    private void assertShardInfo(ActionWriteResponse response) {
+    private void assertShardInfo(ReplicationResponse response) {
         assertShardInfo(response, numCopies, numNodes);
     }
 
-    private void assertShardInfo(ActionWriteResponse response, int expectedTotal, int expectedSuccessful) {
+    private void assertShardInfo(ReplicationResponse response, int expectedTotal, int expectedSuccessful) {
         assertThat(response.getShardInfo().getTotal(), greaterThanOrEqualTo(expectedTotal));
         assertThat(response.getShardInfo().getSuccessful(), greaterThanOrEqualTo(expectedSuccessful));
     }

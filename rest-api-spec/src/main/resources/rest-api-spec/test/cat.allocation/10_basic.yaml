@@ -71,7 +71,7 @@
               (
                 \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
-                UNASSIGNED             \s+
+                UNASSIGNED
                 \n
               )?
             $/
@@ -134,7 +134,7 @@
                (
                  \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
-                 UNASSIGNED             \s+
+                 UNASSIGNED
                  \n
                )?
              $/
@@ -156,7 +156,7 @@
                disk.percent            \s+
                host                    \s+
                ip                      \s+
-               node                    \s+
+               node
                \n
 
               ( \s*                          #allow leading spaces to account for right-justified text
@@ -199,7 +199,7 @@
       $body: |
             /^
               disk.percent          \s+
-              node                  \s+
+              node
               \n
               (
                 \s+\d*           \s+

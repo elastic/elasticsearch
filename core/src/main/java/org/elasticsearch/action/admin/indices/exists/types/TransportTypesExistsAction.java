@@ -74,7 +74,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
                 return;
             }
 
-            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
+            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).getMappings();
             if (mappings.isEmpty()) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;

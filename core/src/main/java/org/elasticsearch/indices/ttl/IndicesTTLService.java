@@ -99,7 +99,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         try {
             this.purgerThread.shutdown();
         } catch (InterruptedException e) {
-            Thread.interrupted();
+            // we intentionally do not want to restore the interruption flag, we're about to shutdown anyway
         }
     }
 
@@ -164,7 +164,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.settings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
+                boolean disablePurge = indexMetaData.getSettings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
                 if (disablePurge) {
                     continue;
                 }
@@ -340,7 +340,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             try {
                 condition.await(timeout.millis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
-                Thread.interrupted();
+                // we intentionally do not want to restore the interruption flag, we're about to shutdown anyway
             } finally {
                 lock.unlock();
             }

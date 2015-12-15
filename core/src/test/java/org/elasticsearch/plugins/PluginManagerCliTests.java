@@ -21,19 +21,18 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.IO_ERROR;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 public class PluginManagerCliTests extends CliToolTestCase {
-
-    @Test
     public void testHelpWorks() throws IOException {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
         assertThat(new PluginManagerCliParser(terminal).execute(args("--help")), is(OK_AND_EXIT));

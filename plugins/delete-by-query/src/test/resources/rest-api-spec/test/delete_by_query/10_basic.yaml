@@ -1,5 +1,4 @@
----
-"Basic delete_by_query":
+setup:
   - do:
       index:
           index:  test_1
@@ -24,6 +23,8 @@
   - do:
       indices.refresh: {}
 
+---
+"Basic delete_by_query":
   - do:
       delete_by_query:
         index:  test_1
@@ -40,3 +41,14 @@
         index: test_1
 
   - match:  { count:     2  }
+
+---
+"Delete_by_query body without query element":
+  - do:
+      catch: request
+      delete_by_query:
+        index:  test_1
+        body:
+          match:
+            foo: bar
+

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,12 +43,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  *
  */
 public class IndexActionIT extends ESIntegTestCase {
-
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
-    @Test
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
@@ -92,7 +89,6 @@ public class IndexActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCreatedFlag() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -110,7 +106,6 @@ public class IndexActionIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testCreatedFlagWithFlush() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -126,7 +121,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreatedFlagParallelExecution() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -159,7 +153,6 @@ public class IndexActionIT extends ESIntegTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testCreatedFlagWithExternalVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -169,7 +162,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreateFlagWithBulk() {
         createIndex("test");
         ensureGreen();
@@ -181,7 +173,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreateIndexWithLongName() {
         int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
         int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;

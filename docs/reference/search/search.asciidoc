@@ -49,4 +49,3 @@ Or even search across all indices and all types:
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_search?q=tag:wow'
 --------------------------------------------------
-

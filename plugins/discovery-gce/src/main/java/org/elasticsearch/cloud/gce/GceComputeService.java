@@ -32,6 +32,9 @@ public interface GceComputeService extends LifecycleComponent<GceComputeService>
         public static final String REFRESH = "cloud.gce.refresh_interval";
         public static final String TAGS = "discovery.gce.tags";
         public static final String VERSION = "Elasticsearch/GceCloud/1.0";
+
+        public static final String RETRY = "cloud.gce.retry";
+        public static final String MAXWAIT = "cloud.gce.max_wait";
     }
 
     /**

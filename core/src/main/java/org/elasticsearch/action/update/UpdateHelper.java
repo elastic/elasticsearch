@@ -83,12 +83,13 @@ public class UpdateHelper extends AbstractComponent {
     @SuppressWarnings("unchecked")
     protected Result prepare(UpdateRequest request, final GetResult getResult) {
         long getDateNS = System.nanoTime();
+        final ShardId shardId = new ShardId(getResult.getIndex(), request.shardId());
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
-                throw new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
+                throw new DocumentMissingException(shardId, request.type(), request.id());
             }
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
-            Long ttl = indexRequest.ttl();
+            TimeValue ttl = indexRequest.ttl();
             if (request.scriptedUpsert() && request.script() != null) {
                 // Run the script to perform the create logic
                 IndexRequest upsert = request.upsertRequest();
@@ -99,7 +100,7 @@ public class UpdateHelper extends AbstractComponent {
                 ctx.put("_source", upsertDoc);
                 ctx = executeScript(request, ctx);
                 //Allow the script to set TTL using ctx._ttl
-                if (ttl < 0) {
+                if (ttl == null) {
                     ttl = getTTLFromScriptContext(ctx);
                 }
 
@@ -113,7 +114,7 @@ public class UpdateHelper extends AbstractComponent {
                         logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
                                 request.script.getScript());
                     }
-                    UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
+                    UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                             getResult.getVersion(), false);
                     update.setGetResult(getResult);
                     return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
@@ -124,7 +125,7 @@ public class UpdateHelper extends AbstractComponent {
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)
-                    .ttl(ttl == null || ttl < 0 ? null : ttl)
+                    .ttl(ttl)
                     .refresh(request.refresh())
                     .routing(request.routing())
                     .parent(request.parent())
@@ -145,13 +146,13 @@ public class UpdateHelper extends AbstractComponent {
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
-            throw new DocumentSourceMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
+            throw new DocumentSourceMissingException(shardId, request.type(), request.id());
         }
 
         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         String operation = null;
         String timestamp = null;
-        Long ttl = null;
+        TimeValue ttl = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
         String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
@@ -160,7 +161,7 @@ public class UpdateHelper extends AbstractComponent {
         if (request.script() == null && request.doc() != null) {
             IndexRequest indexRequest = request.doc();
             updatedSourceAsMap = sourceAndContent.v2();
-            if (indexRequest.ttl() > 0) {
+            if (indexRequest.ttl() != null) {
                 ttl = indexRequest.ttl();
             }
             timestamp = indexRequest.timestamp();
@@ -211,9 +212,9 @@ public class UpdateHelper extends AbstractComponent {
         // apply script to update the source
         // No TTL has been given in the update script so we keep previous TTL value if there is one
         if (ttl == null) {
-            ttl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
-            if (ttl != null) {
-                ttl = ttl - TimeValue.nsecToMSec(System.nanoTime() - getDateNS); // It is an approximation of exact TTL value, could be improved
+            Long ttlAsLong = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
+            if (ttlAsLong != null) {
+                ttl = new TimeValue(ttlAsLong - TimeValue.nsecToMSec(System.nanoTime() - getDateNS));// It is an approximation of exact TTL value, could be improved
             }
         }
 
@@ -231,12 +232,12 @@ public class UpdateHelper extends AbstractComponent {
                     .consistencyLevel(request.consistencyLevel());
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
-            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -256,17 +257,15 @@ public class UpdateHelper extends AbstractComponent {
         return ctx;
     }
 
-    private Long getTTLFromScriptContext(Map<String, Object> ctx) {
-        Long ttl = null;
+    private TimeValue getTTLFromScriptContext(Map<String, Object> ctx) {
         Object fetchedTTL = ctx.get("_ttl");
         if (fetchedTTL != null) {
             if (fetchedTTL instanceof Number) {
-                ttl = ((Number) fetchedTTL).longValue();
-            } else {
-                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl").millis();
+                return new TimeValue(((Number) fetchedTTL).longValue());
             }
+            return TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl");
         }
-        return ttl;
+        return null;
     }
 
     /**
@@ -337,13 +336,10 @@ public class UpdateHelper extends AbstractComponent {
         }
     }
 
-    public static enum Operation {
-
+    public enum Operation {
         UPSERT,
         INDEX,
         DELETE,
         NONE
-
     }
-
 }

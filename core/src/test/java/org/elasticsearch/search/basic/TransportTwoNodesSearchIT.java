@@ -25,10 +25,10 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -52,7 +51,6 @@ import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -122,7 +120,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .endObject();
     }
 
-    @Test
     public void testDfsQueryThenFetch() throws Exception {
         Settings.Builder settingsBuilder = settingsBuilder()
             .put(indexSettings())
@@ -131,7 +128,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .settings(settingsBuilder))
             .actionGet();
         ensureGreen();
-        
+
         // we need to have age (ie number of repeats of "test" term) high enough
         // to produce the same 8-bit norm for all docs here, so that
         // the tf is basically the entire score (assuming idf is fixed, which
@@ -162,7 +159,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testDfsQueryThenFetchWithSort() throws Exception {
         prepareData();
 
@@ -187,7 +183,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryThenFetch() throws Exception {
         prepareData();
 
@@ -212,7 +207,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryThenFetchWithFrom() throws Exception {
         Set<String> fullExpectedIds = prepareData();
 
@@ -241,7 +235,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat(collectedIds, equalTo(fullExpectedIds));
     }
 
-    @Test
     public void testQueryThenFetchWithSort() throws Exception {
         prepareData();
 
@@ -266,7 +259,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryAndFetch() throws Exception {
         prepareData(3);
 
@@ -306,7 +298,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test
     public void testDfsQueryAndFetch() throws Exception {
         prepareData(3);
 
@@ -335,7 +326,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         do {
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
-    
+
             assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
             assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
             for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
@@ -348,7 +339,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test
     public void testSimpleFacets() throws Exception {
         prepareData();
 
@@ -370,7 +360,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat(all.getDocCount(), equalTo(100l));
     }
 
-    @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         prepareData();
 
@@ -378,7 +367,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
+            SearchResponse searchResponse = client().search(
+                    searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz")))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -388,9 +378,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             // all is well
         }
         logger.info("Done Testing failed search");
-    }
+     }
 
-    @Test
     public void testFailedSearchWithWrongFrom() throws Exception {
         prepareData();
 
@@ -421,7 +410,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
     }
 
-    @Test
     public void testFailedMultiSearchWithWrongQuery() throws Exception {
         prepareData();
 
@@ -445,8 +433,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
     }
 
-    @Test
-    public void testFailedMultiSearchWithWrongQuery_withFunctionScore() throws Exception {
+    public void testFailedMultiSearchWithWrongQueryWithFunctionScore() throws Exception {
         prepareData();
 
         logger.info("Start Testing failed multi search with a wrong query");

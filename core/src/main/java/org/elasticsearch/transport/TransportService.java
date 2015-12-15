@@ -484,7 +484,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         protected void traceResponseSent(long requestId, String action, Throwable t) {
-            tracerLog.trace("[{}][{}] sent error response (error: [{}])", requestId, action, t.getMessage());
+            tracerLog.trace("[{}][{}] sent error response", t, requestId, action);
         }
 
         @Override

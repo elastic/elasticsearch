@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBuilder> {
-
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
@@ -53,7 +51,6 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new SpanOrQueryBuilder(null);
@@ -69,5 +66,41 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         } catch (IllegalArgumentException e) {
             // expected
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_or\" : {\n" + 
+                "    \"clauses\" : [ {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value1\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value2\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value3\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    } ],\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanOrQueryBuilder parsed = (SpanOrQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 3, parsed.clauses().size());
     }
 }

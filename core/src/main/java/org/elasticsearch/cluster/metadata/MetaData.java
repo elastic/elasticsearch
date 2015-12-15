@@ -27,7 +27,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
@@ -52,8 +52,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -184,8 +184,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            totalNumberOfShards += cursor.value.totalNumberOfShards();
-            numberOfShards += cursor.value.numberOfShards();
+            totalNumberOfShards += cursor.value.getTotalNumberOfShards();
+            numberOfShards += cursor.value.getNumberOfShards();
         }
         this.totalNumberOfShards = totalNumberOfShards;
         this.numberOfShards = numberOfShards;
@@ -353,7 +353,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             } else {
                 filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
                         filteredMappings.put(cursor.key, cursor.value);
                     }
@@ -639,9 +639,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            indices = DiffableUtils.diff(before.indices, after.indices);
-            templates = DiffableUtils.diff(before.templates, after.templates);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
@@ -649,16 +649,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData.PROTO);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData.PROTO);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
+                public Custom read(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readDiffFrom(in);
                 }
             });
@@ -744,11 +745,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** All known byte-sized cluster settings. */
     public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
-        RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC));
+        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC));
 
 
     /** All known time cluster settings. */
@@ -854,19 +852,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // we know its a new one, increment the version and store
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex(), indexMetaData);
             return this;
         }
 
         public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
-            if (indices.get(indexMetaData.index()) == indexMetaData) {
+            if (indices.get(indexMetaData.getIndex()) == indexMetaData) {
                 return this;
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
-                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.version() + 1).build();
+                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex(), indexMetaData);
             return this;
         }
 
@@ -937,7 +935,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     throw new IndexNotFoundException(index);
                 }
                 put(IndexMetaData.builder(indexMetaData)
-                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
+                        .settings(settingsBuilder().put(indexMetaData.getSettings()).put(settings)));
             }
             return this;
         }
@@ -1003,7 +1001,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
             List<String> allIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.index());
+                allIndicesLst.add(cursor.value.getIndex());
             }
             String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
@@ -1011,10 +1009,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             List<String> allClosedIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.index());
-                } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.index());
+                if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                    allOpenIndicesLst.add(indexMetaData.getIndex());
+                } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    allClosedIndicesLst.add(indexMetaData.getIndex());
                 }
             }
             String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
@@ -1028,12 +1026,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex.Alias aliasOrIndex = (AliasOrIndex.Alias) aliasAndIndexLookup.get(aliasMetaData.getAlias());
+                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
                     if (aliasOrIndex == null) {
                         aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
+                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                        alias.addIndex(indexMetaData);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
+                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index [" + index.getIndex().getIndex() + "] have the same name");
                     } else {
-                        aliasOrIndex.addIndex(indexMetaData);
+                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }
                 }
             }

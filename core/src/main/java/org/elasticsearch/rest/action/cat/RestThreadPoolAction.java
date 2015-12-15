@@ -62,7 +62,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.GET,
             ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.OPTIMIZE,
+            ThreadPool.Names.FORCE_MERGE,
             ThreadPool.Names.PERCOLATE,
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
@@ -78,7 +78,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "g",
             "i",
             "ma",
-            "o",
+            "fm",
             "p",
             "r",
             "s",
@@ -288,7 +288,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     }
                 }
 
-                table.addCell(poolInfo == null  ? null : poolInfo.getType());
+                table.addCell(poolInfo == null  ? null : poolInfo.getThreadPoolType().getType());
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());

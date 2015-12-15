@@ -20,51 +20,52 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class HasChildQueryParserTests extends ESTestCase {
-
-    @Test
-    public void minFromString() {
+    public void testMinFromString() {
         assertThat("fromString(min) != MIN", ScoreMode.Min, equalTo(HasChildQueryParser.parseScoreMode("min")));
     }
 
-    @Test
-    public void maxFromString() {
+    public void testMaxFromString() {
         assertThat("fromString(max) != MAX", ScoreMode.Max, equalTo(HasChildQueryParser.parseScoreMode("max")));
     }
 
-    @Test
-    public void avgFromString() {
+    public void testAvgFromString() {
         assertThat("fromString(avg) != AVG", ScoreMode.Avg, equalTo(HasChildQueryParser.parseScoreMode("avg")));
     }
 
-    @Test
-    public void sumFromString() {
+    public void testSumFromString() {
         assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(HasChildQueryParser.parseScoreMode("total")));
     }
 
-    @Test
-    public void noneFromString() {
+    public void testNoneFromString() {
         assertThat("fromString(none) != NONE", ScoreMode.None, equalTo(HasChildQueryParser.parseScoreMode("none")));
     }
 
     /**
      * Should throw {@link IllegalArgumentException} instead of NPE.
      */
-    @Test(expected = IllegalArgumentException.class)
-    public void nullFromString_throwsException() {
-        HasChildQueryParser.parseScoreMode(null);
+    public void testThatNullFromStringThrowsException() {
+        try {
+            HasChildQueryParser.parseScoreMode(null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No score mode for child query [null] found"));
+        }
     }
 
     /**
      * Failure should not change (and the value should never match anything...).
      */
-    @Test(expected = IllegalArgumentException.class)
-    public void unrecognizedFromString_throwsException() {
-        HasChildQueryParser.parseScoreMode("unrecognized value");
+    public void testThatUnrecognizedFromStringThrowsException() {
+        try {
+            HasChildQueryParser.parseScoreMode("unrecognized value");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No score mode for child query [unrecognized value] found"));
+        }
     }
 }

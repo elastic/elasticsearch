@@ -19,14 +19,10 @@
 
 package org.elasticsearch.plugin.analysis.stempel;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.pl.PolishIndicesAnalysisModule;
+import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
+import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
-import java.util.Collections;
 
 /**
  *
@@ -43,12 +39,8 @@ public class AnalysisStempelPlugin extends Plugin {
         return "Stempel (Polish) analysis support";
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new PolishIndicesAnalysisModule());
-    }
-
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new PolishAnalysisBinderProcessor());
+        module.registerAnalyzer("polish", PolishAnalyzerProvider::new);
+        module.registerTokenFilter("polish_stem", PolishStemTokenFilterFactory::new);
     }
 }

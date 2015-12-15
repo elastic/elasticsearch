@@ -68,7 +68,7 @@ public class ShadowEngine extends Engine {
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
-        final long nonexistentRetryTime = engineConfig.getIndexSettings()
+        final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
                 .getMillis();
         try {
@@ -202,8 +202,6 @@ public class ShadowEngine extends Engine {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 
-
-
     @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
@@ -221,11 +219,6 @@ public class ShadowEngine extends Engine {
                 store.decRef();
             }
         }
-    }
-
-    @Override
-    public boolean hasUncommittedChanges() {
-        return false;
     }
 
     @Override

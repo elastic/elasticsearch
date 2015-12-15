@@ -21,8 +21,8 @@ package org.elasticsearch.search.suggest.term;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
@@ -39,8 +39,8 @@ public final class TermSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
-            IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
+             HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         TermSuggestionContext suggestion = new TermSuggestionContext(suggester);
@@ -49,7 +49,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                parseTokenValue(parser, mapperService, fieldName, suggestion, settings, queryParserService.parseFieldMatcher());
+                parseTokenValue(parser, mapperService, fieldName, suggestion, settings, mapperService.getIndexSettings().getParseFieldMatcher());
             } else {
                 throw new IllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
             }

@@ -78,7 +78,7 @@ public class NettyTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         if (transport.compress) {
-            options.withCompress(true);
+            options = TransportResponseOptions.builder(options).withCompress(transport.compress).build();
         }
 
         byte status = 0;

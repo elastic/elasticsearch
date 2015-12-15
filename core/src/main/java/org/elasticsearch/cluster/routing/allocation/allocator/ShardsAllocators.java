@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -74,9 +74,25 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
         return changed;
     }
 
+    protected long nanoTime() {
+        return System.nanoTime();
+    }
+
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
-        return allocator.rebalance(allocation);
+        if (allocation.hasPendingAsyncFetch() == false) {
+            /*
+             * see https://github.com/elastic/elasticsearch/issues/14387
+             * if we allow rebalance operations while we are still fetching shard store data
+             * we might end up with unnecessary rebalance operations which can be super confusion/frustrating
+             * since once the fetches come back we might just move all the shards back again.
+             * Therefore we only do a rebalance if we have fetched all information.
+             */
+            return allocator.rebalance(allocation);
+        } else {
+            logger.debug("skipping rebalance due to in-flight shard/store fetches");
+            return false;
+        }
     }
 
     @Override

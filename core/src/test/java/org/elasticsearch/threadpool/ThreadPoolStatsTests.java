@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThreadPoolStatsTests extends ESTestCase {
-
-    @Test
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));
@@ -64,7 +61,6 @@ public class ThreadPoolStatsTests extends ESTestCase {
         assertThat(threads, contains(-1, -1, 1, 2, 3,-1,-1));
     }
 
-    @Test
     public void testThreadPoolStatsToXContent() throws IOException {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 
@@ -73,7 +69,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.OPTIMIZE, -1, 0, 0, 0, 0, 0L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.PERCOLATE, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
 
@@ -105,8 +101,8 @@ public class ThreadPoolStatsTests extends ESTestCase {
                     parser.skipChildren();
                     token = parser.nextToken();
                 }
-                assertThat(names, contains(ThreadPool.Names.GENERIC,
-                        ThreadPool.Names.OPTIMIZE,
+                assertThat(names, contains(ThreadPool.Names.FORCE_MERGE,
+                        ThreadPool.Names.GENERIC,
                         ThreadPool.Names.PERCOLATE,
                         ThreadPool.Names.SAME,
                         ThreadPool.Names.SEARCH,

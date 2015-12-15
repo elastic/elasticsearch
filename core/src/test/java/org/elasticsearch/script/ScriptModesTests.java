@@ -22,12 +22,10 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,11 +39,12 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.containsString;
 
 // TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
     private static final Set<String> ALL_LANGS = unmodifiableSet(
-            newHashSet(MustacheScriptEngineService.NAME, "custom", "test"));
+            newHashSet("custom", "test"));
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
@@ -73,7 +72,6 @@ public class ScriptModesTests extends ESTestCase {
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(newHashSet(
-                new MustacheScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
@@ -93,8 +91,8 @@ public class ScriptModesTests extends ESTestCase {
     public void assertAllSettingsWereChecked() {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
-            //3 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-            int numberOfSettings = 3 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            //2 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
+            int numberOfSettings = 2 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -102,21 +100,23 @@ public class ScriptModesTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
-        scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+        try {
+            scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not found for lang [non_existing]"));
+        }
     }
 
-    @Test
     public void testScriptTypeGenericSettings() {
         int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
         Set<ScriptType> randomScriptTypesSet = new HashSet<>();
@@ -149,7 +149,6 @@ public class ScriptModesTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testScriptContextGenericSettings() {
         int randomInt = randomIntBetween(1, scriptContexts.length - 1);
         Set<ScriptContext> randomScriptContextsSet = new HashSet<>();
@@ -177,7 +176,6 @@ public class ScriptModesTests extends ESTestCase {
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, complementOf);
     }
 
-    @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
         Settings.Builder builder = Settings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
@@ -188,22 +186,6 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, complementOf);
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
-    }
-
-    @Test
-    public void testInteractionBetweenGenericAndEngineSpecificSettings() {
-        Settings.Builder builder = Settings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
-                .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.AGGS), randomFrom(ENABLE_VALUES))
-                .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.SEARCH), randomFrom(ENABLE_VALUES));
-        Set<String> mustacheLangSet = singleton(MustacheScriptEngineService.NAME);
-        Set<String> allButMustacheLangSet = new HashSet<>(ALL_LANGS);
-        allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
-        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
-        assertScriptModes(ScriptMode.ON, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH);
-        assertScriptModes(ScriptMode.OFF, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, complementOf(ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH));
-        assertScriptModesAllOps(ScriptMode.OFF, allButMustacheLangSet, ScriptType.INLINE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
     }
 
     private void assertScriptModesAllOps(ScriptMode expectedScriptMode, Set<String> langs, ScriptType... scriptTypes) {

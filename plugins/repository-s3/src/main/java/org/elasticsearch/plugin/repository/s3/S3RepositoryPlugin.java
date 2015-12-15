@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.s3.S3Repository;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,11 +39,10 @@ import java.util.Collections;
  *
  */
 public class S3RepositoryPlugin extends Plugin {
-    
+
+    // ClientConfiguration clinit has some classloader problems
+    // TODO: fix that
     static {
-        // This internal config is deserialized but with wrong access modifiers,
-        // cannot work without suppressAccessChecks permission right now. We force
-        // a one time load with elevated privileges as a workaround.
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -51,9 +51,9 @@ public class S3RepositoryPlugin extends Plugin {
             @Override
             public Void run() {
                 try {
-                    Class.forName("com.amazonaws.internal.config.InternalConfig$Factory");
+                    Class.forName("com.amazonaws.ClientConfiguration");
                 } catch (ClassNotFoundException e) {
-                    throw new RuntimeException("Unable to initialize internal aws config", e);
+                    throw new RuntimeException(e);
                 }
                 return null;
             }

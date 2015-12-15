@@ -19,56 +19,24 @@
 
 // Default security policy file.
 // On startup, BootStrap reads environment and adds additional permissions
-// for configured paths to these.
+// for configured paths and network binding to these.
 
-//// System code permissions:
-//// These permissions apply to the JDK itself:
+//// SecurityManager impl:
+//// Must have all permissions to properly perform access checks
 
-grant codeBase "file:${{java.ext.dirs}}/*" {
+grant codeBase "${codebase.securesm-1.0.jar}" {
   permission java.security.AllPermission;
 };
 
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${es.security.jar.lucene.core}" {
+grant codeBase "${codebase.lucene-core-5.5.0-snapshot-1719088.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-//// test framework permissions.
-//// These are mock objects and test management that we allow test framework libs
-//// to provide on our behalf. But tests themselves cannot do this stuff!
-
-grant codeBase "${es.security.jar.elasticsearch.securemock}" {
-  // needed to access ReflectionFactory (see below)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed to support creation of mocks
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
-  // needed for spy interception, etc
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.lucene.testframework}" {
-  // needed by RamUsageTester
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.runner}" {
-  // optionally needed for access to private test methods (e.g. beforeClass)
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for top threads handling
-  permission java.lang.RuntimePermission "modifyThreadGroup";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
-  // needed for gson serialization
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for stream redirection
-  permission java.lang.RuntimePermission "setIO";
+  // NOTE: also needed for RAMUsageEstimator size calculations
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Everything else:
@@ -80,36 +48,60 @@ grant {
   permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
-  permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
+  permission java.net.SocketPermission "*", "accept,connect,resolve";
 
-  // Allow read/write to all system properties
-  permission java.util.PropertyPermission "*", "read,write";
+  // Allow read access to all system properties
+  permission java.util.PropertyPermission "*", "read";
 
-  // needed by lucene SPI currently 
-  permission java.lang.RuntimePermission "getClassLoader";
+  // TODO: clean all these property writes up, and don't allow any more in. these are all bogus!
+
+  // LuceneTestCase randomization (locale/timezone/cpus/ssd)
+  // TODO: put these in doPrivileged and move these to test-framework.policy
+  permission java.util.PropertyPermission "user.language", "write";
+  permission java.util.PropertyPermission "user.timezone", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_core_count", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_spins", "write";
+  // messiness in LuceneTestCase: do the above, or clean this up, or simply allow to fail if its denied
+  permission java.util.PropertyPermission "solr.solr.home", "write";
+  permission java.util.PropertyPermission "solr.data.dir", "write";
+  permission java.util.PropertyPermission "solr.directoryFactory", "write";
+
+  // set by ESTestCase to improve test reproducibility
+  // TODO: set this with gradle or some other way that repros with seed?
+  permission java.util.PropertyPermission "es.processors.override", "write";
+  // set by CLIToolTestCase
+  // TODO: do this differently? or test commandline tools differently?
+  permission java.util.PropertyPermission "es.default.path.home", "write";
+
+  // TODO: these simply trigger a noisy warning if its unable to clear the properties
+  // fix that in randomizedtesting
+  permission java.util.PropertyPermission "junit4.childvm.count", "write";
+  permission java.util.PropertyPermission "junit4.childvm.id", "write";
+
+  // set by NettyTransport/NettyHttpServerTransport based on another parameter
+  // TODO: look into this and decide if users should simply set the actual sysprop?!
+  permission java.util.PropertyPermission "org.jboss.netty.epollBugWorkaround", "write";
+
+  // Netty SelectorUtil wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+  // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+  permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by ES threadpool termination... clean this up
-  // otherwise can be provided only to test libraries
+  // thread permission for the same thread group and ancestor groups
+  // (this logic is more strict than the JDK, see SecureSM)
   permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "modifyThreadGroup";
 
   // needed by ExceptionSerializationTests and RestTestCase for
   // some hackish things they do. otherwise only needed by groovy 
   // (TODO: clean this up?)
   permission java.lang.RuntimePermission "getProtectionDomain";
   
-  // likely not low hanging fruit...
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-
   // needed by HotThreads and potentially more
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
-
-  // needed by ESTestCase for leniency of thread exceptions (?!)
-  // otherwise can be provided only to test libraries
-  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
@@ -118,18 +110,9 @@ grant {
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "fileSystemProvider";
 
-  // needed by plugin manager to set unix permissions
-  permission java.lang.RuntimePermission "accessUserInformation";
-
   // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
-
-  // needed to install SSLFactories, advanced SSL configuration, etc.
-  permission java.lang.RuntimePermission "setFactory";
-  
-  // needed to allow installation of bouncycastle crypto provider
-  permission java.security.SecurityPermission "putProviderProperty.BC";
 };

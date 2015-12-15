@@ -22,13 +22,12 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
@@ -65,11 +64,11 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final Names fieldNames = fieldType.names();
-            return new BytesBinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
+            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
         }
 
     }

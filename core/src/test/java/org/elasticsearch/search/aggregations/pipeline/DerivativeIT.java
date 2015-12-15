@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -167,8 +166,7 @@ public class DerivativeIT extends ESIntegTestCase {
     /**
      * test first and second derivative on the sing
      */
-    @Test
-    public void docCountDerivative() {
+    public void testDocCountDerivative() {
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -208,9 +206,7 @@ public class DerivativeIT extends ESIntegTestCase {
     /**
      * test first and second derivative on the sing
      */
-    @Test
-    public void singleValuedField_normalised() {
-
+    public void testSingleValuedField_normalised() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -248,8 +244,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueAggDerivative() throws Exception {
+    public void testSingleValueAggDerivative() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -294,8 +289,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValueAggDerivative() throws Exception {
+    public void testMultiValueAggDerivative() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -340,8 +334,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
@@ -356,8 +349,7 @@ public class DerivativeIT extends ESIntegTestCase {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
@@ -385,8 +377,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void docCountDerivativeWithGaps() throws Exception {
+    public void testDocCountDerivativeWithGaps() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -414,8 +405,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void docCountDerivativeWithGaps_random() throws Exception {
+    public void testDocCountDerivativeWithGaps_random() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx_rnd")
                 .setQuery(matchAllQuery())
@@ -445,8 +435,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void docCountDerivativeWithGaps_insertZeros() throws Exception {
+    public void testDocCountDerivativeWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -475,8 +464,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueAggDerivativeWithGaps() throws Exception {
+    public void testSingleValueAggDerivativeWithGaps() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -517,8 +505,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueAggDerivativeWithGaps_insertZeros() throws Exception {
+    public void testSingleValueAggDerivativeWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -556,8 +543,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueAggDerivativeWithGaps_random() throws Exception {
+    public void testSingleValueAggDerivativeWithGaps_random() throws Exception {
         GapPolicy gapPolicy = randomFrom(GapPolicy.values());
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx_rnd")
@@ -600,8 +586,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueAggDerivative_invalidPath() throws Exception {
+    public void testSingleValueAggDerivative_invalidPath() throws Exception {
         try {
             client().prepareSearch("idx")
                     .addAggregation(

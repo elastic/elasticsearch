@@ -219,8 +219,9 @@ public class DateFieldMapper extends NumberFieldMapper {
 
             @Override
             public Query rewrite(IndexReader reader) throws IOException {
-                if (getBoost() != 1.0F) {
-                    return super.rewrite(reader);
+                Query rewritten = super.rewrite(reader);
+                if (rewritten != this) {
+                    return rewritten;
                 }
                 return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
             }
@@ -229,11 +230,9 @@ public class DateFieldMapper extends NumberFieldMapper {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
                 if (!super.equals(o)) return false;
 
                 LateParsingQuery that = (LateParsingQuery) o;
-
                 if (includeLower != that.includeLower) return false;
                 if (includeUpper != that.includeUpper) return false;
                 if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
@@ -245,13 +244,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
             @Override
             public int hashCode() {
-                int result = super.hashCode();
-                result = 31 * result + (lowerTerm != null ? lowerTerm.hashCode() : 0);
-                result = 31 * result + (upperTerm != null ? upperTerm.hashCode() : 0);
-                result = 31 * result + (includeLower ? 1 : 0);
-                result = 31 * result + (includeUpper ? 1 : 0);
-                result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
-                return result;
+                return Objects.hash(super.hashCode(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
             }
 
             @Override

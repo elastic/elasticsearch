@@ -43,12 +43,12 @@ public class Queries {
         return new BooleanQuery.Builder().build();
     }
 
-    public static Filter newNestedFilter() {
-        return new QueryWrapperFilter(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
+    public static Query newNestedFilter() {
+        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
     }
 
-    public static Filter newNonNestedFilter() {
-        return new QueryWrapperFilter(not(newNestedFilter()));
+    public static Query newNonNestedFilter() {
+        return not(newNestedFilter());
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -70,7 +70,7 @@ public class Queries {
             .build();
     }
 
-    public static boolean isNegativeQuery(Query q) {
+    private static boolean isNegativeQuery(Query q) {
         if (!(q instanceof BooleanQuery)) {
             return false;
         }
@@ -101,15 +101,13 @@ public class Queries {
     public static boolean isConstantMatchAllQuery(Query query) {
         if (query instanceof ConstantScoreQuery) {
             return isConstantMatchAllQuery(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof QueryWrapperFilter) {
-            return isConstantMatchAllQuery(((QueryWrapperFilter) query).getQuery());
         } else if (query instanceof MatchAllDocsQuery) {
             return true;
         }
         return false;
     }
 
-    public static BooleanQuery applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {
+    public static Query applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {
         if (minimumShouldMatch == null) {
             return query;
         }
@@ -129,10 +127,13 @@ public class Queries {
             }
             builder.setMinimumNumberShouldMatch(msm);
             BooleanQuery bq = builder.build();
-            bq.setBoost(query.getBoost());
-            query = bq;
+            if (query.getBoost() != 1f) {
+                return new BoostQuery(bq, query.getBoost());
+            }
+            return bq;
+        } else {
+            return query;
         }
-        return query;
     }
 
     private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 import java.io.IOException;
 
@@ -60,8 +59,7 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
         return builder.build();
     }
 
-    @Test
-    public void simpleOnlyMasterNodeElection() throws IOException {
+    public void testSimpleOnlyMasterNodeElection() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode();
         try {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.CommitStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
     private ShardStats[] shards;
 
-    private Map<ShardRouting, CommonStats> shardStatsMap;
+    private Map<ShardRouting, ShardStats> shardStatsMap;
 
     IndicesStatsResponse() {
 
@@ -56,11 +57,11 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         this.shards = shards;
     }
 
-    public Map<ShardRouting, CommonStats> asMap() {
+    public Map<ShardRouting, ShardStats> asMap() {
         if (this.shardStatsMap == null) {
-            Map<ShardRouting, CommonStats> shardStatsMap = new HashMap<>();
+            Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
             for (ShardStats ss : shards) {
-                shardStatsMap.put(ss.getShardRouting(), ss.getStats());
+                shardStatsMap.put(ss.getShardRouting(), ss);
             }
             this.shardStatsMap = unmodifiableMap(shardStatsMap);
         }

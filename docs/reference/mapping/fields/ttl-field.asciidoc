@@ -62,7 +62,7 @@ PUT my_index
     "my_type": {
       "_ttl": {
         "enabled": true,
-        "defaut": "5m"
+        "default": "5m"
       }
     }
   }

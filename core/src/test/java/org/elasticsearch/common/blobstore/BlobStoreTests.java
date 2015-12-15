@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,8 +40,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreTests extends ESTestCase {
-
-    @Test
     public void testWriteRead() throws IOException {
         final BlobStore store = newBlobStore();
         final BlobContainer container = store.blobContainer(new BlobPath());
@@ -62,7 +59,6 @@ public class BlobStoreTests extends ESTestCase {
         store.close();
     }
 
-    @Test
     public void testMoveAndList() throws IOException {
         final BlobStore store = newBlobStore();
         final BlobContainer container = store.blobContainer(new BlobPath());

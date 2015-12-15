@@ -61,7 +61,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("field", fieldName);
+        builder.field(ExistsQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -72,7 +72,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery();

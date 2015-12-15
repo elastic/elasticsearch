@@ -47,9 +47,9 @@ public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBui
 
     @Override
     public TransportRequestOptions transportOptions(Settings settings) {
-        return TransportRequestOptions.options()
+        return TransportRequestOptions.builder()
                 .withType(TransportRequestOptions.Type.BULK)
                 .withCompress(settings.getAsBoolean("action.bulk.compress", true)
-                );
+                ).build();
     }
 }

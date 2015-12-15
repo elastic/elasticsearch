@@ -29,25 +29,28 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
+import static org.hamcrest.Matchers.containsString;
 
+public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        int startPort = 11000 + randomIntBetween(0, 255);
-        int endPort = startPort + 10;
-        settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+        settings = Settings.builder().put(settings).put("transport.tcp.port", "0").build();
         MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, namedWriteableRegistry), threadPool);
         transportService.start();
         return transportService;
     }
 
-    @Test(expected = ConnectTransportException.class)
     public void testConnectException() throws UnknownHostException {
-        serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
+        try {
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
+            fail("Expected ConnectTransportException");
+        } catch (ConnectTransportException e) {
+            assertThat(e.getMessage(), containsString("connect_timeout"));
+            assertThat(e.getMessage(), containsString("[localhost/127.0.0.1:9876]"));
+        }
     }
 }

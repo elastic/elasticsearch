@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,8 @@ import java.io.IOException;
  * Parser for exists query
  */
 public class ExistsQueryParser implements QueryParser<ExistsQueryBuilder> {
+
+    public static final ParseField FIELD_FIELD = new ParseField("field");
 
     @Override
     public String[] names() {
@@ -48,20 +51,22 @@ public class ExistsQueryParser implements QueryParser<ExistsQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("field".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
                     fieldPattern = parser.text();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[exists] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
         if (fieldPattern == null) {
-            throw new ParsingException(parser.getTokenLocation(), "exists must be provided with a [field]");
+            throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] must be provided with a [field]");
         }
 
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);

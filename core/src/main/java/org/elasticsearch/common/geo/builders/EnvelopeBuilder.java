@@ -21,13 +21,19 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
 public class EnvelopeBuilder extends ShapeBuilder {
 
-    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE; 
+    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
+    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder();
 
     protected Coordinate topLeft;
     protected Coordinate bottomRight;
@@ -61,7 +67,8 @@ public class EnvelopeBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
+        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_COORDINATES);
         toXContent(builder, topLeft);
         toXContent(builder, bottomRight);
@@ -77,5 +84,39 @@ public class EnvelopeBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(orientation, topLeft, bottomRight);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        EnvelopeBuilder other = (EnvelopeBuilder) obj;
+        return Objects.equals(orientation, other.orientation) &&
+                Objects.equals(topLeft, other.topLeft) &&
+                Objects.equals(bottomRight, other.bottomRight);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(orientation == Orientation.RIGHT);
+        writeCoordinateTo(topLeft, out);
+        writeCoordinateTo(bottomRight, out);
+    }
+
+    @Override
+    public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
+        Orientation orientation = in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
+        return new EnvelopeBuilder(orientation)
+                .topLeft(readCoordinateFrom(in))
+                .bottomRight(readCoordinateFrom(in));
     }
 }

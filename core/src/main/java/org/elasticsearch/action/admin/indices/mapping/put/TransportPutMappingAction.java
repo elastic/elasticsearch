@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,25 +68,30 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
     @Override
     protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices).type(request.type())
-                .updateAllTypes(request.updateAllTypes())
-                .source(request.source());
+        try {
+            final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
+                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                    .indices(concreteIndices).type(request.type())
+                    .updateAllTypes(request.updateAllTypes())
+                    .source(request.source());
 
-        metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+            metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
-            }
+                @Override
+                public void onResponse(ClusterStateUpdateResponse response) {
+                    listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
+                }
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to put mappings on indices [{}], type [{}]", t, concreteIndices, request.type());
-                listener.onFailure(t);
-            }
-        });
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("failed to put mappings on indices [{}], type [{}]", t, concreteIndices, request.type());
+                    listener.onFailure(t);
+                }
+            });
+        } catch (IndexNotFoundException ex) {
+            logger.debug("failed to put mappings on indices [{}], type [{}]", ex, request.indices(), request.type());
+            throw ex;
+        }
     }
 }

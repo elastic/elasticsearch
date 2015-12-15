@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -129,9 +128,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.type());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -154,6 +153,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String parentType) {
+            return new ParentFieldMapper(indexSettings, fieldType, parentType);
         }
     }
 
@@ -220,8 +224,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
 
-            List<String> types = new ArrayList<>(context.mapperService().types().size());
-            for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
+            List<String> types = new ArrayList<>(context.getMapperService().types().size());
+            for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
                 if (!documentMapper.parentFieldMapper().active()) {
                     types.add(documentMapper.type());
                 }
@@ -249,7 +253,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     // has no impact of field data settings, is just here for creating a join field, the parent field mapper in the child type pointing to this type determines the field data settings for this join field
     private final MappedFieldType parentJoinFieldType;
 
-    protected ParentFieldMapper(MappedFieldType fieldType, MappedFieldType parentJoinFieldType, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
+    private ParentFieldMapper(MappedFieldType fieldType, MappedFieldType parentJoinFieldType, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.parentType = parentType;
         this.parentJoinFieldType = parentJoinFieldType;
@@ -260,7 +264,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public ParentFieldMapper(Settings indexSettings, MappedFieldType existing, String parentType) {
+    private ParentFieldMapper(Settings indexSettings, MappedFieldType existing, String parentType) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), joinFieldTypeForParentType(parentType, indexSettings), null, null, indexSettings);
     }
 
@@ -367,7 +371,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         super.merge(mergeWith, mergeResult);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {

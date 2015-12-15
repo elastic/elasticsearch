@@ -21,7 +21,8 @@ package org.elasticsearch.rest.action.admin.indices.analyze;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +48,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestAnalyzeAction extends BaseRestHandler {
 
+    public static class Fields {
+        public static final ParseField ANALYZER = new ParseField("analyzer");
+        public static final ParseField TEXT = new ParseField("text");
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField TOKENIZER = new ParseField("tokenizer");
+        public static final ParseField TOKEN_FILTERS = new ParseField("token_filters", "filters");
+        public static final ParseField CHAR_FILTERS = new ParseField("char_filters");
+        public static final ParseField EXPLAIN = new ParseField("explain");
+        public static final ParseField ATTRIBUTES = new ParseField("attributes");
+    }
+
     @Inject
     public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
@@ -68,6 +80,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.tokenizer(request.param("tokenizer"));
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
         analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
+        analyzeRequest.explain(request.paramAsBoolean("explain", false));
+        analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
@@ -78,14 +92,14 @@ public class RestAnalyzeAction extends BaseRestHandler {
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
-                buildFromContent(RestActions.getRestContent(request), analyzeRequest);
+                buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
             }
         }
 
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) {
+    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malforrmed content, must start with an object");
@@ -95,9 +109,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.text(parser.text());
-                    } else if ("text".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.START_ARRAY) {
                         List<String> texts = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
@@ -105,14 +119,14 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             texts.add(parser.text());
                         }
-                        analyzeRequest.text(texts.toArray(Strings.EMPTY_ARRAY));
-                    } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.text(texts.toArray(new String[texts.size()]));
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ANALYZER) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.analyzer(parser.text());
-                    } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.FIELD) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.field(parser.text());
-                    } else if ("tokenizer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKENIZER) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.tokenizer(parser.text());
-                    } else if (("token_filters".equals(currentFieldName) || "filters".equals(currentFieldName)) && token == XContentParser.Token.START_ARRAY) {
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKEN_FILTERS) && token == XContentParser.Token.START_ARRAY) {
                         List<String> filters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
@@ -120,8 +134,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             filters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(filters.toArray(Strings.EMPTY_ARRAY));
-                    } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                        analyzeRequest.tokenFilters(filters.toArray(new String[filters.size()]));
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS) && token == XContentParser.Token.START_ARRAY) {
                         List<String> charFilters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
@@ -129,7 +143,18 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             charFilters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(charFilters.toArray(Strings.EMPTY_ARRAY));
+                        analyzeRequest.charFilters(charFilters.toArray(new String[charFilters.size()]));
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN) && token == XContentParser.Token.VALUE_BOOLEAN) {
+                        analyzeRequest.explain(parser.booleanValue());
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY){
+                        List<String> attributes = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException(currentFieldName + " array element should only contain attribute name");
+                            }
+                            attributes.add(parser.text());
+                        }
+                        analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
                     } else {
                         throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }

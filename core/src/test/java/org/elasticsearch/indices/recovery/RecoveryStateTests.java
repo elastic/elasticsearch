@@ -28,7 +28,6 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.*;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,9 +40,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 public class RecoveryStateTests extends ESTestCase {
-
     abstract class Streamer<T extends Streamable> extends Thread {
-
         private T lastRead;
         final private AtomicBoolean shouldStop;
         final private T source;
@@ -191,7 +188,7 @@ public class RecoveryStateTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(Arrays.asList(files));
+        Collections.shuffle(Arrays.asList(files), random());
         final RecoveryState.Index index = new RecoveryState.Index();
 
         if (randomBoolean()) {
@@ -485,7 +482,6 @@ public class RecoveryStateTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testConcurrentModificationIndexFileDetailsMap() throws InterruptedException {
         final Index index = new Index();
         final AtomicBoolean stop = new AtomicBoolean(false);
@@ -496,6 +492,7 @@ public class RecoveryStateTests extends ESTestCase {
             }
         };
         Thread modifyThread = new Thread() {
+            @Override
             public void run() {
                 for (int i = 0; i < 1000; i++) {
                     index.addFileDetail(randomAsciiOfLength(10), 100, true);
@@ -510,7 +507,6 @@ public class RecoveryStateTests extends ESTestCase {
         assertThat(readWriteIndex.error.get(), equalTo(null));
     }
 
-    @Test
     public void testFileHashCodeAndEquals() {
         File f = new File("foo", randomIntBetween(0, 100), randomBoolean());
         File anotherFile = new File(f.name(), f.length(), f.reused());
@@ -526,6 +522,5 @@ public class RecoveryStateTests extends ESTestCase {
                assertFalse(f.equals(anotherFile));
             }
         }
-
     }
 }

@@ -234,7 +234,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
-            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             result = 31 * result + (fetchSourceContext != null ? fetchSourceContext.hashCode() : 0);
             return result;

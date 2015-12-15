@@ -26,7 +26,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -41,54 +40,38 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -106,33 +89,29 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final MetaDataService metaDataService;
     private final Version version;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
-    private final NodeEnvironment nodeEnv;
     private final Environment env;
+    private final NodeServicesProvider nodeServicesProvider;
+
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
+    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
+                                      IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
-                                      NodeEnvironment nodeEnv) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.metaDataService = metaDataService;
         this.version = version;
         this.aliasValidator = aliasValidator;
-        this.nodeEnv = nodeEnv;
         this.env = env;
+        this.nodeServicesProvider = nodeServicesProvider;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -145,29 +124,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
             this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
         }
-    }
-
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
-
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            createIndex(request, listener, mdLock);
-            return;
-        }
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
-            @Override
-            public void doRun() throws InterruptedException {
-                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                    return;
-                }
-                createIndex(request, listener, mdLock);
-            }
-        });
     }
 
     public void validateIndexName(String index, ClusterState state) {
@@ -209,36 +165,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
-
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                mdLock.release();
-                super.onAllNodesAcked(t);
-            }
-
-            @Override
-            public void onAckTimeout() {
-                mdLock.release();
-                super.onAckTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                mdLock.release();
-                super.onFailure(source, t);
-            }
+        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                    @Override
+                    protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return new ClusterStateUpdateResponse(acknowledged);
+                    }
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -362,7 +299,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(tmpImd);
+                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
@@ -373,7 +310,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing default mapping on index creation";
-                            throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
+                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, MapperService.DEFAULT_MAPPING, e.getMessage());
                         }
                     }
                     for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
@@ -385,19 +322,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing mappings on index creation";
-                            throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
+                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                         }
                     }
 
-                    IndexQueryParserService indexQueryParserService = indexService.queryParserService();
+                    QueryShardContext queryShardContext = indexService.getQueryShardContext();
                     for (Alias alias : request.aliases()) {
                         if (Strings.hasLength(alias.filter())) {
-                            aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
+                            aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext);
                         }
                     }
                     for (AliasMetaData aliasMetaData : templatesAliases.values()) {
                         if (aliasMetaData.filter() != null) {
-                            aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), indexQueryParserService);
+                            aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), queryShardContext);
                         }
                     }
 
@@ -436,17 +373,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         throw e;
                     }
 
-                    indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
+                    indexService.getIndexEventListener().beforeIndexAddedToCluster(new Index(request.index()),
+                            indexMetaData.getSettings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
                             .put(indexMetaData, false)
                             .build();
 
-                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) ? "s" : "";
+                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) ? "s" : "";
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
-                            request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(),
-                            indexMetaData.numberOfReplicas(), maybeShadowIndicator, mappings.keySet());
+                            request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
+                            indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {
@@ -461,7 +398,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                 .addAsNew(updatedState.metaData().index(request.index()));
-                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build());
+                        RoutingAllocation.Result routingResult = allocationService.reroute(
+                                ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
+                                "index [" + request.index() + "] created");
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
                     removalReason = "cleaning up after validating index on master";
@@ -479,29 +418,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private Map<String, Object> parseMapping(String mappingSource) throws Exception {
         try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
             return parser.map();
-        }
-    }
-
-    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
-            for (Path mappingFile : stream) {
-                final String fileName = mappingFile.getFileName().toString();
-                if (FileSystemUtils.isHidden(mappingFile)) {
-                    continue;
-                }
-                int lastDotIndex = fileName.lastIndexOf('.');
-                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, StandardCharsets.UTF_8)) {
-                    String mappingSource = Streams.copyToString(reader);
-                    if (mappings.containsKey(mappingType)) {
-                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                    } else {
-                        mappings.put(mappingType, parseMapping(mappingSource));
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
-                }
-            }
         }
     }
 

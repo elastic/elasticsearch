@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public class MovAvgModelStreams {
 
-    private static Map<String, Stream> STREAMS = Collections.EMPTY_MAP;
+    private static Map<String, Stream> STREAMS = Collections.emptyMap();
 
     static {
         HashMap<String, Stream> map = new HashMap<>();
@@ -79,7 +79,7 @@ public class MovAvgModelStreams {
      * @param name The given name
      * @return The associated stream
      */
-    public static synchronized Stream stream(String name) {
+    private static synchronized Stream stream(String name) {
         return STREAMS.get(name);
     }
 

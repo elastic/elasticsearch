@@ -30,7 +30,8 @@ import java.io.IOException;
  */
 public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
 
-    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of prefix query");
+    public static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     @Override
     public String[] names() {
@@ -60,13 +61,13 @@ public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if ("_name".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if ("value".equals(currentFieldName) || "prefix".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, PREFIX_FIELD)) {
                             value = parser.textOrNull();
-                        } else if ("boost".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if ("rewrite".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                             rewrite = parser.textOrNull();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
@@ -74,12 +75,8 @@ public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
                     }
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
-                    queryName = parser.text();
-                } else {
                     fieldName = currentFieldName;
                     value = parser.textOrNull();
-                }
             }
         }
 

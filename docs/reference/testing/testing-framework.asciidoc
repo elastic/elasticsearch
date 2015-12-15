@@ -81,7 +81,7 @@ There are a couple of helper methods in `ESIntegTestCase`, which will make your 
 `createIndex(name)`::   Creates an index with the specified name
 `flush()`::             Flushes all indices in a cluster
 `flushAndRefresh()`::   Combines `flush()` and `refresh()` calls
-`optimize()`::          Waits for all relocations and optimized all indices in the cluster to one segment.
+`forceMerge()`::        Waits for all relocations and force merges all indices in the cluster to one segment.
 `indexExists(name)`::   Checks if given index exists
 `admin()`::             Returns an `AdminClient` for administrative tasks
 `clusterService()`::    Returns the cluster service java class

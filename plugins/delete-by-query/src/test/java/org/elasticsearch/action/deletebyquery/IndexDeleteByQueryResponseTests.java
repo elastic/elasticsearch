@@ -24,13 +24,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexDeleteByQueryResponseTests extends ESTestCase {
-
-    @Test
     public void testIncrements() {
         String indexName = randomAsciiOfLength(5);
 
@@ -70,7 +67,6 @@ public class IndexDeleteByQueryResponseTests extends ESTestCase {
         assertThat(response.getFailed(), equalTo(failed + 1 + inc));
     }
 
-    @Test
     public void testNegativeCounters() {
         assumeTrue("assertions must be enable for this test to pass", assertionsEnabled());
         try {
@@ -106,7 +102,6 @@ public class IndexDeleteByQueryResponseTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testNegativeIncrements() {
         assumeTrue("assertions must be enable for this test to pass", assertionsEnabled());
         try {
@@ -146,7 +141,6 @@ public class IndexDeleteByQueryResponseTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSerialization() throws Exception {
         IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse(randomAsciiOfLength(5), Math.abs(randomLong()), Math.abs(randomLong()), Math.abs(randomLong()), Math.abs(randomLong()));
         Version testVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
@@ -165,5 +159,4 @@ public class IndexDeleteByQueryResponseTests extends ESTestCase {
         assertThat(deserializedResponse.getMissing(), equalTo(response.getMissing()));
         assertThat(deserializedResponse.getFailed(), equalTo(response.getFailed()));
     }
-
 }

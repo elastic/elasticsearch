@@ -77,8 +77,8 @@ public class RestMainAction extends BaseRestHandler {
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
                 .field("number", version.number())
-                .field("build_hash", Build.CURRENT.hash())
-                .field("build_timestamp", Build.CURRENT.timestamp())
+                .field("build_hash", Build.CURRENT.shortHash())
+                .field("build_date", Build.CURRENT.date())
                 .field("build_snapshot", version.snapshot)
                 .field("lucene_version", version.luceneVersion.toString())
                 .endObject();

@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -30,8 +29,6 @@ import java.io.StringReader;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -45,7 +42,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testCatenateWords() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -61,7 +57,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testCatenateNumbers() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -77,7 +72,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testCatenateAll() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -94,7 +88,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testSplitOnCaseChange() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -109,7 +102,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testPreserveOriginal() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -124,7 +116,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testStemEnglishPossessive() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -140,7 +131,6 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
     }
 
     /** Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power */
-    @Test
     public void testPartsAndCatenate() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -155,10 +145,9 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-     
-    /** Back compat: 
+
+    /** Back compat:
      * old offset order when doing both parts and concatenation: PowerShot is a synonym of Shot */
-    @Test
     public void testDeprecatedPartsAndCatenate() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())

@@ -50,7 +50,7 @@ public class JdkESLogger extends AbstractESLogger {
         } else if ("debug".equalsIgnoreCase(level)) {
             logger.setLevel(Level.FINE);
         } else if ("trace".equalsIgnoreCase(level)) {
-            logger.setLevel(Level.FINE);
+            logger.setLevel(Level.FINEST);
         }
     }
 

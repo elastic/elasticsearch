@@ -114,7 +114,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         public void start() {
             if (scrollId.getContext().length == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", null));
+                listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
 
@@ -175,7 +175,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 if (successfulOps.get() == 0) {
-                    listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", buildShardFailures()));
+                    listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", t, buildShardFailures()));
                 } else {
                     finishHim();
                 }

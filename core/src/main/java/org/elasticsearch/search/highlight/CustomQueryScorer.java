@@ -20,7 +20,6 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
@@ -83,9 +82,6 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof FiltersFunctionScoreQuery) {
                 query = ((FiltersFunctionScoreQuery) query).getSubQuery();
                 extract(query, query.getBoost(), terms);
-            } else if (query instanceof FilteredQuery) {
-                query = ((FilteredQuery) query).getQuery();
-                extract(query, 1F, terms);
             } else {
                 extractWeightedTerms(terms, query, query.getBoost());
             }

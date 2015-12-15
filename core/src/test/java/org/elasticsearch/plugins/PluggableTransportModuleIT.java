@@ -25,26 +25,30 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class PluggableTransportModuleIT extends ESIntegTestCase {
-
     public static final AtomicInteger SENT_REQUEST_COUNTER = new AtomicInteger(0);
 
     @Override
@@ -65,7 +69,6 @@ public class PluggableTransportModuleIT extends ESIntegTestCase {
         return pluginList(CountingSentRequestsPlugin.class);
     }
 
-    @Test
     public void testThatPluginFunctionalityIsLoadedWithoutConfiguration() throws Exception {
         for (Transport transport : internalCluster().getInstances(Transport.class)) {
             assertThat(transport, instanceOf(CountingAssertingLocalTransport.class));

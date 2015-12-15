@@ -63,21 +63,13 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -86,7 +78,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class Analysis {
 
-    public static Version parseAnalysisVersion(@IndexSettings Settings indexSettings, Settings settings, ESLogger logger) {
+    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, ESLogger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
@@ -243,8 +235,8 @@ public class Analysis {
         try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile.toUri().toURL(), StandardCharsets.UTF_8)) {
             return loadWordList(reader, "#");
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix);
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 
@@ -290,8 +282,8 @@ public class Analysis {
         try {
             return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix);
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 

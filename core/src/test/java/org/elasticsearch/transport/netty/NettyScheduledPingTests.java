@@ -36,7 +36,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -47,14 +46,10 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 public class NettyScheduledPingTests extends ESTestCase {
-
-    @Test
     public void testScheduledPing() throws Exception {
         ThreadPool threadPool = new ThreadPool(getClass().getName());
 
-        int startPort = 11000 + randomIntBetween(0, 255);
-        int endPort = startPort + 10;
-        Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE, "5ms").put("transport.tcp.port", startPort + "-" + endPort).build();
+        Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE, "5ms").put("transport.tcp.port", 0).build();
 
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
@@ -84,7 +79,7 @@ public class NettyScheduledPingTests extends ESTestCase {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.options());
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -96,7 +91,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         int rounds = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < rounds; i++) {
             serviceB.submitRequest(nodeA, "sayHello",
-                    TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(randomBoolean()), new BaseTransportResponseHandler<TransportResponse.Empty>() {
+                    TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new BaseTransportResponseHandler<TransportResponse.Empty>() {
                         @Override
                         public TransportResponse.Empty newInstance() {
                             return TransportResponse.Empty.INSTANCE;

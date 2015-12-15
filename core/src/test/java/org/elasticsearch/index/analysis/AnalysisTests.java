@@ -22,15 +22,12 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
-    @Test
     public void testParseStemExclusion() {
-
         /* Comma separated list */
         Settings settings = settingsBuilder().put("stem_exclusion", "foo,bar").build();
         CharArraySet set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
@@ -45,5 +42,4 @@ public class AnalysisTests extends ESTestCase {
         assertThat(set.contains("bar"), is(true));
         assertThat(set.contains("baz"), is(false));
     }
-
 }

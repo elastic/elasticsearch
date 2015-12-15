@@ -29,13 +29,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 public class Template extends Script {
+    
+    /** Default templating language */
+    public static final String DEFAULT_LANG = "mustache";
 
     private XContentType contentType;
 
@@ -46,17 +48,17 @@ public class Template extends Script {
     /**
      * Constructor for simple inline template. The template will have no lang,
      * content type or params set.
-     * 
+     *
      * @param template
      *            The inline template.
      */
     public Template(String template) {
-        super(template, MustacheScriptEngineService.NAME);
+        super(template, DEFAULT_LANG);
     }
 
     /**
      * Constructor for Template.
-     * 
+     *
      * @param template
      *            The cache key of the template to be compiled/executed. For
      *            inline templates this is the actual templates source code. For
@@ -73,13 +75,13 @@ public class Template extends Script {
      */
     public Template(String template, ScriptType type, @Nullable String lang, @Nullable XContentType xContentType,
             @Nullable Map<String, Object> params) {
-        super(template, type, lang, params);
+        super(template, type, lang == null ? DEFAULT_LANG : lang, params);
         this.contentType = xContentType;
     }
 
     /**
      * Method for getting the {@link XContentType} of the template.
-     * 
+     *
      * @return The {@link XContentType} of the template.
      */
     public XContentType getContentType() {
@@ -119,19 +121,17 @@ public class Template extends Script {
         return template;
     }
 
-    @SuppressWarnings("unchecked")
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
-    @SuppressWarnings("unchecked")
     public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
     public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
+        return new TemplateParser(additionalTemplateFieldNames, DEFAULT_LANG).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
@@ -174,7 +174,7 @@ public class Template extends Script {
 
         @Override
         protected Template createSimpleScript(XContentParser parser) throws IOException {
-            return new Template(String.valueOf(parser.objectText()), ScriptType.INLINE, MustacheScriptEngineService.NAME, contentType, null);
+            return new Template(String.valueOf(parser.objectText()), ScriptType.INLINE, DEFAULT_LANG, contentType, null);
         }
 
         @Override

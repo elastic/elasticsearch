@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -38,13 +37,11 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.type", "fixed")
                 .put("threadpool.search.size", 1)
                 .put("threadpool.search.queue_size", 1)
                 .build();
     }
 
-    @Test
     public void testOpenContextsAfterRejections() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");

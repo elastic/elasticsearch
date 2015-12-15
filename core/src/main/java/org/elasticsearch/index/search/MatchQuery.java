@@ -214,9 +214,9 @@ public class MatchQuery {
             if (fieldType != null) {
                 return context.getSearchAnalyzer(fieldType);
             }
-            return context.mapperService().searchAnalyzer();
+            return context.getMapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = context.mapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = context.getMapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }

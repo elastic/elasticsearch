@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -79,7 +79,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
-                    final DocIdSet innerDocs = nested.innerDocs(context);
+                    final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues.getRawDoubleValues();

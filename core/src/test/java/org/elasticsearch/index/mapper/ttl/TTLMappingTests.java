@@ -31,11 +31,15 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -45,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TTLMappingTests extends ESSingleNodeTestCase {
-    @Test
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -59,7 +62,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_ttl"), equalTo(null));
     }
 
-    @Test
     public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl").field("enabled", "yes").endObject()
@@ -77,7 +79,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
-    @Test
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -86,8 +87,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(docMapper.TTLFieldMapper().fieldType().indexOptions(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexOptions()));
     }
 
-
-    @Test
     public void testSetValuesBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
@@ -101,7 +100,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
     }
 
-    @Test
     public void testThatEnablingTTLFieldOnMergeWorks() throws Exception {
         String mappingWithoutTtl = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
@@ -124,7 +122,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(mapperWithoutTtl.TTLFieldMapper().enabled(), equalTo(true));
     }
 
-    @Test
     public void testThatChangingTTLKeepsMapperEnabled() throws Exception {
         String mappingWithTtl = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
@@ -150,7 +147,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(initialMapper.TTLFieldMapper().enabled(), equalTo(true));
     }
 
-    @Test
     public void testThatDisablingTTLReportsConflict() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
@@ -164,7 +160,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(initialMapper.TTLFieldMapper().enabled(), equalTo(true));
     }
 
-    @Test
     public void testThatDisablingTTLReportsConflictOnCluster() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
@@ -173,14 +168,13 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         try {
             client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtlDisabled).setType("type").get();
             fail();
-        } catch (MergeMappingException mme) {
-            assertThat(mme.getDetailedMessage(), containsString("_ttl cannot be disabled once it was enabled."));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("_ttl cannot be disabled once it was enabled."));
         }
         GetMappingsResponse mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
         assertThat(mappingsBeforeUpdateResponse.getMappings().get("testindex").get("type").source(), equalTo(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").source()));
     }
 
-    @Test
     public void testThatEnablingTTLAfterFirstDisablingWorks() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String withTtlDisabled = getMappingWithTtlDisabled().string();
@@ -192,7 +186,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").sourceAsMap().get("_ttl").toString(), equalTo("{enabled=true}"));
     }
 
-    @Test
     public void testNoConflictIfNothingSetAndDisabledLater() throws Exception {
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
         XContentBuilder mappingWithTtlDisabled = getMappingWithTtlDisabled("7d");
@@ -200,7 +193,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertFalse(mergeResult.hasConflicts());
     }
 
-    @Test
     public void testNoConflictIfNothingSetAndEnabledLater() throws Exception {
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
@@ -208,7 +200,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertFalse(mergeResult.hasConflicts());
     }
 
-    @Test
     public void testMergeWithOnlyDefaultSet() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtlEnabled);
@@ -219,7 +210,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":360000},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
     }
 
-    @Test
     public void testMergeWithOnlyDefaultSetTtlDisabled() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlDisabled("7d");
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtlEnabled);
@@ -232,9 +222,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
     }
 
-    @Test
     public void testThatSimulatedMergingLeavesStateUntouched() throws Exception {
-
         //check if default ttl changed when simulate set to true
         XContentBuilder mappingWithTtl = getMappingWithTtlEnabled("6d");
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtl);
@@ -306,7 +294,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         request.process(MetaData.builder().build(), mappingMetaData, true, "test");
 
         // _ttl in a document never worked, so backcompat is ignoring the field
-        assertEquals(-1, request.ttl());
+        assertNull(request.ttl());
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 

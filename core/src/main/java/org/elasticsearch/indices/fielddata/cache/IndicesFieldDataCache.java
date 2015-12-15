@@ -55,7 +55,6 @@ import java.util.function.ToLongBiFunction;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
 
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
-    public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
     public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
 
 

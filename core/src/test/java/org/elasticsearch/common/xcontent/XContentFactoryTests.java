@@ -21,10 +21,10 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -35,24 +35,18 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class XContentFactoryTests extends ESTestCase {
-
-
-    @Test
     public void testGuessJson() throws IOException {
         testGuessType(XContentType.JSON);
     }
 
-    @Test
     public void testGuessSmile() throws IOException {
         testGuessType(XContentType.SMILE);
     }
 
-    @Test
     public void testGuessYaml() throws IOException {
         testGuessType(XContentType.YAML);
     }
 
-    @Test
     public void testGuessCbor() throws IOException {
         testGuessType(XContentType.CBOR);
     }
@@ -102,5 +96,19 @@ public class XContentFactoryTests extends ESTestCase {
 
         is = new ByteArrayInputStream(new byte[] {(byte) 1});
         assertNull(XContentFactory.xContentType(is));
+    }
+    
+    public void testJsonFromBytesOptionallyPrecededByUtf8Bom() throws Exception {
+        byte[] bytes = new byte[] {(byte) '{', (byte) '}'};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
+        
+        bytes = new byte[] {(byte) 0x20, (byte) '{', (byte) '}'};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
+        
+        bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) '{', (byte) '}'};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
+        
+        bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) 0x20, (byte) '{', (byte) '}'};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
     }
 }

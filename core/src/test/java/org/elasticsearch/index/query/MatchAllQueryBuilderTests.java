@@ -49,4 +49,16 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
     protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"match_all\" : {\n" + 
+                "    \"boost\" : 1.2\n" + 
+                "  }\n" + 
+                "}";
+        MatchAllQueryBuilder parsed = (MatchAllQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 1.2, parsed.boost(), 0.0001);
+    }
 }

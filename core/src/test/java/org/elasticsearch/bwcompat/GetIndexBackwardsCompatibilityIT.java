@@ -30,7 +30,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.util.List;
 
@@ -40,8 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-    @Test
     public void testGetAliases() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addAlias(new Alias("testAlias")).execute().actionGet();
         assertAcked(createIndexResponse);
@@ -58,7 +55,6 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(alias.alias(), equalTo("testAlias"));
     }
 
-    @Test
     public void testGetMappings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type1", "{\"type1\":{}}").execute().actionGet();
         assertAcked(createIndexResponse);
@@ -79,7 +75,6 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(mapping.type(), equalTo("type1"));
     }
 
-    @Test
     public void testGetSettings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).execute().actionGet();
         assertAcked(createIndexResponse);
@@ -93,7 +88,6 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
     }
 
-    @Test
     public void testGetWarmers() throws Exception {
         createIndex("test");
         ensureSearchable("test");

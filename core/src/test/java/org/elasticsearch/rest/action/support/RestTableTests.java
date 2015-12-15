@@ -23,13 +23,14 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.action.support.RestTable.buildDisplayHeaders;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class RestTableTests extends ESTestCase {
 
@@ -51,7 +52,6 @@ public class RestTableTests extends ESTestCase {
         table.endHeaders();
     }
 
-    @Test
     public void testThatDisplayHeadersSupportWildcards() throws Exception {
         restRequest.params().put("h", "bulk*");
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
@@ -61,7 +61,6 @@ public class RestTableTests extends ESTestCase {
         assertThat(headerNames, not(hasItem("unmatched")));
     }
 
-    @Test
     public void testThatDisplayHeadersAreNotAddedTwice() throws Exception {
         restRequest.params().put("h", "nonexistent,bulk*,bul*");
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);

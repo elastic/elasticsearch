@@ -34,6 +34,8 @@ public class OsInfo implements Streamable, ToXContent {
 
     int availableProcessors;
 
+    int allocatedProcessors;
+
     String name = null;
     String arch = null;
     String version = null;
@@ -47,6 +49,10 @@ public class OsInfo implements Streamable, ToXContent {
 
     public int getAvailableProcessors() {
         return this.availableProcessors;
+    }
+
+    public int getAllocatedProcessors() {
+        return this.allocatedProcessors;
     }
 
     public String getName() {
@@ -69,6 +75,7 @@ public class OsInfo implements Streamable, ToXContent {
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
         static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
         static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
+        static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
     }
 
     @Override
@@ -85,6 +92,7 @@ public class OsInfo implements Streamable, ToXContent {
             builder.field(Fields.VERSION, version);
         }
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
+        builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
         builder.endObject();
         return builder;
     }
@@ -99,11 +107,13 @@ public class OsInfo implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         refreshInterval = in.readLong();
         availableProcessors = in.readInt();
+        allocatedProcessors = in.readInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
+        out.writeInt(allocatedProcessors);
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -108,8 +107,7 @@ public class FiltersIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         filters("tags")
@@ -136,8 +134,7 @@ public class FiltersIT extends ESIntegTestCase {
 
     // See NullPointer issue when filters are empty:
     // https://github.com/elasticsearch/elasticsearch/issues/8438
-    @Test
-    public void emptyFilterDeclarations() throws Exception {
+    public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filters("tags").filter("all", emptyFilter).filter("tag1", termQuery("tag", "tag1"))).execute()
@@ -155,8 +152,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo((long) numTag1Docs));
     }
 
-    @Test
-    public void withSubAggregation() throws Exception {
+    public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         filters("tags")
@@ -209,8 +205,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat((double) propertiesCounts[1], equalTo((double) sum / numTag2Docs));
     }
 
-    @Test
-    public void withContextBasedSubAggregation() throws Exception {
+    public void testWithContextBasedSubAggregation() throws Exception {
 
         try {
             client().prepareSearch("idx")
@@ -225,12 +220,12 @@ public class FiltersIT extends ESIntegTestCase {
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
                     "context which the sub-aggregation can inherit");
 
-        } catch (ElasticsearchException ese) {
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
         }
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
@@ -251,8 +246,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(all.getDocCount(), is(0l));
     }
 
-    @Test
-    public void simple_nonKeyed() throws Exception {
+    public void testSimpleNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         filters("tags")
@@ -280,8 +274,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo((long) numTag2Docs));
     }
 
-    @Test
-    public void otherBucket() throws Exception {
+    public void testOtherBucket() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -311,8 +304,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo((long) numOtherDocs));
     }
 
-    @Test
-    public void otherNamedBucket() throws Exception {
+    public void testOtherNamedBucket() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -342,8 +334,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo((long) numOtherDocs));
     }
 
-    @Test
-    public void other_nonKeyed() throws Exception {
+    public void testOtherNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         filters("tags").otherBucket(true)
@@ -375,8 +366,7 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo((long) numOtherDocs));
     }
 
-    @Test
-    public void otherWithSubAggregation() throws Exception {
+    public void testOtherWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         filters("tags").otherBucket(true)

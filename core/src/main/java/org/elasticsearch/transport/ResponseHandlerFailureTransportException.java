@@ -31,7 +31,7 @@ import java.io.IOException;
 public class ResponseHandlerFailureTransportException extends TransportException {
 
     public ResponseHandlerFailureTransportException(Throwable cause) {
-        super(cause.getMessage(), cause);
+        super(cause);
     }
 
     public ResponseHandlerFailureTransportException(StreamInput in) throws IOException {

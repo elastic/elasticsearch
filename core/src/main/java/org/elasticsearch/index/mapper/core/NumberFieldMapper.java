@@ -135,6 +135,15 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             super(ref);
         }
 
+        @Override
+        public void checkCompatibility(MappedFieldType other,
+                List<String> conflicts, boolean strict) {
+            super.checkCompatibility(other, conflicts, strict);
+            if (numericPrecisionStep() != other.numericPrecisionStep()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different [precision_step] values");
+            }
+        }
+
         public abstract NumberFieldType clone();
 
         @Override
@@ -245,17 +254,12 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
         NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-        if (this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false) {
-            if (fieldType().numericPrecisionStep() != nfmMergeWith.fieldType().numericPrecisionStep()) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] is used by multiple types. Set update_all_types to true to update precision_step across all types.");
-            }
-        }
 
         if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
             this.includeInAll = nfmMergeWith.includeInAll;

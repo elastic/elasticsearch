@@ -20,13 +20,10 @@ package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompatibilityIT {
-
-    @Test
     public void testUpgradeStartClusterOn_0_20_6() throws Exception {
         String indexName = "unsupported-0.20.6";
 

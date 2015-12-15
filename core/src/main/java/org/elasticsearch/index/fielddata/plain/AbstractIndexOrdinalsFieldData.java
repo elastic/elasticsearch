@@ -24,7 +24,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -44,9 +44,9 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     protected Settings regex;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType,
+    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType,
                                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldNames, fieldDataType, cache);
         final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
         frequency = groups.get("frequency");
         regex = groups.get("regex");
@@ -64,13 +64,31 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             // ordinals are already global
             return this;
         }
+        boolean fieldFound = false;
+        for (LeafReaderContext context : indexReader.leaves()) {
+            if (context.reader().getFieldInfos().fieldInfo(getFieldNames().indexName()) != null) {
+                fieldFound = true;
+                break;
+            }
+        }
+        if (fieldFound == false) {
+            // Some directory readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
+            try {
+                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         try {
             return cache.load(indexReader, this);
         } catch (Throwable e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }

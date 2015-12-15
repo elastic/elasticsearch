@@ -23,17 +23,22 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
 
@@ -55,7 +60,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createShardContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+                if (createShardContext().getMapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(randomTimeZone());
                     }
@@ -126,7 +131,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -166,25 +170,31 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     /**
      * Specifying a timezone together with a numeric range query should throw an exception.
      */
-    @Test(expected=QueryShardException.class)
     public void testToQueryNonDateWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createShardContext());
+        try {
+            query.toQuery(createShardContext());
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
+        }
     }
 
     /**
      * Specifying a timezone together with an unmapped field should throw an exception.
      */
-    @Test(expected=QueryShardException.class)
     public void testToQueryUnmappedWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createShardContext());
+        try {
+            query.toQuery(createShardContext());
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
+        }
     }
 
-
-    @Test
     public void testToQueryNumericField() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
@@ -198,7 +208,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rangeQuery.includesMax(), equalTo(false));
     }
 
-    @Test
     public void testDateRangeQueryFormat() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // We test 01/01/2012 from gte and 2030 for lt
@@ -240,7 +249,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
     }
 
-    @Test
     public void testDateRangeBoundaries() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -284,7 +292,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertFalse(rangeQuery.includesMax());
     }
 
-    @Test
     public void testDateRangeQueryTimezone() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         long startDate = System.currentTimeMillis();
@@ -324,6 +331,66 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             fail("A Range Query on a numeric field with a TimeZone should raise a ParsingException");
         } catch (QueryShardException e) {
             // We expect it
+        }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"range\" : {\n" + 
+                "    \"timestamp\" : {\n" + 
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" + 
+                "      \"to\" : \"now\",\n" + 
+                "      \"include_lower\" : true,\n" + 
+                "      \"include_upper\" : true,\n" + 
+                "      \"time_zone\" : \"+01:00\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+
+        RangeQueryBuilder parsed = (RangeQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "2015-01-01 00:00:00", parsed.from());
+        assertEquals(json, "now", parsed.to());
+    }
+
+    public void testNamedQueryParsing() throws IOException {
+        String json =
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"boost\" : 1.0,\n" +
+                "      \"_name\" : \"my_range\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertNotNull(parseQuery(json));
+
+        json =
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    },\n" +
+                "    \"_name\" : \"my_range\"\n" +
+                "  }\n" +
+                "}";
+
+        // non strict parsing should accept "_name" on top level
+        assertNotNull(parseQuery(json, ParseFieldMatcher.EMPTY));
+
+        // with strict parsing, ParseField will throw exception
+        try {
+            parseQuery(json, ParseFieldMatcher.STRICT);
+            fail("Strict parsing should trigger exception for '_name' on top level");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]"));
         }
     }
 }

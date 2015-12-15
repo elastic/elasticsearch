@@ -20,9 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.suggest.context.CategoryContextMapping;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
-import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,90 +98,18 @@ public class SuggestBuilder extends ToXContentToBytes {
         private String name;
         private String suggester;
         private String text;
+        private String prefix;
+        private String regex;
         private String field;
         private String analyzer;
         private Integer size;
         private Integer shardSize;
-        
-        private List<ContextQuery> contextQueries = new ArrayList<>();
 
         public SuggestionBuilder(String name, String suggester) {
             this.name = name;
             this.suggester = suggester;
         }
 
-        @SuppressWarnings("unchecked")
-        private T addContextQuery(ContextQuery ctx) {
-            this.contextQueries.add(ctx);
-            return (T) this;
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param lat Latitude of the location
-         * @param lon Longitude of the Location
-         * @return this
-         */
-        public T addGeoLocation(String name, double lat, double lon, int ... precisions) {
-            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param lat Latitude of the location
-         * @param lon Longitude of the Location
-         * @param precisions precisions as string var-args
-         * @return this
-         */
-        public T addGeoLocationWithPrecision(String name, double lat, double lon, String ... precisions) {
-            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param geohash Geohash of the location
-         * @return this
-         */
-        public T addGeoLocation(String name, String geohash) {
-            return addContextQuery(GeolocationContextMapping.query(name, geohash));
-        }
-        
-        /**
-         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
-         * @param categories name of the category
-         * @return this
-         */
-        public T addCategory(String name, CharSequence...categories) {
-            return addContextQuery(CategoryContextMapping.query(name, categories));
-        }
-        
-        /**
-         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
-         * @param categories name of the category
-         * @return this
-         */
-        public T addCategory(String name, Iterable<? extends CharSequence> categories) {
-            return addContextQuery(CategoryContextMapping.query(name, categories));
-        }
-        
-        /**
-         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param fieldvalues name of the category
-         * @return this
-         */
-        public T addContextField(String name, CharSequence...fieldvalues) {
-            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
-        }
-        
-        /**
-         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param fieldvalues name of the category
-         * @return this
-         */
-        public T addContextField(String name, Iterable<? extends CharSequence> fieldvalues) {
-            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
-        }
-        
         /**
          * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
          */
@@ -194,11 +119,25 @@ public class SuggestBuilder extends ToXContentToBytes {
             return (T) this;
         }
 
+        protected void setPrefix(String prefix) {
+            this.prefix = prefix;
+        }
+
+        protected void setRegex(String regex) {
+            this.regex = regex;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
             if (text != null) {
                 builder.field("text", text);
+            }
+            if (prefix != null) {
+                builder.field("prefix", prefix);
+            }
+            if (regex != null) {
+                builder.field("regex", regex);
             }
             builder.startObject(suggester);
             if (analyzer != null) {
@@ -214,13 +153,6 @@ public class SuggestBuilder extends ToXContentToBytes {
                 builder.field("shard_size", shardSize);
             }
 
-            if (!contextQueries.isEmpty()) {
-                builder.startObject("context");
-                for (ContextQuery query : contextQueries) {
-                    query.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
             builder = innerToXContent(builder, params);
             builder.endObject();
             builder.endObject();

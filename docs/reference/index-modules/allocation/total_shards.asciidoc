@@ -14,10 +14,17 @@ number of shards from a single index allowed per node:
     The maximum number of shards (replicas and primaries) that will be
     allocated to a single node.  Defaults to unbounded.
 
+You can also limit the amount of shards a node can have regardless of the index:
+
+`cluster.routing.allocation.total_shards_per_node`::
+
+    The maximum number of shards (replicas and primaries) that will be
+    allocated to a single node globally.  Defaults to unbounded (-1).
+
 [WARNING]
 =======================================
-This setting imposes a hard limit which can result in some shards not
-being allocated.
+Thess setting impose a hard limit which can result in some shards not being
+allocated.
 
 Use with caution.
 =======================================

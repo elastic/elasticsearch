@@ -46,7 +46,6 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
-    private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
 
     private final ScoreFunctionParserMapper functionParserMapper;
 
@@ -65,7 +64,6 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;
-        QueryBuilder filter = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
@@ -87,8 +85,6 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
                 currentFieldName = parser.currentName();
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQueryBuilder();
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
-                filter = parseContext.parseInnerQueryBuilder();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = FiltersFunctionScoreQuery.ScoreMode.fromString(parser.text());
             } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
@@ -132,15 +128,8 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
             }
         }
 
-        if (query == null && filter == null) {
+        if (query == null) {
             query = new MatchAllQueryBuilder();
-        } else if (query == null && filter != null) {
-            query = new ConstantScoreQueryBuilder(filter);
-        } else if (query != null && filter != null) {
-            final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            boolQueryBuilder.must(query);
-            boolQueryBuilder.filter(filter);
-            query = boolQueryBuilder;
         }
 
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query,

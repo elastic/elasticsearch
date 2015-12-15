@@ -32,8 +32,6 @@ import org.elasticsearch.repositories.azure.AzureRepository;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.cloud.azure.AzureRepositoryModule.isSnapshotReady;
-
 /**
  *
  */
@@ -63,8 +61,7 @@ public class AzureRepositoryPlugin extends Plugin {
     }
 
     public void onModule(RepositoriesModule module) {
-        if (isSnapshotReady(settings, logger)) {
-            module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
-        }
+        logger.debug("registering repository type [{}]", AzureRepository.TYPE);
+        module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
     }
 }

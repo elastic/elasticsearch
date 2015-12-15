@@ -73,13 +73,25 @@ public abstract class Engine implements Closeable {
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
-    protected final FailedEngineListener failedEngineListener;
+    protected final EventListener eventListener;
     protected final SnapshotDeletionPolicy deletionPolicy;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected volatile Throwable failedEngine = null;
+    /*
+     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
+     *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
+     *    inactive if no writes at all happen to the shard.
+     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either immediately or never
+     *    commit merges even though we shouldn't from a user perspective (this can also have funky sideeffects in tests when we open indices with lots of segments
+     *    and suddenly merges kick in.
+     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to reduce index buffer sizes on
+     *  inactive shards.
+     */
+    protected volatile long lastWriteNanos = System.nanoTime();
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -89,8 +101,8 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
-                engineConfig.getIndexSettings(), engineConfig.getShardId());
-        this.failedEngineListener = engineConfig.getFailedEngineListener();
+                engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
+        this.eventListener = engineConfig.getEventListener();
         this.deletionPolicy = engineConfig.getDeletionPolicy();
     }
 
@@ -487,7 +499,7 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
-     * Optimizes to 1 segment
+     * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {
         forceMerge(flush, 1, false, false, false);
@@ -536,7 +548,7 @@ public abstract class Engine implements Closeable {
                             logger.warn("Couldn't mark store corrupted", e);
                         }
                     }
-                    failedEngineListener.onFailedEngine(shardId, reason, failure);
+                    eventListener.onFailedEngine(reason, failure);
                 }
             } catch (Throwable t) {
                 // don't bubble up these exceptions up
@@ -561,19 +573,12 @@ public abstract class Engine implements Closeable {
         return false;
     }
 
-    /** Wrap a Throwable in an {@code EngineClosedException} if the engine is already closed */
-    protected Throwable wrapIfClosed(Throwable t) {
-        if (isClosed.get()) {
-            if (t != failedEngine && failedEngine != null) {
-                t.addSuppressed(failedEngine);
-            }
-            return new EngineClosedException(shardId, t);
-        }
-        return t;
-    }
 
-    public interface FailedEngineListener {
-        void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);
+    public interface EventListener {
+        /**
+         * Called when a fatal exception occurred
+         */
+        default void onFailedEngine(String reason, @Nullable Throwable t) {}
     }
 
     public static class Searcher implements Releasable {
@@ -992,11 +997,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    /**
-     * Returns <code>true</code> the internal writer has any uncommitted changes. Otherwise <code>false</code>
-     */
-    public abstract boolean hasUncommittedChanges();
-
     public static class CommitId implements Writeable {
 
         private final byte[] id;
@@ -1055,5 +1055,30 @@ public abstract class Engine implements Closeable {
     }
 
     public void onSettingsChanged() {
+    }
+
+    /**
+     * Returns the timestamp of the last write in nanoseconds.
+     * Note: this time might not be absolutely accurate since the {@link Operation#startTime()} is used which might be
+     * slightly inaccurate.
+     * @see System#nanoTime()
+     * @see Operation#startTime()
+     */
+    public long getLastWriteNanos() {
+        return this.lastWriteNanos;
+    }
+
+    /**
+     * Called for each new opened engine searcher to warm new segments
+     * @see EngineConfig#getWarmer()
+     */
+    public interface Warmer {
+        /**
+         * Called once a new Searcher is opened.
+         * @param searcher the searcer to warm
+         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
+         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         */
+        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
     }
 }

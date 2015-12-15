@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -37,7 +38,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -62,7 +62,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class CorruptedTranslogIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // we really need local GW here since this also checks for corruption etc.
@@ -70,7 +69,6 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         return pluginList(MockTransportService.TestPlugin.class);
     }
 
-    @Test
     @TestLogging("index.translog:TRACE,index.gateway:TRACE")
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, Settings.EMPTY).get();
@@ -153,12 +151,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);
                     bb.flip();
-                    
+
                     // corrupt
                     byte oldValue = bb.get(0);
                     byte newValue = (byte) (oldValue + 1);
                     bb.put(0, newValue);
-                    
+
                     // rewrite
                     raf.position(filePointer);
                     raf.write(bb);

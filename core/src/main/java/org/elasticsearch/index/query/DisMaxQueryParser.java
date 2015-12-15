@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,6 +32,9 @@ import java.util.List;
  * Parser for dis_max query
  */
 public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
+
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField QUERIES_FIELD = new ParseField("queries");
 
     @Override
     public String[] names() {
@@ -54,7 +58,7 @@ public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("queries".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     queries.add(query);
@@ -62,7 +66,7 @@ public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("queries".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
@@ -73,11 +77,11 @@ public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if ("boost".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
                     tieBreaker = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");

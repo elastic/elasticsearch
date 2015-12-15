@@ -29,11 +29,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,6 +45,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public IndicesService getIndicesService() {
         return getInstanceFromNode(IndicesService.class);
     }
+
     public NodeEnvironment getNodeEnvironment() {
         return getInstanceFromNode(NodeEnvironment.class);
     }
@@ -56,12 +58,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testCanDeleteIndexContent() {
         IndicesService indicesService = getIndicesService();
 
-        Settings idxSettings = settings(Version.CURRENT)
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_DATA_PATH, "/foo/bar")
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                .build();
+                .build());
         assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(new Index("test"), idxSettings, false));
         assertTrue("shard on shared filesystem and closed", indicesService.canDeleteIndexContents(new Index("test"), idxSettings, true));
     }
@@ -70,12 +72,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getIndicesService();
         IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
                 1).build();
-        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
         IndexService test = createIndex("test");
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -132,7 +135,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ensureGreen("test");
     }
 
-    public void testPendingTasks() throws IOException {
+    public void testPendingTasks() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
 
@@ -175,7 +178,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
             // shard lock released... we can now delete
-            indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         }
         assertAcked(client().admin().indices().prepareOpen("test"));

@@ -68,7 +68,7 @@ public class RestoreSource implements Streamable, ToXContent {
     }
 
     public static RestoreSource readOptionalRestoreSource(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(new RestoreSource());
+        return in.readOptionalStreamable(RestoreSource::new);
     }
 
     @Override

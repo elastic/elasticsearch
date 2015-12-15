@@ -32,7 +32,6 @@ import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -101,9 +100,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -122,6 +121,11 @@ public class TTLFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new TTLFieldMapper(indexSettings);
         }
     }
 
@@ -157,11 +161,11 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     private EnabledAttributeMapper enabledState;
     private long defaultTTL;
 
-    public TTLFieldMapper(Settings indexSettings) {
+    private TTLFieldMapper(Settings indexSettings) {
         this(Defaults.TTL_FIELD_TYPE.clone(), Defaults.ENABLED_STATE, Defaults.DEFAULT, null, indexSettings);
     }
 
-    protected TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
+    private TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
@@ -254,7 +258,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
         if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
             if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {

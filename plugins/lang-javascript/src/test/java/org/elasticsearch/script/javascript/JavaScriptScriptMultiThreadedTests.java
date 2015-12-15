@@ -24,7 +24,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
-
-    @Test
     public void testExecutableNoRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
@@ -83,8 +80,6 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
         assertThat(failed.get(), equalTo(false));
     }
 
-
-    @Test
     public void testExecutableWithRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
@@ -127,7 +122,6 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
         assertThat(failed.get(), equalTo(false));
     }
 
-    @Test
     public void testExecute() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");

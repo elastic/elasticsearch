@@ -19,13 +19,22 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.*;
+import org.apache.lucene.search.similarities.AfterEffectL;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BasicModelG;
+import org.apache.lucene.search.similarities.DFRSimilarity;
+import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.DistributionSPL;
+import org.apache.lucene.search.similarities.IBSimilarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.search.similarities.LambdaTTF;
+import org.apache.lucene.search.similarities.NormalizationH2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -33,15 +42,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SimilarityTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testResolveDefaultSimilarities() {
         SimilarityService similarityService = createIndex("foo").similarityService();
         assertThat(similarityService.getSimilarity("default").get(), instanceOf(DefaultSimilarity.class));
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_default() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -61,7 +67,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -85,7 +90,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -111,7 +115,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(((NormalizationH2) similarity.getNormalization()).getC(), equalTo(3f));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_IB() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -137,7 +140,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(((NormalizationH2) similarity.getNormalization()).getC(), equalTo(3f));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -157,7 +159,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarity.getMu(), equalTo(3000f));
     }
 
-    @Test
     public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

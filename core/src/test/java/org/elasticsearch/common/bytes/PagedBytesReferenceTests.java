@@ -32,7 +32,6 @@ import org.hamcrest.Matchers;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -61,7 +60,6 @@ public class PagedBytesReferenceTests extends ESTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testGet() {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
         BytesReference pbr = getRandomizedPagedBytesReference(length);

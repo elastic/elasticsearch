@@ -21,6 +21,9 @@ package org.elasticsearch.index.mapper.multifield;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.GeoUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -28,48 +31,35 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
-import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class MultiFieldTests extends ESSingleNodeTestCase {
-
-    @Test
-    public void testMultiField_multiFieldType() throws Exception {
+    public void testMultiFieldMultiFieldType() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type.json");
         testMultiField(mapping);
     }
 
-    @Test
-    public void testMultiField_multiFields() throws Exception {
+    public void testMultiFieldMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-fields.json");
         testMultiField(mapping);
     }
@@ -145,10 +135,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("object1.multi1.string").fieldType().tokenized(), equalTo(false));
     }
 
-    @Test
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.getIndexSettings().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
 
         DocumentMapper builderDocMapper = doc(settings, rootObject("person").add(
@@ -186,7 +175,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     public void testConvertMultiFieldNoDefaultField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -256,10 +244,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("age.stored").fieldType().tokenized(), equalTo(false));
     }
 
-    @Test
     public void testConvertMultiFieldGeoPoint() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         assertThat(docMapper.mappers().getMapper("a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("a"), instanceOf(StringFieldMapper.class));
@@ -268,10 +258,13 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a").fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().getMapper("a.b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("a.b").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(false));
+        final boolean stored = indexCreatedBefore22 == false;
+        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(stored));
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
+        final boolean hasDocValues = indexCreatedBefore22 == false;
+        assertThat(docMapper.mappers().getMapper("a.b").fieldType().hasDocValues(), equalTo(hasDocValues));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("a", "-1,-1")
@@ -288,15 +281,20 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("a.b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().getMapper("b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("b").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(stored));
         assertThat(docMapper.mappers().getMapper("b").fieldType().tokenized(), equalTo(false));
+        assertThat(docMapper.mappers().getMapper("b").fieldType().hasDocValues(), equalTo(hasDocValues));
 
         assertThat(docMapper.mappers().getMapper("b.a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("b.a"), instanceOf(StringFieldMapper.class));
@@ -312,8 +310,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
@@ -331,15 +333,23 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getFields("b")[0];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getFields("b")[1];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-2.0, -2.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
@@ -353,7 +363,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     public void testConvertMultiFieldCompletion() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-completion.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -421,7 +430,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     // The underlying order of the fields in multi fields in the mapping source should always be consistent, if not this
     // can to unnecessary re-syncing of the mappings between the local instance and cluster state
     public void testMultiFieldsInConsistentOrder() throws Exception {
@@ -451,12 +459,11 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
     }
-    
-    @Test
+
     // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
     public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
         final String MY_MULTI_FIELD = "multi_field";
-        
+
         // Possible fielddata settings
         Map<String, Object> possibleSettings = new TreeMap<String, Object>();
         possibleSettings.put("filter.frequency.min", 1);
@@ -466,18 +473,18 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         possibleSettings.put("foo", "bar");
         possibleSettings.put("zetting", "zValue");
         possibleSettings.put("aSetting", "aValue");
-        
+
         // Generate a mapping with the a random subset of possible fielddata settings
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
             .field("type", "string").startObject("fielddata");
         String[] keys = possibleSettings.keySet().toArray(new String[]{});
-        Collections.shuffle(Arrays.asList(keys));
+        Collections.shuffle(Arrays.asList(keys), random());
         for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
             builder.field(keys[i], possibleSettings.get(keys[i]));
         builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
-        
-        // Check the mapping remains identical when deserialed/re-serialsed 
+
+        // Check the mapping remains identical when deserialed/re-serialsed
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(builder.string());
         DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());
@@ -507,6 +514,32 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             fail("expected mapping parse failure");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("cannot be used in multi field"));
+        }
+    }
+
+    public void testMultiFieldWithDot() throws IOException {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject()
+                .startObject("my_type")
+                .startObject("properties")
+                .startObject("city")
+                .field("type", "string")
+                .startObject("fields")
+                .startObject("raw.foo")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        try {
+            mapperService.documentMapperParser().parse(mapping.string());
+            fail("this should throw an exception because one field contains a dot");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));
         }
     }
 }

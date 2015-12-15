@@ -27,19 +27,16 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 public class CopyToMapperIntegrationIT extends ESIntegTestCase {
-
-
-    @Test
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("test-idx")
@@ -56,7 +53,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        
+
         SearchResponse response = client().prepareSearch("test-idx")
                 .setQuery(QueryBuilders.termQuery("even", true))
                 .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2)
@@ -72,6 +69,25 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
 
     }
 
+    public void testDynamicObjectCopyTo() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .startObject("foo")
+                .field("type", "string")
+                .field("copy_to", "root.top.child")
+            .endObject()
+            .endObject().endObject().endObject().string();
+        assertAcked(
+            client().admin().indices().prepareCreate("test-idx")
+                .addMapping("doc", mapping)
+        );
+        client().prepareIndex("test-idx", "doc", "1")
+            .setSource("foo", "bar")
+            .get();
+        client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
+        SearchResponse response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
+        assertThat(response.getHits().totalHits(), equalTo(1L));
+    }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {
         return XContentFactory.jsonBuilder().startObject().startObject("doc")

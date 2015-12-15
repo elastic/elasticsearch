@@ -116,7 +116,7 @@ public abstract class Terminal {
     }
 
     public void printError(Throwable t) {
-        printError("%s", t.getMessage());
+        printError("%s", t.toString());
         if (isDebugEnabled) {
             printStackTrace(t);
         }

@@ -99,7 +99,7 @@ PUT my_index <1>
   }
 }
 
-PUT my_index/mapping/user
+PUT my_index/_mapping/user
 {
   "properties": {
     "name": {

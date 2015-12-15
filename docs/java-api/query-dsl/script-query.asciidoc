@@ -26,7 +26,7 @@ You can use it then with:
 QueryBuilder qb = scriptQuery(
     new Script(
         "mygroovyscript",                    <1>
-        ScriptService.ScriptType.FILE,       <2>
+        ScriptType.FILE,       <2>
         "groovy",                            <3>
         ImmutableMap.of("param1", 5))        <4>
 );
@@ -36,4 +36,4 @@ QueryBuilder qb = scriptQuery(
 <3> Scripting engine
 <4> Parameters as a `Map` of `<String, Object>`
 
-æ
+

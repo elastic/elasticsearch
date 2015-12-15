@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,7 +61,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return pluginList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
-    @Test
     //@TestLogging("org.elasticsearch.cluster:TRACE,org.elasticsearch.cluster.routing.allocation.decider:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         List<String> nodes = internalCluster().startNodesAsync(3).get();

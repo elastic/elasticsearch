@@ -22,37 +22,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
 public class RecoverySettingsTests extends ESSingleNodeTestCase {
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }
 
-    @Test
     public void testAllSettingsAreDynamicallyUpdatable() {
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, randomIntBetween(1, 200), ByteSizeUnit.BYTES, new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.fileChunkSize().bytesAsInt());
-            }
-        });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_TRANSLOG_OPS, randomIntBetween(1, 200), new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.translogOps());
-            }
-        });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE, randomIntBetween(1, 200), ByteSizeUnit.BYTES, new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.translogSize().bytesAsInt());
-            }
-        });
         innerTestSettings(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, randomIntBetween(1, 200), new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
@@ -99,13 +78,6 @@ public class RecoverySettingsTests extends ESSingleNodeTestCase {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.internalActionLongTimeout().millis());
-            }
-        });
-
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_COMPRESS, false, new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, boolean expectedValue) {
-                assertEquals(expectedValue, recoverySettings.compress());
             }
         });
     }

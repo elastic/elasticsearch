@@ -24,8 +24,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,14 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PythonScriptMultiThreadedTests extends ESTestCase {
 
-    @After
-    public void close() {
-        // We need to clear some system properties
-        System.clearProperty("python.cachedir.skip");
-        System.clearProperty("python.console.encoding");
-    }
-
-    @Test
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
@@ -93,7 +83,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     }
 
 
-//    @Test public void testExecutableWithRuntimeParams() throws Exception {
+//    public void testExecutableWithRuntimeParams() throws Exception {
 //        final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
 //        final Object compiled = se.compile("x + y");
 //        final AtomicBoolean failed = new AtomicBoolean();
@@ -135,7 +125,6 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
 //        assertThat(failed.get(), equalTo(false));
 //    }
 
-    @Test
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");

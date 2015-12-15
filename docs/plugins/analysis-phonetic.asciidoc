@@ -42,7 +42,7 @@ The `phonetic` token filter takes the following settings:
     Which phonetic encoder to use.  Accepts `metaphone` (default),
     `doublemetaphone`, `soundex`, `refinedsoundex`, `caverphone1`,
     `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
-    `beidermorse`.
+    `beidermorse`, `daitch_mokotoff`.
 
 `replace`::
 

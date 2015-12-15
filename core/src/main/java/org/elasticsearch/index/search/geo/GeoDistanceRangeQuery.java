@@ -29,14 +29,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 
 import java.io.IOException;
 
@@ -58,8 +57,9 @@ public class GeoDistanceRangeQuery extends Query {
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoDistanceRangeQuery(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapper.GeoPointFieldType fieldType, IndexGeoPointFieldData indexFieldData,
-                                  String optimizeBbox) {
+    public GeoDistanceRangeQuery(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower,
+                                 boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapperLegacy.GeoPointFieldType fieldType,
+                                 IndexGeoPointFieldData indexFieldData, String optimizeBbox) {
         this.lat = point.lat();
         this.lon = point.lon();
         this.geoDistance = geoDistance;
@@ -170,6 +170,16 @@ public class GeoDistanceRangeQuery extends Query {
                         }
                         return false;
                     }
+
+                    @Override
+                    public float matchCost() {
+                        if (distanceBoundingCheck == GeoDistance.ALWAYS_INSTANCE) {
+                            return 0.0f;
+                        } else {
+                            // TODO: is this right (up to 4 comparisons from GeoDistance.SimpleDistanceBoundingCheck)?
+                            return 4.0f;
+                        }
+                    }
                 };
                 return new ConstantScoreScorer(this, score(), twoPhaseIterator);
             }
@@ -196,7 +206,7 @@ public class GeoDistanceRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoDistanceRangeFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 
     @Override
@@ -204,13 +214,13 @@ public class GeoDistanceRangeQuery extends Query {
         int result = super.hashCode();
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = inclusiveLowerPoint != +0.0d ? Double.doubleToLongBits(inclusiveLowerPoint) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = inclusiveUpperPoint != +0.0d ? Double.doubleToLongBits(inclusiveUpperPoint) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         result = 31 * result + (geoDistance != null ? geoDistance.hashCode() : 0);
         result = 31 * result + indexFieldData.getFieldNames().indexName().hashCode();
         return result;

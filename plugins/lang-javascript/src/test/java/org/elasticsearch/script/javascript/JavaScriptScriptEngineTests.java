@@ -27,7 +27,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.instanceOf;
  *
  */
 public class JavaScriptScriptEngineTests extends ESTestCase {
-
     private JavaScriptScriptEngineService se;
 
     @Before
@@ -54,14 +52,12 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         se.close();
     }
 
-    @Test
     public void testSimpleEquation() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testSimpleEquation", "js", se.compile("1 + 2")), vars).run();
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
-    @Test
     public void testMapAccess() {
         Map<String, Object> vars = new HashMap<String, Object>();
 
@@ -78,7 +74,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((String) o), equalTo("2"));
     }
 
-    @Test
     public void testJavaScriptObjectToMap() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectToMap", "js",
@@ -88,7 +83,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
     }
 
-    @Test
     public void testJavaScriptObjectMapInter() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
@@ -107,7 +101,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
     }
 
-    @Test
     public void testJavaScriptInnerArrayCreation() {
         Map<String, Object> ctx = new HashMap<String, Object>();
         Map<String, Object> doc = new HashMap<String, Object>();
@@ -124,7 +117,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((Map) unwrap.get("doc")).get("field1"), instanceOf(List.class));
     }
 
-    @Test
     public void testAccessListInScript() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
@@ -150,7 +142,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((String) o), equalTo("value1"));
     }
 
-    @Test
     public void testChangingVarsCrossExecution1() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
@@ -168,7 +159,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((Number) o).intValue(), equalTo(2));
     }
 
-    @Test
     public void testChangingVarsCrossExecution2() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object compiledScript = se.compile("value");

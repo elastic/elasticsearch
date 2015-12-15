@@ -20,13 +20,12 @@
 package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SettingsValidatorTests extends ESTestCase {
-
-    @Test
     public void testValidators() throws Exception {
         assertThat(Validator.EMPTY.validate("", "anything goes", null), nullValue());
 
@@ -98,7 +97,6 @@ public class SettingsValidatorTests extends ESTestCase {
         assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "0%", null), nullValue());
     }
 
-    @Test
     public void testDynamicValidators() throws Exception {
         DynamicSettings.Builder ds = new DynamicSettings.Builder();
         ds.addSetting("my.test.*", Validator.POSITIVE_INTEGER);

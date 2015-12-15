@@ -65,9 +65,36 @@ public class QueryParseContext {
     }
 
     /**
-     * @return a new QueryBuilder based on the current state of the parser
+     * Parses a top level query including the query element that wraps it
      */
-    public QueryBuilder parseInnerQueryBuilder() throws IOException {
+    public QueryBuilder<?> parseTopLevelQueryBuilder() {
+        try {
+            QueryBuilder<?> queryBuilder = null;
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    if ("query".equals(fieldName)) {
+                        queryBuilder = parseInnerQueryBuilder();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
+                    }
+                }
+            }
+            if (queryBuilder == null) {
+                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
+            }
+            return queryBuilder;
+        } catch (ParsingException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
+        }
+    }
+
+    /**
+     * Parses a query excluding the query element that wraps it
+     */
+    public QueryBuilder<?> parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -91,20 +118,17 @@ public class QueryParseContext {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
 
-        QueryBuilder result = parseInnerQueryBuilderByName(queryName);
+        QueryParser queryParser = queryParser(queryName);
+        if (queryParser == null) {
+            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
+        }
+
+        QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }
         return result;
-    }
-
-    public QueryBuilder parseInnerQueryBuilderByName(String queryName) throws IOException {
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-        }
-        return queryParser.fromXContent(this);
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

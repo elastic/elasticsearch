@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -51,6 +52,7 @@ import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -58,10 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -321,7 +320,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         } catch (FailedToCommitClusterStateException t) {
             // cluster service logs a WARN message
             logger.debug("failed to publish cluster state version [{}] (not enough nodes acknowledged, min master nodes [{}])", clusterChangedEvent.state().version(), electMaster.minimumMasterNodes());
-            clusterService.submitStateUpdateTask("zen-disco-failed-to-publish", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-failed-to-publish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return rejoin(currentState, "failed to publish to min_master_nodes");
@@ -335,6 +334,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             });
             throw t;
         }
+    }
+
+    @Override
+    public DiscoveryStats stats() {
+        PendingClusterStateStats queueStats = publishClusterState.pendingStatesQueue().stats();
+        return new DiscoveryStats(queueStats);
     }
 
     /**
@@ -393,7 +398,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopAccumulatingJoins();
+            nodeJoinController.stopAccumulatingJoins("not master");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -493,7 +498,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (localNodeMaster()) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.id());
@@ -503,7 +508,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
+                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                            ClusterState.builder(currentState).build(),
+                            "[" + node + "] left");
                     return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
 
@@ -518,7 +525,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             });
         } else if (node.equals(nodes().masterNode())) {
-            handleMasterGone(node, "shut_down");
+            handleMasterGone(node, null, "shut_down");
         }
     }
 
@@ -531,7 +538,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (currentState.nodes().get(node.id()) == null) {
@@ -546,7 +553,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
+                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                        ClusterState.builder(currentState).build(),
+                        "[" + node + "] failed");
                 return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 
@@ -578,7 +587,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
@@ -606,7 +615,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    private void handleMasterGone(final DiscoveryNode masterNode, final String reason) {
+    private void handleMasterGone(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (lifecycleState() != Lifecycle.State.STARTED) {
             // not started, ignore a master failure
             return;
@@ -616,9 +625,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
 
-        logger.info("master_left [{}], reason [{}]", masterNode, reason);
+        logger.info("master_left [{}], reason [{}]", cause, masterNode, reason);
 
-        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public boolean runOnlyOnMaster() {
@@ -685,7 +694,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     void processNextPendingClusterState(String reason) {
-        clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + reason + "])", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + reason + "])", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public boolean runOnlyOnMaster() {
                 return false;
@@ -742,9 +751,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     // if its not the same version, only copy over new indices or ones that changed the version
                     MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
                     for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.indexUUID()) &&
-                                currentIndexMetaData.version() == indexMetaData.version()) {
+                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
+                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
+                                currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
                             // safe to reuse
                             metaDataBuilder.put(currentIndexMetaData, false);
                         } else {
@@ -1050,7 +1059,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return;
             }
             logger.debug("got a ping from another master {}. resolving who should rejoin. current ping count: [{}]", pingRequest.masterNode(), pingsWhileMaster.get());
-            clusterService.submitStateUpdateTask("ping from another master", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("ping from another master", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -1069,8 +1078,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private class MasterNodeFailureListener implements MasterFaultDetection.Listener {
 
         @Override
-        public void onMasterFailure(DiscoveryNode masterNode, String reason) {
-            handleMasterGone(masterNode, reason);
+        public void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason) {
+            handleMasterGone(masterNode, cause, reason);
         }
     }
 
@@ -1105,7 +1114,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     class RejoinClusterRequestHandler implements TransportRequestHandler<RejoinClusterRequest> {
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
-            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
                 @Override
                 public boolean runOnlyOnMaster() {

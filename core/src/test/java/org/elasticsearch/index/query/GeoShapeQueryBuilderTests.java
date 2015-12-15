@@ -30,19 +30,21 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
@@ -55,8 +57,10 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        ShapeType shapeType = ShapeType.randomType(getRandom());
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null, shapeType);
         GeoShapeQueryBuilder builder;
+        clearShapeFields();
         if (randomBoolean()) {
             try {
                 builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
@@ -79,6 +83,11 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         }
         if (randomBoolean()) {
             SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
+            // ShapeType.MULTILINESTRING + SpatialStrategy.TERM can lead to large queries and will slow down tests, so
+            // we try to avoid that combination
+            while (shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM) {
+                strategy = randomFrom(SpatialStrategy.values());
+            }
             builder.strategy(strategy);
             if (strategy != SpatialStrategy.TERM) {
                 builder.relation(randomFrom(ShapeRelation.values()));
@@ -135,18 +144,20 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
      */
     @Override
     public void testToQuery() throws IOException {
-        //TODO figure out why this test might take up to 10 seconds once in a while
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testNoFieldName() throws Exception {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
-        new GeoShapeQueryBuilder(null, shape);
+        try {
+            new GeoShapeQueryBuilder(null, shape);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("fieldName is required"));
+        }
     }
 
-    @Test
     public void testNoShape() throws IOException {
         try {
             new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (ShapeBuilder) null);
@@ -156,24 +167,35 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testNoIndexedShape() throws IOException {
-        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null, "type");
+        try {
+            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null, "type");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("either shapeBytes or indexedShapeId and indexedShapeType are required"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testNoIndexedShapeType() throws IOException {
-        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", null);
+        try {
+            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("indexedShapeType is required if indexedShapeId is specified"));
+        }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testNoRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
-        builder.relation(null);
+        try {
+            builder.relation(null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No Shape Relation defined"));
+        }
     }
 
-    @Test
     public void testInvalidRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
@@ -194,10 +216,29 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         }
     }
 
-    @Test // see #3878
+    // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {
-        EnvelopeBuilder envelopeBuilder = ShapeBuilder.newEnvelope().topLeft(0, 0).bottomRight(10, 10);
+        EnvelopeBuilder envelopeBuilder = ShapeBuilders.newEnvelope().topLeft(0, 0).bottomRight(10, 10);
         GeoShapeQueryBuilder geoQuery = QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder);
         JsonXContent.contentBuilder().startArray().value(geoQuery).endArray();
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geo_shape\" : {\n" + 
+                "    \"location\" : {\n" + 
+                "      \"shape\" : {\n" + 
+                "        \"type\" : \"envelope\",\n" + 
+                "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" + 
+                "      },\n" + 
+                "      \"relation\" : \"intersects\"\n" + 
+                "    },\n" + 
+                "    \"boost\" : 42.0\n" + 
+                "  }\n" + 
+                "}";
+        GeoShapeQueryBuilder parsed = (GeoShapeQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 42.0, parsed.boost(), 0.0001);
     }
 }

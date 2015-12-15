@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -47,7 +46,7 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
@@ -160,7 +159,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
-            parseField(builder, name, node, parserContext);
+            parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -360,7 +359,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;

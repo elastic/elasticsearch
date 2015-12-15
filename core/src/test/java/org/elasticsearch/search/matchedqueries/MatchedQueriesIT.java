@@ -24,9 +24,17 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
@@ -35,9 +43,7 @@ import static org.hamcrest.Matchers.hasItemInArray;
  *
  */
 public class MatchedQueriesIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleMatchedQueryFromFilteredQuery() throws Exception {
+    public void testSimpleMatchedQueryFromFilteredQuery() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -77,8 +83,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleMatchedQueryFromTopLevelFilter() throws Exception {
+    public void testSimpleMatchedQueryFromTopLevelFilter() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -127,8 +132,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleMatchedQueryFromTopLevelFilterAndFilteredQuery() throws Exception {
+    public void testSimpleMatchedQueryFromTopLevelFilterAndFilteredQuery() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -166,7 +170,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIndicesFilterSupportsName() {
         createIndex("test1", "test2");
         ensureGreen();
@@ -205,7 +208,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRegExpQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -227,7 +229,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPrefixQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -249,7 +250,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testFuzzyQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -271,7 +271,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testWildcardQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -293,7 +292,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSpanFirstQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -318,7 +316,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
     /**
      * Test case for issue #4361: https://github.com/elasticsearch/elasticsearch/issues/4361
      */
-    @Test
     public void testMatchedWithShould() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -355,7 +352,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMatchedWithWrapperQuery() throws Exception {
         createIndex("test");
         ensureGreen();

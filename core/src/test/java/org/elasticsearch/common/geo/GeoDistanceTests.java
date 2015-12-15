@@ -22,20 +22,18 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic Tests for {@link GeoDistance}
  */
 public class GeoDistanceTests extends ESTestCase {
-
-    @Test
     public void testGeoDistanceSerialization() throws IOException  {
         // make sure that ordinals don't change, because we rely on then in serialization
         assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));
@@ -54,7 +52,6 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IOException.class)
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             if (randomBoolean()) {
@@ -64,11 +61,12 @@ public class GeoDistanceTests extends ESTestCase {
             }
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
                 GeoDistance.readGeoDistanceFrom(in);
+            } catch (IOException e) {
+                assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }
         }
     }
 
-    @Test
     public void testDistanceCheck() {
         // Note, is within is an approximation, so, even though 0.52 is outside 50mi, we still get "true"
         GeoDistance.DistanceBoundingCheck check = GeoDistance.distanceBoundingCheck(0, 0, 50, DistanceUnit.MILES);
@@ -81,7 +79,6 @@ public class GeoDistanceTests extends ESTestCase {
         assertThat(check.isWithin(0, -178), equalTo(false));
     }
 
-    @Test
     public void testArcDistanceVsPlaneInEllipsis() {
         GeoPoint centre = new GeoPoint(48.8534100, 2.3488000);
         GeoPoint northernPoint = new GeoPoint(48.8801108681, 2.35152032666);

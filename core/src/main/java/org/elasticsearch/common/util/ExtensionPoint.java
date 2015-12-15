@@ -123,7 +123,7 @@ public abstract class ExtensionPoint {
     public static final class SelectedType<T> extends ClassMap<T> {
 
         public SelectedType(String name, Class<T> extensionClass) {
-            super(name, extensionClass, Collections.EMPTY_SET);
+            super(name, extensionClass, Collections.emptySet());
         }
 
         /**
@@ -191,7 +191,8 @@ public abstract class ExtensionPoint {
         protected final void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
-                allocationMultibinder.addBinding().to(clazz).asEagerSingleton();
+                binder.bind(clazz).asEagerSingleton();
+                allocationMultibinder.addBinding().to(clazz);
             }
         }
     }

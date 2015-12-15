@@ -1,0 +1,30 @@
+---
+"REST test with headers":
+  - skip:
+      features: headers
+
+  - do:
+      index:
+        index: test_1
+        type:  test
+        id:    1
+        body:  { "body": "foo" }
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      get:
+        index: test_1
+        type: _all
+        id:   1
+
+  - match:
+      $body: |
+        /^---\n
+          _index:\s+\"test_1"\n
+          _type:\s+"test"\n
+          _id:\s+"1"\n
+          _version:\s+1\n
+          found:\s+true\n
+          _source:\n
+          \s+body:\s+"foo"\n$/

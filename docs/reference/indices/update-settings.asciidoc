@@ -63,11 +63,11 @@ curl -XPUT localhost:9200/test/_settings -d '{
     } }'
 --------------------------------------------------
 
-And, an optimize should be called:
+And, a force merge should be called:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/test/_optimize?max_num_segments=5'
+curl -XPOST 'http://localhost:9200/test/_forcemerge?max_num_segments=5'
 --------------------------------------------------
 
 [float]

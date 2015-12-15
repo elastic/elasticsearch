@@ -37,10 +37,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,14 +61,20 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
 public class TimestampMappingTests extends ESSingleNodeTestCase {
     Settings BWC_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
-    @Test
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -76,7 +88,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_timestamp"), equalTo(null));
     }
 
-    @Test
     public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", "yes").endObject()
@@ -94,7 +105,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
-    @Test
     public void testDefaultValues() throws Exception {
         for (Version version : Arrays.asList(V_1_5_0, V_2_0_0_beta1, randomVersion(random()))) {
             for (String mapping : Arrays.asList(
@@ -114,7 +124,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testBackcompatSetValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -132,7 +141,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(true));
     }
 
-    @Test
     public void testThatDisablingDuringMergeIsWorking() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).endObject()
@@ -150,7 +158,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
 
-    @Test // issue 3174
+    // issue 3174
     public void testThatSerializationWorksCorrectlyForIndexField() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("store", "yes").field("index", "no").endObject()
@@ -171,7 +179,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(timestampConfiguration.get("index").toString(), is("no"));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testBackcompatPathMissingDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -199,7 +207,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -225,7 +233,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testBackcompatPathMissingDefaultToEpochValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -251,7 +259,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampMissingDefaultToEpochValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -276,7 +284,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testBackcompatPathMissingNowDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -305,7 +313,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampMissingNowDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -333,7 +341,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testPathMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -350,7 +358,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testBackcompatPathMissingShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -378,7 +386,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -395,7 +403,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampDefaultAndIgnore() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -413,7 +421,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampMissingShouldNotFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -440,7 +448,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(delay, lessThanOrEqualTo(60000L));
     }
 
-    @Test
     public void testDefaultTimestampStream() throws IOException {
         // Testing null value for default timestamp
         {
@@ -494,7 +501,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testMergingFielddataLoadingWorks() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
@@ -515,7 +521,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
 
-    @Test
     public void testParsingNotDefaultTwiceDoesNotChangeMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -529,7 +534,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappingSource().string(), equalTo(mapping));
     }
 
-    @Test
     public void testBackcompatParsingTwiceDoesNotChangeTokenizeValue() throws Exception {
         String[] index_options = {"no", "analyzed", "not_analyzed"};
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -551,11 +555,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(tokenized, equalTo(docMapper.timestampFieldMapper().fieldType().tokenized()));
     }
 
-    @Test
     public void testMergingConflicts() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
-                .startObject("fielddata").field("format", "doc_values").endObject()
                 .field("store", "yes")
                 .field("index", "analyzed")
                 .field("path", "foo")
@@ -563,9 +565,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test", indexSettings).mapperService();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), true, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
@@ -577,23 +579,34 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
-        List<String> expectedConflicts = new ArrayList<>(Arrays.asList(
-            "mapper [_timestamp] has different [index] values",
-            "mapper [_timestamp] has different [store] values",
-            "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02",
-            "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"));
-
-        for (String conflict : mergeResult.buildConflicts()) {
-            assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [index] values"));
+            assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [store] values"));
         }
-        assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
+
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
-        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .field("store", "yes")
+                .field("index", "analyzed")
+                .field("path", "bar")
+                .field("default", "1970-01-02")
+                .endObject()
+                .endObject().endObject().string();
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02"));
+            assertThat(e.getMessage(), containsString("Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"));
+        }
     }
 
-    @Test
     public void testBackcompatMergingConflictsForIndexValues() throws Exception {
         List<String> indexValues = new ArrayList<>();
         indexValues.add("analyzed");
@@ -633,7 +646,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     /**
      * Test for issue #9223
      */
-    @Test
     public void testInitMappers() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -646,7 +658,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         new MappingMetaData(new CompressedXContent(mapping));
     }
 
-    @Test
     public void testBackcompatMergePaths() throws Exception {
         String[] possiblePathValues = {"some_path", "anotherPath", null};
         DocumentMapperParser parser = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser();
@@ -681,7 +692,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
             assertThat(mergeResult.buildConflicts()[0], containsString(conflict));
         }
     }
-    
+
     public void testBackcompatDocValuesSerialization() throws Exception {
         // default
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -726,7 +737,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject().string();
         assertDocValuesSerialization(mapping);
     }
-    
+
     void assertDocValuesSerialization(String mapping) throws Exception {
         DocumentMapperParser parser = createIndex("test_doc_values", BWC_SETTINGS).mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);

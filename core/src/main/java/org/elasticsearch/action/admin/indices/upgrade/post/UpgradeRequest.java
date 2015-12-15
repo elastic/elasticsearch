@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A request to upgrade one or more indices. In order to optimize on all the indices, pass an empty array or
+ * A request to upgrade one or more indices. In order to update all indices, pass an empty array or
  * <tt>null</tt> for the indices.
  * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
@@ -43,7 +43,7 @@ public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
     /**
      * Constructs an optimization request over one or more indices.
      *
-     * @param indices The indices to optimize, no indices passed means all indices will be optimized.
+     * @param indices The indices to upgrade, no indices passed means all indices will be optimized.
      */
     public UpgradeRequest(String... indices) {
         super(indices);

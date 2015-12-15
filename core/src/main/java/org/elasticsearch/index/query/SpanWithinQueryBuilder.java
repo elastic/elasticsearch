@@ -73,10 +73,10 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 
-        builder.field("big");
+        builder.field(SpanWithinQueryParser.BIG_FIELD.getPreferredName());
         big.toXContent(builder, params);
 
-        builder.field("little");
+        builder.field(SpanWithinQueryParser.LITTLE_FIELD.getPreferredName());
         little.toXContent(builder, params);
 
         printBoostAndQueryName(builder);

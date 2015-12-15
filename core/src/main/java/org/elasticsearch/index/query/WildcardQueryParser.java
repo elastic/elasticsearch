@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,10 @@ import java.io.IOException;
  * Parser for wildcard query
  */
 public class WildcardQueryParser implements QueryParser<WildcardQueryBuilder> {
+
+    public static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     @Override
     public String[] names() {
@@ -55,15 +60,15 @@ public class WildcardQueryParser implements QueryParser<WildcardQueryBuilder> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("wildcard".equals(currentFieldName)) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
                         value = parser.text();
-                    } else if ("value".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                         value = parser.text();
-                    } else if ("boost".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if ("rewrite".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                         rewrite = parser.textOrNull();
-                    } else if ("_name".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "[wildcard] query does not support [" + currentFieldName + "]");

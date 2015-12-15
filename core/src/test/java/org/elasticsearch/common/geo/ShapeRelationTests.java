@@ -22,10 +22,10 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShapeRelationTests extends ESTestCase {
@@ -80,13 +80,16 @@ public class ShapeRelationTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IOException.class)
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(3, Integer.MAX_VALUE));
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
                 ShapeRelation.DISJOINT.readFrom(in);
+                fail("Expected IOException");
+            } catch(IOException e) {
+                assertThat(e.getMessage(), containsString("Unknown ShapeRelation ordinal ["));
             }
+
         }
     }
 }

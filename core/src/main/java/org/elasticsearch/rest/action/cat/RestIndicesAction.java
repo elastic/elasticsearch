@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -79,7 +79,8 @@ public class RestIndicesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 ClusterState state = clusterStateResponse.getState();
-                final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.fromOptions(false, true, true, true), indices);
+                final IndicesOptions concreteIndicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+                final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, concreteIndicesOptions, indices);
                 final String[] openIndices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.lenientExpandOpen(), indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
@@ -87,6 +88,8 @@ public class RestIndicesAction extends AbstractCatAction {
                     @Override
                     public void processResponse(final ClusterHealthResponse clusterHealthResponse) {
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                        indicesStatsRequest.indices(concreteIndices);
+                        indicesStatsRequest.indicesOptions(concreteIndicesOptions);
                         indicesStatsRequest.all();
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
@@ -328,8 +331,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
 
-            table.addCell(indexMetaData.creationDate());
-            table.addCell(new DateTime(indexMetaData.creationDate(), DateTimeZone.UTC));
+            table.addCell(indexMetaData.getCreationDate());
+            table.addCell(new DateTime(indexMetaData.getCreationDate(), DateTimeZone.UTC));
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getStore().size());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getStore().size());

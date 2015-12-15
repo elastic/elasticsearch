@@ -22,14 +22,12 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -56,8 +54,8 @@ public class MultiMatchQuery extends MatchQuery {
         if (query instanceof BooleanQuery) {
             query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
-        if (boostValue != null && query != null) {
-            query.setBoost(boostValue);
+        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
+            query = new BoostQuery(query, boostValue);
         }
         return query;
     }
@@ -167,13 +165,13 @@ public class MultiMatchQuery extends MatchQuery {
                     Analyzer actualAnalyzer = getAnalyzer(fieldType);
                     name = fieldType.names().indexName();
                     if (!groups.containsKey(actualAnalyzer)) {
-                       groups.put(actualAnalyzer, new ArrayList<FieldAndFieldType>());
+                       groups.put(actualAnalyzer, new ArrayList<>());
                     }
                     Float boost = entry.getValue();
                     boost = boost == null ? Float.valueOf(1.0f) : boost;
                     groups.get(actualAnalyzer).add(new FieldAndFieldType(name, fieldType, boost));
                 } else {
-                    missing.add(new Tuple(name, entry.getValue()));
+                    missing.add(new Tuple<>(name, entry.getValue()));
                 }
 
             }

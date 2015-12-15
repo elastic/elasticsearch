@@ -84,7 +84,18 @@ class ESFileStore extends FileStore {
             return getFileStoreWindows(path, fileStores);
         }
         
-        FileStore store = Files.getFileStore(path);
+        final FileStore store;
+        try {
+            store = Files.getFileStore(path);
+        } catch (IOException unexpected) {
+            // give a better error message if a filestore cannot be retrieved from inside a FreeBSD jail.
+            if (Constants.FREE_BSD) {
+                throw new IOException("Unable to retrieve mount point data for " + path +
+                                      ". If you are running within a jail, set enforce_statfs=1. See jail(8)", unexpected);
+            } else {
+                throw unexpected;
+            }
+        }
 
         try {
             String mount = getMountPointLinux(store);

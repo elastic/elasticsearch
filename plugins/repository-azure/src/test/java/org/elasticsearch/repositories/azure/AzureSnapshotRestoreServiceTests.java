@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -41,12 +40,10 @@ import static org.hamcrest.Matchers.greaterThan;
         numClientNodes = 0,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositoryServiceTestCase {
-
     public AzureSnapshotRestoreServiceTests() {
         super("/snapshot-test/repo-" + randomInt());
     }
 
-    @Test
     public void testSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", basePath);
@@ -67,9 +64,9 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
             index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
@@ -89,9 +86,9 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
@@ -101,9 +98,9 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         // Test restore after index deletion
         logger.info("--> delete indices");
@@ -112,7 +109,7 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));

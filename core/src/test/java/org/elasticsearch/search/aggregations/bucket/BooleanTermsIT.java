@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -85,8 +84,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         indexRandom(true, builders);
     }
 
-    @Test
-    public void singleValueField() throws Exception {
+    public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -118,8 +116,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValueField() throws Exception {
+    public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
@@ -151,8 +148,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)

@@ -53,7 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,7 +71,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(Headers.PREFIX + ".key2", "val 2")
             .build();
 
-    @SuppressWarnings("unchecked")
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
@@ -107,7 +105,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     protected abstract Client buildClient(Settings headersSettings, GenericAction[] testedActions);
 
 
-    @Test
     public void testActions() {
 
         // TODO this is a really shitty way to test it, we need to figure out a way to test all the client methods
@@ -134,7 +131,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<FlushResponse>(FlushAction.NAME));
     }
 
-    @Test
     public void testOverideHeader() throws Exception {
         String key1Val = randomAsciiOfLength(5);
         Map<String, Object> expected = new HashMap<>();

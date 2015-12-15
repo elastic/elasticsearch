@@ -140,9 +140,9 @@ public class PublishClusterStateAction extends AbstractComponent {
             throw t;
         } catch (Throwable t) {
             // try to fail committing, in cause it's still on going
-            if (sendingController.markAsFailed("unexpected error [" + t.getMessage() + "]")) {
+            if (sendingController.markAsFailed("unexpected error", t)) {
                 // signal the change should be rejected
-                throw new Discovery.FailedToCommitClusterStateException("unexpected error [{}]", t, t.getMessage());
+                throw new Discovery.FailedToCommitClusterStateException("unexpected error", t);
             } else {
                 throw t;
             }
@@ -248,7 +248,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             // -> no need to put a timeout on the options here, because we want the response to eventually be received
             //  and not log an error if it arrives after the timeout
             // -> no need to compress, we already compressed the bytes
-            TransportRequestOptions options = TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withCompress(false);
+            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.version()),
                     options,
@@ -282,7 +282,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     private void sendCommitToNode(final DiscoveryNode node, final ClusterState clusterState, final SendingController sendingController) {
         try {
             logger.trace("sending commit for cluster state (uuid: [{}], version [{}]) to [{}]", clusterState.stateUUID(), clusterState.version(), node);
-            TransportRequestOptions options = TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE);
+            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
             // no need to put a timeout on the options here, because we want the response to eventually be received
             // and not log an error if it arrives after the timeout
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
@@ -579,6 +579,21 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             logger.trace("committing version [{}]", clusterState.version());
             committed = true;
+            committedOrFailedLatch.countDown();
+            return true;
+        }
+
+        /**
+         * tries marking the publishing as failed, if a decision wasn't made yet
+         *
+         * @return true if the publishing was failed and the cluster state is *not* committed
+         **/
+        synchronized private boolean markAsFailed(String details, Throwable reason) {
+            if (committedOrFailed()) {
+                return committed == false;
+            }
+            logger.trace("failed to commit version [{}]. {}", reason, clusterState.version(), details);
+            committed = false;
             committedOrFailedLatch.countDown();
             return true;
         }

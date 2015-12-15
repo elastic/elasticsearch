@@ -60,9 +60,9 @@ public class Lucene {
     public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
-    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene50";
+    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene53";
+    public static final String LATEST_CODEC = "Lucene54";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -715,13 +715,6 @@ public class Lucene {
         public void delete() {
             throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
-    }
-
-    /**
-     * Is it an empty {@link DocIdSet}?
-     */
-    public static boolean isEmpty(@Nullable DocIdSet set) {
-        return set == null || set == DocIdSet.EMPTY;
     }
 
     /**

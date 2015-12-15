@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -30,7 +29,6 @@ import java.io.StringReader;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
-    @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -44,7 +42,6 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testPreserveOriginal() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -58,5 +55,4 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-
 }

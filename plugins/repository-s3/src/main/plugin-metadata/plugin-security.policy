@@ -18,6 +18,8 @@
  */
 
 grant {
-  // needed because of problems in aws-sdk
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed because of problems in ClientConfiguration
+  // TODO: get these fixed in aws sdk
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getClassLoader";
 };

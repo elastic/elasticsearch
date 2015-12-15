@@ -26,12 +26,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,12 +41,10 @@ import java.util.Set;
 
 import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.is;
 
 /**
  */
 public class IndicesStoreTests extends ESTestCase {
-
     private final static ShardRoutingState[] NOT_STARTED_STATES;
 
     static {
@@ -63,8 +63,7 @@ public class IndicesStoreTests extends ESTestCase {
         indicesStore = new IndicesStore();
     }
 
-    @Test
-    public void testShardCanBeDeleted_noShardRouting() throws Exception {
+    public void testShardCanBeDeletedNoShardRouting() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -75,8 +74,7 @@ public class IndicesStoreTests extends ESTestCase {
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    @Test
-    public void testShardCanBeDeleted_noShardStarted() throws Exception {
+    public void testShardCanBeDeletedNoShardStarted() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -103,8 +101,7 @@ public class IndicesStoreTests extends ESTestCase {
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    @Test
-    public void testShardCanBeDeleted_shardExistsLocally() throws Exception {
+    public void testShardCanBeDeletedShardExistsLocally() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -126,8 +123,7 @@ public class IndicesStoreTests extends ESTestCase {
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    @Test
-    public void testShardCanBeDeleted_nodeNotInList() throws Exception {
+    public void testShardCanBeDeletedNodeNotInList() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -147,8 +143,7 @@ public class IndicesStoreTests extends ESTestCase {
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    @Test
-    public void testShardCanBeDeleted_nodeVersion() throws Exception {
+    public void testShardCanBeDeletedNodeVersion() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -169,8 +164,7 @@ public class IndicesStoreTests extends ESTestCase {
         assertTrue(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    @Test
-    public void testShardCanBeDeleted_relocatingNode() throws Exception {
+    public void testShardCanBeDeletedRelocatingNode() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
 
@@ -194,5 +188,4 @@ public class IndicesStoreTests extends ESTestCase {
         // shard exist on other node (abc and def)
         assertTrue(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
-
 }

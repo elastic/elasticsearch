@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -34,7 +33,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 3)

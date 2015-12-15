@@ -259,7 +259,7 @@ public class ByteSizeValue implements Streamable {
 
     @Override
     public int hashCode() {
-        int result = (int) (size ^ (size >>> 32));
+        int result = Long.hashCode(size);
         result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
         return result;
     }

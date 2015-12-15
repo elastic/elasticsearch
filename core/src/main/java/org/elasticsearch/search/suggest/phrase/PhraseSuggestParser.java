@@ -27,9 +27,9 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.Template;
@@ -49,10 +49,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
-            IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
+            HasContextAndHeaders headersContext) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
-        suggestion.setQueryParserService(queryParserService);
+        ParseFieldMatcher parseFieldMatcher = mapperService.getIndexSettings().getParseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
         boolean gramSizeSet = false;
@@ -60,7 +60,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion, queryParserService.parseFieldMatcher())) {
+                if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion, parseFieldMatcher)) {
                     if ("real_word_error_likelihood".equals(fieldName) || "realWorldErrorLikelihood".equals(fieldName)) {
                         suggestion.setRealWordErrorLikelihood(parser.floatValue());
                         if (suggestion.realworldErrorLikelyhood() <= 0.0) {
@@ -106,7 +106,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 fieldName = parser.currentName();
                             }
                             if (token.isValue()) {
-                                parseCandidateGenerator(parser, mapperService, fieldName, generator, queryParserService.parseFieldMatcher());
+                                parseCandidateGenerator(parser, mapperService, fieldName, generator, parseFieldMatcher);
                             }
                         }
                         verifyGenerator(generator);
@@ -141,7 +141,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            Template template = Template.parse(parser, queryParserService.parseFieldMatcher());
+                            Template template = Template.parse(parser, parseFieldMatcher);
                             CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH,
                                     headersContext);
                             suggestion.setCollateQueryScript(compiledScript);

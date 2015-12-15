@@ -217,4 +217,88 @@ final class JNAKernel32Library {
      * @return true if the function succeeds.
      */
     native boolean CloseHandle(Pointer handle);
+
+    /**
+     * Creates or opens a new job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     *
+     * @param jobAttributes security attributes
+     * @param name job name
+     * @return job handle if the function succeeds
+     */
+    native Pointer CreateJobObjectW(Pointer jobAttributes, String name);
+
+    /**
+     * Associates a process with an existing job
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param process process handle
+     * @return true if the function succeeds
+     */
+    native boolean AssignProcessToJobObject(Pointer job, Pointer process);
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    public static class JOBOBJECT_BASIC_LIMIT_INFORMATION extends Structure implements Structure.ByReference {
+      public long PerProcessUserTimeLimit;
+      public long PerJobUserTimeLimit;
+      public int LimitFlags;
+      public SizeT MinimumWorkingSetSize;
+      public SizeT MaximumWorkingSetSize;
+      public int ActiveProcessLimit;
+      public Pointer Affinity;
+      public int PriorityClass;
+      public int SchedulingClass;
+
+      @Override
+      protected List<String> getFieldOrder() {
+          return Arrays.asList(new String[] {
+                  "PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
+                  "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass"
+          });
+      }
+    }
+
+    /**
+     * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
+     */
+    static final int JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS = 2;
+
+    /**
+     * Constant for LimitFlags, indicating a process limit has been set
+     */
+    static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
+
+    /**
+     * Get job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @param returnLength length of data written back to structure (or null if not wanted)
+     * @return true if the function succeeds
+     */
+    native boolean QueryInformationJobObject(Pointer job, int infoClass, Pointer info, int infoLength, Pointer returnLength);
+
+    /**
+     * Set job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @return true if the function succeeds
+     */
+    native boolean SetInformationJobObject(Pointer job, int infoClass, Pointer info, int infoLength);
 }

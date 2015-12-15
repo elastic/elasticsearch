@@ -17,9 +17,7 @@
  * under the License.
  */
 
-
 package org.elasticsearch.search.sort;
-
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +27,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SortParserTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject().startObject("type").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject().endObject();

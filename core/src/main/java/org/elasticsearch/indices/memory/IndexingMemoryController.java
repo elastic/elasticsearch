@@ -20,9 +20,10 @@
 package org.elasticsearch.indices.memory;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,14 +34,15 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
-public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
+// nocommit what is IndexEventListener
+public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> implements IndexEventListener {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -78,7 +80,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** How many bytes we are currently moving to disk by the engine to refresh */
     private final AtomicLong bytesRefreshingNow = new AtomicLong();
 
-    private final Map<ShardId,Long> refreshingBytes = new ConcurrentHashMap<>();
+    private final Map<IndexShard,Long> refreshingBytes = new ConcurrentHashMap<>();
 
     @Inject
     public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
@@ -122,13 +124,13 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
     }
 
-    public void addRefreshingBytes(ShardId shardId, long numBytes) {
-        refreshingBytes.put(shardId, numBytes);
+    public void addRefreshingBytes(IndexShard shard, long numBytes) {
+        refreshingBytes.put(shard, numBytes);
     }
 
-    public void removeRefreshingBytes(ShardId shardId, long numBytes) {
-        boolean result = refreshingBytes.remove(shardId);
-        assert result;
+    public void removeRefreshingBytes(IndexShard shard, long numBytes) {
+        Long result = refreshingBytes.remove(shard);
+        assert result != null;
     }
 
     @Override
@@ -155,65 +157,33 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return indexingBuffer;
     }
 
-    protected List<ShardId> availableShards() {
-        ArrayList<ShardId> list = new ArrayList<>();
+    protected List<IndexShard> availableShards() {
+        List<IndexShard> availableShards = new ArrayList<>();
 
         for (IndexService indexService : indicesService) {
-            for (IndexShard indexShard : indexService) {
-                if (shardAvailable(indexShard)) {
-                    list.add(indexShard.shardId());
+            for (IndexShard shard : indexService) {
+                if (shardAvailable(shard)) {
+                    availableShards.add(shard);
                 }
             }
         }
-        return list;
-    }
-
-    /** returns true if shard exists and is availabe for updates */
-    protected boolean shardAvailable(ShardId shardId) {
-        return shardAvailable(getShard(shardId));
+        return availableShards;
     }
 
     /** returns how much heap this shard is using for its indexing buffer */
-    protected long getIndexBufferRAMBytesUsed(ShardId shardId) {
-        IndexShard shard = getShard(shardId);
-        if (shard == null) {
-            return 0;
-        }
-
+    protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
         return shard.getIndexBufferRAMBytesUsed();
     }
 
     /** ask this shard to refresh, in the background, to free up heap */
-    protected void refreshShardAsync(ShardId shardId) {
-        IndexShard shard = getShard(shardId);
-        if (shard != null) {
-            shard.refreshAsync("memory");
-        }
+    protected void refreshShardAsync(IndexShard shard) {
+        shard.refreshAsync("memory");
     }
 
     /** returns true if shard exists and is availabe for updates */
-    protected boolean shardAvailable(@Nullable IndexShard shard) {
+    protected boolean shardAvailable(IndexShard shard) {
         // shadow replica doesn't have an indexing buffer
-        return shard != null && shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
-    }
-
-    /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
-     *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
-    protected void checkIdle(ShardId shardId, long inactiveTimeNS) {
-        final IndexShard shard = getShard(shardId);
-        if (shard != null) {
-            shard.checkIdle(inactiveTimeNS);
-        }
-    }
-
-    /** gets an {@link IndexShard} instance for the given shard. returns null if the shard doesn't exist */
-    protected IndexShard getShard(ShardId shardId) {
-        IndexService indexService = indicesService.indexService(shardId.index().name());
-        if (indexService != null) {
-            IndexShard indexShard = indexService.getShardOrNull(shardId.id());
-            return indexShard;
-        }
-        return null;
+        return shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
     }
 
     /** check if any shards active status changed, now. */
@@ -230,11 +200,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
-        final ShardId shardId;
+        final IndexShard shard;
 
-        public ShardAndBytesUsed(long bytesUsed, ShardId shardId) {
+        public ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
             this.bytesUsed = bytesUsed;
-            this.shardId = shardId;
+            this.shard = shard;
         }
 
         @Override
@@ -266,20 +236,19 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
             // Fast check to sum up how much heap all shards' indexing buffers are using now:
             long totalBytesUsed = 0;
-            for (ShardId shardId : availableShards()) {
-                Long refreshingBytes = refreshingBytes.get(shardId);
+            for (IndexShard shard : availableShards()) {
 
                 // Give shard a chance to transition to inactive so sync'd flush can happen:
-                checkIdle(shardId, inactiveTime.nanos());
+                checkIdle(shard, inactiveTime.nanos());
 
                 // nocommit explain why order is important here!
-                Long refreshingBytes = refreshingBytes.get(shardId);
+                Long bytes = refreshingBytes.get(shard);
 
-                long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);
+                long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                if (refreshingBytes != null) {
+                if (bytes != null) {
                     // Only count up bytes not already being refreshed:
-                    shardBytesUsed -= refreshingBytes;
+                    shardBytesUsed -= bytes;
 
                     // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
                     // have a negative value here:
@@ -289,7 +258,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 }
 
                 totalBytesUsed += shardBytesUsed;
-                System.out.println("IMC:   " + shardId + " using " + (shardBytesUsed/1024./1024.) + " MB");
+                System.out.println("IMC:   " + shard.shardId() + " using " + (shardBytesUsed/1024./1024.) + " MB");
             }
 
             System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": TOT=" + totalBytesUsed + " vs " + indexingBuffer.bytes());
@@ -298,15 +267,15 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 // OK we are using too much; make a queue and ask largest shard(s) to refresh:
                 logger.debug("now refreshing some shards: total indexing bytes used [{}] vs index_buffer_size [{}]", new ByteSizeValue(totalBytesUsed), indexingBuffer);
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
-                for (ShardId shardId : availableShards()) {
+                for (IndexShard shard : availableShards()) {
                     // nocommit explain why order is important here!
-                    Long refreshingBytes = refreshingBytes.get(shardId);
+                    Long bytes = refreshingBytes.get(shard);
 
-                    long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);
+                    long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                    if (refreshingBytes != null) {
+                    if (bytes != null) {
                         // Only count up bytes not already being refreshed:
-                        shardBytesUsed -= refreshingBytes;
+                        shardBytesUsed -= bytes;
 
                         // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
                         // have a negative value here:
@@ -316,20 +285,32 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     }
 
                     if (shardBytesUsed > 0) {
-                        queue.add(new ShardAndBytesUsed(shardBytesUsed, shardId));
+                        queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
                     }
                 }
 
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
-                    System.out.println("IMC: write " + largest.shardId + ": " + (largest.bytesUsed/1024./1024.) + " MB");
-                    logger.debug("refresh shard [{}] to free up its [{}] indexing buffer", largest.shardId, new ByteSizeValue(largest.bytesUsed));
-                    refreshShardAsync(largest.shardId);
+                    System.out.println("IMC: write " + largest.shard.shardId() + ": " + (largest.bytesUsed/1024./1024.) + " MB");
+                    logger.debug("refresh shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
+                    refreshShardAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
                 }
             }
 
             bytesWrittenSinceCheck = 0;
+        }
+    }
+
+    /**
+     * ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.
+     * return false if the shard is not idle, otherwise true
+     */
+    protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
+        try {
+            shard.checkIdle(inactiveTimeNS);
+        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
+            logger.trace("ignore exception while checking if shard {} is inactive", e, shard.shardId());
         }
     }
 }

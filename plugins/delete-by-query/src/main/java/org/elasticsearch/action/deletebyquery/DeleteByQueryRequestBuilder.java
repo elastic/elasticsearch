@@ -20,24 +20,16 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-
-import java.util.Map;
 
 /**
  * Creates a new {@link DeleteByQueryRequestBuilder}
  * @see DeleteByQueryRequest
  */
 public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
-
-    private QuerySourceBuilder sourceBuilder;
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client, DeleteByQueryAction action) {
         super(client, action, new DeleteByQueryRequest());
@@ -64,23 +56,8 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public DeleteByQueryRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
-        sourceBuilder().setQuery(queryBuilder);
+        request.query(queryBuilder);
         return this;
-    }
-
-    /**
-     * The query binary used to delete documents.
-     */
-    public DeleteByQueryRequestBuilder setQuery(BytesReference queryBinary) {
-        sourceBuilder().setQuery(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new builder with a raw search query.
-     */
-    public DeleteByQueryRequestBuilder setQuery(XContentBuilder query) {
-        return setQuery(query.bytes());
     }
 
     /**
@@ -96,47 +73,6 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
      */
     public DeleteByQueryRequestBuilder setRouting(String... routing) {
         request.routing(routing);
-        return this;
-    }
-
-    /**
-     * The source to execute. It is preferable to use either {@link #setSource(byte[])}
-     * or {@link #setQuery(QueryBuilder)}.
-     */
-    public DeleteByQueryRequestBuilder setSource(String source) {
-        request().source(source);
-        return this;
-    }
-
-    /**
-     * The source to execute in the form of a map.
-     */
-    public DeleteByQueryRequestBuilder setSource(Map<String, Object> source) {
-        request().source(source);
-        return this;
-    }
-
-    /**
-     * The source to execute in the form of a builder.
-     */
-    public DeleteByQueryRequestBuilder setSource(XContentBuilder builder) {
-        request().source(builder);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public DeleteByQueryRequestBuilder setSource(byte[] source) {
-        request().source(source);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public DeleteByQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source);
         return this;
     }
 
@@ -162,21 +98,6 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
     public DeleteByQueryRequestBuilder setTypes(String... types) {
         request.types(types);
         return this;
-    }
-
-    @Override
-    public ListenableActionFuture<DeleteByQueryResponse> execute() {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder);
-        }
-        return super.execute();
-    }
-
-    private QuerySourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new QuerySourceBuilder();
-        }
-        return sourceBuilder;
     }
 
 }

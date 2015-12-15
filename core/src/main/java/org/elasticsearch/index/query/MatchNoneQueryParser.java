@@ -36,12 +36,30 @@ public class MatchNoneQueryParser implements QueryParser<MatchNoneQueryBuilder> 
     public MatchNoneQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "[match_none] query malformed");
+        String currentFieldName = null;
+        XContentParser.Token token;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME+"] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+            }
         }
 
-        return new MatchNoneQueryBuilder();
+        MatchNoneQueryBuilder matchNoneQueryBuilder = new MatchNoneQueryBuilder();
+        matchNoneQueryBuilder.boost(boost);
+        matchNoneQueryBuilder.queryName(queryName);
+        return matchNoneQueryBuilder;
     }
 
     @Override

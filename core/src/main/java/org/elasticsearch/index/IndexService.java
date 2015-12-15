@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -36,30 +35,26 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShadowIndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.AliasFilterParsingException;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -78,53 +73,63 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
+public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
 
-    private final InternalIndicesLifecycle indicesLifecycle;
+    private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
-    private final IndexSettingsService settingsService;
     private final NodeEnvironment nodeEnv;
-    private final IndicesService indicesServices;
-    private final IndexServicesProvider indexServicesProvider;
+    private final ShardStoreDeleter shardStoreDeleter;
+    private final NodeServicesProvider nodeServicesProvider;
     private final IndexStore indexStore;
+    private final IndexSearcherWrapper searcherWrapper;
+    private final IndexCache indexCache;
+    private final MapperService mapperService;
+    private final SimilarityService similarityService;
+    private final EngineFactory engineFactory;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
-    private volatile IndexMetaData indexMetaData;
+    private final IndexSettings indexSettings;
 
     @Inject
-    public IndexService(Index index, IndexMetaData indexMetaData, NodeEnvironment nodeEnv,
-                        AnalysisService analysisService,
-                        IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData,
-                        BitsetFilterCache bitSetFilterCache,
-                        IndicesService indicesServices,
-                        IndexServicesProvider indexServicesProvider,
-                        IndexStore indexStore) {
-        super(index, settingsService.indexSettings());
-        assert indexMetaData != null;
-        this.analysisService = analysisService;
-        this.indexFieldData = indexFieldData;
-        this.settingsService = settingsService;
-        this.bitsetFilterCache = bitSetFilterCache;
-        this.indicesServices = indicesServices;
-        this.indicesLifecycle = (InternalIndicesLifecycle) indexServicesProvider.getIndicesLifecycle();
+    public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
+                        SimilarityService similarityService,
+                        ShardStoreDeleter shardStoreDeleter,
+                        AnalysisRegistry registry,
+                        @Nullable EngineFactory engineFactory,
+                        NodeServicesProvider nodeServicesProvider,
+                        QueryCache queryCache,
+                        IndexStore indexStore,
+                        IndexEventListener eventListener,
+                        IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+                        MapperRegistry mapperRegistry) throws IOException {
+        super(indexSettings);
+        this.indexSettings = indexSettings;
+        this.analysisService = registry.build(indexSettings);
+        this.similarityService = similarityService;
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
+        this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
+        this.shardStoreDeleter = shardStoreDeleter;
+        this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
-        this.indexServicesProvider = indexServicesProvider;
+        this.nodeServicesProvider = nodeServicesProvider;
         this.indexStore = indexStore;
-        this.indexMetaData = indexMetaData;
         indexFieldData.setListener(new FieldDataCacheListener(this));
-        bitSetFilterCache.setListener(new BitsetCacheListener(this));
+        this.bitsetFilterCache = new BitsetFilterCache(indexSettings, nodeServicesProvider.getWarmer(), new BitsetCacheListener(this));
+        this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+        this.engineFactory = engineFactory;
+        // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
+        this.searcherWrapper = wrapperFactory.newWrapper(this);
     }
 
     public int numberOfShards() {
         return shards.size();
     }
 
-    public InternalIndicesLifecycle indicesLifecycle() {
-        return this.indicesLifecycle;
+    public IndexEventListener getIndexEventListener() {
+        return this.eventListener;
     }
 
     @Override
@@ -150,64 +155,52 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     public IndexShard getShard(int shardId) {
         IndexShard indexShard = getShardOrNull(shardId);
         if (indexShard == null) {
-            throw new ShardNotFoundException(new ShardId(index, shardId));
+            throw new ShardNotFoundException(new ShardId(index(), shardId));
         }
         return indexShard;
     }
 
-    public Set<Integer> shardIds() {
-        return shards.keySet();
-    }
-
-    public IndexSettingsService settingsService() {
-        return this.settingsService;
-    }
+    public Set<Integer> shardIds() { return shards.keySet(); }
 
     public IndexCache cache() {
-        return indexServicesProvider.getIndexCache();
+        return indexCache;
     }
 
-    public IndexFieldDataService fieldData() {
-        return indexFieldData;
-    }
-
-    public BitsetFilterCache bitsetFilterCache() {
-        return bitsetFilterCache;
-    }
+    public IndexFieldDataService fieldData() { return indexFieldData; }
 
     public AnalysisService analysisService() {
         return this.analysisService;
     }
 
     public MapperService mapperService() {
-        return indexServicesProvider.getMapperService();
-    }
-
-    public IndexQueryParserService queryParserService() {
-        return indexServicesProvider.getQueryParserService();
+        return mapperService;
     }
 
     public SimilarityService similarityService() {
-        return indexServicesProvider.getSimilarityService();
+        return similarityService;
     }
 
-    public synchronized void close(final String reason, boolean delete) {
+    public synchronized void close(final String reason, boolean delete) throws IOException {
         if (closed.compareAndSet(false, true)) {
             deleted.compareAndSet(false, delete);
-            final Set<Integer> shardIds = shardIds();
-            for (final int shardId : shardIds) {
-                try {
-                    removeShard(shardId, reason);
-                } catch (Throwable t) {
-                    logger.warn("failed to close shard", t);
+            try {
+                final Set<Integer> shardIds = shardIds();
+                for (final int shardId : shardIds) {
+                    try {
+                        removeShard(shardId, reason);
+                    } catch (Throwable t) {
+                        logger.warn("failed to close shard", t);
+                    }
                 }
+            } finally {
+                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService);
             }
         }
     }
 
 
     public String indexUUID() {
-        return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        return indexSettings.getUUID();
     }
 
     // NOTE: O(numShards) cost, but numShards should be smallish?
@@ -225,7 +218,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public synchronized IndexShard createShard(int sShardId, ShardRouting routing) {
+    public synchronized IndexShard createShard(ShardRouting routing) throws IOException {
         final boolean primary = routing.primary();
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -233,25 +226,24 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
          * keep it synced.
          */
         if (closed.get()) {
-            throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new IllegalStateException("Can't create shard " + routing.shardId() + ", closed");
         }
-        final Settings indexSettings = settingsService.getSettings();
-        final ShardId shardId = new ShardId(index, sShardId);
-        ShardLock lock = null;
+        final Settings indexSettings = this.indexSettings.getSettings();
+        final ShardId shardId = routing.shardId();
         boolean success = false;
         Store store = null;
         IndexShard indexShard = null;
+        final ShardLock lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
         try {
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
-            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
+            eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
-                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, indexSettings);
-                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
                 } catch (Throwable t) {
                     t.addSuppressed(ex);
                     throw t;
@@ -271,7 +263,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                     dataPathToShardCount.put(dataPath, curCount+1);
                 }
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
                                                        dataPathToShardCount);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
@@ -286,27 +278,23 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            store = new Store(shardId, indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> indexServicesProvider.getIndicesQueryCache().onClose(shardId)));
+            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> nodeServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, indexSettings, path, store, indexServicesProvider);
+                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
             } else {
-                indexShard = new IndexShard(shardId, indexSettings, path, store, indexServicesProvider);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
             }
 
-            indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
-            indicesLifecycle.afterIndexShardCreated(indexShard);
-            settingsService.addListener(indexShard);
+            eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
+            eventListener.afterIndexShardCreated(indexShard);
+            indexShard.updateRoutingEntry(routing, true);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
-        } catch (IOException e) {
-            ElasticsearchException ex = new ElasticsearchException("failed to create shard", e);
-            ex.setShard(shardId);
-            throw ex;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(lock);
-                closeShard("initialization failed", shardId, indexShard, store);
+                closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
     }
@@ -316,7 +304,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public synchronized void removeShard(int shardId, String reason) {
-        final ShardId sId = new ShardId(index, shardId);
+        final ShardId sId = new ShardId(index(), shardId);
         final IndexShard indexShard;
         if (shards.containsKey(shardId) == false) {
             return;
@@ -325,21 +313,20 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
         indexShard = newShards.remove(shardId);
         shards = unmodifiableMap(newShards);
-        closeShard(reason, sId, indexShard, indexShard.store());
+        closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
-    private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store) {
+    private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
-        final Settings indexSettings = settingsService.getSettings();
+        final Settings indexSettings = this.getIndexSettings().getSettings();
         try {
             try {
-                indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
+                listener.beforeIndexShardClosed(sId, indexShard, indexSettings);
             } finally {
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
-                    settingsService.removeListener(indexShard);
                     try {
                         final boolean flushEngine = deleted.get() == false && closed.get(); // only flush we are we closed (closed index or shutdown) and if we are not deleted
                         indexShard.close(reason, flushEngine);
@@ -349,7 +336,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 // call this before we close the store, so we can release resources for it
-                indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
+                listener.afterIndexShardClosed(sId, indexShard, indexSettings);
             }
         } finally {
             try {
@@ -363,25 +350,32 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
-            final Settings indexSettings = settingsService.getSettings();
             try {
                 if (ownsShard) {
                     try {
-                        indicesLifecycle.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
+                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                     } finally {
-                        indicesServices.deleteShardStore("delete index", lock, indexSettings);
-                        indicesLifecycle.afterIndexShardDeleted(lock.getShardId(), indexSettings);
+                        shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                     }
                 }
             } catch (IOException e) {
-                indicesServices.addPendingDelete(lock.getShardId(), indexSettings);
+                shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug("[{}] failed to delete shard content - scheduled a retry", e, lock.getShardId().id());
             }
         }
     }
 
-    public IndexServicesProvider getIndexServices() {
-        return indexServicesProvider;
+    public NodeServicesProvider getIndexServices() {
+        return nodeServicesProvider;
+    }
+
+    public IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    public QueryShardContext getQueryShardContext() {
+        return new QueryShardContext(indexSettings, nodeServicesProvider.getClient(), indexCache.bitsetFilterCache(), indexFieldData, mapperService(), similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry());
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -409,10 +403,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             }
 
         }
-    }
-
-    public Settings getIndexSettings() {
-        return settingsService.getSettings();
     }
 
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
@@ -478,19 +468,18 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    public Query aliasFilter(String... aliasNames) {
+    public Query aliasFilter(QueryShardContext context, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
-        final IndexQueryParserService indexQueryParser = queryParserService();
-        final ImmutableOpenMap<String, AliasMetaData> aliases = this.indexMetaData.getAliases();
+        final ImmutableOpenMap<String, AliasMetaData> aliases = indexSettings.getIndexMetaData().getAliases();
         if (aliasNames.length == 1) {
             AliasMetaData alias = aliases.get(aliasNames[0]);
             if (alias == null) {
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
+                throw new InvalidAliasNameException(index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
             }
-            return parse(alias, indexQueryParser);
+            return parse(alias, context);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BooleanQuery.Builder combined = new BooleanQuery.Builder();
@@ -498,9 +487,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 AliasMetaData alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(indexQueryParser.index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(indexSettings.getIndex(), aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
-                Query parsedFilter = parse(alias, indexQueryParser);
+                Query parsedFilter = parse(alias, context);
                 if (parsedFilter != null) {
                     combined.add(parsedFilter, BooleanClause.Occur.SHOULD);
                 } else {
@@ -512,27 +501,60 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    private Query parse(AliasMetaData alias, IndexQueryParserService indexQueryParser) {
+    private Query parse(AliasMetaData alias, QueryShardContext parseContext) {
         if (alias.filter() == null) {
             return null;
         }
         try {
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedQuery parsedFilter = indexQueryParser.parseInnerFilter(parser);
+                ParsedQuery parsedFilter = parseContext.parseInnerFilter(parser);
                 return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {
-            throw new AliasFilterParsingException(indexQueryParser.index(), alias.getAlias(), "Invalid alias filter", ex);
+            throw new AliasFilterParsingException(parseContext.index(), alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 
     public IndexMetaData getMetaData() {
-        return indexMetaData;
+        return indexSettings.getIndexMetaData();
     }
 
-    public void updateMetaData(IndexMetaData metadata) {
-        this.indexMetaData = metadata;
+    public synchronized void updateMetaData(final IndexMetaData metadata) {
+        if (indexSettings.updateIndexMetaData(metadata)) {
+            final Settings settings = indexSettings.getSettings();
+            for (final IndexShard shard : this.shards.values()) {
+                try {
+                    shard.onRefreshSettings(settings);
+                } catch (Exception e) {
+                    logger.warn("[{}] failed to refresh shard settings", e, shard.shardId().id());
+                }
+            }
+            try {
+                indexStore.onRefreshSettings(settings);
+            } catch (Exception e) {
+                logger.warn("failed to refresh index store settings", e);
+            }
+        }
     }
+
+    public interface ShardStoreDeleter {
+        void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
+
+        void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
+    }
+
+    final EngineFactory getEngineFactory() {
+        return engineFactory;
+    } // pkg private for testing
+
+    final IndexSearcherWrapper getSearcherWrapper() {
+        return searcherWrapper;
+    } // pkg private for testing
+
+    final IndexStore getIndexStore() {
+        return indexStore;
+    } // pkg private for testing
+
 
 }

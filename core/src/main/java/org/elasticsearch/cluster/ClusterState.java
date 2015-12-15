@@ -19,10 +19,9 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,12 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
@@ -57,11 +51,7 @@ import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Represents the current state of the cluster.
@@ -283,6 +273,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
+        sb.append(blocks().prettyPrint());
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
         sb.append(getRoutingNodes().prettyPrint());
@@ -449,17 +440,17 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
                 builder.startObject("settings");
-                Settings settings = indexMetaData.settings();
+                Settings settings = indexMetaData.getSettings();
                 settings.toXContent(builder, params);
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     byte[] mappingSource = cursor.value.source().uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
@@ -473,10 +464,20 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.endObject();
 
                 builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
+                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
                     builder.value(cursor.value);
                 }
                 builder.endArray();
+
+                builder.startObject(IndexMetaData.KEY_ACTIVE_ALLOCATIONS);
+                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getActiveAllocationIds()) {
+                    builder.startArray(String.valueOf(cursor.key));
+                    for (String allocationId : cursor.value) {
+                        builder.value(allocationId);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
 
                 builder.endObject();
             }
@@ -593,6 +594,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
+            this.metaData = routingResult.metaData();
             return this;
         }
 
@@ -768,7 +770,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = after.nodes.diff(before.nodes);
             metaData = after.metaData.diff(before.metaData);
             blocks = after.blocks.diff(before.blocks);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
@@ -780,14 +782,15 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = proto.nodes.readDiffFrom(in);
             metaData = proto.metaData.readDiffFrom(in);
             blocks = proto.blocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
+                public Custom read(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readDiffFrom(in);
                 }
             });

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,20 +43,16 @@ import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingIT extends ESIntegTestCase {
-
-    @Test
     @Nightly
     public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
         testSearchAndRelocateConcurrently(0);
     }
 
-    @Test
     @Nightly
     public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
         testSearchAndRelocateConcurrently(1);
     }
 
-    @Test
     public void testSearchAndRelocateConcurrentlyRanodmReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));
     }
@@ -77,7 +72,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                     .endObject().endObject()));
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
-        assertHitCount(client().prepareSearch().get(), (long) (numDocs));
+        assertHitCount(client().prepareSearch().get(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
@@ -98,7 +93,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                 // request comes in. It's a small window but a known limitation.
                                 //
                                 criticalException = sr.getTotalShards() == sr.getSuccessfulShards() || sr.getFailedShards() > 0;
-                                assertHitCount(sr, (long) (numDocs));
+                                assertHitCount(sr, (numDocs));
                                 criticalException = true;
                                 final SearchHits sh = sr.getHits();
                                 assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),

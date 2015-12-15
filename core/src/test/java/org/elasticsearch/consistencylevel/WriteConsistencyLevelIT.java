@@ -22,12 +22,11 @@ package org.elasticsearch.consistencylevel;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -37,9 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class WriteConsistencyLevelIT extends ESIntegTestCase {
-
-
-    @Test
     public void testWriteConsistencyLevelReplication2() throws Exception {
         prepareCreate("test", 1, Settings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
 
@@ -57,7 +53,7 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
             fail("can't index, does not match consistency");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [QUORUM] (have 1, needed 2). Timeout: [100ms], request: index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [QUORUM] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
             // but really, all is well
         }
 
@@ -68,7 +64,7 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        // this should work, since we now have 
+        // this should work, since we now have
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
                 .setConsistencyLevel(WriteConsistencyLevel.QUORUM)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
@@ -80,7 +76,7 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
             fail("can't index, does not match consistency");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [ALL] (have 2, needed 3). Timeout: [100ms], request: index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [ALL] (have 2, needed 3). Timeout: [100ms], request: [index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
             // but really, all is well
         }
 

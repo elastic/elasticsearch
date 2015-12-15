@@ -44,6 +44,7 @@ A number of plugins have been contributed by our community:
 
 * https://github.com/hadashiA/elasticsearch-flavor[Elasticsearch Flavor Plugin] using
   http://mahout.apache.org/[Mahout] Collaboration filtering (by hadashiA)
+* https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)
 
 These community plugins appear to have been abandoned:
 
@@ -55,5 +56,6 @@ These community plugins appear to have been abandoned:
 
 * https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
 
+* https://github.com/etsy/es-restlog[REST Request Logging Plugin] (by Etsy/Shikhar Bhushan)
 
 include::delete-by-query.asciidoc[]

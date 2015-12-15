@@ -91,7 +91,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     protected InternalAggregation buildAggregation(java.util.List<PipelineAggregator> pipelineAggregators,
             java.util.Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[minBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, minValue, formatter, Collections.EMPTY_LIST, metaData());
+        return new InternalBucketMetricValue(name(), keys, minValue, formatter, Collections.emptyList(), metaData());
     };
 
     public static class Factory extends PipelineAggregatorFactory {

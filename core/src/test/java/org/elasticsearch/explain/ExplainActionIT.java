@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -50,8 +49,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class ExplainActionIT extends ESIntegTestCase {
-
-    @Test
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
@@ -116,8 +113,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo("2"));
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
     public void testExplainWithFields() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen("test");
@@ -177,7 +172,6 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testExplainWitSource() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen("test");
@@ -213,7 +207,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
-    @Test
     public void testExplainWithFilteredAlias() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field2", "type=string")
@@ -230,7 +223,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertFalse(response.isMatch());
     }
 
-    @Test
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test", "field2", "type=string")
@@ -257,8 +249,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat((String)response.getGetResult().getSource().get("field1"), equalTo("value1"));
     }
 
-    @Test
-    public void explainDateRangeInQueryString() {
+    public void testExplainDateRangeInQueryString() {
         createIndex("test");
 
         String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
@@ -277,10 +268,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-
-    @Test
-    public void streamExplainTest() throws Exception {
-
+    public void testStreamExplain() throws Exception {
         Explanation exp = Explanation.match(2f, "some explanation");
 
         // write
@@ -308,6 +296,5 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         result = Lucene.readExplanation(esBuffer);
         assertThat(exp.toString(),equalTo(result.toString()));
-
     }
 }

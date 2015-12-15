@@ -28,16 +28,16 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -49,7 +49,6 @@ public class LoggingConfigurationTests extends ESTestCase {
         LogConfigurator.reset();
     }
 
-    @Test
     public void testResolveMultipleConfigs() throws Exception {
         String level = Log4jESLoggerFactory.getLogger("test").getLevel();
         try {
@@ -79,7 +78,6 @@ public class LoggingConfigurationTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testResolveJsonLoggingConfig() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("json"));
@@ -97,7 +95,6 @@ public class LoggingConfigurationTests extends ESTestCase {
         assertThat(logSettings.get("json"), is("foo"));
     }
 
-    @Test
     public void testResolvePropertiesLoggingConfig() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("properties"));
@@ -115,7 +112,6 @@ public class LoggingConfigurationTests extends ESTestCase {
         assertThat(logSettings.get("key"), is("value"));
     }
 
-    @Test
     public void testResolveYamlLoggingConfig() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf1 = tmpDir.resolve(loggingConfiguration("yml"));
@@ -136,7 +132,6 @@ public class LoggingConfigurationTests extends ESTestCase {
         assertThat(logSettings.get("yaml"), is("bar"));
     }
 
-    @Test
     public void testResolveConfigInvalidFilename() throws Exception {
         Path tmpDir = createTempDir();
         Path invalidSuffix = tmpDir.resolve(loggingConfiguration(randomFrom(LogConfigurator.ALLOWED_SUFFIXES)) + randomInvalidSuffix());
@@ -155,7 +150,6 @@ public class LoggingConfigurationTests extends ESTestCase {
     }
 
     // tests that custom settings are not overwritten by settings in the config file
-    @Test
     public void testResolveOrder() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("yaml"));
@@ -182,7 +176,6 @@ public class LoggingConfigurationTests extends ESTestCase {
     }
 
     // tests that config file is not read when we call LogConfigurator.configure(Settings, false)
-    @Test
     public void testConfigNotRead() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("yaml"));

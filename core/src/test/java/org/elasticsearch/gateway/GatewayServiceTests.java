@@ -24,14 +24,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
-
 public class GatewayServiceTests extends ESTestCase {
-
-
     private GatewayService createService(Settings.Builder settings) {
         return new GatewayService(Settings.builder()
                 .put("http.enabled", "false")
@@ -40,9 +36,7 @@ public class GatewayServiceTests extends ESTestCase {
 
     }
 
-    @Test
     public void testDefaultRecoverAfterTime() throws IOException {
-
         // check that the default is not set
         GatewayService service = createService(Settings.builder());
         assertNull(service.recoverAfterTime());

@@ -20,18 +20,15 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.rest.RestRequest;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SettingsFilterTests extends ESTestCase {
-
-    @Test
     public void testAddingAndRemovingFilters() {
         SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
         settingsFilter.addFilter("foo");
@@ -49,7 +46,6 @@ public class SettingsFilterTests extends ESTestCase {
         assertThat(settingsFilter.getPatterns(), equalTo(""));
     }
 
-    @Test
     public void testSettingsFiltering() throws IOException {
 
         testFiltering(Settings.builder()

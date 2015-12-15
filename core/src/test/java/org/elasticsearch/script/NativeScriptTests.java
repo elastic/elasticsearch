@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -32,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class NativeScriptTests extends ESTestCase {
-
-    @Test
     public void testNativeScript() throws InterruptedException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.settingsBuilder()
@@ -58,7 +56,7 @@ public class NativeScriptTests extends ESTestCase {
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new SettingsModule(settings),
+                new SettingsModule(settings, new SettingsFilter(settings)),
                 scriptModule).createInjector();
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
@@ -69,7 +67,6 @@ public class NativeScriptTests extends ESTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
-    @Test
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.settingsBuilder();

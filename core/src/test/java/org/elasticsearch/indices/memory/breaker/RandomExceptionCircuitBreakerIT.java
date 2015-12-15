@@ -33,15 +33,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.engine.MockEngineSupportModule;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,13 +56,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the circuit breaker while random exceptions are happening
  */
 public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
     }
 
-    @Test
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {
@@ -83,7 +80,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
                 .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
                 .startObject("fielddata")
-                .field("format", randomNumericFieldDataFormat())
                 .endObject() // fielddata
                 .endObject() // test-num
                 .endObject() // properties
@@ -216,8 +212,9 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             public String description() {
                 return "a mock reader wrapper that throws random exceptions for testing";
             }
-            public void onModule(MockEngineSupportModule module) {
-                module.wrapperImpl = RandomExceptionDirectoryReaderWrapper.class;
+
+            public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
+                module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);
             }
         }
 

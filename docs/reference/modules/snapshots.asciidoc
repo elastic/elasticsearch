@@ -45,6 +45,15 @@ which returns:
 }
 -----------------------------------
 
+Information about multiple repositories can be fetched in one go by using a comma-delimited list of repository names.
+Star wildcards are supported as well. For example, information about repositories that start with `repo` or that contain `backup`
+can be obtained using the following command:
+
+[source,js]
+-----------------------------------
+GET /_snapshot/repo*,*backup*
+-----------------------------------
+
 If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
 all repositories currently registered in the cluster:
 
@@ -142,7 +151,7 @@ This setting supports wildcards in the place of host, path, query, and fragment.
 repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
 -----------------------------------
 
-URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similiar to
+URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similar to
 shared file system repository.
 
 [float]
@@ -251,6 +260,14 @@ GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // AUTOSENSE
 
+Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
+
+[source,sh]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
+-----------------------------------
+// AUTOSENSE
+
 All snapshots currently stored in the repository can be listed using the following command:
 
 [source,sh]
@@ -258,6 +275,9 @@ All snapshots currently stored in the repository can be listed using the followi
 GET /_snapshot/my_backup/_all
 -----------------------------------
 // AUTOSENSE
+
+The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
+return all snapshots that are currently available.
 
 A currently running snapshot can be retrieved using the following command:
 

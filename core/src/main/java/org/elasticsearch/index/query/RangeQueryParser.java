@@ -30,8 +30,18 @@ import java.io.IOException;
  */
 public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
 
-    private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
-    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of range query");
+    public static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
+    public static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of range query");
+    public static final ParseField LTE_FIELD = new ParseField("lte", "le");
+    public static final ParseField GTE_FIELD = new ParseField("gte", "ge");
+    public static final ParseField FROM_FIELD = new ParseField("from");
+    public static final ParseField TO_FIELD = new ParseField("to");
+    public static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
+    public static final ParseField INCLUDE_UPPER_FIELD = new ParseField("include_upper");
+    public static final ParseField GT_FIELD = new ParseField("gt");
+    public static final ParseField LT_FIELD = new ParseField("lt");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    public static final ParseField FORMAT_FIELD = new ParseField("format");
 
     @Override
     public String[] names() {
@@ -65,33 +75,33 @@ public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if ("from".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
                             from = parser.objectBytes();
-                        } else if ("to".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, TO_FIELD)) {
                             to = parser.objectBytes();
-                        } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_LOWER_FIELD)) {
                             includeLower = parser.booleanValue();
-                        } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_UPPER_FIELD)) {
                             includeUpper = parser.booleanValue();
-                        } else if ("boost".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if ("gt".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, GT_FIELD)) {
                             from = parser.objectBytes();
                             includeLower = false;
-                        } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, GTE_FIELD)) {
                             from = parser.objectBytes();
                             includeLower = true;
-                        } else if ("lt".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, LT_FIELD)) {
                             to = parser.objectBytes();
                             includeUpper = false;
-                        } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, LTE_FIELD)) {
                             to = parser.objectBytes();
                             includeUpper = true;
-                        } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
                             timeZone = parser.text();
-                        } else if ("format".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
                             format = parser.text();
-                        } else if ("_name".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");

@@ -23,14 +23,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: move this test...it doesn't need to be by itself
 public class ParseMappingTypeLevelTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).endObject()

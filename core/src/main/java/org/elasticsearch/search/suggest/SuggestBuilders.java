@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
@@ -60,16 +59,5 @@ public abstract class SuggestBuilders {
      */
     public static CompletionSuggestionBuilder completionSuggestion(String name) {
         return new CompletionSuggestionBuilder(name);
-    }
-
-    /**
-     * Creates a fuzzy completion suggestion lookup query with the provided <code>name</code>
-     *
-     * @param name The suggestion name
-     * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder}
-     * instance
-     */
-    public static CompletionSuggestionFuzzyBuilder fuzzyCompletionSuggestion(String name) {
-        return new CompletionSuggestionFuzzyBuilder(name);
     }
 }

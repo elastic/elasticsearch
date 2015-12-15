@@ -54,29 +54,20 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class RareClusterStateIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 1;
@@ -87,7 +78,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
         internalCluster().startNode();
         createIndex("a");
@@ -102,11 +92,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY);
+        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY, System.nanoTime());
         allocator.allocateUnassigned(routingAllocation);
     }
 
-    @Test
     @TestLogging("gateway:TRACE")
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
@@ -139,7 +128,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                RoutingAllocation.Result result = allocationService.reroute(updatedState);
+                RoutingAllocation.Result result = allocationService.reroute(updatedState, "reroute");
                 return ClusterState.builder(updatedState).routingResult(result).build();
 
             }
@@ -159,7 +148,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState);
+                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
                 return ClusterState.builder(currentState).routingResult(result).build();
 
             }
@@ -171,9 +160,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-
-    @Test
-    @TestLogging(value = "cluster.service:TRACE")
+    @TestLogging("cluster.service:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")

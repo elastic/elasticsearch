@@ -67,10 +67,10 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
+        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        routingTable = allocation.reroute(clusterState).routingTable();
+        routingTable = allocation.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).index());

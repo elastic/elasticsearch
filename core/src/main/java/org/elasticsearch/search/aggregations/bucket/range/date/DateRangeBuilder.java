@@ -42,7 +42,7 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
      *
      * @param key  the key to use for this range in the response
      * @param from the lower bound on the distances, inclusive
-     * @parap to   the upper bound on the distances, exclusive
+     * @param to   the upper bound on the distances, exclusive
      */
     public DateRangeBuilder addRange(String key, Object from, Object to) {
         ranges.add(new Range(key, from, to));

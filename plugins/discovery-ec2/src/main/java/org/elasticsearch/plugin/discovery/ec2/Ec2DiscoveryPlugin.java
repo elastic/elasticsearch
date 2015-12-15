@@ -41,11 +41,10 @@ import java.util.Collection;
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin {
-    
+  
+    // ClientConfiguration clinit has some classloader problems
+    // TODO: fix that
     static {
-        // This internal config is deserialized but with wrong access modifiers,
-        // cannot work without suppressAccessChecks permission right now. We force
-        // a one time load with elevated privileges as a workaround.
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -54,9 +53,9 @@ public class Ec2DiscoveryPlugin extends Plugin {
             @Override
             public Void run() {
                 try {
-                    Class.forName("com.amazonaws.internal.config.InternalConfig$Factory");
+                    Class.forName("com.amazonaws.ClientConfiguration");
                 } catch (ClassNotFoundException e) {
-                    throw new RuntimeException("Unable to initialize internal aws config", e);
+                    throw new RuntimeException(e);
                 }
                 return null;
             }

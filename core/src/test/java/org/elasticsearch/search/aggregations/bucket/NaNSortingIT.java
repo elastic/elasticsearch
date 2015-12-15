@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -148,23 +147,19 @@ public class NaNSortingIT extends ESIntegTestCase {
         assertCorrectlySorted(terms, asc, agg);
     }
 
-    @Test
-    public void stringTerms() {
+    public void testStringTerms() {
         testTerms("string_value");
     }
 
-    @Test
-    public void longTerms() {
+    public void testLongTerms() {
         testTerms("long_value");
     }
 
-    @Test
-    public void doubleTerms() {
+    public void testDoubleTerms() {
         testTerms("double_value");
     }
 
-    @Test
-    public void longHistogram() {
+    public void testLongHistogram() {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")

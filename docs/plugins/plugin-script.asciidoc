@@ -68,20 +68,19 @@ plugin from GitHub, run one of the following commands:
 [source,shell]
 -----------------------------------
 sudo bin/plugin install lmenezes/elasticsearch-kopf <1>
-sudo bin/plugin install lmenezes/elasticsearch-kopf/1.x <2>
+sudo bin/plugin install lmenezes/elasticsearch-kopf/2.x <2>
 -----------------------------------
 <1> Installs the latest version from GitHub.
 <2> Installs the 1.x version from GitHub.
 
 When installing from Maven Central/Sonatype, `[org]` should be replaced by
 the artifact `groupId`, and `[user|component]` by the `artifactId`.  For
-instance, to install the
-https://github.com/elastic/elasticsearch-mapper-attachments[mapper attachment]
+instance, to install the {plugins}/mapper-attachments.html[`mapper-attachments`]
 plugin from Sonatype, run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0 <1>
+sudo bin/plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
 -----------------------------------
 <1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
     version is required.
@@ -101,7 +100,16 @@ For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install file:/path/to/plugin.zip
+sudo bin/plugin install file:///path/to/plugin.zip
+-----------------------------------
+
+The plugin script will refuse to talk to an HTTPS URL with an untrusted
+certificate. To use a self-signed HTTPS cert, you will need to add the CA cert
+to a local Java truststore and pass the location to the script as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin -Djavax.net.ssl.trustStore=/path/to/trustStore.jks install https://....
 -----------------------------------
 
 [[listing-removing]]
@@ -229,7 +237,7 @@ example:
 
 [source,yaml]
 --------------------------------------------------
-plugin.mandatory: mapper-attachments,lang-groovy
+plugin.mandatory: mapper-attachments,lang-python
 --------------------------------------------------
 
 For safety reasons, a node will not start if it is missing a mandatory plugin.

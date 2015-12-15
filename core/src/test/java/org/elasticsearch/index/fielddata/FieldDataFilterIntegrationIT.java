@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -42,7 +41,6 @@ public class FieldDataFilterIntegrationIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testRegexpFilter() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test");
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -78,7 +76,7 @@ public class FieldDataFilterIntegrationIT extends ESIntegTestCase {
         Terms nameAgg = aggs.get("name");
         assertThat(nameAgg.getBuckets().size(), Matchers.equalTo(1));
         assertThat(nameAgg.getBuckets().iterator().next().getKeyAsString(), Matchers.equalTo("bacon"));
-        
+
         Terms notFilteredAgg = aggs.get("not_filtered");
         assertThat(notFilteredAgg.getBuckets().size(), Matchers.equalTo(2));
         assertThat(notFilteredAgg.getBuckets().get(0).getKeyAsString(), Matchers.isOneOf("bacon", "bastards"));

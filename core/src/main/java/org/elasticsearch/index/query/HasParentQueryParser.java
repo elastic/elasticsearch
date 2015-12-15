@@ -30,9 +30,11 @@ import java.io.IOException;
 public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder>  {
 
     private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
-    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    private static final ParseField SCORE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
-    private static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
+    public static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    //public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
+    public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
+    public static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
+    public static final ParseField SCORE_FIELD = new ParseField("score");
 
     @Override
     public String[] names() {
@@ -42,7 +44,6 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
     @Override
     public HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
         boolean score = HasParentQueryBuilder.DEFAULT_SCORE;
@@ -66,7 +67,7 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     parentType = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
                     String scoreModeValue = parser.text();
                     if ("score".equals(scoreModeValue)) {
                         score = true;
@@ -75,11 +76,11 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
                     }
-                } else if ("score".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
                     score = parser.booleanValue();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");

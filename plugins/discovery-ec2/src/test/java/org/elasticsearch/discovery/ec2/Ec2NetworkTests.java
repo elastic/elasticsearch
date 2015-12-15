@@ -23,7 +23,6 @@ import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -35,12 +34,10 @@ import static org.hamcrest.Matchers.containsString;
  * Test for EC2 network.host settings.
  */
 public class Ec2NetworkTests extends ESTestCase {
-
     /**
      * Test for network.host: _ec2_
      */
-    @Test
-    public void networkHostEc2() throws IOException {
+    public void testNetworkHostEc2() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2_")
                 .build();
@@ -49,7 +46,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -58,8 +55,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:publicIp_
      */
-    @Test
-    public void networkHostEc2PublicIp() throws IOException {
+    public void testNetworkHostEc2PublicIp() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:publicIp_")
                 .build();
@@ -68,7 +64,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -77,8 +73,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:privateIp_
      */
-    @Test
-    public void networkHostEc2PrivateIp() throws IOException {
+    public void testNetworkHostEc2PrivateIp() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:privateIp_")
                 .build();
@@ -87,7 +82,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -96,8 +91,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:privateIpv4_
      */
-    @Test
-    public void networkHostEc2PrivateIpv4() throws IOException {
+    public void testNetworkHostEc2PrivateIpv4() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:privateIpv4_")
                 .build();
@@ -106,7 +100,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -115,8 +109,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:privateDns_
      */
-    @Test
-    public void networkHostEc2PrivateDns() throws IOException {
+    public void testNetworkHostEc2PrivateDns() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:privateDns_")
                 .build();
@@ -125,7 +118,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-hostname"));
         }
@@ -134,8 +127,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:publicIpv4_
      */
-    @Test
-    public void networkHostEc2PublicIpv4() throws IOException {
+    public void testNetworkHostEc2PublicIpv4() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:publicIpv4_")
                 .build();
@@ -144,7 +136,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -153,8 +145,7 @@ public class Ec2NetworkTests extends ESTestCase {
     /**
      * Test for network.host: _ec2:publicDns_
      */
-    @Test
-    public void networkHostEc2PublicDns() throws IOException {
+    public void testNetworkHostEc2PublicDns() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_ec2:publicDns_")
                 .build();
@@ -163,7 +154,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-hostname"));
         }
@@ -173,15 +164,14 @@ public class Ec2NetworkTests extends ESTestCase {
      * Test that we don't have any regression with network host core settings such as
      * network.host: _local_
      */
-    @Test
-    public void networkHostCoreLocal() throws IOException {
+    public void testNetworkHostCoreLocal() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put("network.host", "_local_")
                 .build();
 
         NetworkService networkService = new NetworkService(nodeSettings);
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
-        InetAddress[] addresses = networkService.resolveBindHostAddress(null);
-        assertThat(addresses, arrayContaining(networkService.resolveBindHostAddress("_local_")));
+        InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
+        assertThat(addresses, arrayContaining(networkService.resolveBindHostAddresses(new String[] { "_local_" })));
     }
 }

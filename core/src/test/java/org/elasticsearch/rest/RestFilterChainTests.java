@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,8 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RestFilterChainTests extends ESTestCase {
-
-    @Test
     public void testRestFilters() throws InterruptedException {
 
         RestController restController = new RestController(Settings.EMPTY);
@@ -120,7 +117,6 @@ public class RestFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessing() throws InterruptedException {
 
         final int additionalContinueCount = randomInt(10);

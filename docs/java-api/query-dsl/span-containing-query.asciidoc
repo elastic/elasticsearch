@@ -5,15 +5,12 @@ See {ref}/query-dsl-span-containing-query.html[Span Containing Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = spanContainingQuery()
-    .little(spanTermQuery("field1","foo"))      <1>
-    .big(spanNearQuery()                        <2>
-        .clause(spanTermQuery("field1","bar"))
-        .clause(spanTermQuery("field1","baz"))
-        .slop(5)
-        .inOrder(true)
-    );
+QueryBuilder qb = spanContainingQuery(
+    spanNearQuery(spanTermQuery("field1","bar"), 5) <1>
+          .clause(spanTermQuery("field1","baz"))
+          .inOrder(true),
+    spanTermQuery("field1","foo"));                 <2>
 --------------------------------------------------
-<1> `little` part
-<2> `big` part
+<1> `big` part
+<2> `little` part
 

@@ -45,16 +45,14 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -122,30 +120,6 @@ public class Requests {
      */
     public static GetRequest getRequest(String index) {
         return new GetRequest(index);
-    }
-
-    /**
-     * Creates a count request which counts the hits matched against a query. Note, the query itself must be set
-     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
-     *
-     * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The count request
-     * @see org.elasticsearch.client.Client#count(org.elasticsearch.action.count.CountRequest)
-     */
-    public static CountRequest countRequest(String... indices) {
-        return new CountRequest(indices);
-    }
-
-    /**
-     * Creates a exists request which checks if any of the hits matched against a query exists. Note, the query itself must be set
-     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
-     *
-     * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The exists request
-     * @see org.elasticsearch.client.Client#exists(org.elasticsearch.action.exists.ExistsRequest)
-     */
-    public static ExistsRequest existsRequest(String... indices) {
-        return new ExistsRequest(indices);
     }
 
     /**
@@ -292,14 +266,14 @@ public class Requests {
     }
 
     /**
-     * Creates an optimize request.
+     * Creates a force merge request.
      *
-     * @param indices The indices to optimize. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The optimize request
-     * @see org.elasticsearch.client.IndicesAdminClient#optimize(org.elasticsearch.action.admin.indices.optimize.OptimizeRequest)
+     * @param indices The indices to force merge. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The force merge request
+     * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest)
      */
-    public static OptimizeRequest optimizeRequest(String... indices) {
-        return new OptimizeRequest(indices);
+    public static ForceMergeRequest forceMergeRequest(String... indices) {
+        return new ForceMergeRequest(indices);
     }
 
     /**

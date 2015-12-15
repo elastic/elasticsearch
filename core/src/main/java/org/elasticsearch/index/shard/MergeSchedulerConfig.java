@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
@@ -61,11 +62,12 @@ public final class MergeSchedulerConfig {
     private volatile int maxMergeCount;
     private final boolean notifyOnMergeFailure;
 
-    public MergeSchedulerConfig(Settings indexSettings) {
-        maxThreadCount = indexSettings.getAsInt(MAX_THREAD_COUNT, Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(indexSettings) / 2)));
-        maxMergeCount = indexSettings.getAsInt(MAX_MERGE_COUNT, maxThreadCount + 5);
-        this.autoThrottle = indexSettings.getAsBoolean(AUTO_THROTTLE, true);
-        notifyOnMergeFailure = indexSettings.getAsBoolean(NOTIFY_ON_MERGE_FAILURE, true);
+    public MergeSchedulerConfig(IndexSettings indexSettings) {
+        final Settings settings = indexSettings.getSettings();
+        maxThreadCount = settings.getAsInt(MAX_THREAD_COUNT, Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(settings) / 2)));
+        maxMergeCount = settings.getAsInt(MAX_MERGE_COUNT, maxThreadCount + 5);
+        this.autoThrottle = settings.getAsBoolean(AUTO_THROTTLE, true);
+        notifyOnMergeFailure = settings.getAsBoolean(NOTIFY_ON_MERGE_FAILURE, true);
     }
 
     /**

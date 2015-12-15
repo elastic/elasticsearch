@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -40,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotCreationException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Azure file system implementation of the BlobStoreRepository
@@ -58,6 +60,8 @@ public class AzureRepository extends BlobStoreRepository {
     public final static String CONTAINER_DEFAULT = "elasticsearch-snapshots";
 
     static public final class Repository {
+        public static final String ACCOUNT = "account";
+        public static final String LOCATION_MODE = "location_mode";
         public static final String CONTAINER = "container";
         public static final String CHUNK_SIZE = "chunk_size";
         public static final String COMPRESS = "compress";
@@ -71,6 +75,7 @@ public class AzureRepository extends BlobStoreRepository {
     private ByteSizeValue chunkSize;
 
     private boolean compress;
+    private final boolean readonly;
 
     @Inject
     public AzureRepository(RepositoryName name, RepositorySettings repositorySettings,
@@ -92,6 +97,18 @@ public class AzureRepository extends BlobStoreRepository {
 
         this.compress = repositorySettings.settings().getAsBoolean(Repository.COMPRESS,
                 settings.getAsBoolean(Storage.COMPRESS, false));
+        String modeStr = repositorySettings.settings().get(Repository.LOCATION_MODE, null);
+        if (modeStr != null) {
+            LocationMode locationMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
+            if (locationMode == LocationMode.SECONDARY_ONLY) {
+                readonly = true;
+            } else {
+                readonly = false;
+            }
+        } else {
+            readonly = false;
+        }
+
         String basePath = repositorySettings.settings().get(Repository.BASE_PATH, null);
 
         if (Strings.hasLength(basePath)) {
@@ -141,15 +158,12 @@ public class AzureRepository extends BlobStoreRepository {
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
         try {
-            if (!blobStore.client().doesContainerExist(blobStore.container())) {
+            if (!blobStore.doesContainerExist(blobStore.container())) {
                 logger.debug("container [{}] does not exist. Creating...", blobStore.container());
-                blobStore.client().createContainer(blobStore.container());
+                blobStore.createContainer(blobStore.container());
             }
             super.initializeSnapshot(snapshotId, indices, metaData);
-        } catch (StorageException e) {
-            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-            throw new SnapshotCreationException(snapshotId, e);
-        } catch (URISyntaxException e) {
+        } catch (StorageException | URISyntaxException e) {
             logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
             throw new SnapshotCreationException(snapshotId, e);
         }
@@ -157,18 +171,22 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public String startVerification() {
-        try {
-            if (!blobStore.client().doesContainerExist(blobStore.container())) {
-                logger.debug("container [{}] does not exist. Creating...", blobStore.container());
-                blobStore.client().createContainer(blobStore.container());
+        if (readonly == false) {
+            try {
+                if (!blobStore.doesContainerExist(blobStore.container())) {
+                    logger.debug("container [{}] does not exist. Creating...", blobStore.container());
+                    blobStore.createContainer(blobStore.container());
+                }
+            } catch (StorageException | URISyntaxException e) {
+                logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+                throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
             }
-            return super.startVerification();
-        } catch (StorageException e) {
-            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-            throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
-        } catch (URISyntaxException e) {
-            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-            throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
         }
+        return super.startVerification();
+    }
+
+    @Override
+    public boolean readOnly() {
+        return readonly;
     }
 }

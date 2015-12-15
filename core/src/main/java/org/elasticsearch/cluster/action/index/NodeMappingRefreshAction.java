@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +56,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.masterNode() == null) {
-            logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));
+            logger.warn("can't send mapping refresh for [{}], no master known.", request.index());
             return;
         }
         transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
@@ -67,7 +66,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
-            metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
+            metaDataMappingService.refreshMapping(request.index(), request.indexUUID());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -76,16 +75,14 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
-        private String[] types;
         private String nodeId;
 
         public NodeMappingRefreshRequest() {
         }
 
-        public NodeMappingRefreshRequest(String index, String indexUUID, String[] types, String nodeId) {
+        public NodeMappingRefreshRequest(String index, String indexUUID, String nodeId) {
             this.index = index;
             this.indexUUID = indexUUID;
-            this.types = types;
             this.nodeId = nodeId;
         }
 
@@ -107,11 +104,6 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             return indexUUID;
         }
 
-
-        public String[] types() {
-            return types;
-        }
-
         public String nodeId() {
             return nodeId;
         }
@@ -120,7 +112,6 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(index);
-            out.writeStringArray(types);
             out.writeString(nodeId);
             out.writeString(indexUUID);
         }
@@ -129,7 +120,6 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             index = in.readString();
-            types = in.readStringArray();
             nodeId = in.readString();
             indexUUID = in.readString();
         }

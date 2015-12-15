@@ -28,6 +28,11 @@ import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
  */
 public class JavaScriptPlugin extends Plugin {
 
+    static {
+        // install rhino policy on plugin init
+        JavaScriptScriptEngineService.init();
+    }
+
     @Override
     public String name() {
         return "lang-javascript";

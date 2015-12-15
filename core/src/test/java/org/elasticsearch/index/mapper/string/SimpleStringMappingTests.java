@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -61,7 +61,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class SimpleStringMappingTests extends ESSingleNodeTestCase {
-
     private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     IndexService indexService;
@@ -73,7 +72,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         parser = indexService.mapperService().documentMapperParser();
     }
 
-    @Test
     public void testLimit() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("ignore_above", 5).endObject().endObject()
@@ -134,7 +132,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertEquals(expected, doc.rootDoc().getField("field").fieldType());
     }
 
-    @Test
     public void testDefaultsForAnalyzed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
@@ -153,7 +150,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertParseIdemPotent(fieldType, defaultMapper);
     }
 
-    @Test
     public void testDefaultsForNotAnalyzed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
@@ -218,7 +214,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertParseIdemPotent(fieldType, defaultMapper);
     }
 
-    @Test
     public void testSearchQuoteAnalyzerSerialization() throws Exception {
         // Cases where search_quote_analyzer should not be added to the mapping.
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -294,7 +289,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         return result;
     }
 
-    @Test
     public void testTermVectors() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -372,7 +366,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     public void testDocValuesFielddata() throws Exception {
         IndexService indexService = createIndex("index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
         assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
         assertTrue(new Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).fieldType().hasDocValues());
@@ -411,7 +405,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
     public void testDocValues() throws Exception {
         // doc values only work on non-analyzed content
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         try {
             new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
             fail();
@@ -480,13 +474,12 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         return DocValuesType.NONE;
     }
 
-    @Test
     public void testDisableNorms() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), true, false);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -515,10 +508,12 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
-        assertTrue(mergeResult.hasConflicts());
-        assertEquals(1, mergeResult.buildConflicts().length);
-        assertTrue(mergeResult.buildConflicts()[0].contains("different [omit_norms]"));
+        try {
+            defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("different [omit_norms]"));
+        }
     }
 
     /**

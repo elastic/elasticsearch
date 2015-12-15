@@ -19,28 +19,21 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import java.nio.charset.StandardCharsets;
-
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
@@ -50,46 +43,33 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.CorruptionUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -98,20 +78,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class CorruptedFileIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -127,13 +98,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     /**
      * Tests that we can actually recover from a corruption on the primary given that we have replica shards around.
      */
-    @Test
     public void testCorruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         // have enough space for 3 copies
@@ -148,7 +118,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
@@ -162,7 +132,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         final int numShards = numShards("test");
@@ -197,11 +167,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
          */
         final CountDownLatch latch = new CountDownLatch(numShards * 3); // primary + 2 replicas
         final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
-        final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
+        final IndexEventListener listener = new IndexEventListener() {
             @Override
-            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
+            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
                 if (indexShard != null) {
-                    Store store = ((IndexShard) indexShard).store();
+                    Store store = indexShard.store();
                     store.incRef();
                     try {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
@@ -228,16 +198,16 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         };
 
-        for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            service.indicesLifecycle().addListener(listener);
+        for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+            eventListener.setNewDelegate(listener);
         }
         try {
             client().admin().indices().prepareDelete("test").get();
             latch.await();
             assertThat(exception, empty());
         } finally {
-            for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                service.indicesLifecycle().removeListener(listener);
+            for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+                eventListener.setNewDelegate(null);
             }
         }
     }
@@ -246,7 +216,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * Tests corruption that happens on a single shard when no replicas are present. We make sure that the primary stays unassigned
      * and all other replicas for the healthy shards happens
      */
-    @Test
     public void testCorruptPrimaryNoReplica() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -254,7 +223,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
@@ -267,7 +236,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile();
@@ -330,7 +299,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -345,7 +314,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
@@ -375,7 +344,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * Tests corruption that happens on the network layer and that the primary does not get affected by corruption that happens on the way
      * to the replica. The file on disk stays uncorrupted
      */
-    @Test
     public void testCorruptionOnNetworkLayer() throws ExecutionException, InterruptedException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -391,7 +359,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
 
@@ -400,7 +368,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
                                 // This does corrupt files on the replica, so we can't check:
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
                         .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
         ));
@@ -413,12 +381,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
@@ -474,7 +442,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @Test
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -482,7 +449,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
@@ -495,7 +462,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
@@ -529,7 +496,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * nodes, so that replica won't be sneaky and allocated on a node that doesn't have a corrupted
      * replica.
      */
-    @Test
     public void testReplicaCorruption() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -538,7 +504,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
@@ -551,7 +517,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         final Map<String, List<Path>> filesToCorrupt = findFilesToCorruptForReplica();

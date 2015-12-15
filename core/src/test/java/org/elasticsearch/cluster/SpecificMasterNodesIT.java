@@ -25,24 +25,23 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class SpecificMasterNodesIT extends ESIntegTestCase {
-
     protected final Settings.Builder settingsBuilder() {
         return Settings.builder().put("discovery.type", "zen");
     }
 
-    @Test
-    public void simpleOnlyMasterNodeElection() throws IOException {
+    public void testSimpleOnlyMasterNodeElection() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -72,8 +71,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         assertThat(internalCluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligibleNodeName));
     }
 
-    @Test
-    public void electOnlyBetweenMasterNodes() throws IOException {
+    public void testElectOnlyBetweenMasterNodes() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -103,7 +101,6 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
      * Tests that putting custom default mapping and then putting a type mapping will have the default mapping merged
      * to the type mapping.
      */
-    @Test
     public void testCustomDefaultMapping() throws Exception {
         logger.info("--> start master node / non data");
         internalCluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
@@ -124,7 +121,6 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         assertThat(type1Mapping.getSourceAsMap().get("_timestamp"), notNullValue());
     }
 
-    @Test
     public void testAliasFilterValidation() throws Exception {
         logger.info("--> start master node / non data");
         internalCluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));

@@ -116,7 +116,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];
             for (int i = 0; i < request.indices.length; i++) {
-                indexNames[i] = request.indices[i].index();
+                indexNames[i] = request.indices[i].getIndex();
             }
             clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
                 @Override
@@ -131,12 +131,12 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetaData indexMetaData : request.indices) {
-                        if (currentState.metaData().hasIndex(indexMetaData.index())) {
+                        if (currentState.metaData().hasIndex(indexMetaData.getIndex())) {
                             continue;
                         }
-                        if (currentState.metaData().hasAlias(indexMetaData.index())) {
+                        if (currentState.metaData().hasAlias(indexMetaData.getIndex())) {
                             logger.warn("ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
-                                    indexMetaData.index(), request.fromNode);
+                                    indexMetaData.getIndex(), request.fromNode);
                             continue;
                         }
                         importNeeded = true;
@@ -149,15 +149,15 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", ex,
-                                    indexMetaData.index(), request.fromNode);
-                            upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).version(indexMetaData.version() + 1).build();
+                                    indexMetaData.getIndex(), request.fromNode);
+                            upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).version(indexMetaData.getVersion() + 1).build();
                         }
                         metaData.put(upgradedIndexMetaData, false);
                         blocks.addBlocks(upgradedIndexMetaData);
                         if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             routingTableBuilder.addAsFromDangling(upgradedIndexMetaData);
                         }
-                        sb.append("[").append(upgradedIndexMetaData.index()).append("/").append(upgradedIndexMetaData.state()).append("]");
+                        sb.append("[").append(upgradedIndexMetaData.getIndex()).append("/").append(upgradedIndexMetaData.getState()).append("]");
                     }
                     if (!importNeeded) {
                         return currentState;
@@ -168,7 +168,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTable).build();
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTable).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(
+                            ClusterState.builder(updatedState).routingTable(routingTable).build(), "dangling indices allocated");
 
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }

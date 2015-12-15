@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -56,7 +55,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -77,12 +75,22 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         }
     }
 
-    @Test
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
 
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0 } }}";
+
+        WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki*y", parsed.value());
+        assertEquals(json, 2.0, parsed.boost(), 0.0001);
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -39,6 +40,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * if tripped
  */
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
+
+    private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
 
     private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap();
 
@@ -237,7 +240,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         } else {
             CircuitBreaker oldBreaker;
             CircuitBreaker breaker = new ChildMemoryCircuitBreaker(breakerSettings,
-                    logger, this, breakerSettings.getName());
+                    Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                    this, breakerSettings.getName());
 
             for (;;) {
                 oldBreaker = breakers.putIfAbsent(breakerSettings.getName(), breaker);
@@ -245,7 +249,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     return;
                 }
                 breaker = new ChildMemoryCircuitBreaker(breakerSettings,
-                        (ChildMemoryCircuitBreaker)oldBreaker, logger, this, breakerSettings.getName());
+                        (ChildMemoryCircuitBreaker)oldBreaker,
+                        Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                        this, breakerSettings.getName());
 
                 if (breakers.replace(breakerSettings.getName(), oldBreaker, breaker)) {
                     return;

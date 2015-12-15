@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -44,11 +43,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class SameShardRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
-    @Test
-    public void sameHost() {
+    public void testSameHost() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
         MetaData metaData = MetaData.builder()
@@ -64,7 +61,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(new DiscoveryNode("node1", "node1", "test1", "test1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))
                 .put(new DiscoveryNode("node2", "node2", "test1", "test1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
@@ -79,7 +76,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         logger.info("--> add another node, with a different host, replicas will be allocating");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(new DiscoveryNode("node3", "node3", "test2", "test2", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));

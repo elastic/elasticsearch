@@ -26,7 +26,12 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -36,7 +41,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,7 +53,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
-
     private final String parentType = "parent";
     private final String childType = "child";
     private final String grandChildType = "grand-child";
@@ -118,7 +121,6 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         return new SortedDocValuesField(ParentFieldMapper.joinField(parentType), new BytesRef(id));
     }
 
-    @Test
     public void testGetBytesValues() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
@@ -160,7 +162,6 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         assertThat(bytesValues.count(), equalTo(0));
     }
 
-    @Test
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));

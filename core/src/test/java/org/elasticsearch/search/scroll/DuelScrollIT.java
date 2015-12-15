@@ -34,7 +34,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -46,9 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class DuelScrollIT extends ESIntegTestCase {
-
-    @Test
-    public void testDuel_queryThenFetch() throws Exception {
+    public void testDuelQueryThenFetch() throws Exception {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
 
         SearchResponse control = client().prepareSearch("index")
@@ -103,8 +100,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         clearScroll(scrollId);
     }
 
-    @Test
-    public void testDuel_queryAndFetch() throws Exception {
+    public void testDuelQueryAndFetch() throws Exception {
         // *_QUERY_AND_FETCH search types are tricky: the ordering can be incorrect, since it returns num_shards * (from + size)
         // a subsequent scroll call can return hits that should have been in the hits of the first scroll call.
 

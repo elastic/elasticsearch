@@ -24,15 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.exists.ExistsRequestBuilder;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -336,52 +330,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get documents.
      */
     MultiGetRequestBuilder prepareMultiGet();
-
-    /**
-     * A count of all the documents matching a specific query.
-     *
-     * @param request The count request
-     * @return The result future
-     * @see Requests#countRequest(String...)
-     */
-    ActionFuture<CountResponse> count(CountRequest request);
-
-    /**
-     * A count of all the documents matching a specific query.
-     *
-     * @param request  The count request
-     * @param listener A listener to be notified of the result
-     * @see Requests#countRequest(String...)
-     */
-    void count(CountRequest request, ActionListener<CountResponse> listener);
-
-    /**
-     * A count of all the documents matching a specific query.
-     */
-    CountRequestBuilder prepareCount(String... indices);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     *
-     * @param request The exists request
-     * @return The result future
-     * @see Requests#existsRequest(String...)
-     */
-    ActionFuture<ExistsResponse> exists(ExistsRequest request);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     *
-     * @param request The exists request
-     * @param listener A listener to be notified of the result
-     * @see Requests#existsRequest(String...)
-     */
-    void exists(ExistsRequest request, ActionListener<ExistsResponse> listener);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     */
-    ExistsRequestBuilder prepareExists(String... indices);
 
     /**
      * Suggestion matching a specific phrase.

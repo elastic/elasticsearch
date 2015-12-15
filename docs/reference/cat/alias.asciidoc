@@ -7,7 +7,7 @@ including filter and routing infos.
 [source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/aliases?v'
-alias  index filter indexRouting searchRouting
+alias  index filter routing.index routing.search
 alias2 test1 *      -            -
 alias4 test1 -      2            1,2
 alias1 test1 -      -            -

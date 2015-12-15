@@ -45,10 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -67,7 +65,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
-public class RecoveryTarget extends AbstractComponent {
+public class RecoveryTarget extends AbstractComponent implements IndexEventListener {
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
@@ -88,8 +86,7 @@ public class RecoveryTarget extends AbstractComponent {
     private final RecoveriesCollection onGoingRecoveries;
 
     @Inject
-    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings, ClusterService clusterService) {
+    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -103,16 +100,13 @@ public class RecoveryTarget extends AbstractComponent {
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
+    }
 
-        indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                               @IndexSettings Settings indexSettings) {
-                if (indexShard != null) {
-                    onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
-                }
-            }
-        });
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
+            onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
+        }
     }
 
     /**
@@ -130,22 +124,23 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
-        try {
-            RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), indexShard.routingEntry().primary(), recoveryType, sourceNode, clusterService.localNode());
-            indexShard.recovering("from " + sourceNode, recoveryState);
-        } catch (IllegalIndexShardStateException e) {
-            // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-            logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
-            return;
-        }
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }
 
+    protected void retryRecovery(final RecoveryStatus recoveryStatus, final Throwable reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
+        logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryStatus.recoveryId(), retryAfter);
+        retryRecovery(recoveryStatus, retryAfter, currentRequest);
+    }
+
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
-        logger.trace("will retrying recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        retryRecovery(recoveryStatus, retryAfter, currentRequest);
+    }
+
+    private void retryRecovery(final RecoveryStatus recoveryStatus, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
             recoveryStatus.resetRecovery();
         } catch (Throwable e) {
@@ -213,11 +208,15 @@ public class RecoveryTarget extends AbstractComponent {
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
-
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                // this can also come from the source wrapped in a RemoteTransportException
+                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
+                return;
+            }
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();
@@ -238,7 +237,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(recoveryStatus, cause, recoverySettings.retryDelayStateSync(), request);
                 return;
             }
 

@@ -21,11 +21,10 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -33,8 +32,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Unit tests for the {@link ClusterStateRequest}.
  */
 public class ClusterStateRequestTests extends ESTestCase {
-
-    @Test
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {

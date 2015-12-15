@@ -51,7 +51,7 @@ final `_score` for each document.
         },
         "filter": {
             "term" : { "tag" : "tech" }
-        }
+        },
         "must_not" : {
             "range" : {
                 "age" : { "from" : 10, "to" : 20 }

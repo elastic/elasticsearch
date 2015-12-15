@@ -20,14 +20,12 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -39,15 +37,15 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
-        public IndexFieldData<AtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
+        public IndexFieldData<AtomicFieldData> build(IndexSettings indexSettings, MappedFieldType fieldType,
                                                         IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            return new DisabledIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache);
+            return new DisabledIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache);
         }
     }
 
-    public DisabledIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+    public DisabledIndexFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(indexSettings, fieldNames, fieldDataType, cache);
     }
 
     @Override

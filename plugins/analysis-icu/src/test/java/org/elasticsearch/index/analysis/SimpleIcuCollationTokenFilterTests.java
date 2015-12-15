@@ -22,13 +22,13 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -38,14 +38,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
 public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
-
     /*
     * Turkish has some funny casing.
     * This test shows how you can solve this kind of thing easily with collation.
     * Instead of using LowerCaseFilter, use a turkish collator with primary strength.
     * Then things will sort and match correctly.
     */
-    @Test
     public void testBasicUsage() throws Exception {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -62,7 +60,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     /*
     * Test usage of the decomposition option for unicode normalization.
     */
-    @Test
     public void testNormalization() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -80,7 +77,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     /*
     * Test secondary strength, for english case is not significant.
     */
-    @Test
     public void testSecondaryStrength() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -99,7 +95,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Setting alternate=shifted to shift whitespace, punctuation and symbols
     * to quaternary level
     */
-    @Test
     public void testIgnorePunctuation() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -118,7 +113,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Setting alternate=shifted and variableTop to shift whitespace, but not
     * punctuation or symbols, to quaternary level
     */
-    @Test
     public void testIgnoreWhitespace() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -140,7 +134,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Setting numeric to encode digits with numeric value, so that
     * foobar-9 sorts before foobar-10
     */
-    @Test
     public void testNumerics() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -158,7 +151,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Setting caseLevel=true to create an additional case level between
     * secondary and tertiary
     */
-    @Test
     public void testIgnoreAccentsButNotCase() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -180,7 +172,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Setting caseFirst=upper to cause uppercase strings to sort
     * before lowercase ones.
     */
-    @Test
     public void testUpperCaseFirst() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
@@ -202,7 +193,6 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * The default is DIN 5007-1, this shows how to tailor a collator to get DIN 5007-2 behavior.
     *  http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4423383
     */
-    @Test
     public void testCustomRules() throws Exception {
         RuleBasedCollator baseCollator = (RuleBasedCollator) Collator.getInstance(new ULocale("de_DE"));
         String DIN5007_2_tailorings =
@@ -224,20 +214,20 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");
     }
-    
+
     private void assertCollatesToSame(TokenFilterFactory factory, String string1, String string2) throws IOException {
         assertCollation(factory, string1, string2, 0);
     }
-    
+
     private void assertCollation(TokenFilterFactory factory, String string1, String string2, int comparison) throws IOException {
         Tokenizer tokenizer = new KeywordTokenizer();
         tokenizer.setReader(new StringReader(string1));
         TokenStream stream1 = factory.create(tokenizer);
-    
+
         tokenizer = new KeywordTokenizer();
         tokenizer.setReader(new StringReader(string2));
         TokenStream stream2 = factory.create(tokenizer);
-      
+
         assertCollation(stream1, stream2, comparison);
     }
 
@@ -253,10 +243,10 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         assertThat(Integer.signum(term1.toString().compareTo(term2.toString())), equalTo(Integer.signum(comparison)));
         assertThat(stream1.incrementToken(), equalTo(false));
         assertThat(stream2.incrementToken(), equalTo(false));
-        
+
         stream1.end();
         stream2.end();
-        
+
         stream1.close();
         stream2.close();
     }

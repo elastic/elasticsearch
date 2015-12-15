@@ -90,4 +90,24 @@ class Checkpoint {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Checkpoint that = (Checkpoint) o;
+
+        if (offset != that.offset) return false;
+        if (numOps != that.numOps) return false;
+        return generation == that.generation;
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Long.hashCode(offset);
+        result = 31 * result + numOps;
+        result = 31 * result + Long.hashCode(generation);
+        return result;
+    }
 }

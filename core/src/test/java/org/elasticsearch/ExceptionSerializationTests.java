@@ -51,7 +51,6 @@ import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -137,7 +136,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                                 } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz)) {
                                     registered.add(clazz);
                                     try {
-                                        if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
+                                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
                                             hasDedicatedWrite.add(clazz);
                                         }
                                     } catch (Exception e) {
@@ -273,11 +272,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(-2, alreadyExpiredException.ttl());
         assertEquals(-1, alreadyExpiredException.timestamp());
         assertEquals(-3, alreadyExpiredException.now());
-    }
-
-    public void testMergeMappingException() throws IOException {
-        MergeMappingException ex = serialize(new MergeMappingException(new String[]{"one", "two"}));
-        assertArrayEquals(ex.failures(), new String[]{"one", "two"});
     }
 
     public void testActionNotFoundTransportException() throws IOException {
@@ -561,15 +555,12 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
             Throwable deserialized = serialize(t);
             assertTrue(deserialized instanceof NotSerializableExceptionWrapper);
-            // TODO: fix this test for more java 9 differences
-            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-                assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
-                assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
-                if (t.getSuppressed().length > 0) {
-                    assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
-                    assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
-                    assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
-                }
+            assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
+            assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
+            if (t.getSuppressed().length > 0) {
+                assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
+                assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
+                assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
             }
         }
     }
@@ -728,7 +719,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
         ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
         ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
-        ids.put(87, org.elasticsearch.index.mapper.MergeMappingException.class);
         ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
         ids.put(89, org.elasticsearch.percolator.PercolateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);

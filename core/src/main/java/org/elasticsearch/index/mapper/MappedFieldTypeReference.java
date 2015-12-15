@@ -23,12 +23,10 @@ package org.elasticsearch.index.mapper;
  */
 public class MappedFieldTypeReference {
     private MappedFieldType fieldType; // the current field type this reference points to
-    private int numAssociatedMappers;
 
     public MappedFieldTypeReference(MappedFieldType fieldType) {
         fieldType.freeze(); // ensure frozen
         this.fieldType = fieldType;
-        this.numAssociatedMappers = 1;
     }
 
     public MappedFieldType get() {
@@ -40,11 +38,4 @@ public class MappedFieldTypeReference {
         this.fieldType = fieldType;
     }
 
-    public int getNumAssociatedMappers() {
-        return numAssociatedMappers;
-    }
-
-    public void incrementAssociatedMappers() {
-        ++numAssociatedMappers;
-    }
 }

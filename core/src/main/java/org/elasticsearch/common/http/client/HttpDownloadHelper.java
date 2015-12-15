@@ -358,7 +358,7 @@ public class HttpDownloadHelper {
                 connection.setConnectTimeout(5000);
             }
             connection.setRequestProperty("ES-Version", Version.CURRENT.toString());
-            connection.setRequestProperty("ES-Build-Hash", Build.CURRENT.hashShort());
+            connection.setRequestProperty("ES-Build-Hash", Build.CURRENT.shortHash());
             connection.setRequestProperty("User-Agent", "elasticsearch-plugin-manager");
 
             // connect to the remote site (may take some time)

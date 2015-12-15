@@ -1,10 +1,11 @@
 [[query-dsl-indices-query]]
 === Indices Query
 
-The `indices` query can be used when executed across multiple indices,
-allowing to have a query that executes only when executed on an index
-that matches a specific list of indices, and another query that executes
-when it is executed on an index that does not match the listed indices.
+The `indices` query is useful in cases where a search is executed across
+multiple indices. It allows to specify a list of index names and an inner
+query that is only executed for indices matching names on that list.
+For other indices that are searched, but that don't match entries
+on the list, the alternative `no_match_query` is executed.
 
 [source,js]
 --------------------------------------------------
@@ -27,11 +28,3 @@ You can use the `index` field to provide a single index.
 documents), and `all` (to match all). Defaults to `all`.
 
 `query` is mandatory, as well as `indices` (or `index`).
-
-[TIP]
-====================================================================
-The fields order is important: if the `indices` are provided before `query`
-or `no_match_query`, the related queries get parsed only against the indices
-that they are going to be executed on. This is useful to avoid parsing queries
-when it is not necessary and prevent potential mapping errors.
-====================================================================

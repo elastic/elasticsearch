@@ -231,14 +231,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXArrayContent("must", mustClauses, builder, params);
-        doXArrayContent("filter", filterClauses, builder, params);
-        doXArrayContent("must_not", mustNotClauses, builder, params);
-        doXArrayContent("should", shouldClauses, builder, params);
-        builder.field("disable_coord", disableCoord);
-        builder.field("adjust_pure_negative", adjustPureNegative);
+        doXArrayContent(BoolQueryParser.MUST, mustClauses, builder, params);
+        doXArrayContent(BoolQueryParser.FILTER, filterClauses, builder, params);
+        doXArrayContent(BoolQueryParser.MUST_NOT, mustNotClauses, builder, params);
+        doXArrayContent(BoolQueryParser.SHOULD, shouldClauses, builder, params);
+        builder.field(BoolQueryParser.DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
+        builder.field(BoolQueryParser.ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+            builder.field(BoolQueryParser.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -272,26 +272,29 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
         }
-        booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
+        final String minimumShouldMatch;
+        if (context.isFilter() && this.minimumShouldMatch == null) {
+            //will be applied for real only if there are should clauses
+            minimumShouldMatch = "1";
+        } else {
+            minimumShouldMatch = this.minimumShouldMatch;
+        }
+        Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {
+    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {
         for (QueryBuilder query : clauses) {
             Query luceneQuery = null;
             switch (occurs) {
-            case SHOULD:
-                if (context.isFilter() && minimumShouldMatch == null) {
-                    minimumShouldMatch = "1";
-                }
-                luceneQuery = query.toQuery(context);
-                break;
-            case FILTER:
-            case MUST_NOT:
-                luceneQuery = query.toFilter(context);
-                break;
-            case MUST:
-                luceneQuery = query.toQuery(context);
+                case MUST:
+                case SHOULD:
+                    luceneQuery = query.toQuery(context);
+                    break;
+                case FILTER:
+                case MUST_NOT:
+                    luceneQuery = query.toFilter(context);
+                    break;
             }
             if (luceneQuery != null) {
                 booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));

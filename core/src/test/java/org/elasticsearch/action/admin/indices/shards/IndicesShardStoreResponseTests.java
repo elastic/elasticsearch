@@ -29,7 +29,6 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
@@ -37,8 +36,6 @@ import java.util.*;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends ESTestCase {
-
-    @Test
     public void testBasicSerialization() throws Exception {
         ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses = ImmutableOpenMap.builder();
         List<IndicesShardStoresResponse.Failure> failures = new ArrayList<>();
@@ -104,7 +101,6 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testStoreStatusOrdering() throws Exception {
         DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
         List<IndicesShardStoresResponse.StoreStatus> orderedStoreStatuses = new ArrayList<>();
@@ -115,7 +111,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 3, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, new IOException("corrupted")));
 
         List<IndicesShardStoresResponse.StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
-        Collections.shuffle(storeStatuses);
+        Collections.shuffle(storeStatuses, random());
         CollectionUtil.timSort(storeStatuses);
         assertThat(storeStatuses, equalTo(orderedStoreStatuses));
     }

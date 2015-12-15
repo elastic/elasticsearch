@@ -20,10 +20,14 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,6 +45,8 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.containsString;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -47,9 +54,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryParserService().mapperService;
+        MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
@@ -69,9 +77,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         ).string()), false, false);
     }
 
+    @Override
     protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryParserService().mapperService;
-        final IndexFieldDataService fieldData = queryParserService().fieldDataService;
+        final MapperService mapperService = queryShardContext().getMapperService();
+        final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
             private InnerHitsContext context;
 
@@ -203,5 +212,57 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         //verify that the context types are still the same as the ones we previously set
         assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
         HasChildQueryBuilderTests.assertLateParsingQuery(query, PARENT_TYPE, "id");
+    }
+
+    /**
+     * override superclass test, because here we need to take care that mutation doesn't happen inside
+     * `inner_hits` structure, because we don't parse them yet and so no exception will be triggered
+     * for any mutation there.
+     */
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        String validQuery = createTestQueryBuilder().toString();
+        assertThat(validQuery, containsString("{"));
+        int endPosition = validQuery.indexOf("inner_hits");
+        if (endPosition == -1) {
+            endPosition = validQuery.length() - 1;
+        }
+        for (int insertionPosition = 0; insertionPosition < endPosition; insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == '{') {
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " + validQuery.substring(insertionPosition) + "}";
+                try {
+                    parseQuery(testQuery);
+                    fail("some parsing exception expected for query: " + testQuery);
+                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                    // different kinds of exception wordings depending on location
+                    // of mutation, so no simple asserts possible here
+                } catch (JsonParseException e) {
+                    // mutation produced invalid json
+                }
+            }
+        }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"has_parent\" : {\n" + 
+                "    \"query\" : {\n" + 
+                "      \"term\" : {\n" + 
+                "        \"tag\" : {\n" + 
+                "          \"value\" : \"something\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"parent_type\" : \"blog\",\n" + 
+                "    \"score\" : true,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, "blog", parsed.type());
+        assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
     }
 }

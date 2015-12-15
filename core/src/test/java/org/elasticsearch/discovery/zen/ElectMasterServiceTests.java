@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.*;
 
@@ -50,12 +49,11 @@ public class ElectMasterServiceTests extends ESTestCase {
             nodes.add(node);
         }
 
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         return nodes;
     }
 
-    @Test
-    public void sortByMasterLikelihood() {
+    public void testSortByMasterLikelihood() {
         List<DiscoveryNode> nodes = generateRandomNodes();
         List<DiscoveryNode> sortedNodes = electMasterService().sortByMasterLikelihood(nodes);
         assertEquals(nodes.size(), sortedNodes.size());
@@ -72,8 +70,7 @@ public class ElectMasterServiceTests extends ESTestCase {
 
     }
 
-    @Test
-    public void electMaster() {
+    public void testElectMaster() {
         List<DiscoveryNode> nodes = generateRandomNodes();
         ElectMasterService service = electMasterService();
         int min_master_nodes = randomIntBetween(0, nodes.size());

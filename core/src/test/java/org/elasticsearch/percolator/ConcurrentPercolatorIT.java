@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Random;
 import java.util.Set;
@@ -41,15 +40,19 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 
 /**
  *
  */
 public class ConcurrentPercolatorIT extends ESIntegTestCase {
-
-    @Test
     public void testSimpleConcurrentPercolator() throws Exception {
         // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.
         // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
@@ -144,7 +147,6 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         assertThat(assertionError + " should be null", assertionError, nullValue());
     }
 
-    @Test
     public void testConcurrentAddingAndPercolating() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
@@ -291,7 +293,6 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         assertThat(exceptionsHolder.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string"));
         ensureGreen();

@@ -30,7 +30,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -50,7 +49,6 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         return pluginList(CustomNativeScriptFactory.TestPlugin.class);
     }
 
-    @Test
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
         createIndex("test");
         ensureYellow();

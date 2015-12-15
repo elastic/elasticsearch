@@ -37,7 +37,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute; // ja
  * final content char.
  * <p>
  *
- * @lucene.experimental
  * @deprecated Implement {@link TermToBytesRefAttribute} and store bytes directly
  * instead. This class WAS removed in Lucene 5.0
  */

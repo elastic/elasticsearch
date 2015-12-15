@@ -21,9 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 
-public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactory {
+import java.io.IOException;
+
+public class PreBuiltCharFilterFactoryFactory implements AnalysisModule.AnalysisProvider<CharFilterFactory> {
 
     private final CharFilterFactory charFilterFactory;
 
@@ -32,7 +37,7 @@ public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactor
     }
 
     @Override
-    public CharFilterFactory create(String name, Settings settings) {
+    public CharFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltCharFilters preBuiltCharFilters = PreBuiltCharFilters.getOrDefault(name, null);

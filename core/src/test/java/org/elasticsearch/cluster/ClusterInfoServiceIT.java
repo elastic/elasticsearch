@@ -52,7 +52,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -137,7 +136,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testClusterInfoServiceCollectsInformation() throws Exception {
         internalCluster().startNodesAsync(2,
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
@@ -187,7 +185,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodesAsync(2,
                 // manually control publishing
@@ -210,7 +207,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalTestCluster.getInstance(TransportService.class, node.getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                         TransportRequestOptions options) throws IOException, TransportException {

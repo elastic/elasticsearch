@@ -25,9 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,8 +35,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
+import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
+import static org.elasticsearch.rest.RestStatus.MOVED_PERMANENTLY;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.containsString;
 
@@ -45,8 +47,6 @@ import static org.hamcrest.Matchers.containsString;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class SitePluginIT extends ESIntegTestCase {
-
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Path pluginDir = getDataPath("/org/elasticsearch/test_plugins");
@@ -57,13 +57,13 @@ public class SitePluginIT extends ESIntegTestCase {
                 .build();
     }
 
+    @Override
     public HttpRequestBuilder httpClient() {
         RequestConfig.Builder builder = RequestConfig.custom().setRedirectsEnabled(false);
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultRequestConfig(builder.build()).build();
         return new HttpRequestBuilder(httpClient).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
     }
 
-    @Test
     public void testRedirectSitePlugin() throws Exception {
         // We use an HTTP Client to test redirection
         HttpResponse response = httpClient().method("GET").path("/_plugin/dummy").execute();
@@ -79,7 +79,6 @@ public class SitePluginIT extends ESIntegTestCase {
     /**
      * Test direct access to an existing file (index.html)
      */
-    @Test
     public void testAnyPage() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/dummy/index.html").execute();
         assertThat(response, hasStatus(OK));
@@ -89,7 +88,6 @@ public class SitePluginIT extends ESIntegTestCase {
     /**
      * Test normalizing of path
      */
-    @Test
     public void testThatPathsAreNormalized() throws Exception {
         // more info: https://www.owasp.org/index.php/Path_Traversal
         List<String> notFoundUris = new ArrayList<>();
@@ -100,7 +98,7 @@ public class SitePluginIT extends ESIntegTestCase {
         notFoundUris.add("/_plugin/dummy/%2e%2e/%2e%2e/%2e%2e/%2e%2e/index.html");
         notFoundUris.add("/_plugin/dummy/%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2findex.html");
         notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
-        notFoundUris.add("/_plugin/dummy/..\\..\\..\\..\\..\\log4j.properties");
+        notFoundUris.add("/_plugin/dummy/..%5C..%5C..%5C..%5C..%5Clog4j.properties");
 
         for (String uri : notFoundUris) {
             HttpResponse response = httpClient().path(uri).execute();
@@ -118,7 +116,6 @@ public class SitePluginIT extends ESIntegTestCase {
      * Test case for #4845: https://github.com/elasticsearch/elasticsearch/issues/4845
      * Serving _site plugins do not pick up on index.html for sub directories
      */
-    @Test
     public void testWelcomePageInSubDirs() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/subdir/dir/").execute();
         assertThat(response, hasStatus(OK));

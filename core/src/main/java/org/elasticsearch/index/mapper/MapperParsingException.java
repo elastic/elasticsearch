@@ -41,6 +41,10 @@ public class MapperParsingException extends MapperException {
         super(message, cause);
     }
 
+    public MapperParsingException(String message, Throwable cause, Object... args) {
+        super(message, cause, args);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

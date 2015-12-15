@@ -35,7 +35,7 @@ setup:
         index: test_index
         name: test_warmer
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
 
   - do:
       indices.delete_warmer:
@@ -55,8 +55,8 @@ setup:
   - do:
       indices.get_warmer: {}
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 
 ---
@@ -67,8 +67,8 @@ setup:
         index: '*'
         name: '*'
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 ---
 "Getting warmers for several indices should work using _all":
@@ -78,8 +78,8 @@ setup:
         index: _all
         name: _all
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 ---
 "Getting all warmers without specifying index should work":
@@ -88,8 +88,8 @@ setup:
       indices.get_warmer:
         name: _all
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 ---
 "Getting warmers for several indices should work using prefix*":
@@ -99,8 +99,8 @@ setup:
         index: test_i*
         name: test_w*
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 ---
 "Getting warmers for several indices should work using comma-separated lists":
@@ -110,8 +110,8 @@ setup:
         index: test_index,test_idx
         name: test_warmer,test_warmer2
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
-  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {boost: 1.0}}
 
 ---
 "Getting a non-existent warmer on an existing index should return an empty body":
@@ -131,7 +131,7 @@ setup:
         index: test_index
         name: test_warmer,non-existent
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
   - is_false: test_index.warmers.non-existent
 
 --- 

@@ -22,7 +22,6 @@ package org.elasticsearch.versioning;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -37,10 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
-
-    @Test
-    public void concurrentOperationOnSameDocTest() throws Exception {
-
+    public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));

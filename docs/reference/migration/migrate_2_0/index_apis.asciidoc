@@ -1,3 +1,4 @@
+[[breaking_20_index_api_changes]]
 === Index API changes
 
 ==== Index aliases

@@ -48,5 +48,3 @@ include::dis-max-query.asciidoc[]
 include::function-score-query.asciidoc[]
 include::boosting-query.asciidoc[]
 include::indices-query.asciidoc[]
-include::not-query.asciidoc[]
-

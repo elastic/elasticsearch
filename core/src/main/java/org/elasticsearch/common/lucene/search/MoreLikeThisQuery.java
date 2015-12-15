@@ -35,10 +35,7 @@ import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -79,29 +76,17 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public int hashCode() {
-        int result = boostTerms ? 1 : 0;
-        result = 31 * result + Float.floatToIntBits(boostTermsFactor);
-        result = 31 * result + Arrays.hashCode(likeText);
-        result = 31 * result + maxDocFreq;
-        result = 31 * result + maxQueryTerms;
-        result = 31 * result + maxWordLen;
-        result = 31 * result + minDocFreq;
-        result = 31 * result + minTermFrequency;
-        result = 31 * result + minWordLen;
-        result = 31 * result + Arrays.hashCode(moreLikeFields);
-        result = 31 * result + minimumShouldMatch.hashCode();
-        result = 31 * result + (stopWords == null ? 0 : stopWords.hashCode());
-        result = 31 * result + Float.floatToIntBits(getBoost());
-        return result;
+        return Objects.hash(super.hashCode(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
+                maxDocFreq, maxQueryTerms, maxWordLen, minDocFreq, minTermFrequency, minWordLen,
+                Arrays.hashCode(moreLikeFields), minimumShouldMatch, stopWords);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass())
+        if (super.equals(obj) == false) {
             return false;
+        }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (getBoost() != other.getBoost())
-            return false;
         if (!analyzer.equals(other.analyzer))
             return false;
         if (boostTerms != other.boostTerms)
@@ -141,6 +126,10 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
+        }
         XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
@@ -179,10 +168,7 @@ public class MoreLikeThisQuery extends Query {
             mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
             bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
-
-        BooleanQuery bq = bqBuilder.build();
-        bq.setBoost(getBoost());
-        return bq;
+        return bqBuilder.build();
     }
 
     private void handleUnlike(XMoreLikeThis mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {

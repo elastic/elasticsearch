@@ -7,6 +7,6 @@ which are:
 
 * added to the inverted index in order to make the document searchable
 * used by high level queries such as the <<query-dsl-match-query,`match` query>>
-  to generate seach terms.
+  to generate search terms.
 
 See <<analysis>> for configuration details.

@@ -47,8 +47,7 @@ public class ReindexWhileModifyingTest extends ReindexTestCase {
             public void run() {
                 while (keepReindexing.get()) {
                     try {
-                        ReindexInPlaceRequestBuilder reindex = reindex("test");
-                        reindex.versionType(versionType);
+                        ReindexInPlaceRequestBuilder reindex = reindex().source("test").versionType(versionType);
                         assertThat(reindex.get(), responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                                 .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                         client().admin().indices().prepareRefresh("test").get();

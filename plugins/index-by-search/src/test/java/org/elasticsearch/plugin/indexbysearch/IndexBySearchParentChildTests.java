@@ -42,14 +42,12 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         createParentChildDocs("source");
 
         // Copy parent to the new index
-        IndexBySearchRequestBuilder copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source").setQuery(findsCountry);
+        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCountry);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Copy the child to a new index
-        copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source").setQuery(findsCity);
+        copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -57,8 +55,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         assertSearchHits(client().prepareSearch("dest").setQuery(findsCity).get(), "pittsburgh");
 
         // Copy the grandchild to a new index
-        copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source").setQuery(findsNeighborhood);
+        copy = newIndexBySearch().source("source").destination("dest").filter(findsNeighborhood);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -68,8 +65,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
 
         // Copy the parent/child/grandchild structure all at once to a third index
         createParentChildIndex("dest_all_at_once");
-        copy = newIndexBySearch().destination("dest_all_at_once");
-        copy.search().setIndices("source");
+        copy = newIndexBySearch().source("source").destination("dest_all_at_once");
         assertThat(copy.get(), responseMatcher().created(3));
         refresh();
 
@@ -83,8 +79,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         createParentChildIndex("source");
         createParentChildDocs("source");
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source").setQuery(findsCity);
+        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
         try {
             copy.get();
             fail("Expected exception");
@@ -103,7 +98,6 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
         assertAcked(create);
         ensureGreen();
-
     }
 
     private void createParentChildDocs(String indexName) throws Exception {

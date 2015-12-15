@@ -48,7 +48,7 @@ public class IndexBySearchSameIndexTests extends IndexBySearchTestCase {
                 .addAlias(new String[] {"target", "target2"}, "target_multi"));
 
         try {
-            indexBySearch("target_multi", "foo").get();
+            newIndexBySearch().source("foo").destination("target_multi").get();
             fail("Expected failure");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
@@ -60,7 +60,7 @@ public class IndexBySearchSameIndexTests extends IndexBySearchTestCase {
 
     private void fails(String target, String... sources) throws Exception {
         try {
-            indexBySearch(target, sources).get();
+            newIndexBySearch().source(sources).destination(target).get();
             fail("Expected an exception");
         } catch (ActionRequestValidationException e) {
             assertThat(e.getMessage(),
@@ -69,12 +69,6 @@ public class IndexBySearchSameIndexTests extends IndexBySearchTestCase {
     }
 
     private void succeeds(String target, String... sources) throws Exception {
-        indexBySearch(target, sources).get();
-    }
-
-    private IndexBySearchRequestBuilder indexBySearch(String target, String... sources) throws Exception {
-        IndexBySearchRequestBuilder request = newIndexBySearch().destination(target);
-        request.search().setIndices(sources);
-        return request;
+        newIndexBySearch().source(sources).destination(target).get();
     }
 }

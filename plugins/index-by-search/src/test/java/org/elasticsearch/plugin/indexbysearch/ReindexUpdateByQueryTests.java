@@ -30,7 +30,7 @@ public class ReindexUpdateByQueryTests extends ReindexTestCase {
     public void testBasicUpdateByQuery() throws Exception {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"));
 
-        ReindexInPlaceRequestBuilder update = reindex("test")
+        ReindexInPlaceRequestBuilder update = reindex().source("test")
                 .script(new Script("set-bar", ScriptType.INLINE, "native", singletonMap("to", "cat")));
         assertThat(update.get(), responseMatcher().updated(1));
         refresh();
@@ -56,15 +56,15 @@ public class ReindexUpdateByQueryTests extends ReindexTestCase {
          */
         indexRandom(false, client().prepareIndex("test", "test", "1").setSource("foo", "b"));
 
-        ReindexInPlaceRequestBuilder update = reindex("test")
+        ReindexInPlaceRequestBuilder update = reindex().source("test")
                 .script(new Script("set-bar", ScriptType.INLINE, "native", singletonMap("to", "cat")));
         if (reindexVersionType) {
             update.versionType(ReindexVersionType.REINDEX);
         } else {
             // Default is false if script is there
-//            if (random().nextBoolean()) {
-//                update.versionType(ReindexVersionType.INTERNAL);
-//            }
+            if (random().nextBoolean()) {
+                update.versionType(ReindexVersionType.INTERNAL);
+            }
         }
 
         // All version_types get a conflict here

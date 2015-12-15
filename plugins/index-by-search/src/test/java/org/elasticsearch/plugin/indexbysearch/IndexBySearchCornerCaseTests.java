@@ -43,8 +43,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         indexRandom(true, client().prepareIndex("source", "test", "test").setSource("foo", "bar"));
 
         // Copy the doc with the timestamp
-        IndexBySearchRequestBuilder copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source");
+        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -97,8 +96,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
 
         // Copy the child to a new type
-        IndexBySearchRequestBuilder copy = newIndexBySearch().destination("dest");
-        copy.search().setIndices("source");
+        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
         if (specification != null) {
             copy.destination().setRouting(specification);
         }

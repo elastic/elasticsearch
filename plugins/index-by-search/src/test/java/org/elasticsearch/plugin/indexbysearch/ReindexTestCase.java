@@ -34,10 +34,8 @@ public class ReindexTestCase extends ESIntegTestCase {
         return pluginList(IndexBySearchPlugin.class);
     }
 
-    protected ReindexInPlaceRequestBuilder reindex(String... indices) {
-        ReindexInPlaceRequestBuilder reindex = ReindexInPlaceAction.INSTANCE.newRequestBuilder(client());
-        reindex.search().setIndices(indices);
-        return reindex;
+    protected ReindexInPlaceRequestBuilder reindex() {
+        return ReindexInPlaceAction.INSTANCE.newRequestBuilder(client());
     }
 
     public BulkIndexbyScrollResponseMatcher responseMatcher() {

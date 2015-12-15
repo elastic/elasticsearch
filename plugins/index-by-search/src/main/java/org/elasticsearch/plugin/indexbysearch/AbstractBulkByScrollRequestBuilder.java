@@ -5,6 +5,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
         extends ActionRequestBuilder<Request, Response, Self> {
@@ -21,6 +22,23 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
     // NOCOMMIT rename to source to match REST
     public SearchRequestBuilder search() {
         return search;
+    }
+
+    /**
+     * Set the source indices.
+     */
+    public Self source(String... indices) {
+        search.setIndices(indices);
+        return self();
+    }
+
+    /**
+     * Set the query that will filter the source. Just a convenience method for
+     * easy chaining.
+     */
+    public Self filter(QueryBuilder<?> filter) {
+        search.setQuery(filter);
+        return self();
     }
 
     /**

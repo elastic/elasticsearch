@@ -537,7 +537,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         verifyNotClosed();
         // nocommit OK to throw EngineClosedExc?
         long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
-        indexingMemoryController.addRefreshingBytes(this, ramBytesUsed);
+        indexingMemoryController.addWritingBytes(this, ramBytesUsed);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("refresh with source: {} indexBufferRAMBytesUsed={}", source, ramBytesUsed);
@@ -546,7 +546,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             getEngine().refresh(source);
             refreshMetric.inc(System.nanoTime() - time);
         } finally {
-            indexingMemoryController.removeRefreshingBytes(this, ramBytesUsed);
+            indexingMemoryController.removeWritingBytes(this, ramBytesUsed);
         }
     }
 
@@ -1210,17 +1210,42 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes.
+     * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
-    public void refreshAsync(final String reason) {
-        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+    public void writeIndexingBufferAsync() {
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        refresh(reason);
+                        Engine engine = getEngine();
+                        long bytes = engine.indexBufferRAMBytesUsed();
+                        // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, but this is fine because
+                        // after the writes finish, IMC will poll again and see that there's still up to the 20% being used and continue
+                        // writing if necessary:
+                        indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
+                        try {
+                            getEngine().writeIndexingBuffer();
+                        } finally {
+                            indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
+                        }
                     } catch (EngineClosedException ex) {
                         // ignore
+                    } catch (RefreshFailedEngineException e) {
+                        if (e.getCause() instanceof InterruptedException) {
+                            // ignore, we are being shutdown
+                        } else if (e.getCause() instanceof ClosedByInterruptException) {
+                            // ignore, we are being shutdown
+                        } else if (e.getCause() instanceof ThreadInterruptedException) {
+                            // ignore, we are being shutdown
+                        } else {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("Failed to perform scheduled engine refresh", e);
+                            }
+                        }
+                    } catch (Exception e) {
+                        if (state != IndexShardState.CLOSED) {
+                            logger.warn("Failed to perform scheduled engine refresh", e);
+                        }
                     }
                 }
             });

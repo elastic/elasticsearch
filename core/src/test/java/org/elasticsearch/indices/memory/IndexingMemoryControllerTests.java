@@ -76,7 +76,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void refreshShardAsync(IndexShard shard) {
+        public void writeIndexingBufferAsync(IndexShard shard) {
             indexBufferRAMBytesUsed.put(shard, 0L);
         }
 

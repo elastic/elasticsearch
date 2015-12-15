@@ -124,11 +124,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
     }
 
-    public void addRefreshingBytes(IndexShard shard, long numBytes) {
+    /** Shard calls this to notify us that this many bytes are being asynchronously moved from RAM to disk */
+    public void addWritingBytes(IndexShard shard, long numBytes) {
         refreshingBytes.put(shard, numBytes);
     }
 
-    public void removeRefreshingBytes(IndexShard shard, long numBytes) {
+    /** Shard calls this to notify us that this many bytes are are done being asynchronously moved from RAM to disk */
+    public void removeWritingBytes(IndexShard shard, long numBytes) {
+        // nocommit this can fail, if two refreshes are running "concurrently"
         Long result = refreshingBytes.remove(shard);
         assert result != null;
     }
@@ -176,8 +179,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /** ask this shard to refresh, in the background, to free up heap */
-    protected void refreshShardAsync(IndexShard shard) {
-        shard.refreshAsync("memory");
+    protected void writeIndexingBufferAsync(IndexShard shard) {
+        shard.writeIndexingBufferAsync();
     }
 
     /** returns true if shard exists and is availabe for updates */
@@ -218,12 +221,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         long bytesWrittenSinceCheck;
 
+        /** Shard calls this on each indexing/delete op */
         public synchronized void bytesWritten(int bytes) {
             bytesWrittenSinceCheck += bytes;
             if (bytesWrittenSinceCheck > indexingBuffer.bytes()/20) {
                 // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
-                // typically smaller.  But this logic is here only as a safety against thread starvation or too infrequent checking,
-                // to ensure we are still checking in proportion to bytes processed by indexing:
+                // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
+                // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
+                // processed by indexing:
                 System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": NOW CHECK xlog=" + bytesWrittenSinceCheck);
                 run();
             }
@@ -293,7 +298,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     ShardAndBytesUsed largest = queue.poll();
                     System.out.println("IMC: write " + largest.shard.shardId() + ": " + (largest.bytesUsed/1024./1024.) + " MB");
                     logger.debug("refresh shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
-                    refreshShardAsync(largest.shard);
+                    writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
                 }
             }

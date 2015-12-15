@@ -507,6 +507,45 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void writeIndexingBuffer() throws EngineException {
+
+        // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
+        // searcher managers, one for searching which is only refreshed by the schedule the user asks for, and another for version
+        // map interactions:
+        boolean useRefresh = versionMapRefreshPending.get() || (indexWriter.ramBytesUsed()/4 < versionMap.ramBytesUsedForRefresh());
+
+        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
+        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (useRefresh) {
+                // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
+                searcherManager.maybeRefreshBlocking();
+            } else {
+                // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
+                indexWriter.flush();
+            }
+        } catch (AlreadyClosedException e) {
+            ensureOpen();
+            maybeFailEngine("writeIndexingBuffer", e);
+        } catch (EngineClosedException e) {
+            throw e;
+        } catch (Throwable t) {
+            failEngine("writeIndexingBuffer failed", t);
+            throw new RefreshFailedEngineException(shardId, t);
+        }
+
+        // TODO: maybe we should just put a scheduled job in threadPool?
+        // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
+        // for a long time:
+        if (useRefresh) {
+            maybePruneDeletedTombstones();
+            versionMapRefreshPending.set(false);
+            mergeScheduler.refreshConfig();
+        }
+    }
+
+    @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
         // best effort attempt before we acquire locks
         ensureOpen();

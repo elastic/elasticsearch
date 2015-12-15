@@ -231,4 +231,10 @@ public class ShadowEngine extends Engine {
         // No IndexWriter nor version map
         throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
     }
+
+    @Override
+    public void writeIndexingBuffer() {
+        // No indexing buffer
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
 }

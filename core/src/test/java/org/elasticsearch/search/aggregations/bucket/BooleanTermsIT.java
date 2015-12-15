@@ -99,20 +99,22 @@ public class BooleanTermsIT extends ESIntegTestCase {
         final int bucketCount = numSingleFalses > 0 && numSingleTrues > 0 ? 2 : numSingleFalses + numSingleTrues > 0 ? 1 : 0;
         assertThat(terms.getBuckets().size(), equalTo(bucketCount));
 
-        Terms.Bucket bucket = terms.getBucketByKey("0");
+        Terms.Bucket bucket = terms.getBucketByKey("false");
         if (numSingleFalses == 0) {
             assertNull(bucket);
         } else {
             assertNotNull(bucket);
             assertEquals(numSingleFalses, bucket.getDocCount());
+            assertEquals("false", bucket.getKeyAsString());
         }
 
-        bucket = terms.getBucketByKey("1");
+        bucket = terms.getBucketByKey("true");
         if (numSingleTrues == 0) {
             assertNull(bucket);
         } else {
             assertNotNull(bucket);
             assertEquals(numSingleTrues, bucket.getDocCount());
+            assertEquals("true", bucket.getKeyAsString());
         }
     }
 
@@ -131,20 +133,22 @@ public class BooleanTermsIT extends ESIntegTestCase {
         final int bucketCount = numMultiFalses > 0 && numMultiTrues > 0 ? 2 : numMultiFalses + numMultiTrues > 0 ? 1 : 0;
         assertThat(terms.getBuckets().size(), equalTo(bucketCount));
 
-        Terms.Bucket bucket = terms.getBucketByKey("0");
+        Terms.Bucket bucket = terms.getBucketByKey("false");
         if (numMultiFalses == 0) {
             assertNull(bucket);
         } else {
             assertNotNull(bucket);
             assertEquals(numMultiFalses, bucket.getDocCount());
+            assertEquals("false", bucket.getKeyAsString());
         }
 
-        bucket = terms.getBucketByKey("1");
+        bucket = terms.getBucketByKey("true");
         if (numMultiTrues == 0) {
             assertNull(bucket);
         } else {
             assertNotNull(bucket);
             assertEquals(numMultiTrues, bucket.getDocCount());
+            assertEquals("true", bucket.getKeyAsString());
         }
     }
 

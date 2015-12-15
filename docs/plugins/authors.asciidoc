@@ -33,7 +33,7 @@ All plugins, be they site or Java plugins, must contain a file called
 `plugin-descriptor.properties` in the root directory. The format for this file
 is described in detail  here:
 
-https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[`dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties`].
+https://github.com/elastic/elasticsearch/blob/2.x/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[`dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties`].
 
 Either fill in this template yourself (see
 https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
@@ -123,9 +123,9 @@ Read more in {ref}/integration-tests.html#changing-node-configuration[Changing N
 === Java Security permissions
 
 Some plugins may need additional security permissions. A plugin can include
-the optional `plugin-security.policy` file containing `grant` statements for 
-additional permissions. Any additional permissions will be displayed to the user 
-with a large warning, and they will have to confirm them when installing the 
+the optional `plugin-security.policy` file containing `grant` statements for
+additional permissions. Any additional permissions will be displayed to the user
+with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 

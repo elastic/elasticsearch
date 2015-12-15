@@ -202,6 +202,51 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         assertNull(mapperService.documentMapper("type2").mapping().root().getMapper("foo"));
     }
 
+    public void testReuseMetaField() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("_id").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+    }
+
+    public void testReuseMetaFieldBackCompat() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("_id").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+        // the logic is different for 2.x indices since they record some meta mappers (including _id)
+        // in the root object
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+    }
+
     public void testIndexFieldParsingBackcompat() throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();

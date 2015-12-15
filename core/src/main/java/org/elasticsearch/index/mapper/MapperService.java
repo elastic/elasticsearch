@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -92,7 +91,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final ReleasableLock mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile ImmutableOpenMap<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.of();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
@@ -293,8 +292,41 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
+    private void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+        final Set<String> objectFullNames = new HashSet<>();
+        for (ObjectMapper objectMapper : objectMappers) {
+            final String fullPath = objectMapper.fullPath();
+            if (objectFullNames.add(fullPath) == false) {
+                throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
+            }
+        }
+
+        if (indexSettings.getIndexVersionCreated().before(Version.V_3_0_0)) {
+            // Before 3.0 some metadata mappers are also registered under the root object mapper
+            // So we avoid false positives by deduplicating mappers
+            // given that we check exact equality, this would still catch the case that a mapper
+            // is defined under the root object 
+            Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<>());
+            uniqueFieldMappers.addAll(fieldMappers);
+            fieldMappers = uniqueFieldMappers;
+        }
+
+        final Set<String> fieldNames = new HashSet<>();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            final String name = fieldMapper.name();
+            if (objectFullNames.contains(name)) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
+            } else if (fieldNames.add(name) == false) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
+            }
+        }
+    }
+
     protected void checkMappersCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
+
+        checkFieldUniqueness(type, objectMappers, fieldMappers);
+
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
@@ -303,6 +335,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 existingObjectMapper.merge(newObjectMapper, updateAllTypes);
             }
         }
+
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
+                throw new IllegalArgumentException("Field [{}] is defined as a field in mapping [" + fieldMapper.name() + "] but this name is already used for an object in other types");
+            }
+        }
+
         fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
     }
 
@@ -318,14 +357,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        ImmutableOpenMap.Builder<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
+        Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
         for (ObjectMapper objectMapper : objectMappers) {
             fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
             if (objectMapper.nested().isNested()) {
                 hasNested = true;
             }
         }
-        this.fullPathObjectMappers = fullPathObjectMappers.build();
+        this.fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
         this.fieldTypes = this.fieldTypes.copyAndAddAll(type, fieldMappers);
     }
 

@@ -116,6 +116,8 @@ public class Setting<T> extends ToXContentToBytes {
             return parser.apply(value);
         } catch (ElasticsearchParseException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
+        } catch (IllegalArgumentException ex) {
+            throw ex;
         } catch (Exception t) {
             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + getKey() + "]", t);
         }

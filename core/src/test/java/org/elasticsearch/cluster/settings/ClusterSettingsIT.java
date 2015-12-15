@@ -256,7 +256,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "whatever").build())
                     .get();
             fail("bogus value");
-        } catch (ElasticsearchParseException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.commit_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
         }
 
@@ -268,7 +268,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), -1).build())
                     .get();
             fail("bogus value");
-        } catch (ElasticsearchParseException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "Failed to parse value [-1] for setting [discovery.zen.publish_timeout] must be >= 0s");
         }
 

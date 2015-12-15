@@ -270,4 +270,28 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
+    @Override
+    public void onQueryPhase(IndexShard indexShard, long tookInNanos) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.onQueryPhase(indexShard, tookInNanos);
+            } catch (Throwable t) {
+                logger.warn("failed to invoke on query phase callback", t);
+                throw t;
+            }
+        }
+    }
+
+    @Override
+    public void onFetchPhase(IndexShard indexShard, long tookInNanos) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.onFetchPhase(indexShard, tookInNanos);
+            } catch (Throwable t) {
+                logger.warn("failed to invoke on fetch phase callback", t);
+                throw t;
+            }
+        }
+    }
 }

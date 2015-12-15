@@ -24,6 +24,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -39,10 +40,12 @@ public final class ShardSearchStats {
     private final SearchSlowLog slowLogSearchService;
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
+    private final IndexEventListener indexEventListener;
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
 
-    public ShardSearchStats(Settings indexSettings) {
+    public ShardSearchStats(Settings indexSettings, IndexEventListener indexEventListener) {
         this.slowLogSearchService = new SearchSlowLog(indexSettings);
+        this.indexEventListener = indexEventListener;
     }
 
     /**
@@ -99,6 +102,7 @@ public final class ShardSearchStats {
             }
         }
         slowLogSearchService.onQueryPhase(searchContext, tookInNanos);
+        indexEventListener.onQueryPhase(searchContext.indexShard(), tookInNanos);
     }
 
     public void onPreFetchPhase(SearchContext searchContext) {
@@ -130,6 +134,7 @@ public final class ShardSearchStats {
             }
         }
         slowLogSearchService.onFetchPhase(searchContext, tookInNanos);
+        indexEventListener.onFetchPhase(searchContext.indexShard(), tookInNanos);
     }
 
     public void clear() {

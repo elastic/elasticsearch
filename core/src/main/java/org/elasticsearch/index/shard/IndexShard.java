@@ -220,7 +220,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService = provider.getTermVectorsService();
-        this.searchService = new ShardSearchStats(settings);
+        this.searchService = new ShardSearchStats(settings, indexEventListener);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);

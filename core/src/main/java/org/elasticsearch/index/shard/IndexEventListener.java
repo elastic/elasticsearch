@@ -185,4 +185,16 @@ public interface IndexEventListener {
      */
     default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
     }
+
+    /**
+     * Called after a query phase has completed.
+     */
+    default void onQueryPhase(IndexShard indexShard, long tookInNanos) {
+    }
+
+    /**
+     * Called after a fetch phase has completed.
+     */
+    default void onFetchPhase(IndexShard indexShard, long tookInNanos) {
+    }
 }

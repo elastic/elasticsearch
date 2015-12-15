@@ -22,13 +22,19 @@ package org.elasticsearch.search.highlight;
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -74,7 +80,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected QueryBuilder<?> highlightQuery;
 
-    protected String order;
+    protected Order order;
 
     protected Boolean highlightFilter;
 
@@ -213,18 +219,26 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * The order of fragments per field. By default, ordered by the order in the
      * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
+     * by score of the fragments, or <tt>none</TT>.
+     */
+    public HB order(String order) {
+        return order(Order.fromString(order));
+    }
+
+    /**
+     * By default, fragments of a field are ordered by the order in the highlighted text.
+     * If set to {@link Order#SCORE}, this changes order to score of the fragments.
      */
     @SuppressWarnings("unchecked")
-    public HB order(String order) {
-        this.order = order;
+    public HB order(Order scoreOrdered) {
+        this.order = scoreOrdered;
         return (HB) this;
     }
 
     /**
-     * @return the value set by {@link #order(String)}
+     * @return the value set by {@link #order(Order)}
      */
-    public String order() {
+    public Order order() {
         return this.order;
     }
 
@@ -391,7 +405,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);
         }
         if (order != null) {
-            builder.field(ORDER_FIELD.getPreferredName(), order);
+            builder.field(ORDER_FIELD.getPreferredName(), order.toString());
         }
         if (highlightFilter != null) {
             builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
@@ -418,6 +432,100 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
     }
+
+    /**
+     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext containing the parser positioned at the structure to be parsed from.
+     * the state on the parser contained in this context will be changed as a side effect of this
+     * method call
+     * @return the new {@link AbstractHighlighterBuilder}
+     */
+    public HB fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = null;
+        HB highlightBuilder = createInstance(parser);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
+                    List<String> preTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
+                    }
+                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
+                    List<String> postTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
+                    }
+                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
+                    highlightBuilder.order(Order.fromString(parser.text()));
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                    highlightBuilder.highlightFilter(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
+                    highlightBuilder.fragmentSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                    highlightBuilder.numOfFragments(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                    highlightBuilder.requireFieldMatch(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                    highlightBuilder.boundaryMaxScan(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
+                    highlightBuilder.boundaryChars(parser.text().toCharArray());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                    highlightBuilder.highlighterType(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
+                    highlightBuilder.fragmenter(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
+                    highlightBuilder.noMatchSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
+                    highlightBuilder.forceSource(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
+                    highlightBuilder.phraseLimit(parser.intValue());
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
+                    highlightBuilder.options(parser.map());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
+                }
+            } else if (currentFieldName != null) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
+            }
+        }
+
+        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
+        }
+        return highlightBuilder;
+    }
+
+    /**
+     * @param parser the input parser. Implementing classes might advance the parser depending on the
+     * information they need to instantiate a new instance
+     * @return a new instance
+     */
+    protected abstract HB createInstance(XContentParser parser) throws IOException;
+
+    /**
+     * Implementing subclasses can handle parsing special options depending on the
+     * current token, field name and the parse context.
+     * @return <tt>true</tt> if an option was found and successfully parsed, otherwise <tt>false</tt>
+     */
+    protected abstract boolean doFromXContent(QueryParseContext parseContext, String currentFieldName, XContentParser.Token endMarkerToken) throws IOException;
 
     @Override
     public final int hashCode() {
@@ -480,7 +588,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (in.readBoolean()) {
             highlightQuery(in.readQuery());
         }
-        order(in.readOptionalString());
+        if (in.readBoolean()) {
+            order(Order.PROTOTYPE.readFrom(in));
+        }
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
         boundaryMaxScan(in.readOptionalVInt());
@@ -511,7 +621,11 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (hasQuery) {
             out.writeQuery(highlightQuery);
         }
-        out.writeOptionalString(order);
+        boolean hasSetOrder = order != null;
+        out.writeBoolean(hasSetOrder);
+        if (hasSetOrder) {
+            order.writeTo(out);
+        }
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
         out.writeOptionalVInt(boundaryMaxScan);

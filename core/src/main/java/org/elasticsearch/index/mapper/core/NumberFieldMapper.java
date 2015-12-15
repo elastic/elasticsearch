@@ -183,22 +183,41 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void includeInAll(Boolean includeInAll) {
+    protected NumberFieldMapper clone() {
+        return (NumberFieldMapper) super.clone();
+    }
+
+    @Override
+    public Mapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
-            this.includeInAll = includeInAll;
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void includeInAllIfNotSet(Boolean includeInAll) {
+    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
-            this.includeInAll = includeInAll;
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void unsetIncludeInAll() {
-        includeInAll = null;
+    public Mapper unsetIncludeInAll() {
+        if (includeInAll != null) {
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = null;
+            return clone;
+        } else {
+            return this;
+        }
     }
 
     @Override
@@ -254,21 +273,16 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            this.includeInAll = nfmMergeWith.includeInAll;
-            if (nfmMergeWith.ignoreMalformed.explicit()) {
-                this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
-            }
-            if (nfmMergeWith.coerce.explicit()) {
-                this.coerce = nfmMergeWith.coerce;
-            }
+        this.includeInAll = nfmMergeWith.includeInAll;
+        if (nfmMergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
+        }
+        if (nfmMergeWith.coerce.explicit()) {
+            this.coerce = nfmMergeWith.coerce;
         }
     }
 

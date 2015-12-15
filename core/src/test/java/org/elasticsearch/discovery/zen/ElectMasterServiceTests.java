@@ -26,11 +26,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ElectMasterServiceTests extends ESTestCase {
 
@@ -53,7 +49,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             nodes.add(node);
         }
 
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         return nodes;
     }
 

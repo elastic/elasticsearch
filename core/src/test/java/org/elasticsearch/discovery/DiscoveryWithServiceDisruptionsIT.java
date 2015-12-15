@@ -473,7 +473,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 docsPerIndexer = 1 + randomInt(5);
                 logger.info("indexing " + docsPerIndexer + " docs per indexer during partition");
                 countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
-                Collections.shuffle(semaphores);
+                Collections.shuffle(semaphores, random());
                 for (Semaphore semaphore : semaphores) {
                     assertThat(semaphore.availablePermits(), equalTo(0));
                     semaphore.release(docsPerIndexer);
@@ -683,7 +683,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         nodes = new ArrayList<>(nodes);
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         String isolatedNode = nodes.get(0);
         String notIsolatedNode = nodes.get(1);
 
@@ -1038,7 +1038,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 new NetworkDisconnectPartition(getRandom()),
                 new SlowClusterStateProcessing(getRandom())
         );
-        Collections.shuffle(list);
+        Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));
         return list.get(0);
     }

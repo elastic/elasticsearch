@@ -150,7 +150,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // nothing to do
     }
 }

@@ -43,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-public class ExistsMissingIT extends ESIntegTestCase {
+public class ExistsIT extends ESIntegTestCase {
 
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
@@ -51,11 +51,11 @@ public class ExistsMissingIT extends ESIntegTestCase {
         ensureYellow("test");
         SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
         assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.missingQuery("foo")).execute().actionGet();
+        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).execute().actionGet();
         assertSearchResponse(resp);
     }
 
-    public void testExistsMissing() throws Exception {
+    public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
             .startObject()
                 .startObject("type")
@@ -145,62 +145,6 @@ public class ExistsMissingIT extends ESIntegTestCase {
                 }
                 throw e;
             }
-
-            // missing
-            resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery(fieldName)).execute().actionGet();
-            assertSearchResponse(resp);
-            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), numDocs - count, resp.getHits().totalHits());
         }
     }
-
-    public void testNullValueUnset() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=string,index=not_analyzed"));
-        indexRandom(true,
-                client().prepareIndex("idx", "type", "1").setSource("f", "foo"),
-                client().prepareIndex("idx", "type", "2").setSource("f", null),
-                client().prepareIndex("idx", "type", "3").setSource("g", "bar"),
-                client().prepareIndex("idx", "type", "4").setSource("f", "bar"));
-
-        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, true)).get();
-        assertSearchHits(resp, "2", "3");
-
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, true)).get();
-        assertSearchHits(resp, "2", "3");
-
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, false)).get();
-        assertSearchHits(resp);
-
-        try {
-            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, false)).get();
-            fail("both existence and null_value can't be false");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-    }
-
-    public void testNullValueSet() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=string,index=not_analyzed,null_value=bar"));
-        indexRandom(true,
-                client().prepareIndex("idx", "type", "1").setSource("f", "foo"),
-                client().prepareIndex("idx", "type", "2").setSource("f", null),
-                client().prepareIndex("idx", "type", "3").setSource("g", "bar"),
-                client().prepareIndex("idx", "type", "4").setSource("f", "bar"));
-
-        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, true)).get();
-        assertSearchHits(resp, "2", "3", "4");
-
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, true)).get();
-        assertSearchHits(resp, "3");
-
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, false)).get();
-        assertSearchHits(resp, "2", "4");
-
-        try {
-            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, false)).get();
-            fail("both existence and null_value can't be false");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-    }
-
 }

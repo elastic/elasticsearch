@@ -17,26 +17,16 @@
  * under the License.
  */
 
-package org.apache.lucene.queryparser.classic;
+package org.elasticsearch.common.xcontent.yaml;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.MissingQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.common.xcontent.BaseXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
 
-/**
- *
- */
-public class MissingFieldQueryExtension implements FieldQueryExtension {
-
-    public static final String NAME = "_missing_";
+public class YamlXContentTests extends BaseXContentTestCase {
 
     @Override
-    public Query query(QueryShardContext context, String queryText) {
-        Query query = MissingQueryBuilder.newFilter(context, queryText, MissingQueryBuilder.DEFAULT_EXISTENCE_VALUE, MissingQueryBuilder.DEFAULT_NULL_VALUE);
-        if (query != null) {
-            return new ConstantScoreQuery(query);
-        }
-        return null;
+    public XContentType xcontentType() {
+        return XContentType.YAML;
     }
+
 }

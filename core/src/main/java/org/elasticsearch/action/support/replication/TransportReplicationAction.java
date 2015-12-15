@@ -300,11 +300,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public void onFailure(Throwable t) {
             if (t instanceof RetryOnReplicaException) {
-                logger.trace("Retrying operation on replica, action [{}], request [{}]", t, actionName, request);
+                logger.trace("Retrying operation on replica, action [{}], request [{}]", t, transportReplicaAction, request);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        threadPool.executor(executor).execute(AsyncReplicaAction.this);
+                        // Forking a thread on local node via transport service so that custom transport service have an
+                        // opportunity to execute custom  logic before the replica operation begins
+                        String extraMessage = "action [" + transportReplicaAction  + "], request[" + request + "]";
+                        TransportChannelResponseHandler<TransportResponse.Empty> handler = TransportChannelResponseHandler.emptyResponseHandler(logger, channel, extraMessage);
+                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction, request, handler);
                     }
 
                     @Override

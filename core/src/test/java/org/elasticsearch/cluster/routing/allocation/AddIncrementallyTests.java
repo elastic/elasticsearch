@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -388,7 +387,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         logger.info("Removing [{}] nodes", numNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         ArrayList<DiscoveryNode> discoveryNodes = CollectionUtils.iterableAsArrayList(clusterState.nodes());
-        Collections.shuffle(discoveryNodes, getRandom());
+        Collections.shuffle(discoveryNodes, random());
         for (DiscoveryNode node : discoveryNodes) {
             nodes.remove(node.id());
             numNodes--;

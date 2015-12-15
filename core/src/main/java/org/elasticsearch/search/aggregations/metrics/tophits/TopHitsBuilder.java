@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -194,7 +193,7 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
         return sourceBuilder;
     }
 
-    public BytesReference highlighter() {
+    public HighlightBuilder highlighter() {
         return sourceBuilder().highlighter();
     }
 

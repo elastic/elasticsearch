@@ -32,8 +32,6 @@ import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -62,23 +60,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -271,7 +258,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public void testOldIndexes() throws Exception {
         setupCluster();
 
-        Collections.shuffle(indexes, getRandom());
+        Collections.shuffle(indexes, random());
         for (String index : indexes) {
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
@@ -341,13 +328,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
-
-        logger.info("--> testing missing filter");
-        // the field for the missing filter here needs to be different than the exists filter above, to avoid being found in the cache
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.missingQuery("long_sort"));
-        searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertEquals(0, searchRsp.getHits().getTotalHits());
     }
 
     void assertBasicAggregationWorks(String indexName) {

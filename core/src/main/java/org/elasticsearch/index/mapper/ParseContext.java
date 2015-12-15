@@ -616,7 +616,7 @@ public abstract class ParseContext {
             if (dynamicMappingsUpdate == null) {
                 dynamicMappingsUpdate = mapper;
             } else {
-                MapperUtils.merge(dynamicMappingsUpdate, mapper);
+                dynamicMappingsUpdate = dynamicMappingsUpdate.merge(mapper, false);
             }
         }
 

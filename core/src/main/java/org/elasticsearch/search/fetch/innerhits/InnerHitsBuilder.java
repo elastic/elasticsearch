@@ -20,7 +20,6 @@
 package org.elasticsearch.search.fetch.innerhits;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -266,7 +265,7 @@ public class InnerHitsBuilder implements ToXContent {
             return this;
         }
 
-        public BytesReference highlighter() {
+        public HighlightBuilder highlighter() {
             return sourceBuilder().highlighter();
         }
 

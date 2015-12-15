@@ -479,7 +479,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
             .field("type", "string").startObject("fielddata");
         String[] keys = possibleSettings.keySet().toArray(new String[]{});
-        Collections.shuffle(Arrays.asList(keys));
+        Collections.shuffle(Arrays.asList(keys), random());
         for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
             builder.field(keys[i], possibleSettings.get(keys[i]));
         builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();

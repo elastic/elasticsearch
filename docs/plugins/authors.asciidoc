@@ -17,7 +17,7 @@ listed in this documentation for inspiration.
 ====================================
 
 The example site plugin mentioned above contains all of the scaffolding needed
-for integrating with Maven builds.  If you don't plan on using Maven, then all
+for integrating with Gradle builds.  If you don't plan on using Gradle, then all
 you really need in your plugin is:
 
 * The `plugin-descriptor.properties` file
@@ -33,14 +33,14 @@ All plugins, be they site or Java plugins, must contain a file called
 `plugin-descriptor.properties` in the root directory. The format for this file
 is described in detail  here:
 
-https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[`dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties`].
+https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources/plugin-descriptor.properties[`/buildSrc/src/main/resources/plugin-descriptor.properties`].
 
 Either fill in this template yourself (see
 https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
-as an example) or, if you are using Elasticsearch's Maven build system, you
-can fill in the necessary values in the `pom.xml` for your plugin. For
+as an example) or, if you are using Elasticsearch's Gradle build system, you
+can fill in the necessary values in the `build.gradle` file for your plugin. For
 instance, see
-https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/pom.xml[`plugins/site-example/pom.xml`].
+https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/build.gradle[`/plugins/site-example/build.gradle`].
 
 [float]
 ==== Mandatory elements for all plugins
@@ -123,13 +123,13 @@ Read more in {ref}/integration-tests.html#changing-node-configuration[Changing N
 === Java Security permissions
 
 Some plugins may need additional security permissions. A plugin can include
-the optional `plugin-security.policy` file containing `grant` statements for 
-additional permissions. Any additional permissions will be displayed to the user 
-with a large warning, and they will have to confirm them when installing the 
+the optional `plugin-security.policy` file containing `grant` statements for
+additional permissions. Any additional permissions will be displayed to the user
+with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 
-If you are using the elasticsearch Maven build system, place this file in
+If you are using the elasticsearch Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
 Keep in mind that the Java security model is stack-based, and the additional

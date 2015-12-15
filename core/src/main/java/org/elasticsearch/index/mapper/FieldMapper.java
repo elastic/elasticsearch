@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.StreamSupport;
 
-public abstract class FieldMapper extends Mapper {
+public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
 
@@ -84,8 +84,13 @@ public abstract class FieldMapper extends Mapper {
                      * if the fieldType has a non-null option we are all good it might have been set through a different
                      * call.
                      */
-                    final IndexOptions options = getDefaultIndexOption();
-                    assert options != IndexOptions.NONE : "default IndexOptions is NONE can't enable indexing";
+                    IndexOptions options = getDefaultIndexOption();
+                    if (options == IndexOptions.NONE) {
+                        // can happen when an existing type on the same index has disabled indexing
+                        // since we inherit the default field type from the first mapper that is
+                        // created on an index
+                        throw new IllegalArgumentException("mapper [" + name + "] has different [index] values from other types of the same index");
+                    }
                     fieldType.setIndexOptions(options);
                 }
             } else {
@@ -270,7 +275,7 @@ public abstract class FieldMapper extends Mapper {
 
     protected MappedFieldTypeReference fieldTypeRef;
     protected final MappedFieldType defaultFieldType;
-    protected final MultiFields multiFields;
+    protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected final boolean indexCreatedBefore2x;
 
@@ -359,26 +364,41 @@ public abstract class FieldMapper extends Mapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected FieldMapper clone() {
+        try {
+            return (FieldMapper) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Override
+    public FieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        FieldMapper merged = clone();
+        merged.doMerge(mergeWith, updateAllTypes);
+        return merged;
+    }
+
+    /**
+     * Merge changes coming from {@code mergeWith} in place.
+     * @param updateAllTypes TODO
+     */
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();
             }
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
-            // different types, return
-            return;
+            throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
         }
         FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
-        multiFields.merge(mergeWith, mergeResult);
+        multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            // apply changeable values
-            MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
-            fieldType.freeze();
-            fieldTypeRef.set(fieldType);
-            this.copyTo = fieldMergeWith.copyTo;
-        }
+        // apply changeable values
+        MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
+        fieldType.freeze();
+        fieldTypeRef.set(fieldType);
+        this.copyTo = fieldMergeWith.copyTo;
     }
 
     @Override
@@ -565,18 +585,20 @@ public abstract class FieldMapper extends Mapper {
         }
 
         private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
+        private final ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
+        private MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
             this.pathType = pathType;
-            this.mappers = mappers;
+            ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+            for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
                 FieldMapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                    ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
+                    mapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
                 }
+                builder.put(cursor.key, mapper);
             }
+            this.mappers = builder.build();
         }
 
         public void parse(FieldMapper mainField, ParseContext context) throws IOException {
@@ -598,47 +620,29 @@ public abstract class FieldMapper extends Mapper {
             context.path().pathType(origPathType);
         }
 
-        // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeResult mergeResult) {
-            FieldMapper mergeWithMultiField = (FieldMapper) mergeWith;
+        public MultiFields merge(MultiFields mergeWith) {
+            if (pathType != mergeWith.pathType) {
+                throw new IllegalArgumentException("Can't change path type from [" + pathType + "] to [" + mergeWith.pathType + "]");
+            }
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = ImmutableOpenMap.builder(mappers);
 
-            List<FieldMapper> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
-
-            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mergeWith.mappers.values()) {
                 FieldMapper mergeWithMapper = cursor.value;
-                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+                FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
-                    // no mapping, simply add it if not simulating
-                    if (!mergeResult.simulate()) {
-                        // we disable the all in multi-field mappers
-                        if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
-                            ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
-                        }
-                        if (newMappersBuilder == null) {
-                            newMappersBuilder = ImmutableOpenMap.builder(mappers);
-                        }
-                        newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
-                        if (mergeWithMapper instanceof FieldMapper) {
-                            if (newFieldMappers == null) {
-                                newFieldMappers = new ArrayList<>(2);
-                            }
-                            newFieldMappers.add(mergeWithMapper);
-                        }
+                    // we disable the all in multi-field mappers
+                    if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
+                        mergeWithMapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
                     }
+                    newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeResult);
+                    FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
+                    newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
             }
 
-            // first add all field mappers
-            if (newFieldMappers != null) {
-                mergeResult.addFieldMappers(newFieldMappers);
-            }
-            // now publish mappers
-            if (newMappersBuilder != null) {
-                mappers = newMappersBuilder.build();
-            }
+            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
+            return new MultiFields(pathType, mappers);
         }
 
         public Iterator<Mapper> iterator() {

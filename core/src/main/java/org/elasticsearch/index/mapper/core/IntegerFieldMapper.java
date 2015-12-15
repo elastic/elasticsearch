@@ -85,8 +85,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (IntegerFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

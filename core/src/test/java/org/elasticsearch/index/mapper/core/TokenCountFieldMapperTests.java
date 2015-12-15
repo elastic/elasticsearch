@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.*;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -60,13 +59,11 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), true, false);
-        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        stage1.merge(stage2.mapping(), true, false);
         // Just simulated so merge hasn't happened yet
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));
 
-        mergeResult = stage1.merge(stage2.mapping(), false, false);
-        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        stage1.merge(stage2.mapping(), false, false);
         // Just simulated so merge hasn't happened yet
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
     }

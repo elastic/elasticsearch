@@ -110,7 +110,7 @@ public class TranslogRecoveryPerformer {
         if (currentUpdate == null) {
             recoveredTypes.put(type, update);
         } else {
-            MapperUtils.merge(currentUpdate, update);
+            currentUpdate = currentUpdate.merge(update, false);
         }
     }
 

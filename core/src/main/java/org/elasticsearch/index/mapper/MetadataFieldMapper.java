@@ -70,4 +70,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public abstract void postParse(ParseContext context) throws IOException;
 
+    @Override
+    public MetadataFieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (MetadataFieldMapper) super.merge(mergeWith, updateAllTypes);
+    }
 }

@@ -205,6 +205,14 @@ public class RootObjectMapper extends ObjectMapper {
         this.numericDetection = numericDetection;
     }
 
+    /** Return a copy of this mapper that has the given {@code mapper} as a
+     *  sub mapper. */
+    public RootObjectMapper copyAndPutMapper(Mapper mapper) {
+        RootObjectMapper clone = (RootObjectMapper) clone();
+        clone.putMapper(mapper);
+        return clone;
+    }
+
     @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
@@ -253,25 +261,29 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
+    public RootObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (RootObjectMapper) super.merge(mergeWith, updateAllTypes);
+    }
+
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            // merge them
-            List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
-            for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-                boolean replaced = false;
-                for (int i = 0; i < mergedTemplates.size(); i++) {
-                    if (mergedTemplates.get(i).name().equals(template.name())) {
-                        mergedTemplates.set(i, template);
-                        replaced = true;
-                    }
-                }
-                if (!replaced) {
-                    mergedTemplates.add(template);
+        // merge them
+        List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
+        for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
+            boolean replaced = false;
+            for (int i = 0; i < mergedTemplates.size(); i++) {
+                if (mergedTemplates.get(i).name().equals(template.name())) {
+                    mergedTemplates.set(i, template);
+                    replaced = true;
                 }
             }
-            this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+            if (!replaced) {
+                mergedTemplates.add(template);
+            }
         }
+        this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
     }
 
     @Override

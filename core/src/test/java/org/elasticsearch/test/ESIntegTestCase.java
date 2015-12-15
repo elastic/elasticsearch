@@ -33,6 +33,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -1912,6 +1913,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         return nodes;
+    }
+
+    // returns the minimum Version of all nodes in the current cluster
+    public static Version getMinimumVersionInCluster() {
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        Version minimumVersionInCluster = Version.CURRENT;
+        for (NodeInfo nodeInfo : nodesInfoResponse) {
+            if (nodeInfo.getVersion().before(minimumVersionInCluster)) {
+                minimumVersionInCluster = nodeInfo.getVersion();
+            }
+        }
+        return minimumVersionInCluster;
     }
 
     protected static class NumShards {

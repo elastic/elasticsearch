@@ -14,3 +14,8 @@ your application to Elasticsearch 2.2.
 The field stats' response format has been changed for number based and date fields. The `min_value` and
 `max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
 return the values as string.
+
+==== Delete API
+
+Deleting a document from a non-existing index now only creates the index if <<docs-index_,external versioning>>
+is used (i.e. `version_type` set to `external`, `external_gt` or `external_gte`).

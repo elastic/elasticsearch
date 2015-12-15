@@ -21,11 +21,17 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
     public void testBulkIndexCreatesMapping() throws Exception {
@@ -41,5 +47,24 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
             }
         });
+    }
+
+    public void testBulkRequestWithDeleteDoesNotCreateMapping() {
+        BulkItemResponse[] items = client().prepareBulk().add(new DeleteRequest("test", "test", "test")).get().getItems();
+        assertThat(items.length, equalTo(1));
+        assertTrue(items[0].isFailed());
+        assertThat(items[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+        assertThat(client().admin().cluster().prepareState().all().get().getState().getMetaData().getIndices().size(), equalTo(0));
+    }
+
+    public void testBulkRequestWithDeleteAndExternalVersioningCreatesMapping() {
+        BulkItemResponse[] items = client().prepareBulk().add(
+            new DeleteRequest("test", "test", "test")
+                .version(randomIntBetween(0, 1000))
+                .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)))
+            .get().getItems();
+        assertThat(items.length, equalTo(1));
+        assertFalse(items[0].isFailed());
+        assertThat(client().admin().cluster().prepareState().all().get().getState().getMetaData().index("test"), notNullValue());
     }
 }

@@ -71,7 +71,8 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     @Override
     protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState state = clusterService.state();
-        if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
+        if ((request.versionType() == VersionType.EXTERNAL || request.versionType() == VersionType.EXTERNAL_GTE)
+            && autoCreateIndex.shouldAutoCreate(request.index(), state)) {
             createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {

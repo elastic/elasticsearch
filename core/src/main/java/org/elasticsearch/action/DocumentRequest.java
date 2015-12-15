@@ -19,6 +19,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.VersionType;
 
 /**
  * Generic interface to group ActionRequest, which work on single document level
@@ -62,4 +63,16 @@ public interface DocumentRequest<T> extends IndicesRequest {
      * @return the Routing
      */
     String routing();
+
+    /**
+     * Set the version type for this request
+     * @return the Request
+     */
+    T versionType(VersionType versionType);
+
+    /**
+     * Get the version type for this request
+     * @return the version type
+     */
+    VersionType versionType();
 }

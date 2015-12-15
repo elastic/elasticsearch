@@ -78,8 +78,11 @@ field _parent, which is in the format parent_type#parent_id.
 [[delete-index-creation]]
 === Automatic index creation
 
-The delete operation automatically creates an index if it has not been
-created before (check out the <<indices-create-index,create index API>>
+Automatic index creation only applies to delete operations that use
+<<docs-index_,external versioning>>. With version type set to
+`external`, `external_gt` or `external_gte` the delete operation
+automatically creates an index if it has not been created
+before (check out the <<indices-create-index,create index API>>
 for manually creating an index), and also automatically creates a
 dynamic type mapping for the specific type if it has not been created
 before (check out the <<indices-put-mapping,put mapping>>

@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -100,14 +101,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (ActionRequest request : bulkRequest.requests) {
                 if (request instanceof DocumentRequest) {
                     DocumentRequest req = (DocumentRequest) request;
-                    Set<String> types = indicesAndTypes.get(req.index());
-                    if (types == null) {
-                        indicesAndTypes.put(req.index(), types = new HashSet<>());
+                    if (req instanceof IndexRequest
+                        || req instanceof UpdateRequest
+                        || req instanceof DeleteRequest && (req.versionType() == VersionType.EXTERNAL || (req.versionType() == VersionType.EXTERNAL_GTE))) {
+                        Set<String> types = indicesAndTypes.get(req.index());
+                        if (types == null) {
+                            indicesAndTypes.put(req.index(), types = new HashSet<>());
+                        }
+                        types.add(req.type());
                     }
-                    types.add(req.type());
                 } else {
                     throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
                 }
+            }
+            if (indicesAndTypes.isEmpty()) {
+                executeBulk(bulkRequest, startTime, listener, responses);
+                return;
             }
             final AtomicInteger counter = new AtomicInteger(indicesAndTypes.size());
             ClusterState state = clusterService.state();

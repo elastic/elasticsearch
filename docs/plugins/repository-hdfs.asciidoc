@@ -88,24 +88,26 @@ by raising an issue. Thank you!
 Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml` or the
 {ref}/modules-snapshots.html[REST API]:
 
-[source]
+[source,yaml]
 ----
 repositories
   hdfs:
-    uri: "hdfs://<host>:<port>/"    # optional - Hadoop file-system URI
-    path: "some/path"               # required - path with the file-system where data is stored/loaded
-    load_defaults: "true"           # optional - whether to load the default Hadoop configuration (default) or not
-    conf_location: "extra-cfg.xml"  # optional - Hadoop configuration XML to be loaded (use commas for multi values)
-    conf.<key> : "<value>"          # optional - 'inlined' key=value added to the Hadoop configuration
-    concurrent_streams: 5           # optional - the number of concurrent streams (defaults to 5)
-    compress: "false"               # optional - whether to compress the metadata or not (default)
-    chunk_size: "10mb"              # optional - chunk size (disabled by default)
+    uri: "hdfs://<host>:<port>/"    \# optional - Hadoop file-system URI
+    path: "some/path"               \# required - path with the file-system where data is stored/loaded
+    load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
+    conf_location: "extra-cfg.xml"  \# optional - Hadoop configuration XML to be loaded (use commas for multi values)
+    conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
+    concurrent_streams: 5           \# optional - the number of concurrent streams (defaults to 5)
+    compress: "false"               \# optional - whether to compress the metadata or not (default)
+    chunk_size: "10mb"              \# optional - chunk size (disabled by default)
+    
 ----
 
 NOTE: Be careful when including a paths within the `uri` setting; Some implementations ignore them completely while
 others consider them. In general, we recommend keeping the `uri` to a minimum and using the `path` element instead.
 
-===== Plugging other file-systems
+[[repository-hdfs-other-fs]]
+==== Plugging other file-systems
 
 Any HDFS-compatible file-systems (like Amazon `s3://` or Google `gs://`) can be used as long as the proper Hadoop
 configuration is passed to the Elasticsearch plugin. In practice, this means making sure the correct Hadoop configuration

@@ -75,7 +75,7 @@ public class IndexBySearchSameIndexTests extends IndexBySearchTestCase {
     private IndexBySearchRequestBuilder indexBySearch(String target, String... sources) throws Exception {
         IndexBySearchRequestBuilder request = newIndexBySearch();
         request.search().setIndices(sources);
-        request.index().setIndex(target);
+        request.destination().setIndex(target);
         return request;
     }
 }

@@ -29,7 +29,7 @@ import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 
 public class IndexBySearchRequestBuilder extends
         AbstractBulkByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
-    private final IndexRequestBuilder index;
+    private final IndexRequestBuilder destination;
 
     public IndexBySearchRequestBuilder(ElasticsearchClient client,
             Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action) {
@@ -39,9 +39,9 @@ public class IndexBySearchRequestBuilder extends
 
     private IndexBySearchRequestBuilder(ElasticsearchClient client,
             Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action,
-            SearchRequestBuilder search, IndexRequestBuilder index) {
-        super(client, action, search, new IndexBySearchRequest(search.request(), index.request()));
-        this.index = index;
+            SearchRequestBuilder search, IndexRequestBuilder destination) {
+        super(client, action, search, new IndexBySearchRequest(search.request(), destination.request()));
+        this.destination = destination;
     }
 
     @Override
@@ -49,8 +49,8 @@ public class IndexBySearchRequestBuilder extends
         return this;
     }
 
-    public IndexRequestBuilder index() {
-        return index;
+    public IndexRequestBuilder destination() {
+        return destination;
     }
 
     public IndexBySearchRequestBuilder opType(OpType opType) {

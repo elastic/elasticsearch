@@ -23,12 +23,12 @@
             junk: {}
 
 ---
-"junk in index fails":
+"junk in dest fails":
   - do:
       catch: /unknown field \[junk\]/
       index_by_search:
         body:
-          index:
+          dest:
             junk: {}
 
 ---
@@ -37,7 +37,7 @@
       catch: /index must be specified/
       index_by_search:
         body:
-          index: {}
+          dest: {}
 
 ---
 "search size is accepted":
@@ -54,7 +54,23 @@
             index: source
             search:
               size:  1000
-          index:
+          dest:
+            index:   dest
+
+---
+"destination can used instead of 'dest'":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: source
+          destination:
             index:   dest
 
 ---
@@ -66,7 +82,7 @@
           source:
             search:
               size: cat
-          index:
+          dest:
             index: dest
 
 ---
@@ -78,25 +94,25 @@
           source:
             search:
               from: 1
-          index:
+          dest:
             index: dest
 
 ---
 "overwriting version is not supported":
   - do:
-      catch: /.*\[index\] unknown field \[version\].*/
+      catch: /.*\[dest\] unknown field \[version\].*/
       index_by_search:
         body:
-          index:
+          dest:
             version: 10
 
 ---
 "overwriting version type is not supported":
   - do:
-      catch: /.*\[index\] unknown field \[version_type\].*/
+      catch: /.*\[dest\] unknown field \[version_type\].*/
       index_by_search:
         body:
-          index:
+          dest:
             version_type: external
 
 ---

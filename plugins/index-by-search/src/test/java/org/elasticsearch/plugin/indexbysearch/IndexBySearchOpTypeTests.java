@@ -93,7 +93,7 @@ public class IndexBySearchOpTypeTests extends IndexBySearchTestCase {
     private IndexBySearchResponse copy(OpType opType) {
         IndexBySearchRequestBuilder copy = newIndexBySearch().opType(opType);
         copy.search().setIndices("source");
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         return copy.get();
     }
 

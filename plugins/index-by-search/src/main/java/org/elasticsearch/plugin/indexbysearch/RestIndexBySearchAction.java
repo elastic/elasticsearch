@@ -68,13 +68,14 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         };
         sourceParser.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT);
 
-        ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
-        indexParser.declareString(IndexRequest::index, new ParseField("index"));
-        indexParser.declareString(IndexRequest::type, new ParseField("type"));
-        indexParser.declareString(IndexRequest::routing, new ParseField("routing"));
+        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        destParser.declareString(IndexRequest::index, new ParseField("index"));
+        destParser.declareString(IndexRequest::type, new ParseField("type"));
+        destParser.declareString(IndexRequest::routing, new ParseField("routing"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.search(), c), new ParseField("source"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("dest"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("destination"), ValueType.OBJECT);
         PARSER.declareInt(IndexBySearchRequest::size, new ParseField("size"));
         PARSER.declareString(IndexBySearchRequest::conflicts, new ParseField("conflicts"));
         PARSER.declareField((p, v, c) -> {v.opType(OpType.fromString(p.text()));}, new ParseField("op_type"), ValueType.STRING);

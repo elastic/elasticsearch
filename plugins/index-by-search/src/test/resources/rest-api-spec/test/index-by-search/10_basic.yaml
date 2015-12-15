@@ -14,7 +14,7 @@
         body:
           source:
             index: source
-          index:
+          dest:
             index: dest
   - match: {created: 1}
   - match: {updated: 0}
@@ -46,7 +46,7 @@
           op_type:   overwrite
           source:
             index:   source
-          index:
+          dest:
             index:   dest
   - match: {created: 0}
   - match: {updated: 1}
@@ -78,7 +78,7 @@
           op_type:  create
           source:
             index:  source
-          index:
+          dest:
             index:  dest
   - match: {created: 0}
   - match: {updated: 0}
@@ -111,7 +111,7 @@
           op_type:   create
           source:
             index:   source
-          index:
+          dest:
             index:   dest
   - match: {created: 0}
   - match: {updated: 0}
@@ -143,7 +143,7 @@
         body:
           source:
             index: twitter
-          index:
+          dest:
             index: new_twitter
   - do:
       indices.refresh: {}
@@ -176,7 +176,7 @@
           source:
             index: twitter
             type:  tweet
-          index:
+          dest:
             index: new_twitter
   - do:
       indices.refresh: {}
@@ -212,7 +212,7 @@
               query:
                 match:
                   user: kimchy
-          index:
+          dest:
             index: new_twitter
   - do:
       indices.refresh: {}
@@ -245,7 +245,7 @@
           source:
             index: twitter
             type:  tweet
-          index:
+          dest:
             index: new_twitter
             type:  chirp
   - do:
@@ -280,7 +280,7 @@
           source:
             index: [twitter, blog]
             type:  [tweet, post]
-          index:
+          dest:
             index: all_together
   - do:
       indices.refresh: {}
@@ -328,7 +328,7 @@
           size: 1
           source:
             index: twitter
-          index:
+          dest:
             index: new_twitter
   - do:
       indices.refresh: {}

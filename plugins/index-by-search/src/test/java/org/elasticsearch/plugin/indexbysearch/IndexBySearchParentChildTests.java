@@ -44,14 +44,14 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         // Copy parent to the new index
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("source").setQuery(findsCountry);
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Copy the child to a new index
         copy = newIndexBySearch();
         copy.search().setIndices("source").setQuery(findsCity);
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -61,7 +61,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         // Copy the grandchild to a new index
         copy = newIndexBySearch();
         copy.search().setIndices("source").setQuery(findsNeighborhood);
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -73,7 +73,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         createParentChildIndex("dest_all_at_once");
         copy = newIndexBySearch();
         copy.search().setIndices("source");
-        copy.index().setIndex("dest_all_at_once");
+        copy.destination().setIndex("dest_all_at_once");
         assertThat(copy.get(), responseMatcher().created(3));
         refresh();
 
@@ -89,7 +89,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
 
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("source").setQuery(findsCity);
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         try {
             copy.get();
             fail("Expected exception");

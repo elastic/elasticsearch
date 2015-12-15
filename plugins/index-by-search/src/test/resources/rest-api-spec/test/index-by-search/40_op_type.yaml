@@ -33,7 +33,7 @@
         body:
           source:
             index: src
-          index:
+          dest:
             index: dest
   - do:
       indices.refresh: {}
@@ -80,7 +80,7 @@
           op_type: create
           source:
             index:   src
-          index:
+          dest:
             index:   dest
   - do:
       indices.refresh: {}
@@ -127,7 +127,7 @@
           op_type: refresh
           source:
             index:   src
-          index:
+          dest:
             index:   dest
   - do:
       indices.refresh: {}
@@ -172,7 +172,7 @@
           op_type: overwrite
           source:
             index:   src
-          index:
+          dest:
             index:   dest
   - do:
       indices.refresh: {}

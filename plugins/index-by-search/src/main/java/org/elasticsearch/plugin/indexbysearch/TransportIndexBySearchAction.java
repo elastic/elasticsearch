@@ -67,14 +67,14 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
     @Override
     protected void doExecute(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
-        String target = request.index().index();
+        String target = request.destination().index();
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterService.state())) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.index())[0];
+            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.destination())[0];
         }
         for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.search())) {
             if (sourceIndex.equals(target)) {
@@ -102,7 +102,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
             BulkRequest bulkRequest = new BulkRequest(mainRequest);
 
             for (SearchHit doc : docs) {
-                IndexRequest index = new IndexRequest(mainRequest.index(), mainRequest);
+                IndexRequest index = new IndexRequest(mainRequest.destination(), mainRequest);
 
                 // We want the index from the copied request, not the doc.
                 index.id(doc.id());
@@ -144,13 +144,13 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
          */
         @Override
         protected void copyRouting(IndexRequest index, SearchHit doc) {
-            String routingSpec = mainRequest.index().routing();
+            String routingSpec = mainRequest.destination().routing();
             if (routingSpec == null) {
                 super.copyRouting(index, doc);
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                index.routing(mainRequest.index().routing().substring(1));
+                index.routing(mainRequest.destination().routing().substring(1));
                 return;
             }
             switch (routingSpec) {

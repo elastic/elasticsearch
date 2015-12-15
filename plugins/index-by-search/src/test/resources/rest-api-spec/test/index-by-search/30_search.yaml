@@ -24,7 +24,7 @@
               query:
                 match:
                   text: test
-          index:
+          dest:
             index: target
   - do:
       indices.refresh: {}
@@ -59,7 +59,7 @@
             index: test
             search:
               sort: order
-          index:
+          dest:
             index: target
   - do:
       indices.refresh: {}

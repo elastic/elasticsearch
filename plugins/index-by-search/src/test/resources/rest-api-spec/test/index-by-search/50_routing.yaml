@@ -7,25 +7,15 @@
         id:           1
         body:         { "company": "cat" }
   - do:
-      index:
-        index:        src
-        type:         test
-        id:           2
-        body:         { "company": "dog" }
-  - do:
       indices.refresh: {}
 
   - do:
       index_by_search:
         body:
           source:
-            index: src
-            search:
-              query:
-                match:
-                  company: cat
-          index:
-            index: dest
+            index:   src
+          dest:
+            index:   dest
             routing: =cat
   - do:
       indices.refresh: {}
@@ -37,3 +27,33 @@
         id:      1
         routing: cat
   - match: { _routing: cat }
+
+---
+"Discard routing on copy":
+  - do:
+      index:
+        index:        src
+        type:         test
+        id:           1
+        body:         { "company": "cat" }
+        routing:
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:   src
+          dest:
+            index:   dest
+            routing: discard
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index:   dest
+        type:    test
+        id:      1
+  - is_false: _routing

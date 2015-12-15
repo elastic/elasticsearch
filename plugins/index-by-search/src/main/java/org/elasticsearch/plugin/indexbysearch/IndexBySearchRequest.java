@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.VersionType;
 
 public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySearchRequest> {
     /**
@@ -38,19 +39,16 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
      * Note that we co-opt version = Versions.NOT_SET to mean
      * "do not set the version in the index requests that we send for each scroll hit."
      */
-    private IndexRequest index;
+    private IndexRequest destination;
 
     private OpType opType = OpType.REFRESH;
 
     public IndexBySearchRequest() {
     }
 
-    public IndexBySearchRequest(SearchRequest search, IndexRequest index) {
+    public IndexBySearchRequest(SearchRequest search, IndexRequest destination) {
         super(search);
-        this.index = index;
-
-        // Clear the versionType so we can check if we've parsed it
-        index.versionType(null);
+        this.destination = destination;
     }
 
     @Override
@@ -69,25 +67,25 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
          * we'll be filling in portions of it as we receive the docs. But we can
          * validate some things so we do that below.
          */
-        if (index.index() == null) {
+        if (destination.index() == null) {
             e = addValidationError("index must be specified", e);
             return e;
         }
-        if (false == (index.routing() == null || index.routing().startsWith("=") ||
-                "keep".equals(index.routing()) || "discard".equals(index.routing()))) {
+        if (false == (destination.routing() == null || destination.routing().startsWith("=") ||
+                "keep".equals(destination.routing()) || "discard".equals(destination.routing()))) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
-        if (index.version() != Versions.MATCH_ANY) {
-            e = addValidationError("overwriting version not supported but was [" + index.version() + ']', e);
+        if (destination.version() != Versions.MATCH_ANY) {
+            e = addValidationError("overwriting version not supported but was [" + destination.version() + ']', e);
         }
-        if (index.versionType() != null) {
-            e = addValidationError("overwriting version_type not supported but was [" + index.versionType() + ']', e);
+        if (destination.versionType() != VersionType.INTERNAL) {
+            e = addValidationError("overwriting version_type not supported but was [" + destination.versionType() + ']', e);
         }
         return e;
     }
 
-    public IndexRequest index() {
-        return index;
+    public IndexRequest destination() {
+        return destination;
     }
 
     public IndexBySearchRequest opType(OpType opType) {
@@ -102,14 +100,14 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index.readFrom(in);
+        destination.readFrom(in);
         opType = opType.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        index.writeTo(out);
+        destination.writeTo(out);
         opType.writeTo(out);
     }
 
@@ -118,9 +116,9 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
         StringBuilder b = new StringBuilder();
         b.append("index-by-search from ");
         searchToString(b);
-        b.append(" to [").append(index.index()).append(']');
-        if (index.type() != null) {
-            b.append('[').append(index.type()).append(']');
+        b.append(" to [").append(destination.index()).append(']');
+        if (destination.type() != null) {
+            b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
     }

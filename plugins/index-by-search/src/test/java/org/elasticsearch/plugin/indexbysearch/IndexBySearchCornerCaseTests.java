@@ -45,7 +45,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         // Copy the doc with the timestamp
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("source");
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -100,9 +100,9 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("source");
-        copy.index().setIndex("dest");
+        copy.destination().setIndex("dest");
         if (specification != null) {
-            copy.index().setRouting(specification);
+            copy.destination().setRouting(specification);
         }
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();

@@ -177,7 +177,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                     @Override
                     public void handleException(TransportException exp) {
-                        perform(exp);
+                        listener.onFailure(exp);
                     }
                 });
             } else {

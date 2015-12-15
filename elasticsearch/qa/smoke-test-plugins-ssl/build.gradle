@@ -20,11 +20,17 @@ task createKey(type: LoggedExec) {
   }
   String subjectAlternateNames = 'san=dns:localhost,ip:127.0.0.1'
   // some machines have a different name for ipv6 loopback,
-  // at least on ubuntu its ip6-localhost
+  // at least on ubuntu its ip6-localhost. other machines, like windows,
+  // won't resolve it back to any hostname at all. Try to setup ipv6 to
+  // work in all cases.
   try {
       String localhost6 = InetAddress.getByName("::1").getCanonicalHostName()
       if (!localhost6.equals("localhost")) {
-          subjectAlternateNames += ",dns:" + localhost6
+          if (localhost6.startsWith("0")) {
+              subjectAlternateNames += ",ip:" + localhost6
+          } else {
+              subjectAlternateNames += ",dns:" + localhost6
+          }
       }
   } catch (UnknownHostException ok) {
       // e.g. no ipv6 support

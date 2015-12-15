@@ -158,7 +158,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         try {
             if (translogGeneration != null) {
-                final Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+                final Checkpoint checkpoint = readCheckpoint();
                 this.recoveredTranslogs = recoverFromFiles(translogGeneration, checkpoint);
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
@@ -545,6 +545,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
+        } catch (AlreadyClosedException | IOException ex) {
+            if (current.getTragicException() != null) {
+                try {
+                    close();
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                }
+            }
+            throw ex;
         }
         return false;
     }
@@ -1431,6 +1440,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *  Otherwise (no tragic exception has occurred) it returns null. */
     public Throwable getTragicException() {
         return current.getTragicException();
+    }
+
+    /** Reads and returns the current checkpoint */
+    final Checkpoint readCheckpoint() throws IOException {
+        return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
 }

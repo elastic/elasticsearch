@@ -53,6 +53,22 @@ public class IndexBySearchRequestBuilder extends
         return destination;
     }
 
+    /**
+     * Set the destination index.
+     */
+    public IndexBySearchRequestBuilder destination(String index) {
+        destination.setIndex(index);
+        return this;
+    }
+
+    /**
+     * Set the destination index and type.
+     */
+    public IndexBySearchRequestBuilder destination(String index, String type) {
+        destination.setIndex(index).setType(type);
+        return this;
+    }
+
     public IndexBySearchRequestBuilder opType(OpType opType) {
         request.opType(opType);
         return this;

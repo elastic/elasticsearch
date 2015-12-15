@@ -45,9 +45,8 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
 
         indexDocs(100);
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        IndexBySearchRequestBuilder copy = newIndexBySearch().destination("dest");
         copy.search().setIndices("source");
-        copy.destination().setIndex("dest");
         /*
          * Set the search size to something very small to cause there to be
          * multiple batches for this request so we can assert that we abort on
@@ -71,9 +70,8 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
 
         indexDocs(100);
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().abortOnVersionConflict(true);
+        IndexBySearchRequestBuilder copy = newIndexBySearch().abortOnVersionConflict(true).destination("dest");
         copy.search().setIndices("source");
-        copy.destination().setIndex("dest");
         // Refresh will cause the conflict to prevent the write.
         copy.opType(OpType.REFRESH);
 

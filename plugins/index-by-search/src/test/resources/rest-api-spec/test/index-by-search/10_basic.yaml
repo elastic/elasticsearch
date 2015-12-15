@@ -2,7 +2,7 @@
 "Response format for created":
   - do:
       index:
-        index:   test
+        index:   source
         type:    foo
         id:      1
         body:    { "text": "test" }
@@ -13,11 +13,9 @@
       index_by_search:
         body:
           source:
-            index: test
-            type:  foo
+            index: source
           index:
-            index: test
-            type:  baz
+            index: dest
   - match: {created: 1}
   - match: {updated: 0}
   - match: {version_conflicts: 0}
@@ -29,14 +27,14 @@
 "Response format for updated":
   - do:
       index:
-        index:   test
+        index:   source
         type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
-        index:   test
-        type:    baz
+        index:   dest
+        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -47,11 +45,9 @@
         body:
           op_type:   overwrite
           source:
-            index:   test
-            type:    foo
+            index:   source
           index:
-            index:   test
-            type:    baz
+            index:   dest
   - match: {created: 0}
   - match: {updated: 1}
   - match: {version_conflicts: 0}
@@ -63,14 +59,14 @@
 "Response format for version conflict":
   - do:
       index:
-        index:   test
+        index:   source
         type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
-        index:   test
-        type:    bar
+        index:   dest
+        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -81,11 +77,9 @@
         body:
           op_type:  create
           source:
-            index:  test
-            type:   foo
+            index:  source
           index:
-            index:  test
-            type:   bar
+            index:  dest
   - match: {created: 0}
   - match: {updated: 0}
   - match: {version_conflicts: 1}
@@ -97,14 +91,14 @@
 "Response format for version conflict with conflicts:abort":
   - do:
       index:
-        index:   test
+        index:   source
         type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
-        index:   test
-        type:    bar
+        index:   dest
+        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -116,23 +110,21 @@
           conflicts: abort
           op_type:   create
           source:
-            index:   test
-            type:    foo
+            index:   source
           index:
-            index:   test
-            type:    bar
+            index:   dest
   - match: {created: 0}
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
-  - match: {failures.0.index:  test}
-  - match: {failures.0.type:   bar}
+  - match: {failures.0.index:  dest}
+  - match: {failures.0.type:   foo}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: CONFLICT}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
-  - match: {failures.0.cause.reason: "[bar][1]: version conflict, document already exists (current version [1])"}
+  - match: {failures.0.cause.reason: "[foo][1]: version conflict, document already exists (current version [1])"}
   - match: {failures.0.cause.shard:  /\d+/}
-  - match: {failures.0.cause.index:  test}
+  - match: {failures.0.cause.index:  dest}
   - is_true: took
 
 ---

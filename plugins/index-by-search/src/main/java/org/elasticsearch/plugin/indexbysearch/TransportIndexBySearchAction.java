@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -27,7 +28,9 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -38,6 +41,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexBySearchResponse> {
+    private final ClusterService clusterService;
+    private final AutoCreateIndex autoCreateIndex;
     private final TransportSearchAction searchAction;
     private final TransportSearchScrollAction scrollAction;
     private final TransportBulkAction bulkAction;
@@ -45,23 +50,41 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
     @Inject
     public TransportIndexBySearchAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, TransportSearchAction transportSearchAction,
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
+            AutoCreateIndex autoCreateIndex, TransportSearchAction transportSearchAction,
             TransportSearchScrollAction transportSearchScrollAction, TransportBulkAction bulkAction,
             TransportClearScrollAction clearScrollAction, TransportService transportService) {
         super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 IndexBySearchRequest::new);
+        this.clusterService = clusterService;
+        this.autoCreateIndex = autoCreateIndex;
         this.searchAction = transportSearchAction;
         this.scrollAction = transportSearchScrollAction;
         this.bulkAction = bulkAction;
         this.clearScrollAction = clearScrollAction;
+
     }
 
     @Override
     protected void doExecute(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
+        String target = request.index().index();
+        if (false == autoCreateIndex.shouldAutoCreate(target, clusterService.state())) {
+            /*
+             * If we're going to autocreate the index we don't need to resolve
+             * it. This is the same sort of dance that TransportIndexRequest
+             * uses to decide to autocreate the index.
+             */
+            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.index())[0];
+        }
+        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.search())) {
+            if (sourceIndex.equals(target)) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError("index-by-search cannot write into an index its reading from [" + target + ']');
+                throw e;
+            }
+        }
         new AsyncIndexBySearchAction(request, listener).start();
     }
-
-
 
     /**
      * Simple implementation of index-by-search scrolling and bulk. There are

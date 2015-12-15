@@ -43,7 +43,7 @@
 "search size is accepted":
   - do:
       index:
-        index:   test
+        index:   source
         type:    foo
         id:      1
         body:    { "text": "test" }
@@ -51,10 +51,11 @@
       index_by_search:
         body:
           source:
+            index: source
             search:
-              size: 1000
+              size:  1000
           index:
-            index: dest
+            index:   dest
 
 ---
 "search size fails if not a number":

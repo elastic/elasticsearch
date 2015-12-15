@@ -23,51 +23,42 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.get.GetField;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
  */
 public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
-    public void testTimestamp() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("source", "{\"_timestamp\": {\"enabled\": true}}")
-                .addMapping("dest", "{\"_timestamp\": {\"enabled\": true}}"));
+    /**
+     * Creates two indexes with the provided mapping, indexes a single doc into
+     * them and copies the data from one to the other.
+     */
+    private void copyDoc(String mapping) throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("source").addMapping("test",
+                mapping));
+        assertAcked(client().admin().indices().prepareCreate("dest").addMapping("test",
+                mapping));
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "source", "has_timestamp").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex("source", "test", "test").setSource("foo", "bar"));
 
-        assertSearchHits(client().prepareSearch("test").setTypes("source").setQuery(existsQuery("_timestamp")).get(), "has_timestamp");
-
-        // Copy the child to a new type
+        // Copy the doc with the timestamp
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.index().setIndex("test").setType("dest");
+        copy.search().setIndices("source");
+        copy.index().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
-        // Make sure timestamp is intact on the copy
-        assertSearchHits(client().prepareSearch("test").setTypes("dest").setQuery(existsQuery("_timestamp")).get(), "has_timestamp");
+    }
+
+    public void testTimestamp() throws Exception {
+        copyDoc("{\"_timestamp\": {\"enabled\": true}}");
+        assertSearchHits(client().prepareSearch("dest").setQuery(existsQuery("_timestamp")).get(), "test");
     }
 
     public void testTTL() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("source", "{\"_ttl\": {\"enabled\": true}}")
-                .addMapping("dest", "{\"_ttl\": {\"enabled\": true}}"));
-        ensureGreen();
-
-        indexRandom(true,
-                client().prepareIndex("test", "source", "has_ttl").setTTL(TimeValue.timeValueMinutes(10).millis()).setSource("foo", "bar"));
-
-        assertNotNull(client().prepareGet("test", "source", "has_ttl").get().getField("_ttl").getValue());
-
-        // Copy the child to a new type
-        IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.index().setIndex("test").setType("dest");
-        assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
-
-        // Make sure the ttl is intact on the copy
-        assertNotNull(client().prepareGet("test", "dest", "has_ttl").get().getField("_ttl").getValue());
+        copyDoc("{\"_ttl\": {\"enabled\": true, \"default\": \"20d\"}}");
+        assertNotNull(client().prepareGet("dest", "test", "test").get().getField("_ttl").getValue());
     }
 
     public void testRoutingCopiedByDefault() throws Exception {
@@ -102,13 +93,14 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
      */
     public void routingTestCase(String specification, String expectedRoutingAfterCopy) throws Exception {
         indexRandom(true,
-                client().prepareIndex("test", "source", "has_routing").setRouting("bar").setSource("foo", "bar"));
+                client().prepareIndex("source", "test", "has_routing").setRouting("bar").setSource("foo", "bar"));
 
-        assertNotNull(client().prepareGet("test", "source", "has_routing").setRouting("bar").get().getField("_routing").getValue());
+        assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
 
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.index().setIndex("test").setType("dest");
+        copy.search().setIndices("source");
+        copy.index().setIndex("dest");
         if (specification != null) {
             copy.index().setRouting(specification);
         }
@@ -116,7 +108,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         refresh();
 
         // Make sure routing is intact on the copy
-        GetField routing = client().prepareGet("test", "dest", "has_routing").setRouting(expectedRoutingAfterCopy).get().getField("_routing");
+        GetField routing = client().prepareGet("dest", "test", "has_routing").setRouting(expectedRoutingAfterCopy).get().getField("_routing");
         if (expectedRoutingAfterCopy == null) {
             assertNull(expectedRoutingAfterCopy, routing);
         } else {
@@ -124,6 +116,6 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         }
 
         // Find by rounting
-        assertSearchHits(client().prepareSearch("test").setTypes("dest").setRouting(expectedRoutingAfterCopy).get(), "has_routing");
+        assertSearchHits(client().prepareSearch("dest").setRouting(expectedRoutingAfterCopy).get(), "has_routing");
     }
 }

@@ -32,40 +32,64 @@ import org.elasticsearch.index.query.QueryBuilder;
  * Index-by-search tests for parent/child.
  */
 public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
+    QueryBuilder<?> findsCountry;
     QueryBuilder<?> findsCity;
     QueryBuilder<?> findsNeighborhood;
 
     public void testParentChild() throws Exception {
-        setupParentChildIndex(true);
+        createParentChildIndex("source");
+        createParentChildIndex("dest");
+        createParentChildDocs("source");
 
-        // Copy the child to a new type
+        // Copy parent to the new index
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.search().setQuery(findsCity);
-        copy.index().setIndex("test").setType("dest_city");
+        copy.search().setIndices("source").setQuery(findsCountry);
+        copy.index().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
-        // Make sure parent/child is intact on that type
-        assertSearchHits(client().prepareSearch("test").setTypes("dest_city").setQuery(findsCity).get(), "pittsburgh");
-
-        // Copy the grandchild to a new type
+        // Copy the child to a new index
         copy = newIndexBySearch();
-        copy.search().setQuery(findsNeighborhood);
-        copy.index().setIndex("test").setType("dest_neighborhood");
+        copy.search().setIndices("source").setQuery(findsCity);
+        copy.index().setIndex("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
-        // Make sure parent/child is intact on that type
-        assertSearchHits(client().prepareSearch("test").setTypes("dest_neighborhood").setQuery(findsNeighborhood).get(), "make-believe");
+        // Make sure parent/child is intact on that index
+        assertSearchHits(client().prepareSearch("dest").setQuery(findsCity).get(), "pittsburgh");
+
+        // Copy the grandchild to a new index
+        copy = newIndexBySearch();
+        copy.search().setIndices("source").setQuery(findsNeighborhood);
+        copy.index().setIndex("dest");
+        assertThat(copy.get(), responseMatcher().created(1));
+        refresh();
+
+        // Make sure parent/child is intact on that index
+        assertSearchHits(client().prepareSearch("dest").setQuery(findsNeighborhood).get(),
+                "make-believe");
+
+        // Copy the parent/child/grandchild structure all at once to a third index
+        createParentChildIndex("dest_all_at_once");
+        copy = newIndexBySearch();
+        copy.search().setIndices("source");
+        copy.index().setIndex("dest_all_at_once");
+        assertThat(copy.get(), responseMatcher().created(3));
+        refresh();
+
+        // Make sure parent/child/grandchild is intact there too
+        assertSearchHits(client().prepareSearch("dest_all_at_once").setQuery(findsNeighborhood).get(),
+                "make-believe");
+
     }
 
     public void testErrorMessageWhenBadParentChild() throws Exception {
-        setupParentChildIndex(false);
+        createParentChildIndex("source");
+        createParentChildDocs("source");
 
-        // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.search().setQuery(findsCity);
-        copy.index().setIndex("test").setType("dest");
+        copy.search().setIndices("source").setQuery(findsCity);
+        copy.index().setIndex("dest");
         try {
             copy.get();
             fail("Expected exception");
@@ -78,27 +102,27 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
      * Setup a parent/child index and return a query that should find the child
      * using the parent.
      */
-    private void setupParentChildIndex(boolean addParentMappingForDest) throws Exception {
-        CreateIndexRequestBuilder create = client().admin().indices().prepareCreate("test");
+    private void createParentChildIndex(String indexName) throws Exception {
+        CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
         create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}");
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
-        if (addParentMappingForDest) {
-            create.addMapping("dest_city", "{\"_parent\": {\"type\": \"country\"}}");
-            create.addMapping("dest_neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
-        }
         assertAcked(create);
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "country", "united states").setSource("foo", "bar"),
-                client().prepareIndex("test", "city", "pittsburgh").setParent("united states").setSource("foo", "bar"),
-                client().prepareIndex("test", "neighborhood", "make-believe").setParent("pittsburgh")
+    }
+
+    private void createParentChildDocs(String indexName) throws Exception {
+        indexRandom(true, client().prepareIndex(indexName, "country", "united states").setSource("foo", "bar"),
+                client().prepareIndex(indexName, "city", "pittsburgh").setParent("united states").setSource("foo", "bar"),
+                client().prepareIndex(indexName, "neighborhood", "make-believe").setParent("pittsburgh")
                         .setSource("foo", "bar").setRouting("united states"));
 
-        // Make sure we build the parent/child relationship
-        findsCity = hasParentQuery("country", idsQuery("country").addIds("united states"));
-        assertSearchHits(client().prepareSearch("test").setQuery(findsCity).get(), "pittsburgh");
-
+        findsCountry = idsQuery("country").addIds("united states");
+        findsCity = hasParentQuery("country", findsCountry);
         findsNeighborhood = hasParentQuery("city", findsCity);
-        assertSearchHits(client().prepareSearch("test").setQuery(findsNeighborhood).get(), "make-believe");
+
+        // Make sure we built the parent/child relationship
+        assertSearchHits(client().prepareSearch(indexName).setQuery(findsCity).get(), "pittsburgh");
+        assertSearchHits(client().prepareSearch(indexName).setQuery(findsNeighborhood).get(), "make-believe");
     }
 }

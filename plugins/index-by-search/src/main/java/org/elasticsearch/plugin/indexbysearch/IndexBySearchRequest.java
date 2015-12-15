@@ -61,10 +61,13 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
+        if (search().indices() == null || search().indices().length == 0) {
+            e = addValidationError("use _all if you really want to copy from all existing indexes", e);
+        }
         /*
-         * Note that we don't validate the index here - it won't work because
+         * Note that we don't call index's validator - it won't work because
          * we'll be filling in portions of it as we receive the docs. But we can
-         * validate some things.
+         * validate some things so we do that below.
          */
         if (index.index() == null) {
             e = addValidationError("index must be specified", e);

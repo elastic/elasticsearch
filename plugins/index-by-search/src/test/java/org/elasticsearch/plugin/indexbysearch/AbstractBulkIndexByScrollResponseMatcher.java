@@ -41,6 +41,11 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<Response extends 
         return batches(equalTo(batches));
     }
 
+    public Self batches(int total, int batchSize) {
+        // Round up
+        return batches((total + batchSize - 1) / batchSize);
+    }
+
     public Self versionConflicts(Matcher<Long> versionConflictsMatcher) {
         this.versionConflictsMatcher = versionConflictsMatcher;
         return self();

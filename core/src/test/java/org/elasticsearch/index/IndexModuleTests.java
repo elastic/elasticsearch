@@ -59,7 +59,6 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
@@ -102,7 +101,6 @@ public class IndexModuleTests extends ESTestCase {
         BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndicesFieldDataCacheListener(circuitBreakerService), threadPool);
         Set<ScriptEngineService> scriptEngines = new HashSet<>();
-        scriptEngines.add(new MustacheScriptEngineService(settings));
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), new ScriptContextRegistry(Collections.emptyList()));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, Collections.emptySet(), new NamedWriteableRegistry());

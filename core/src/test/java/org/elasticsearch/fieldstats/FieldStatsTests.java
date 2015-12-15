@@ -67,7 +67,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testString() {
-        createIndex("test", Settings.EMPTY, "field", "value", "type=string");
+        createIndex("test", Settings.EMPTY, "test", "field", "type=string");
         for (int value = 0; value <= 10; value++) {
             client().prepareIndex("test", "test").setSource("field", String.format(Locale.ENGLISH, "%03d", value)).get();
         }
@@ -85,7 +85,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testDouble() {
         String fieldName = "field";
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=double");
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=double");
         for (double value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -102,7 +102,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testFloat() {
         String fieldName = "field";
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=float");
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=float");
         for (float value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -112,14 +112,14 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1.0));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9.0));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1f));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9f));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
     }
 
     private void testNumberRange(String fieldName, String fieldType, long min, long max) {
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=" + fieldType);
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=" + fieldType);
         for (long value = min; value <= max; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -180,11 +180,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidField() {
-        createIndex("test1", Settings.EMPTY, "field1", "value", "type=string");
+        createIndex("test1", Settings.EMPTY, "test", "field1", "type=string");
         client().prepareIndex("test1", "test").setSource("field1", "a").get();
         client().prepareIndex("test1", "test").setSource("field1", "b").get();
 
-        createIndex("test2", Settings.EMPTY, "field2", "value", "type=string");
+        createIndex("test2", Settings.EMPTY, "test", "field2",  "type=string");
         client().prepareIndex("test2", "test").setSource("field2", "a").get();
         client().prepareIndex("test2", "test").setSource("field2", "b").get();
         client().admin().indices().prepareRefresh().get();

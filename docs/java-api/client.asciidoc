@@ -37,11 +37,10 @@ that can execute operations against elasticsearch.
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.node.NodeBuilder.*;
 
 // on startup
 
-Node node = nodeBuilder().node();
+Node node = new Node(Settings.EMPTY).start();
 Client client = node.client();
 
 // on shutdown
@@ -86,17 +85,15 @@ it):
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.node.NodeBuilder.*;
 
 // on startup
 
 // Embedded node clients behave just like standalone nodes,
 // which means that they will leave the HTTP port open!
-Node node =
-    nodeBuilder()
-        .settings(Settings.settingsBuilder().put("http.enabled", false))
-        .client(true)
-    .node();
+Node node = new Node(Settings.settingsBuilder()
+        .put("http.enabled", false)
+        .put("node.client", true).build())
+    .start();
 
 Client client = node.client();
 
@@ -115,11 +112,10 @@ and form a cluster.
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.node.NodeBuilder.*;
 
 // on startup
 
-Node node = nodeBuilder().local(true).node();
+Node node = new Node(Settings.builder().put("node.local", true).build()).start();
 Client client = node.client();
 
 // on shutdown

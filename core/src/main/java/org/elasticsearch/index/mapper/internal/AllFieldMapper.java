@@ -49,7 +49,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
 /**
  *
@@ -134,7 +134,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 }
             }
             
-            parseField(builder, builder.name, node, parserContext);
+            parseTextField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

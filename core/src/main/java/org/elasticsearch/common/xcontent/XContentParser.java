@@ -178,12 +178,6 @@ public interface XContentParser extends Releasable {
 
     NumberType numberType() throws IOException;
 
-    /**
-     * Is the number type estimated or not (i.e. an int might actually be a long, its just low enough
-     * to be an int).
-     */
-    boolean estimatedNumberType();
-
     short shortValue(boolean coerce) throws IOException;
 
     int intValue(boolean coerce) throws IOException;

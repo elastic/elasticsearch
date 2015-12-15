@@ -206,6 +206,20 @@ cluster settings please use the settings update API and set their superseded key
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
 
+==== Default number mappings
+
+When a floating-point number is encountered, it is now dynamically mapped as a
+float by default instead of a double. The reasoning is that floats should be
+more than enough for most cases but would decrease storage requirements
+significantly.
+
+==== `_source`'s `format` option
+
+The `_source` mapping does not support the `format` option anymore. This option
+will still be accepted for indices created before the upgrade to 3.0 for backward
+compatibility, but it will have no effect. Indices created on or after 3.0 will
+reject this option.
+
 [[breaking_30_plugins]]
 === Plugin changes
 
@@ -236,6 +250,15 @@ Cloud AWS plugin has been split in two plugins:
 
 * {plugins}/discovery-ec2.html[Discovery EC2 plugin]
 * {plugins}/repository-s3.html[Repository S3 plugin]
+
+Proxy settings for both plugins have been renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
 
 ==== Cloud Azure plugin changes
 
@@ -411,9 +434,9 @@ Use the `field(String, float)` method instead.
 
 ==== MissingQueryBuilder
 
-The two individual setters for existence() and nullValue() were removed in favour of
-optional constructor settings in order to better capture and validate their interdependent
-settings at construction time.
+The MissingQueryBuilder which was deprecated in 2.2.0 is removed. As a replacement use ExistsQueryBuilder
+inside a mustNot() clause. So instead of using `new ExistsQueryBuilder(name)` now use
+`new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(name))`.
 
 ==== NotQueryBuilder
 
@@ -491,3 +514,4 @@ from `OsStats.Cpu#getPercent`.
 === Fields option
 Only stored fields are retrievable with this option.
 The fields option won't be able to load non stored fields from _source anymore.
+

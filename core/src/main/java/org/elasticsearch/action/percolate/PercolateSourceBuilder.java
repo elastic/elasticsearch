@@ -238,17 +238,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            XContentType contentType = XContentFactory.xContentType(doc);
-            if (contentType == builder.contentType()) {
-                builder.rawField("doc", doc);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(doc)) {
-                    parser.nextToken();
-                    builder.field("doc");
-                    builder.copyCurrentStructure(parser);
-                }
-            }
-            return builder;
+            return builder.rawField("doc", doc);
         }
     }
 

@@ -40,10 +40,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class RecoverySettings extends AbstractComponent implements Closeable {
 
-    public static final Setting<ByteSizeValue> INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> INDICES_RECOVERY_TRANSLOG_OPS_SETTING = Setting.intSetting("indices.recovery.translog_ops", 1000, true, Setting.Scope.CLUSTER);
-    public static final Setting<ByteSizeValue> INDICES_RECOVERY_TRANSLOG_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB), true, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> INDICES_RECOVERY_COMPRESS_SETTING = Setting.boolSetting("indices.recovery.compress", true, true, Setting.Scope.CLUSTER);
     public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_streams", 3, true, Setting.Scope.CLUSTER);
     public static final Setting<Integer> INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING = Setting.intSetting("indices.recovery.concurrent_small_file_streams", 2, true, Setting.Scope.CLUSTER);
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting("indices.recovery.max_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB), true, Setting.Scope.CLUSTER);
@@ -74,11 +70,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
     public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb", "SMALL_FILE_CUTOFF_BYTES").bytes();
 
-    private volatile ByteSizeValue fileChunkSize;
-
-    private volatile boolean compress;
-    private volatile int translogOps;
-    private volatile ByteSizeValue translogSize;
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile int concurrentStreams;
     private volatile int concurrentSmallFileStreams;
@@ -93,14 +85,11 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionLongTimeout;
 
+    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
     @Inject
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        this.fileChunkSize = INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.get(settings);
-        this.translogOps = INDICES_RECOVERY_TRANSLOG_OPS_SETTING.get(settings);
-        this.translogSize = INDICES_RECOVERY_TRANSLOG_SIZE_SETTING.get(settings);
-        this.compress = INDICES_RECOVERY_COMPRESS_SETTING.get(settings);
 
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
@@ -127,13 +116,9 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
         }
 
-        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
-                maxBytesPerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
+        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}]",
+                maxBytesPerSec, concurrentStreams);
 
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING, this::setFileChunkSize);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_OPS_SETTING, this::setTranslogOps);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_TRANSLOG_SIZE_SETTING, this::setTranslogSize);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_COMPRESS_SETTING, this::setCompress);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING, this::setConcurrentStreams);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING, this::setConcurrentSmallFileStreams);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
@@ -148,26 +133,6 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     public void close() {
         ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
         ThreadPool.terminate(concurrentSmallFileStreamPool, 1, TimeUnit.SECONDS);
-    }
-
-    public ByteSizeValue fileChunkSize() {
-        return fileChunkSize;
-    }
-
-    public boolean compress() {
-        return compress;
-    }
-
-    public int translogOps() {
-        return translogOps;
-    }
-
-    public ByteSizeValue translogSize() {
-        return translogSize;
-    }
-
-    public int concurrentStreams() {
-        return concurrentStreams;
     }
 
     public ThreadPoolExecutor concurrentStreamPool() {
@@ -202,20 +167,13 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         return internalActionLongTimeout;
     }
 
-    private void setFileChunkSize(ByteSizeValue fileChunkSize) {
-        this.fileChunkSize = fileChunkSize;
-    }
+    public ByteSizeValue getChunkSize() { return chunkSize; }
 
-    private void setCompress(boolean compress) {
-        this.compress = compress;
-    }
-
-    private void setTranslogOps(int translogOps) {
-        this.translogOps = translogOps;
-    }
-
-    private void setTranslogSize(ByteSizeValue translogSize) {
-        this.translogSize = translogSize;
+    void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+        if (chunkSize.bytesAsInt() <= 0) {
+            throw new IllegalArgumentException("chunkSize must be > 0");
+        }
+        this.chunkSize = chunkSize;
     }
 
     private void setConcurrentStreams(int concurrentStreams) {

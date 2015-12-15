@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -41,12 +42,15 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -59,6 +63,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -96,7 +101,16 @@ import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.file.CopyOption;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -107,8 +121,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
- * <p>In order to create a node, the {@link NodeBuilder} can be used. When done with it, make sure to
- * call {@link #close()} on it.
  */
 public class Node implements Releasable {
 
@@ -127,14 +139,13 @@ public class Node implements Releasable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(preparedSettings, Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    Node(Settings preparedSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        final Settings pSettings = settingsBuilder().put(preparedSettings)
-                .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
-        Environment tmpEnv = InternalSettingsPreparer.prepareEnvironment(pSettings, null);
-        Settings tmpSettings = TribeService.processSettings(tmpEnv.settings());
+    protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+        Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
+            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+        tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
@@ -274,6 +285,15 @@ public class Node implements Releasable {
         }
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
+
+        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+            if (settings.getAsBoolean("http.enabled", true)) {
+                HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
+                writePortsFile("http", http.boundAddress());
+            }
+            TransportService transport = injector.getInstance(TransportService.class);
+            writePortsFile("transport", transport.boundAddress());
+        }
 
         logger.info("started");
 
@@ -425,5 +445,28 @@ public class Node implements Releasable {
 
     public Injector injector() {
         return this.injector;
+    }
+
+    /** Writes a file to the logs dir containing the ports for the given transport type */
+    private void writePortsFile(String type, BoundTransportAddress boundAddress) {
+        Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
+        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
+            for (TransportAddress address : boundAddress.boundAddresses()) {
+                InetAddress inetAddress = InetAddress.getByName(address.getAddress());
+                if (inetAddress instanceof Inet6Address && inetAddress.isLinkLocalAddress()) {
+                    // no link local, just causes problems
+                    continue;
+                }
+                writer.write(NetworkAddress.formatAddress(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write ports file", e);
+        }
+        Path portsFile = environment.logsFile().resolve(type + ".ports");
+        try {
+            Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to rename ports file", e);
+        }
     }
 }

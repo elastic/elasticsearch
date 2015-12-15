@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -111,7 +112,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         for (AllocationDecider d : list) {
             assertThat(defaultAllocationDeciders.contains(d.getClass()), is(true));
         }
-        Collections.shuffle(list, random);
+        Randomness.shuffle(list);
         return new AllocationDeciders(settings, list.toArray(new AllocationDecider[0]));
 
     }

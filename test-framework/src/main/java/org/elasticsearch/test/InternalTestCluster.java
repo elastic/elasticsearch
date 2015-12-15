@@ -448,10 +448,6 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS_SETTING.getKey(), random.nextBoolean());
-        }
-
-        if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
 
@@ -1554,7 +1550,7 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = 0; i < numNodes; i++) {
             asyncs.add(startNodeAsync(settings, version));
         }
-        
+
         return () -> {
             List<String> ids = new ArrayList<>();
             for (Async<String> async : asyncs) {

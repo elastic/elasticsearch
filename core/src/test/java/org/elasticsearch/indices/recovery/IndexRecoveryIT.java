@@ -138,21 +138,25 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = shardSize.bytes() / 10;
+        long chunkSize = Math.max(1, shardSize.bytes() / 10);
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES));
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
                 )
                 .get().isAcknowledged());
     }
 
     private void restoreRecoverySpeed() {
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, RecoverySettings.DEFAULT_CHUNK_SIZE);
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.getKey(), "512kb")
                 )
                 .get().isAcknowledged());
     }
@@ -630,5 +634,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             }
             transport.sendRequest(node, requestId, action, request, options);
         }
+    }
+
+    public static void setChunkSize(RecoverySettings recoverySettings, ByteSizeValue chunksSize) {
+        recoverySettings.setChunkSize(chunksSize);
     }
 }

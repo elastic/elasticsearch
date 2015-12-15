@@ -20,10 +20,15 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.Attribute;
+import org.apache.lucene.util.AttributeReflector;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -33,6 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -46,8 +52,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.Reader;
+import java.util.*;
 
 /**
  * Transport action used to execute analyze requests
@@ -222,6 +228,23 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             throw new IllegalArgumentException("failed to find analyzer");
         }
 
+        List<AnalyzeResponse.AnalyzeToken> tokens = null;
+        DetailAnalyzeResponse detail = null;
+
+        if (request.explain()) {
+            detail = detailAnalyze(request, analyzer, field);
+        } else {
+            tokens = simpleAnalyze(request, analyzer, field);
+        }
+
+        if (closeAnalyzer) {
+            analyzer.close();
+        }
+
+        return new AnalyzeResponse(tokens, detail);
+    }
+
+    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
         List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
@@ -238,7 +261,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type()));
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type(), null));
 
                 }
                 stream.end();
@@ -251,11 +274,211 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 throw new ElasticsearchException("failed to analyze", e);
             }
         }
+        return tokens;
+    }
 
-        if (closeAnalyzer) {
-            analyzer.close();
+    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
+        DetailAnalyzeResponse detailResponse;
+        final Set<String> includeAttributes = new HashSet<>();
+        if (request.attributes() != null) {
+            for (String attribute : request.attributes()) {
+                includeAttributes.add(attribute.toLowerCase(Locale.ROOT));
+            }
         }
 
-        return new AnalyzeResponse(tokens);
+        CustomAnalyzer customAnalyzer = null;
+        if (analyzer instanceof CustomAnalyzer) {
+            customAnalyzer = (CustomAnalyzer) analyzer;
+        } else if (analyzer instanceof NamedAnalyzer && ((NamedAnalyzer) analyzer).analyzer() instanceof CustomAnalyzer) {
+            customAnalyzer = (CustomAnalyzer) ((NamedAnalyzer) analyzer).analyzer();
+        }
+
+        if (customAnalyzer != null) {
+            // customAnalyzer = divide charfilter, tokenizer tokenfilters
+            CharFilterFactory[] charFilterFactories = customAnalyzer.charFilters();
+            TokenizerFactory tokenizerFactory = customAnalyzer.tokenizerFactory();
+            TokenFilterFactory[] tokenFilterFactories = customAnalyzer.tokenFilters();
+
+            String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
+            TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ? tokenFilterFactories.length : 0];
+
+            TokenListCreator tokenizerTokenListCreator = new TokenListCreator();
+
+            for (int textIndex = 0; textIndex < request.text().length; textIndex++) {
+                String charFilteredSource = request.text()[textIndex];
+
+                Reader reader = new FastStringReader(charFilteredSource);
+                if (charFilterFactories != null) {
+
+                    for (int charFilterIndex = 0; charFilterIndex < charFilterFactories.length; charFilterIndex++) {
+                        reader = charFilterFactories[charFilterIndex].create(reader);
+                        Reader readerForWriteOut = new FastStringReader(charFilteredSource);
+                        readerForWriteOut = charFilterFactories[charFilterIndex].create(readerForWriteOut);
+                        charFilteredSource = writeCharStream(readerForWriteOut);
+                        charFiltersTexts[charFilterIndex][textIndex] = charFilteredSource;
+                    }
+                }
+
+                // analyzing only tokenizer
+                Tokenizer tokenizer = tokenizerFactory.create();
+                tokenizer.setReader(reader);
+                tokenizerTokenListCreator.analyze(tokenizer, customAnalyzer, field, includeAttributes);
+
+                // analyzing each tokenfilter
+                if (tokenFilterFactories != null) {
+                    for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFilterFactories.length; tokenFilterIndex++) {
+                        if (tokenFiltersTokenListCreator[tokenFilterIndex] == null) {
+                            tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator();
+                        }
+                        TokenStream stream = createStackedTokenStream(request.text()[textIndex],
+                            charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
+                        tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, customAnalyzer, field, includeAttributes);
+                    }
+                }
+            }
+
+            DetailAnalyzeResponse.CharFilteredText[] charFilteredLists = new DetailAnalyzeResponse.CharFilteredText[charFiltersTexts.length];
+            if (charFilterFactories != null) {
+                for (int charFilterIndex = 0; charFilterIndex < charFiltersTexts.length; charFilterIndex++) {
+                    charFilteredLists[charFilterIndex] = new DetailAnalyzeResponse.CharFilteredText(
+                        charFilterFactories[charFilterIndex].name(), charFiltersTexts[charFilterIndex]);
+                }
+            }
+            DetailAnalyzeResponse.AnalyzeTokenList[] tokenFilterLists = new DetailAnalyzeResponse.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
+            if (tokenFilterFactories != null) {
+                for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFiltersTokenListCreator.length; tokenFilterIndex++) {
+                    tokenFilterLists[tokenFilterIndex] = new DetailAnalyzeResponse.AnalyzeTokenList(
+                        tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
+                }
+            }
+            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+        } else {
+            String name;
+            if (analyzer instanceof NamedAnalyzer) {
+                name = ((NamedAnalyzer) analyzer).name();
+            } else {
+                name = analyzer.getClass().getName();
+            }
+
+            TokenListCreator tokenListCreator = new TokenListCreator();
+            for (String text : request.text()) {
+                tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
+                        includeAttributes);
+            }
+            detailResponse = new DetailAnalyzeResponse(new DetailAnalyzeResponse.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
+        }
+        return detailResponse;
+    }
+
+    private static TokenStream createStackedTokenStream(String source, CharFilterFactory[] charFilterFactories, TokenizerFactory tokenizerFactory, TokenFilterFactory[] tokenFilterFactories, int current) {
+        Reader reader = new FastStringReader(source);
+        for (CharFilterFactory charFilterFactory : charFilterFactories) {
+            reader = charFilterFactory.create(reader);
+        }
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(reader);
+        TokenStream tokenStream = tokenizer;
+        for (int i = 0; i < current; i++) {
+            tokenStream = tokenFilterFactories[i].create(tokenStream);
+        }
+        return tokenStream;
+    }
+
+    private static String writeCharStream(Reader input) {
+        final int BUFFER_SIZE = 1024;
+        char[] buf = new char[BUFFER_SIZE];
+        int len;
+        StringBuilder sb = new StringBuilder();
+        do {
+            try {
+                len = input.read(buf, 0, BUFFER_SIZE);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to analyze (charFiltering)", e);
+            }
+            if (len > 0)
+                sb.append(buf, 0, len);
+        } while (len == BUFFER_SIZE);
+        return sb.toString();
+    }
+
+    private static class TokenListCreator {
+        int lastPosition = -1;
+        int lastOffset = 0;
+        List<AnalyzeResponse.AnalyzeToken> tokens;
+
+        TokenListCreator() {
+            tokens = new ArrayList<>();
+        }
+
+        private void analyze(TokenStream stream, Analyzer analyzer, String field, Set<String> includeAttributes) {
+            try {
+                stream.reset();
+                CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+                PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
+                OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
+                TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+
+                while (stream.incrementToken()) {
+                    int increment = posIncr.getPositionIncrement();
+                    if (increment > 0) {
+                        lastPosition = lastPosition + increment;
+                    }
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                        lastOffset +offset.endOffset(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
+
+                }
+                stream.end();
+                lastOffset += offset.endOffset();
+                lastPosition += posIncr.getPositionIncrement();
+
+                lastPosition += analyzer.getPositionIncrementGap(field);
+                lastOffset += analyzer.getOffsetGap(field);
+
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to analyze", e);
+            } finally {
+                IOUtils.closeWhileHandlingException(stream);
+            }
+        }
+
+        private AnalyzeResponse.AnalyzeToken[] getArrayTokens() {
+            return tokens.toArray(new AnalyzeResponse.AnalyzeToken[tokens.size()]);
+        }
+
+    }
+
+    /**
+     * other attribute extract object.
+     * Extracted object group by AttributeClassName
+     *
+     * @param stream current TokenStream
+     * @param includeAttributes filtering attributes
+     * @return Map&lt;key value&gt;
+     */
+    private static Map<String, Object> extractExtendedAttributes(TokenStream stream, final Set<String> includeAttributes) {
+        final Map<String, Object> extendedAttributes = new TreeMap<>();
+
+        stream.reflectWith(new AttributeReflector() {
+            @Override
+            public void reflect(Class<? extends Attribute> attClass, String key, Object value) {
+                if (CharTermAttribute.class.isAssignableFrom(attClass))
+                    return;
+                if (PositionIncrementAttribute.class.isAssignableFrom(attClass))
+                    return;
+                if (OffsetAttribute.class.isAssignableFrom(attClass))
+                    return;
+                if (TypeAttribute.class.isAssignableFrom(attClass))
+                    return;
+                if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
+                    if (value instanceof BytesRef) {
+                        final BytesRef p = (BytesRef) value;
+                        value = p.toString();
+                    }
+                    extendedAttributes.put(key, value);
+                }
+            }
+        });
+
+        return extendedAttributes;
     }
 }

@@ -19,38 +19,11 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.expressions.js.JavascriptCompiler;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.text.ParseException;
-
 public class ExpressionPlugin extends Plugin {
     
-    // lucene expressions has crazy checks in its clinit for the functions map
-    // it violates rules of classloaders to detect accessibility
-    // TODO: clean that up
-    static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    JavascriptCompiler.compile("0");
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
-            }
-        });
-    }
-
     @Override
     public String name() {
         return "lang-expression";

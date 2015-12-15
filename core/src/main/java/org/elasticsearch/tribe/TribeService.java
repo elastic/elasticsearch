@@ -20,7 +20,6 @@
 package org.elasticsearch.tribe;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -46,8 +45,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -132,14 +129,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
-            sb.put("node.name", settings.get("name") + "/" + entry.getKey());
+            sb.put("name", settings.get("name") + "/" + entry.getKey());
             sb.put("path.home", settings.get("path.home")); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
-            sb.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).build());
+            sb.put("node.client", true);
+            nodes.add(new TribeClientNode(sb.build()));
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;

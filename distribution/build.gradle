@@ -47,7 +47,7 @@ ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().ex
  *                                  Modules                                  *
  *****************************************************************************/
 
-task buildModules(type: Copy) {
+task buildModules(type: Sync) {
   into 'build/modules'
 } 
 
@@ -55,21 +55,31 @@ ext.restTestExpansions = [
   'expected.modules.count': 0,
 ]
 // we create the buildModules task above so the distribution subprojects can
-// depend on it, but we don't actually configure it until projects are evaluated
-// so it can depend on the bundling of plugins (ie modules must have been configured)
-project.gradle.projectsEvaluated {
-  project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
-    buildModules {
-      dependsOn module.bundlePlugin
-      into(module.name) {
-        from { zipTree(module.bundlePlugin.outputs.files.singleFile) }
-      }
+// depend on it, but we don't actually configure it until here so we can do a single
+// loop over modules to also setup cross task dependencies and increment our modules counter
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+  buildModules {
+    dependsOn({ project(module.path).bundlePlugin })
+    into(module.name) {
+      from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
     }
-    configure(subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
-      distribution.integTest.mustRunAfter(module.integTest)      
-    }
-    restTestExpansions['expected.modules.count'] += 1
   }
+  // We would like to make sure integ tests for the distribution run after
+  // integ tests for the modules included in the distribution. However, gradle
+  // has a bug where depending on a task with a finalizer can sometimes not make
+  // the finalizer task follow the original task immediately. To work around this,
+  // we make the mustRunAfter the finalizer task itself.
+  // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
+  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+    distribution.afterEvaluate({
+      distribution.integTest.mustRunAfter("${module.path}:integTest#stop")
+    })
+  }
+  // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
+  module.afterEvaluate({
+    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
+  })
+  restTestExpansions['expected.modules.count'] += 1
 }
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
@@ -84,10 +94,14 @@ subprojects {
    *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
-    dependsOn(project.assemble)
+    dependsOn project.assemble
     includePackaged project.name == 'integ-test-zip'
     cluster {
       distribution = project.name
+    }
+    if (project.name != 'integ-test-zip') {
+      // see note above with module mustRunAfter about why integTest#stop is used here
+      mustRunAfter ':distribution:integ-test-zip:integTest#stop'
     }
   }
   

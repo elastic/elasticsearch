@@ -35,7 +35,7 @@ public class VersionUtils {
 
     private static final List<Version> SORTED_VERSIONS;
     static {
-        Field[] declaredFields = Version.class.getDeclaredFields();
+        Field[] declaredFields = Version.class.getFields();
         Set<Integer> ids = new HashSet<>();
         for (Field field : declaredFields) {
             final int mod = field.getModifiers();

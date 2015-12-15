@@ -134,12 +134,12 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryStatus.recoveryId(), retryAfter);
         retryRecovery(recoveryStatus, retryAfter, currentRequest);
     }
-    
+
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
         retryRecovery(recoveryStatus, retryAfter, currentRequest);
     }
-    
+
     private void retryRecovery(final RecoveryStatus recoveryStatus, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
             recoveryStatus.resetRecovery();
@@ -208,11 +208,15 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
-
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                // this can also come from the source wrapped in a RemoteTransportException
+                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
+                return;
+            }
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();

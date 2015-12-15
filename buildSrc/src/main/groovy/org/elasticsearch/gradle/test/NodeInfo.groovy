@@ -43,6 +43,12 @@ class NodeInfo {
     /** the pid file the node will use */
     File pidFile
 
+    /** a file written by elasticsearch containing the ports of each bound address for http */
+    File httpPortsFile
+
+    /** a file written by elasticsearch containing the ports of each bound address for transport */
+    File transportPortsFile
+
     /** elasticsearch home dir */
     File homeDir
 
@@ -92,6 +98,10 @@ class NodeInfo {
         homeDir = homeDir(baseDir, config.distribution)
         confDir = confDir(baseDir, config.distribution)
         configFile = new File(confDir, 'elasticsearch.yml')
+        // even for rpm/deb, the logs are under home because we dont start with real services
+        File logsDir = new File(homeDir, 'logs')
+        httpPortsFile = new File(logsDir, 'http.ports')
+        transportPortsFile = new File(logsDir, 'transport.ports')
         cwd = new File(baseDir, "cwd")
         failedMarker = new File(cwd, 'run.failed')
         startLog = new File(cwd, 'run.log')
@@ -119,6 +129,7 @@ class NodeInfo {
             'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
+        args.add("-Des.tests.portsfile=true")
         args.addAll(config.systemProperties.collect { key, value -> "-D${key}=${value}" })
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
@@ -159,14 +170,14 @@ class NodeInfo {
         wrapperScript.setText("\"${esScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
     }
 
-    /** Returns the http port for this node */
-    int httpPort() {
-        return config.baseHttpPort + nodeNum
+    /** Returns an address and port suitable for a uri to connect to this node over http */
+    String httpUri() {
+        return httpPortsFile.readLines("UTF-8").get(0)
     }
 
-    /** Returns the transport port for this node */
-    int transportPort() {
-        return config.baseTransportPort + nodeNum
+    /** Returns an address and port suitable for a uri to connect to this node over transport protocol */
+    String transportUri() {
+        return transportPortsFile.readLines("UTF-8").get(0)
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */

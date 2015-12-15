@@ -237,7 +237,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
 
 
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = Version.class.getDeclaredFields();
+        Field[] declaredFields = Version.class.getFields();
         List<Field> versionFields = new ArrayList<>();
         for (Field field : declaredFields) {
             if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {

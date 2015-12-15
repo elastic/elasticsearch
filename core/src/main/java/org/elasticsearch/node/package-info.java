@@ -18,7 +18,7 @@
  */
 
 /**
- * Allow to build a {@link org.elasticsearch.node.Node} using {@link org.elasticsearch.node.NodeBuilder} which is a
+ * Allow to build a {@link org.elasticsearch.node.Node} which is a
  * node within the cluster.
  */
 package org.elasticsearch.node;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -117,8 +118,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             if (t instanceof ExecutionException) {
                 t = ((ExecutionException) t).getCause();
             }
-            if (t instanceof IllegalArgumentException) {
-                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            final Throwable throwable = ExceptionsHelper.unwrapCause(t);
+            if (throwable instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
             } else {
                 throw t;
             }
@@ -133,8 +135,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             if (t instanceof ExecutionException) {
                 t = ((ExecutionException) t).getCause();
             }
-            if (t instanceof IllegalArgumentException) {
-                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            final Throwable throwable = ExceptionsHelper.unwrapCause(t);
+            if (throwable instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
             } else {
                 throw t;
             }

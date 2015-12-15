@@ -69,11 +69,6 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public boolean estimatedNumberType() {
-        return true;
-    }
-
-    @Override
     public String currentName() throws IOException {
         return parser.getCurrentName();
     }

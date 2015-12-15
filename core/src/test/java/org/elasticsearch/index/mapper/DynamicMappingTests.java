@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,15 +29,21 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends ESSingleNodeTestCase {
@@ -406,5 +413,27 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             // expected
         }
+    }
+
+    public void testDefaultFloatingPointMappings() throws IOException {
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperWithAutoCreate("type").getDocumentMapper();
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.jsonBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.yamlBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.smileBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.cborBuilder());
+    }
+
+    private void doTestDefaultFloatingPointMappings(DocumentMapper mapper, XContentBuilder builder) throws IOException {
+        BytesReference source = builder.startObject()
+                .field("foo", 3.2f) // float
+                .field("bar", 3.2d) // double
+                .field("baz", (double) 3.2f) // double that can be accurately represented as a float
+                .endObject().bytes();
+        ParsedDocument parsedDocument = mapper.parse("index", "type", "id", source);
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(update.root().getMapper("foo"), instanceOf(FloatFieldMapper.class));
+        assertThat(update.root().getMapper("bar"), instanceOf(FloatFieldMapper.class));
+        assertThat(update.root().getMapper("baz"), instanceOf(FloatFieldMapper.class));
     }
 }

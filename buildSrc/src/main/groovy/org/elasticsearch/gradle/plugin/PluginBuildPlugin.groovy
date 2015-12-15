@@ -65,7 +65,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             // with a full elasticsearch server that includes optional deps
             provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
             provided "com.vividsolutions:jts:${project.versions.jts}"
-            provided "com.github.spullara.mustache.java:compiler:${project.versions.mustache}"
             provided "log4j:log4j:${project.versions.log4j}"
             provided "log4j:apache-log4j-extras:${project.versions.log4j}"
             provided "org.slf4j:slf4j-api:${project.versions.slf4j}"

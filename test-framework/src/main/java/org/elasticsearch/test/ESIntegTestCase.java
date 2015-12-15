@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -136,6 +137,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -450,7 +453,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     .setOrder(0)
                     .setSettings(randomSettingsBuilder);
             if (mappings != null) {
-                logger.info("test using _default_ mappings: [{}]", mappings.bytesStream().bytes().toUtf8());
+                logger.info("test using _default_ mappings: [{}]", mappings.bytes().toUtf8());
                 putTemplate.addMapping("_default_", mappings);
             }
             assertAcked(putTemplate.execute().actionGet());
@@ -533,7 +536,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private TestCluster buildWithPrivateContext(final Scope scope, final long seed) throws Exception {
-        return RandomizedContext.current().runWithPrivateRandomness(new Randomness(seed), new Callable<TestCluster>() {
+        return RandomizedContext.current().runWithPrivateRandomness(new com.carrotsearch.randomizedtesting.Randomness(seed), new Callable<TestCluster>() {
             @Override
             public TestCluster call() throws Exception {
                 return buildTestCluster(scope, seed);
@@ -1388,7 +1391,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
-        Collections.shuffle(builders, random);
+        Collections.shuffle(builders, random());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
@@ -1727,20 +1730,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws UnknownHostException {
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
-            String[] split = stringAddress.split(":");
-            if (split.length < 2) {
-                throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
-            }
-            try {
-                transportAddresses[i++] = new InetSocketTransportAddress(InetAddress.getByName(split[0]), Integer.valueOf(split[1]));
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
-            }
+            URL url = new URL("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }

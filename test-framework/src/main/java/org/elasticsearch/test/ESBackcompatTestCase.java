@@ -131,16 +131,6 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         return file;
     }
 
-    @Override
-    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
-        if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS_SETTING.getKey(), false);
-        }
-        return builder;
-    }
-
     /**
      * Retruns the tests compatibility version.
      */
@@ -250,13 +240,6 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
         builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
         builder.put("node.mode", "network");
-
-        if (compatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
-                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS_SETTING.getKey(), false);
-        }
         return builder.build();
     }
 

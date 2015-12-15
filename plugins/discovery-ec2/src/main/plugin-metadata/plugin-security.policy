@@ -19,7 +19,8 @@
 
 grant {
   // needed because of problems in ClientConfiguration
-  // TODO: get this fixed in aws sdk
+  // TODO: get these fixed in aws sdk
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   // NOTE: no tests fail without this, but we know the problem
   // exists in AWS sdk, and tests here are not thorough
   permission java.lang.RuntimePermission "getClassLoader";

@@ -244,7 +244,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         // add
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -269,7 +269,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -316,7 +316,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodesToJoin.add(node);
             }
         }
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));

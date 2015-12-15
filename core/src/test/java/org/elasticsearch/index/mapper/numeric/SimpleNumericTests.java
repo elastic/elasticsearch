@@ -24,6 +24,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -41,9 +43,11 @@ import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -509,5 +513,63 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         TokenStream ts = field.tokenStream(null, null);
         assertThat(ts, instanceOf(NumericTokenStream.class));
         assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
+    }
+
+    public void testTermVectorsBackCompat() throws Exception {
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            doTestTermVectorsBackCompat(type);
+        }
+    }
+
+    private void doTestTermVectorsBackCompat(String type) throws Exception {
+        DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+        String mappingWithTV = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .field("term_vector", "yes")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        try {
+            parser.parse(mappingWithTV);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [term_vector : yes]"));
+        }
+
+        Settings oldIndexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
+                .build();
+        parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
+        parser.parse(mappingWithTV); // no exception
+    }
+
+    public void testAnalyzerBackCompat() throws Exception {
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            doTestAnalyzerBackCompat(type);
+        }
+    }
+
+    private void doTestAnalyzerBackCompat(String type) throws Exception {
+        DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+        String mappingWithTV = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .field("analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        try {
+            parser.parse(mappingWithTV);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [analyzer : keyword]"));
+        }
+
+        Settings oldIndexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
+                .build();
+        parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
+        parser.parse(mappingWithTV); // no exception
     }
 }

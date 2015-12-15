@@ -24,13 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -42,14 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -201,7 +188,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         for (int i = 0; i < cycles; i++) {
             List<String> terms = new ArrayList<>(Arrays.asList(this.terms));
 
-           Collections.shuffle(terms, getRandom());
+           Collections.shuffle(terms, random());
             for (String term : terms) {
                 if (!termsEnum.seekExact(new BytesRef(term))) {
                     assertThat("term : " + term, reference.get(term).docFreq, is(0));

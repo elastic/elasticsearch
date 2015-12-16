@@ -225,7 +225,7 @@ public class ScriptServiceTests extends ESTestCase {
             } while (scriptContextSettings.containsKey(scriptContext));
             scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
         }
-        int numEngineSettings = randomIntBetween(0, 10);
+        int numEngineSettings = randomIntBetween(0, ScriptType.values().length * scriptContexts.length);
         Map<String, ScriptMode> engineSettings = new HashMap<>();
         for (int i = 0; i < numEngineSettings; i++) {
             String settingKey;

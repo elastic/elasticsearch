@@ -74,6 +74,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertExpectedUnchanged(nodeInfo, readNodeInfo);
 
         comparePluginsAndModulesOnOrAfter2_2_0(nodeInfo, readNodeInfo);
+        compareOSOnOrAfter2_2_0(nodeInfo, readNodeInfo);
 
         // test version before V_2_2_0
         version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_1_1);
@@ -87,6 +88,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertExpectedUnchanged(nodeInfo, readNodeInfo);
 
         comparePluginsAndModulesBefore2_2_0(nodeInfo, readNodeInfo);
+        compareOSOnOrBefore2_2_0(nodeInfo, readNodeInfo);
     }
 
     // checks all properties that are expected to be unchanged. Once we start changing them between versions this method has to be changed as well
@@ -101,8 +103,6 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         compareJsonOutput(nodeInfo.getHttp(), readNodeInfo.getHttp());
         compareJsonOutput(nodeInfo.getJvm(), readNodeInfo.getJvm());
-        // see issue https://github.com/elastic/elasticsearch/issues/15422
-        // compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
         compareJsonOutput(nodeInfo.getProcess(), readNodeInfo.getProcess());
         compareJsonOutput(nodeInfo.getSettings(), readNodeInfo.getSettings());
         compareJsonOutput(nodeInfo.getThreadPool(), readNodeInfo.getThreadPool());
@@ -140,6 +140,19 @@ public class NodeInfoStreamingTests extends ESTestCase {
         param1.toXContent(param1Builder, params);
         param2.toXContent(param2Builder, params);
         assertThat(param1Builder.string(), equalTo(param2Builder.string()));
+    }
+
+    // see https://github.com/elastic/elasticsearch/issues/15422
+    private void compareOSOnOrBefore2_2_0(NodeInfo nodeInfo, NodeInfo readNodeInfo) {
+        OsInfo osInfo = nodeInfo.getOs();
+        OsInfo readOsInfo = readNodeInfo.getOs();
+        assertThat(osInfo.getAllocatedProcessors(), equalTo(readOsInfo.getAllocatedProcessors()));
+        assertThat(osInfo.getAvailableProcessors(), equalTo(readOsInfo.getAvailableProcessors()));
+        assertThat(osInfo.getRefreshInterval(), equalTo(readOsInfo.getRefreshInterval()));
+    }
+
+    private void compareOSOnOrAfter2_2_0(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
+        compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
     }
 
     private NodeInfo createNodeInfo() {

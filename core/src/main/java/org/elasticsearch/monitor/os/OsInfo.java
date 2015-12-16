@@ -111,6 +111,11 @@ public class OsInfo implements Streamable, ToXContent {
         if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
             allocatedProcessors = in.readInt();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            name = in.readOptionalString();
+            arch = in.readOptionalString();
+            version = in.readOptionalString();
+        }
     }
 
     @Override
@@ -119,6 +124,11 @@ public class OsInfo implements Streamable, ToXContent {
         out.writeInt(availableProcessors);
         if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeInt(allocatedProcessors);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeOptionalString(name);
+            out.writeOptionalString(arch);
+            out.writeOptionalString(version);
         }
     }
 }

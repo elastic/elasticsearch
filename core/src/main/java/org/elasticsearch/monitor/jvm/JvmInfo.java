@@ -307,7 +307,7 @@ public class JvmInfo implements Streamable, ToXContent {
         builder.field(Fields.GC_COLLECTORS, gcCollectors);
         builder.field(Fields.MEMORY_POOLS, memoryPools);
 
-        builder.field(Fields.USING_COMPRESSED_OOPS, usingCompressedOops == null ? "unknown" : usingCompressedOops);
+        builder.field(Fields.USING_COMPRESSED_OOPS, usingCompressedOops == null ? "unknown" : Boolean.toString(usingCompressedOops));
 
         builder.endObject();
         return builder;

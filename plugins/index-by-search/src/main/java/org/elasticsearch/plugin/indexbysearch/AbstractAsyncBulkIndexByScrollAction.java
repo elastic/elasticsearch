@@ -65,9 +65,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             if (script != null) {
                 if (executableScript == null) {
                     executableScript = scriptService.executable(script, mainRequest.script().getParams());
-                    scriptCtx = new HashMap<>(2);
+                    scriptCtx = new HashMap<>(3);
                 }
-                if (applyScript(index, executableScript, scriptCtx) == false) {
+                if (applyScript(index, doc, executableScript, scriptCtx) == false) {
                     continue;
                 }
             }
@@ -113,11 +113,12 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      * @return is this request still ok to apply (true) or is it a noop (false)
      */
     @SuppressWarnings("unchecked")
-    protected boolean applyScript(IndexRequest index, ExecutableScript script, Map<String, Object> ctx) {
+    protected boolean applyScript(IndexRequest index, SearchHit doc, ExecutableScript script, Map<String, Object> ctx) {
         if (script == null) {
             return true;
         }
         ctx.put("_source", index.sourceAsMap());
+        ctx.put("_id", doc.id());
         ctx.put("op", "update");
         script.setNextVar("ctx", ctx);
         script.run();
@@ -141,6 +142,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          */
         Map<String, Object> newSource = (Map<String, Object>) ctx.get("_source");
         index.source(newSource);
+
+        // TODO support modifying the some of the metadata in some cases. Should be strict - if user tries and isn't allowed then send them an error.
         return true;
     }
 }

@@ -17,7 +17,7 @@
           dest:
             index: new_twitter
           script:
-            inline: ctx._source.user = "not" + ctx._source.user
+            inline: ctx._source.user = "other" + ctx._source.user
   - match: {created: 1}
   - match: {noops: 0}
   - do:
@@ -29,7 +29,56 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: otherkimchy
+  - match: { hits.total: 1 }
+
+---
+"Modify a document based on id":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "blort" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            inline: if (ctx._id == "1") {ctx._source.user = "other" + ctx._source.user}
+  - match: {created: 2}
+  - match: {noops: 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+        body:
+          query:
+            match:
+              user: otherkimchy
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: new_twitter
+        body:
+          query:
+            match:
+              user: blort
   - match: { hits.total: 1 }
 
 ---

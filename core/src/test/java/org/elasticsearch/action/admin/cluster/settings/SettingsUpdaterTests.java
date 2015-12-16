@@ -91,6 +91,7 @@ public class SettingsUpdaterTests extends ESTestCase {
                 Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float").put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f).build());
             fail("all or nothing");
         } catch (IllegalArgumentException ex) {
+            logger.info("", ex);
             assertEquals("Failed to parse value [not a float] for setting [cluster.routing.allocation.balance.index]", ex.getMessage());
         }
         assertNull("updater only does a dryRun", index.get());

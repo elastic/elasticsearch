@@ -64,6 +64,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     }
 
     public static final double DATELINE = 180;
+
+    /**
+     * coordinate at [0.0, 0.0]
+     */
+    public static final Coordinate ZERO_ZERO = new Coordinate(0.0, 0.0);
     // TODO how might we use JtsSpatialContextFactory to configure the context (esp. for non-geo)?
     public static final JtsSpatialContext SPATIAL_CONTEXT = JtsSpatialContext.GEO;
     public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
@@ -569,7 +574,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
                 lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
             }
-            return ShapeBuilders.newEnvelope().topLeft(uL).bottomRight(lR);
+            return ShapeBuilders.newEnvelope(uL, lR);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {
@@ -589,12 +594,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static MultiPointBuilder parseMultiPoint(CoordinateNode coordinates) {
             validateMultiPointNode(coordinates);
-
-            MultiPointBuilder points = new MultiPointBuilder();
+            PointListBuilder points = new PointListBuilder();
             for (CoordinateNode node : coordinates.children) {
                 points.point(node.coordinate);
             }
-            return points;
+            return new MultiPointBuilder(points.list());
         }
 
         protected static LineStringBuilder parseLineString(CoordinateNode coordinates) {
@@ -607,11 +611,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)", coordinates.children.size());
             }
 
-            LineStringBuilder line = ShapeBuilders.newLineString();
+            PointListBuilder line = new PointListBuilder();
             for (CoordinateNode node : coordinates.children) {
                 line.point(node.coordinate);
             }
-            return line;
+            return ShapeBuilders.newLineString(line.list());
         }
 
         protected static MultiLineStringBuilder parseMultiLine(CoordinateNode coordinates) {

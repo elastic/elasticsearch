@@ -25,7 +25,32 @@ import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
+
+    public void testInvalidConstructorArgs() {
+        try {
+            new LineStringBuilder(null);
+            fail("Exception expected");
+        } catch (IllegalArgumentException e) {
+            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
+        }
+
+       try {
+            new LineStringBuilder(new PointListBuilder().list());
+            fail("Exception expected");
+        } catch (IllegalArgumentException e) {
+            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
+        }
+
+       try {
+           new LineStringBuilder(new PointListBuilder().point(0.0, 0.0).list());
+           fail("Exception expected");
+       } catch (IllegalArgumentException e) {
+           assertThat("invalid number of points in LineString (found [1] - must be >= 2)", equalTo(e.getMessage()));
+       }
+    }
 
     @Override
     protected LineStringBuilder createTestShapeBuilder() {

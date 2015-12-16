@@ -20,25 +20,30 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * The {@link PointCollection} is an abstract base implementation for all GeoShapes. It simply handles a set of points.
  */
 public abstract class PointCollection<E extends PointCollection<E>> extends ShapeBuilder {
 
-    protected final ArrayList<Coordinate> points;
+    protected final List<Coordinate> points;
 
-    protected PointCollection() {
-        this(new ArrayList<Coordinate>());
-    }
-
-    protected PointCollection(ArrayList<Coordinate> points) {
+    /**
+     * Construct a new collection of points.
+     * @param points an initial list of points
+     * @throws IllegalArgumentException if points is <tt>null</tt> or empty
+     */
+    protected PointCollection(List<Coordinate> points) {
+        if (points == null || points.size() == 0) {
+            throw new IllegalArgumentException("cannot create point collection with empty set of points");
+        }
         this.points = points;
     }
 

@@ -33,11 +33,35 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
 public class LineStringBuilder extends PointCollection<LineStringBuilder> {
+
+    /**
+     * Construct a new LineString.
+     * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+     * a LineString must contain two or more positions
+     * @param points the initial list of points
+     * @throw {@link IllegalArgumentException} if there are less then two points defined
+     */
+    public LineStringBuilder(List<Coordinate> points) {
+        super(points);
+        if (points.size() < 2) {
+            throw new IllegalArgumentException("invalid number of points in LineString (found [" + points.size()+ "] - must be >= 2)");
+        }
+    }
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
-    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder();
+    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder(new PointListBuilder().point(0.0, 0.0).point(1.0, 1.0).list());
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -172,11 +196,12 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     @Override
     public LineStringBuilder readFrom(StreamInput in) throws IOException {
-        LineStringBuilder lineStringBuilder = new LineStringBuilder();
+        PointListBuilder pl = new PointListBuilder();
         int size = in.readVInt();
         for (int i=0; i < size; i++) {
-            lineStringBuilder.point(readCoordinateFrom(in));
+            pl.point(readCoordinateFrom(in));
         }
+        LineStringBuilder lineStringBuilder = new LineStringBuilder(pl.list());
         return lineStringBuilder;
     }
 }

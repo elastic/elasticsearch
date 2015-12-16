@@ -52,7 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
-    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder();
+    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder(new PointListBuilder().point(0.0, 0.0).point(0.0, 1.0)
+            .point(1.0, 0.0).point(0.0, 0.0).list());
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
@@ -64,46 +65,21 @@ public class PolygonBuilder extends ShapeBuilder {
     // List of line strings defining the holes of the polygon
     private final ArrayList<LineStringBuilder> holes = new ArrayList<>();
 
-    public PolygonBuilder() {
-        this(Orientation.RIGHT);
+    public PolygonBuilder(List<Coordinate> points, Orientation orientation) {
+        this(points, orientation, false);
     }
 
-    public PolygonBuilder(Orientation orientation) {
-        this(new ArrayList<Coordinate>(), orientation);
-    }
-
-    public PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
+    public PolygonBuilder(List<Coordinate> points, Orientation orientation, boolean coerce) {
         this.orientation = orientation;
-        this.shell = new LineStringBuilder().points(points);
+        this.shell = validateLinearRing(new LineStringBuilder(points), coerce);
+    }
+
+    public PolygonBuilder(List<Coordinate> points) {
+        this(points, Orientation.RIGHT);
     }
 
     public Orientation orientation() {
         return this.orientation;
-    }
-
-    public PolygonBuilder point(double longitude, double latitude) {
-        shell.point(longitude, latitude);
-        return this;
-    }
-
-    /**
-     * Add a point to the shell of the polygon
-     * @param coordinate coordinate of the new point
-     * @return this
-     */
-    public PolygonBuilder point(Coordinate coordinate) {
-        shell.point(coordinate);
-        return this;
-    }
-
-    /**
-     * Add an array of points to the shell of the polygon
-     * @param coordinates coordinates of the new points to add
-     * @return this
-     */
-    public PolygonBuilder points(Coordinate...coordinates) {
-        shell.points(coordinates);
-        return this;
     }
 
     /**
@@ -112,7 +88,17 @@ public class PolygonBuilder extends ShapeBuilder {
      * @return this
      */
     public PolygonBuilder hole(LineStringBuilder hole) {
-        holes.add(hole);
+        return this.hole(hole, false);
+    }
+
+    /**
+     * Add a new hole to the polygon
+     * @param hole linear ring defining the hole
+     * @param coerce if set to true, will close the hole by adding starting point as end point
+     * @return this
+     */
+    public PolygonBuilder hole(LineStringBuilder hole, boolean coerce) {
+        holes.add(validateLinearRing(hole, coerce));
         return this;
     }
 
@@ -136,6 +122,30 @@ public class PolygonBuilder extends ShapeBuilder {
     public PolygonBuilder close() {
         shell.close();
         return this;
+    }
+
+    private static LineStringBuilder validateLinearRing(LineStringBuilder linestring, boolean coerce) {
+        /**
+         * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+         * A LinearRing is closed LineString with 4 or more positions. The first and last positions
+         * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+         * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+         */
+        int numValidPts;
+        List<Coordinate> points = linestring.points;
+        if (points.size() < (numValidPts = (coerce) ? 3 : 4)) {
+            throw new IllegalArgumentException(
+                    "invalid number of points in LinearRing (found [" + points.size() + "] - must be >= " + numValidPts + ")");
+        }
+
+        if (!points.get(0).equals(points.get(points.size() - 1))) {
+            if (coerce) {
+                points.add(points.get(0));
+            } else {
+                throw new IllegalArgumentException("invalid LinearRing found (coordinates are not closed)");
+            }
+        }
+        return linestring;
     }
 
     /**
@@ -235,7 +245,7 @@ public class PolygonBuilder extends ShapeBuilder {
         return factory.createPolygon(shell, holes);
     }
 
-    protected static LinearRing linearRing(GeometryFactory factory, ArrayList<Coordinate> coordinates) {
+    protected static LinearRing linearRing(GeometryFactory factory, List<Coordinate> coordinates) {
         return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
     }
 
@@ -711,8 +721,8 @@ public class PolygonBuilder extends ShapeBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        orientation.writeTo(out);
         shell.writeTo(out);
+        orientation.writeTo(out);
         out.writeVInt(holes.size());
         for (LineStringBuilder hole : holes) {
             hole.writeTo(out);
@@ -721,8 +731,9 @@ public class PolygonBuilder extends ShapeBuilder {
 
     @Override
     public PolygonBuilder readFrom(StreamInput in) throws IOException {
-        PolygonBuilder polyBuilder = new PolygonBuilder(Orientation.readFrom(in));
-        polyBuilder.shell = LineStringBuilder.PROTOTYPE.readFrom(in);
+       LineStringBuilder shell = LineStringBuilder.PROTOTYPE.readFrom(in);
+        Orientation orientation = Orientation.readFrom(in);
+        PolygonBuilder polyBuilder = new PolygonBuilder(shell.points, orientation);
         int holes = in.readVInt();
         for (int i = 0; i < holes; i++) {
             polyBuilder.hole(LineStringBuilder.PROTOTYPE.readFrom(in));

@@ -77,8 +77,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
      * This is done so we don't have to expose a setter for orientation in the actual class
      */
     private static PolygonBuilder polyWithOposingOrientation(PolygonBuilder pb) {
-        PolygonBuilder mutation = new PolygonBuilder(pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
-        mutation.points(pb.shell().coordinates(false));
+        PolygonBuilder mutation = new PolygonBuilder(pb.shell().points, pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
         for (LineStringBuilder hole : pb.holes()) {
             mutation.hole(hole);
         }

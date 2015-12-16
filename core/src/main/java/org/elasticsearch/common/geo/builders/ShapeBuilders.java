@@ -21,6 +21,8 @@ package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
 
+import java.util.List;
+
 /**
  * A collection of static methods for creating ShapeBuilders.
  */
@@ -50,16 +52,16 @@ public class ShapeBuilders {
      * Create a new set of points
      * @return new {@link MultiPointBuilder}
      */
-    public static MultiPointBuilder newMultiPoint() {
-        return new MultiPointBuilder();
+    public static MultiPointBuilder newMultiPoint(List<Coordinate> points) {
+        return new MultiPointBuilder(points);
     }
 
     /**
      * Create a new lineString
      * @return a new {@link LineStringBuilder}
      */
-    public static LineStringBuilder newLineString() {
-        return new LineStringBuilder();
+    public static LineStringBuilder newLineString(List<Coordinate> list) {
+        return new LineStringBuilder(list);
     }
 
     /**
@@ -74,16 +76,8 @@ public class ShapeBuilders {
      * Create a new Polygon
      * @return a new {@link PointBuilder}
      */
-    public static PolygonBuilder newPolygon() {
-        return new PolygonBuilder();
-    }
-
-    /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
-     */
-    public static PolygonBuilder newPolygon(ShapeBuilder.Orientation orientation) {
-        return new PolygonBuilder(orientation);
+    public static PolygonBuilder newPolygon(List<Coordinate> shell) {
+        return new PolygonBuilder(shell);
     }
 
     /**
@@ -124,7 +118,7 @@ public class ShapeBuilders {
      *
      * @return a new {@link EnvelopeBuilder}
      */
-    public static EnvelopeBuilder newEnvelope() {
-        return new EnvelopeBuilder();
+    public static EnvelopeBuilder newEnvelope(Coordinate topLeft, Coordinate bottomRight) {
+        return new EnvelopeBuilder(topLeft, bottomRight);
     }
 }

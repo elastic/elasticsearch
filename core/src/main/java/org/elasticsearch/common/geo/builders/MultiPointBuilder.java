@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,7 +37,15 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
-    public final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder();
+    public final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder(Arrays.asList(new Coordinate[]{new Coordinate(0.0, 0.0)}));
+
+    /**
+     * Create a new {@link MultiPointBuilder}.
+     * @param points needs at least two points to be valid, otherwise will throw an exception
+     */
+    public MultiPointBuilder(List<Coordinate> points) {
+        super(points);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -93,11 +102,13 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
     @Override
     public MultiPointBuilder readFrom(StreamInput in) throws IOException {
-        MultiPointBuilder multiPointBuilder = new MultiPointBuilder();
         int size = in.readVInt();
+        List<Coordinate> points = new ArrayList<Coordinate>(size);
         for (int i=0; i < size; i++) {
-            multiPointBuilder.point(readCoordinateFrom(in));
+            points.add(readCoordinateFrom(in));
         }
+        MultiPointBuilder multiPointBuilder = new MultiPointBuilder(points);
+
         return multiPointBuilder;
     }
 }

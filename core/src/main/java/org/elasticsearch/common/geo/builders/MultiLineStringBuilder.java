@@ -27,6 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -46,7 +50,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     }
 
     public MultiLineStringBuilder linestring(Coordinate[] coordinates) {
-        return this.linestring(new LineStringBuilder().points(coordinates));
+        return this.linestring(new LineStringBuilder(new PointListBuilder().points(coordinates).list()));
     }
 
     public Coordinate[][] coordinates() {

@@ -115,11 +115,20 @@ public class ScopedSettingsTests extends ESTestCase {
 
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // group setting - complex matcher
         Setting setting = settings.get("cluster.routing.allocation.require.value");
         assertEquals(setting, FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING);
 
         setting = settings.get("cluster.routing.allocation.total_shards_per_node");
         assertEquals(setting, ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
+
+        // array settings - complex matcher
+        assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+
+        // array settings - complex matcher - only accepts numbers
+        assertNull(settings.get("transport.tracer.include.FOO"));
     }
 
     public void testIsDynamic(){
@@ -127,6 +136,10 @@ public class ScopedSettingsTests extends ESTestCase {
         assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
         assertTrue(settings.hasDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
+        settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        assertTrue(settings.hasDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertFalse(settings.hasDynamicSetting("transport.tracer.include.BOOM"));
+        assertTrue(settings.hasDynamicSetting("cluster.routing.allocation.require.value"));
     }
 
     public void testDiff() throws IOException {
@@ -151,7 +164,5 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(ref.get().size(), 2);
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
         assertTrue(ref.get().contains("internal:gateway/local*"));
-        assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
     }
 }

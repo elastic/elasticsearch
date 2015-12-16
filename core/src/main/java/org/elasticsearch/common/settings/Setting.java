@@ -92,7 +92,7 @@ public class Setting<T> extends ToXContentToBytes {
      * rather than a single value. The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt>
      * that matches all settings with this prefix.
      */
-    public boolean isGroupSetting() {
+    boolean isGroupSetting() {
         return false;
     }
 

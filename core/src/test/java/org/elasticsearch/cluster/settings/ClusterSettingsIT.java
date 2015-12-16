@@ -235,6 +235,16 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(response3.getPersistentSettings().get(key2), notNullValue());
     }
 
+    public void testCanUpdateTracerSettings() {
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*",
+                "internal:gateway/local*"))
+            .get();
+        assertArrayEquals(clusterUpdateSettingsResponse.getTransientSettings().getAsArray("transport.tracer.include"), new String[] {"internal:index/shard/recovery/*",
+            "internal:gateway/local*"});
+    }
+
     public void testUpdateDiscoveryPublishTimeout() {
 
         DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);

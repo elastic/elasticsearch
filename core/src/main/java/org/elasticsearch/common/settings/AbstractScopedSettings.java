@@ -43,7 +43,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             if (entry.getScope() != scope) {
                 throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
             }
-            if (entry.isGroupSetting()) {
+            if (entry.hasComplexMatcher()) {
                 complexMatchers.put(entry.getKey(), entry);
             } else {
                 keySettings.put(entry.getKey(), entry);

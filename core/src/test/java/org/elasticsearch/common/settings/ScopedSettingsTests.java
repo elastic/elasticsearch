@@ -151,5 +151,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(ref.get().size(), 2);
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
         assertTrue(ref.get().contains("internal:gateway/local*"));
+        assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
     }
 }

@@ -1,0 +1,11 @@
+
+/*
+ * Messy tests that depend on mustache directly. Fix these!
+ */
+
+apply plugin: 'elasticsearch.messy-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'testArtifacts')
+  testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
+}

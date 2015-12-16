@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.test.bench;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -22,7 +22,6 @@ import org.elasticsearch.watcher.trigger.schedule.engine.TickerScheduleTriggerEn
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,7 +64,7 @@ public class ScheduleEngineTriggerBenchmark {
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptyMap());
         List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
-        Collections.shuffle(impls);
+        Randomness.shuffle(impls);
 
         List<Stats> results = new ArrayList<>();
         for (String impl : impls) {

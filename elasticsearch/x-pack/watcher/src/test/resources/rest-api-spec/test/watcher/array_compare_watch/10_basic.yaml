@@ -1,5 +1,10 @@
 ---
 "Basic array_compare watch":
+
+  - skip:
+      version:     " - "
+      reason:      Remove direct dependency on mustache (or at least it should be using xmustache!!!!)
+
   - do:
       cluster.health:
           wait_for_status: yellow

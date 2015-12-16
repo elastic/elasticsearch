@@ -60,7 +60,7 @@ public class RealmsTests extends ESTestCase {
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
         }
-        Collections.shuffle(orders, getRandom());
+        Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 1; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
@@ -118,7 +118,7 @@ public class RealmsTests extends ESTestCase {
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
         }
-        Collections.shuffle(orders, getRandom());
+        Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 1; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
@@ -186,7 +186,7 @@ public class RealmsTests extends ESTestCase {
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
         }
-        Collections.shuffle(orders, getRandom());
+        Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 1; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);

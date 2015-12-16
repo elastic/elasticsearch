@@ -201,3 +201,6 @@ integTest {
         plugin(pluginProperties.extension.name, zipTree(distZipHadoop2.archivePath))
     }
 }
+
+// classes are missing, e.g. org.mockito.Mockito
+thirdPartyAudit.lenient = true

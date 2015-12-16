@@ -111,6 +111,14 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
+// classes are missing, e.g. org.jboss.marshalling.Marshaller
+thirdPartyAudit.lenient = true
+// uses internal sun ssl classes!
+thirdPartyAudit.excludes = [
+    // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
+    'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+]
+
 // dependency license are currently checked in distribution
 dependencyLicenses.enabled = false
 

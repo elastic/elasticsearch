@@ -36,3 +36,40 @@ integTest {
   }
 }
 
+// classes are missing, e.g. org.tukaani.xz.FilterOptions
+thirdPartyAudit.lenient = true
+thirdPartyAudit.excludes = [
+    // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
+    'org.python.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+
+    // uses internal java api: sun.misc.Cleaner
+    'org.python.netty.util.internal.Cleaner0',
+
+    // uses internal java api: sun.misc.Signal
+    'jnr.posix.JavaPOSIX',
+    'jnr.posix.JavaPOSIX$SunMiscSignalHandler',
+
+    // uses internal java api: sun.misc.Unsafe
+    'com.kenai.jffi.MemoryIO$UnsafeImpl',
+    'com.kenai.jffi.MemoryIO$UnsafeImpl32',
+    'com.kenai.jffi.MemoryIO$UnsafeImpl64',
+    'org.python.google.common.cache.Striped64',
+    'org.python.google.common.cache.Striped64$1',
+    'org.python.google.common.cache.Striped64$Cell',
+    'org.python.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.python.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.python.netty.util.internal.chmv8.ForkJoinPool$2',
+    'org.python.netty.util.internal.PlatformDependent0',
+    'org.python.netty.util.internal.UnsafeAtomicIntegerFieldUpdater',
+    'org.python.netty.util.internal.UnsafeAtomicLongFieldUpdater',
+    'org.python.netty.util.internal.UnsafeAtomicReferenceFieldUpdater',
+    'org.python.netty.util.internal.chmv8.ConcurrentHashMapV8',
+    'org.python.netty.util.internal.chmv8.ConcurrentHashMapV8$1',
+    'org.python.netty.util.internal.chmv8.ConcurrentHashMapV8$TreeBin',
+    'org.python.netty.util.internal.chmv8.CountedCompleter',
+    'org.python.netty.util.internal.chmv8.CountedCompleter$1',
+    'org.python.netty.util.internal.chmv8.ForkJoinPool',
+    'org.python.netty.util.internal.chmv8.ForkJoinPool$WorkQueue',
+    'org.python.netty.util.internal.chmv8.ForkJoinTask',
+    'org.python.netty.util.internal.chmv8.ForkJoinTask$1',
+]

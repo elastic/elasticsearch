@@ -38,7 +38,7 @@ test {
 // classes are missing, com.ibm.icu.lang.UCharacter
 thirdPartyAudit.lenient = true
 thirdPartyAudit.excludes = [
-    // sun.misc.Unsafe
+    // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',

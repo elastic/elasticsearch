@@ -53,8 +53,8 @@ test {
 // classes are missing, e.g. org.apache.log.Logger
 thirdPartyAudit.lenient = true
 thirdPartyAudit.excludes = [
-    // com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
-    // com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
-    // com.sun.org.apache.xpath.internal.XPathContext
+    // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
+    // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
+    // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
     'com.amazonaws.util.XpathUtils',
 ]

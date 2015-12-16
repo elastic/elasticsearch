@@ -39,17 +39,17 @@ integTest {
 // classes are missing, e.g. org.tukaani.xz.FilterOptions
 thirdPartyAudit.lenient = true
 thirdPartyAudit.excludes = [
-    // sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
+    // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
     'org.python.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
 
-    // sun.misc.Cleaner
+    // uses internal java api: sun.misc.Cleaner
     'org.python.netty.util.internal.Cleaner0',
 
-    // sun.misc.Signal
+    // uses internal java api: sun.misc.Signal
     'jnr.posix.JavaPOSIX',
     'jnr.posix.JavaPOSIX$SunMiscSignalHandler',
 
-    // sun.misc.Unsafe
+    // uses internal java api: sun.misc.Unsafe
     'com.kenai.jffi.MemoryIO$UnsafeImpl',
     'com.kenai.jffi.MemoryIO$UnsafeImpl32',
     'com.kenai.jffi.MemoryIO$UnsafeImpl64',

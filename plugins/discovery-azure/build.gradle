@@ -71,9 +71,9 @@ thirdPartyAudit.lenient = true
 // WE ARE JAR HELLING WITH THE JDK AND THAT IS WHY THIS HAPPENS
 // TODO: fix this!!!!!!!!!!!
 thirdPartyAudit.excludes = [
-    // com.sun.xml.fastinfoset.stax.StAXDocumentParser
+    // uses internal java api: com.sun.xml.fastinfoset.stax.StAXDocumentParser
     'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector',
     'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector$CharSequenceImpl',
-    // com.sun.xml.fastinfoset.stax.StAXDocumentSerializer
+    // uses internal java api: com.sun.xml.fastinfoset.stax.StAXDocumentSerializer
     'com.sun.xml.bind.v2.runtime.output.FastInfosetStreamWriterOutput',
 ]

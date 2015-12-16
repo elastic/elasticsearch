@@ -26,9 +26,6 @@ import org.gradle.api.tasks.TaskAction
 import org.apache.tools.ant.BuildLogger
 import org.apache.tools.ant.Project
 
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-
 /**
  * Basic static checking to keep tabs on third party JARs
  */
@@ -119,7 +116,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
         for (File jar : jars) {
             names.add(jar.getName())
         }
-        Logger logger = LoggerFactory.getLogger(getClass());
         logger.error("[thirdPartyAudit] Scanning: " + names)
         
         // warn that you won't see any forbidden apis warnings

@@ -115,7 +115,7 @@ forbiddenPatterns {
 thirdPartyAudit.lenient = true
 // uses internal sun ssl classes!
 thirdPartyAudit.excludes = [
-    // sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
+    // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
     'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
 ]
 

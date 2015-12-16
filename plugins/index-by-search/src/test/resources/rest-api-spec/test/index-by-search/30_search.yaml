@@ -18,7 +18,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: test
             search:
               query:
@@ -55,7 +55,7 @@
       index_by_search:
         body:
           size: 1
-          source:
+          src:
             index: test
             search:
               sort: order

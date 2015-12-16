@@ -12,7 +12,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: source
           dest:
             index: dest
@@ -44,7 +44,7 @@
       index_by_search:
         body:
           op_type:   overwrite
-          source:
+          src:
             index:   source
           dest:
             index:   dest
@@ -76,7 +76,7 @@
       index_by_search:
         body:
           op_type:  create
-          source:
+          src:
             index:  source
           dest:
             index:  dest
@@ -109,7 +109,7 @@
         body:
           conflicts: abort
           op_type:   create
-          source:
+          src:
             index:   source
           dest:
             index:   dest
@@ -141,7 +141,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: twitter
           dest:
             index: new_twitter
@@ -173,7 +173,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: twitter
             type:  tweet
           dest:
@@ -206,7 +206,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: twitter
             search:
               query:
@@ -242,7 +242,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: twitter
             type:  tweet
           dest:
@@ -277,7 +277,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: [twitter, blog]
             type:  [tweet, post]
           dest:

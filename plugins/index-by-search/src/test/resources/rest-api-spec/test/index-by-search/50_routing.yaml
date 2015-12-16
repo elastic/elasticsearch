@@ -43,7 +43,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index:   src
           dest:
             index:   dest

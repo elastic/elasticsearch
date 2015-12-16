@@ -23,7 +23,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The search to be executed.
      */
-    private SearchRequest search;
+    private SearchRequest source;
 
     /**
      * Maximum number of processed documents. Defaults to -1 meaning process all
@@ -39,15 +39,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public AbstractBulkByScrollRequest() {
     }
 
-    public AbstractBulkByScrollRequest(SearchRequest search) {
-        this.search = search;
+    public AbstractBulkByScrollRequest(SearchRequest source) {
+        this.source = source;
 
         // Set the defaults which differ from SearchRequest's defaults.
-        search.scroll(DEFAULT_SCROLL_TIMEOUT);
-        search.source(new SearchSourceBuilder());
-        search.source().version(true);
-        search.source().sort(fieldSort("_doc"));
-        search.source().size(DEFAULT_SIZE);
+        source.scroll(DEFAULT_SCROLL_TIMEOUT);
+        source.source(new SearchSourceBuilder());
+        source.source().version(true);
+        source.source().sort(fieldSort("_doc"));
+        source.source().size(DEFAULT_SIZE);
     }
 
     /**
@@ -58,8 +58,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = search.validate();
-        if (search.source().from() != -1) {
+        ActionRequestValidationException e = source.validate();
+        if (source.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }
         return e;
@@ -113,31 +113,35 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
     }
 
-    public SearchRequest search() {
-        return search;
+    /**
+     * The search request that matches the documents to process.
+     */
+    public SearchRequest source() {
+        return source;
     }
 
     public void fillInConditionalDefaults() {
+        // NOCOMMIT move this to implementations
         if (size() != -1) {
             /*
              * Don't use larger batches than the maximum request size because
              * that'd be silly.
              */
-            search().source().size(min(size(), search().source().size()));
+            source().source().size(min(size(), source().source().size()));
         }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        search.readFrom(in);
+        source.readFrom(in);
         size = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        search.writeTo(out);
+        source.writeTo(out);
         out.writeVInt(size);
     }
 
@@ -146,13 +150,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * to make toString.
      */
     protected void searchToString(StringBuilder b) {
-        if (search.indices() != null && search.indices().length != 0) {
-            b.append(Arrays.toString(search.indices()));
+        if (source.indices() != null && source.indices().length != 0) {
+            b.append(Arrays.toString(source.indices()));
         } else {
             b.append("[all indices]");
         }
-        if (search.types() != null && search.types().length != 0) {
-            b.append(search.types());
+        if (source.types() != null && source.types().length != 0) {
+            b.append(source.types());
         }
     }
 

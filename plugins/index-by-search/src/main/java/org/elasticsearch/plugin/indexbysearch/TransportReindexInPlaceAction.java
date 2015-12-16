@@ -81,7 +81,7 @@ public class TransportReindexInPlaceAction
         private final CompiledScript script;
         public AsyncIndexBySearchAction(ReindexInPlaceRequest request,
                 ActionListener<BulkIndexByScrollResponse> listener, ScriptService scriptService) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(),
+            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.source(),
                     listener);
             this.scriptService = scriptService;
             if (request.script() == null) {

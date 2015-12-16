@@ -19,7 +19,7 @@
       catch: /unknown field \[junk\]/
       index_by_search:
         body:
-          source:
+          src:
             junk: {}
 
 ---
@@ -50,7 +50,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: source
             search:
               size:  1000
@@ -68,9 +68,25 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: source
           destination:
+            index:   dest
+
+---
+"source can used instead of 'src'":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: source
+          dest:
             index:   dest
 
 ---

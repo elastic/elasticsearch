@@ -59,7 +59,7 @@ public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySea
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (search().indices() == null || search().indices().length == 0) {
+        if (source().indices() == null || source().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         /*

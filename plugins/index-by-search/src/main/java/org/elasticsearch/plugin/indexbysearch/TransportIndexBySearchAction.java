@@ -76,7 +76,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
              */
             target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.destination())[0];
         }
-        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.search())) {
+        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.source())) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("index-by-search cannot write into an index its reading from [" + target + ']');
@@ -94,7 +94,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener);
+            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.source(), listener);
         }
 
         @Override

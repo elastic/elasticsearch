@@ -46,8 +46,8 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
          * defaults. Then the parse can override them.
          */
         ReindexInPlaceRequest internalRequest = new ReindexInPlaceRequest(new SearchRequest());
-        int batchSize = internalRequest.search().source().size();
-        internalRequest.search().source().size(-1);
+        int batchSize = internalRequest.source().source().size();
+        internalRequest.source().source().size(-1);
         /*
          * We can't send parseSearchRequest REST content that it doesn't support
          * so we will have to remove the content that is valid in addition to
@@ -82,7 +82,7 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
                 bodyContent = builder.bytes();
             }
         }
-        RestSearchAction.parseSearchRequest(internalRequest.search(), indicesQueriesRegistry, request,
+        RestSearchAction.parseSearchRequest(internalRequest.source(), indicesQueriesRegistry, request,
                 parseFieldMatcher, bodyContent);
 
         String conflicts = request.param("conflicts");
@@ -95,8 +95,8 @@ public class RestReindexInPlaceAction extends BaseRestHandler {
         }
 
         // TODO allow the user to modify the batch size? Or pick something better than just a default.
-        internalRequest.size(internalRequest.search().source().size());
-        internalRequest.search().source().size(batchSize);
+        internalRequest.size(internalRequest.source().source().size());
+        internalRequest.source().source().size(batchSize);
 
 
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));

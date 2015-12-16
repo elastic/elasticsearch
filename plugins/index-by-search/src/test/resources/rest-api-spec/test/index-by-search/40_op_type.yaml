@@ -31,7 +31,7 @@
   - do:
       index_by_search:
         body:
-          source:
+          src:
             index: src
           dest:
             index: dest
@@ -78,7 +78,7 @@
       index_by_search:
         body:
           op_type: create
-          source:
+          src:
             index:   src
           dest:
             index:   dest
@@ -125,7 +125,7 @@
       index_by_search:
         body:
           op_type: refresh
-          source:
+          src:
             index:   src
           dest:
             index:   dest
@@ -170,7 +170,7 @@
       index_by_search:
         body:
           op_type: overwrite
-          source:
+          src:
             index:   src
           dest:
             index:   dest

@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.python.core.PyException;
 
 import java.text.DecimalFormatSymbols;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -34,7 +35,7 @@ import java.util.Map;
  * Tests for Python security permissions
  */
 public class PythonSecurityTests extends ESTestCase {
-    
+
     private PythonScriptEngineService se;
 
     @Override
@@ -54,14 +55,14 @@ public class PythonSecurityTests extends ESTestCase {
     /** runs a script */
     private void doTest(String script) {
         Map<String, Object> vars = new HashMap<String, Object>();
-        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "python", se.compile(script)), vars).run();
+        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "python", se.compile(script, Collections.emptyMap())), vars).run();
     }
-    
+
     /** asserts that a script runs without exception */
     private void assertSuccess(String script) {
         doTest(script);
     }
-    
+
     /** assert that a security exception is hit */
     private void assertFailure(String script) {
         try {
@@ -76,13 +77,13 @@ public class PythonSecurityTests extends ESTestCase {
             }
         }
     }
-    
+
     /** Test some py scripts that are ok */
     public void testOK() {
         assertSuccess("1 + 2");
         assertSuccess("from java.lang import Math\nMath.cos(0)");
     }
-    
+
     /** Test some py scripts that should hit security exception */
     public void testNotOK() {
         // sanity check :)
@@ -93,7 +94,7 @@ public class PythonSecurityTests extends ESTestCase {
         // no files
         assertFailure("from java.io import File\nFile.createTempFile(\"test\", \"tmp\")");
     }
-    
+
     /** Test again from a new thread, python has complex threadlocal configuration */
     public void testNotOKFromSeparateThread() throws Exception {
         Thread t = new Thread() {

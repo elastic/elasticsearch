@@ -95,7 +95,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

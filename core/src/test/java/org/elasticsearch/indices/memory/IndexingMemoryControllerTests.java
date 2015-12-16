@@ -18,19 +18,23 @@
  */
 package org.elasticsearch.indices.memory;
 
+import java.util.*;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.*;
-
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
@@ -182,5 +186,66 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
+    }
+
+    // #10312
+    public void testDeletesAloneCanTriggerRefresh() throws Exception {
+        createIndex("index",
+                    Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)
+                                      .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                      .put("index.refresh_interval", -1)
+                                      .build());
+        ensureGreen();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService("index");
+        IndexShard shard = indexService.getShardOrNull(0);
+        assertNotNull(shard);
+
+        for (int i = 0; i < 100; i++) {
+            String id = Integer.toString(i);
+            client().prepareIndex("index", "type", id).setSource("field", "value").get();
+        }
+
+        // Force merge so we know all merges are done before we start deleting:
+        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        assertNoFailures(r);
+
+        // Make a shell of an IMC to check up on indexing buffer usage:
+        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+
+        // TODO: would be cleaner if I could pass this 1kb setting to the single node this test created....
+        IndexingMemoryController imc = new IndexingMemoryController(settings, null, null) {
+            @Override
+            protected List<IndexShard> availableShards() {
+                return Collections.singletonList(shard);
+            }
+
+            @Override
+            protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
+                return shard.getIndexBufferRAMBytesUsed();
+            }
+        };
+
+        for (int i = 0; i < 100; i++) {
+            String id = Integer.toString(i);
+            client().prepareDelete("index", "type", id).get();
+        }
+
+        final long indexingBufferBytes1 = shard.getIndexBufferRAMBytesUsed();
+
+        imc.forceCheck();
+
+        // We must assertBusy because the writeIndexingBufferAsync is done in background (REFRESH) thread pool:
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try (Engine.Searcher s2 = shard.acquireSearcher("index")) {
+                    // 100 buffered deletes will easily exceed our 1 KB indexing buffer so it should trigger a write:
+                    final long indexingBufferBytes2 = shard.getIndexBufferRAMBytesUsed();
+                    assertTrue(indexingBufferBytes2 < indexingBufferBytes1);
+                }
+            }
+        });
     }
 }

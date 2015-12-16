@@ -488,7 +488,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw ex;
         }
         indexingService.postIndex(index);
+
+        // Notify IMC so that it can go and check heap used by all indexing buffers periodically:
         indexingMemoryController.bytesWritten(index.getTranslogLocation().size);
+
         return created;
     }
 
@@ -525,6 +528,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw ex;
         }
         indexingService.postDelete(delete);
+
+        // Notify IMC so that it can go and check heap used by all indexing buffers periodically:
         indexingMemoryController.bytesWritten(delete.getTranslogLocation().size);
     }
 
@@ -533,13 +538,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return getEngine().get(get, this::acquireSearcher);
     }
 
+    /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        // nocommit OK to throw EngineClosedExc?
         long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
         indexingMemoryController.addWritingBytes(this, ramBytesUsed);
         try {
-            logger.debug("refresh with source: {} indexBufferRAMBytesUsed={}", source, ramBytesUsed);
+            logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(ramBytesUsed));
             long time = System.nanoTime();
             getEngine().refresh(source);
             refreshMetric.inc(System.nanoTime() - time);
@@ -1019,14 +1024,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /**
-     * Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
-     * IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}.
-     */
-    public boolean getActive() {
-        return active.get();
-    }
-
     public final boolean isFlushOnClose() {
         return flushOnClose;
     }
@@ -1226,7 +1223,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private void handleRefreshException(Exception e) {
         if (e instanceof EngineClosedException) {
             // ignore
-        } else if (e instanceof RefreshFailedEngineException e) {
+        } else if (e instanceof RefreshFailedEngineException) {
             RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
             if (rfee.getCause() instanceof InterruptedException) {
                 // ignore, we are being shutdown

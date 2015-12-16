@@ -1563,58 +1563,6 @@ public class InternalEngineTests extends ESTestCase {
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
     }
 
-    // #10312
-    // ncommit get this working again
-    /*
-    public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        // nocommit need to set buffer up front again?
-        try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
-            engine.config().setIndexingBufferSize(new ByteSizeValue(1, ByteSizeUnit.KB));
-            for (int i = 0; i < 100; i++) {
-                String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
-                engine.index(new Engine.Index(newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            }
-
-            // Force merge so we know all merges are done before we start deleting:
-            engine.forceMerge(true, 1, false, false, false);
-
-            // Make a shell of an IMC to check up on indexing buffer usage:
-            IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, null) {
-                    @Override
-                    protected List<IndexShard> availableShards() {
-                        return Collections.singletonList(new ShardId("foo", 0));
-                    }
-
-                    @Override
-                    protected void refreshShardAsync(IndexShard shard) {
-                        engine.refresh("memory");
-                    }
-
-                    @Override
-                    protected long getIndexBufferRAMBytesUsed(ShardId shardId) {
-                        System.out.println("BYTES USED: " + engine.indexBufferRAMBytesUsed());
-                        return engine.indexBufferRAMBytesUsed();
-                    }
-                };
-
-            Searcher s = engine.acquireSearcher("test");
-            final long version1 = ((DirectoryReader) s.reader()).getVersion();
-            s.close();
-            for (int i = 0; i < 100; i++) {
-                String id = Integer.toString(i);
-                engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-            }
-
-            imc.forceCheck();
-            try (Searcher s2 = engine.acquireSearcher("test")) {
-                assertThat(((DirectoryReader) s2.reader()).getVersion(), greaterThan(version1));
-            }
-        }
-    }
-    */
-
     public void testMissingTranslog() throws IOException {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();

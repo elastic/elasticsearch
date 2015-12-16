@@ -34,15 +34,13 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
-// nocommit what is IndexEventListener
-public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> implements IndexEventListener {
+public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -136,9 +134,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     /** Shard calls when it's done writing these bytes to disk */
     public void removeWritingBytes(IndexShard shard, long numBytes) {
-        // nocommit this can fail, if two refreshes are running "concurrently"
-        Long result = writingBytes.remove(shard);
-        //assert result != null;
+        writingBytes.remove(shard);
         logger.debug("IMC: clear writing bytes for {}", shard.shardId());
     }
 
@@ -199,8 +195,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     public void forceCheck() {
         statusChecker.run();
     }
-
-    long startMS = System.currentTimeMillis();
 
     /** called by IndexShard to record that this many bytes were written to translog */
     public void bytesWritten(int bytes) {

@@ -105,7 +105,6 @@ public class IndexModuleTests extends ESTestCase {
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), new ScriptContextRegistry(Collections.emptyList()));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, Collections.emptySet(), new NamedWriteableRegistry());
-        // nocommit null:
         IndexingMemoryController indexingMemoryController = new IndexingMemoryController(settings, threadPool, null);
         return new NodeServicesProvider(threadPool, indicesQueryCache, null, warmer, bigArrays, client, scriptService, indicesQueriesRegistry, indicesFieldDataCache, circuitBreakerService, indexingMemoryController);
     }

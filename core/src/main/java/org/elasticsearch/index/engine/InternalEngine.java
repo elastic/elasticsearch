@@ -103,6 +103,11 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
+    // How many callers are currently requesting index throttling.  Currently there are only two times we do this: when merges are falling
+    // behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling incoming
+    // indexing ops to a single thread:
+    private final AtomicInteger throttleRequestCount = new AtomicInteger();
+
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
         super(engineConfig);
         this.versionMap = new LiveVersionMap();
@@ -516,12 +521,11 @@ public class InternalEngine extends Engine {
         long versionMapBytes = versionMap.ramBytesUsedForRefresh();
         long indexingBufferBytes = indexWriter.ramBytesUsed();
 
-        boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
-
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
                 logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
@@ -541,15 +545,6 @@ public class InternalEngine extends Engine {
         } catch (Throwable t) {
             failEngine("writeIndexingBuffer failed", t);
             throw new RefreshFailedEngineException(shardId, t);
-        }
-
-        // TODO: maybe we should just put a scheduled job in threadPool?
-        // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
-        // for a long time:
-        if (useRefresh) {
-            maybePruneDeletedTombstones();
-            versionMapRefreshPending.set(false);
-            mergeScheduler.refreshConfig();
         }
     }
 
@@ -1050,8 +1045,6 @@ public class InternalEngine extends Engine {
             return searcher;
         }
     }
-
-    private final AtomicInteger throttleRequestCount = new AtomicInteger();
 
     @Override
     public void activateThrottling() {

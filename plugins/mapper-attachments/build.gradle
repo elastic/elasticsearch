@@ -69,3 +69,10 @@ forbiddenPatterns {
   exclude '**/*.pdf'
   exclude '**/*.epub'
 }
+
+// classes are missing, e.g. org.openxmlformats.schemas.drawingml.x2006.chart.CTExtensionList
+thirdPartyAudit.lenient = true
+thirdPartyAudit.excludes = [
+    // com.sun.syndication (SyndFeedInput, SyndFeed, SyndEntry, SyndContent)
+    'org.apache.tika.parser.feed.FeedParser',
+]

@@ -66,3 +66,14 @@ compileJava.options.compilerArgs << '-Xlint:-deprecation'
 // TODO: and why does this static not show up in maven...
 compileTestJava.options.compilerArgs << '-Xlint:-static'
 
+// classes are missing, e.g. org.osgi.framework.BundleActivator
+thirdPartyAudit.lenient = true
+// WE ARE JAR HELLING WITH THE JDK AND THAT IS WHY THIS HAPPENS
+// TODO: fix this!!!!!!!!!!!
+thirdPartyAudit.excludes = [
+    // com.sun.xml.fastinfoset.stax.StAXDocumentParser
+    'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector',
+    'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector$CharSequenceImpl',
+    // com.sun.xml.fastinfoset.stax.StAXDocumentSerializer
+    'com.sun.xml.bind.v2.runtime.output.FastInfosetStreamWriterOutput',
+]

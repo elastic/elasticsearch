@@ -34,3 +34,14 @@ dependencies {
 test {
   systemProperty 'tests.security.manager', 'false'
 }
+
+// classes are missing, com.ibm.icu.lang.UCharacter
+thirdPartyAudit.lenient = true
+thirdPartyAudit.excludes = [
+    // sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+]

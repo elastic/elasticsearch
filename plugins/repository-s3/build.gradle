@@ -49,3 +49,12 @@ test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 
 }
+
+// classes are missing, e.g. org.apache.log.Logger
+thirdPartyAudit.lenient = true
+thirdPartyAudit.excludes = [
+    // com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
+    // com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
+    // com.sun.org.apache.xpath.internal.XPathContext
+    'com.amazonaws.util.XpathUtils',
+]

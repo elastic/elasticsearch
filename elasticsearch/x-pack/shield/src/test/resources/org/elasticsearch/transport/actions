@@ -28,6 +28,7 @@ indices:admin/delete
 indices:admin/get
 indices:admin/exists
 indices:admin/flush
+indices:admin/synced_flush
 indices:admin/forcemerge
 indices:admin/mapping/put
 indices:admin/mappings/fields/get

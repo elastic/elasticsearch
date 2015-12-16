@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -48,11 +47,8 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
-        queryParseContext.reset(parser);
-        queryParseContext.parseFieldMatcher(context.parseFieldMatcher());
-        QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
         FilterAggregator.Factory factory = new FilterAggregator.Factory(aggregationName);
         factory.filter(filter == null ? new MatchAllQueryBuilder() : filter);

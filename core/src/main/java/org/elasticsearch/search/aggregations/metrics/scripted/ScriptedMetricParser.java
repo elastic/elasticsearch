@@ -20,14 +20,14 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -54,7 +54,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         Script initScript = null;
         Script mapScript = null;
         Script combineScript = null;
@@ -87,17 +87,16 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, REDUCE_PARAMS_FIELD)) {
                   reduceParams = parser.map();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
@@ -107,10 +106,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 initScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (initScript.getParams() != null) {
-            throw new SearchParseException(
-                    context,
-                    "init_script params are not supported. Parameters for the init_script must be specified in the params field on the scripted_metric aggregator not inside the init_script object",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "init_script params are not supported. Parameters for the init_script must be specified in the params field on the scripted_metric aggregator not inside the init_script object");
         }
 
         if (mapScript == null) { // Didn't find anything using the new API so try using the old one instead
@@ -119,10 +116,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 mapScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (mapScript.getParams() != null) {
-            throw new SearchParseException(
-                    context,
-                    "map_script params are not supported. Parameters for the map_script must be specified in the params field on the scripted_metric aggregator not inside the map_script object",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "map_script params are not supported. Parameters for the map_script must be specified in the params field on the scripted_metric aggregator not inside the map_script object");
         }
 
         if (combineScript == null) { // Didn't find anything using the new API so try using the old one instead
@@ -131,10 +126,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 combineScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (combineScript.getParams() != null) {
-            throw new SearchParseException(
-                    context,
-                    "combine_script params are not supported. Parameters for the combine_script must be specified in the params field on the scripted_metric aggregator not inside the combine_script object",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "combine_script params are not supported. Parameters for the combine_script must be specified in the params field on the scripted_metric aggregator not inside the combine_script object");
         }
 
         if (reduceScript == null) { // Didn't find anything using the new API so try using the old one instead
@@ -145,7 +138,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         }
 
         if (mapScript == null) {
-            throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "map_script field is required in [" + aggregationName + "].");
         }
 
         ScriptedMetricAggregator.Factory factory = new ScriptedMetricAggregator.Factory(aggregationName);

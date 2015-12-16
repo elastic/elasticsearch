@@ -40,6 +40,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -489,6 +490,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
+    }
+
+    @Override
+    public FetchPhase fetchPhase() {
+        return in.fetchPhase();
     }
 
     @Override

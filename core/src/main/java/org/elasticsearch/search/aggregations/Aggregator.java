@@ -27,9 +27,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -62,7 +62,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException;
+        AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
 
         /**
          * @return an empty {@link AggregatorFactory} instance for this parser

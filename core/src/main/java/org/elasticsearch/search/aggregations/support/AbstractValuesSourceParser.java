@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
     }
 
     @Override
-    public final AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public final AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
 
         String field = null;
         Script script = null;
@@ -107,8 +107,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     timezone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
-                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
-                            + aggregationName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
@@ -119,28 +119,29 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
                     if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
-                            throw new SearchParseException(context, type() + " aggregation [" + aggregationName
-                                    + "] was configured with an incompatible value type [" + valueType + "]. [" + type()
-                                    + "] aggregation can only work on value of type [" + targetValueType + "]", parser.getTokenLocation());
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    type() + " aggregation [" + aggregationName + "] was configured with an incompatible value type ["
+                                            + valueType + "]. [" + type() + "] aggregation can only work on value of type ["
+                                            + targetValueType + "]");
                         }
                     } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
-                        throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
-                                + aggregationName + "].", parser.getTokenLocation());
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                     }
                 } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
-                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
-                            + aggregationName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, context.parseFieldMatcher());
                 } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
-                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
-                            + aggregationName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
-                throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName
-                        + "].", parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }
         }
 

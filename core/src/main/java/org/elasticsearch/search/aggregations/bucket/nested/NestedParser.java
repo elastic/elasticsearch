@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class NestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         String path = null;
 
         XContentParser.Token token;
@@ -49,19 +49,17 @@ public class NestedParser implements Aggregator.Parser {
                 if (context.parseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
                     path = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
         if (path == null) {
             // "field" doesn't exist, so we fall back to the context of the ancestors
-            throw new SearchParseException(context, "Missing [path] field for nested aggregation [" + aggregationName + "]",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "Missing [path] field for nested aggregation [" + aggregationName + "]");
         }
 
         return new NestedAggregator.Factory(aggregationName, path);

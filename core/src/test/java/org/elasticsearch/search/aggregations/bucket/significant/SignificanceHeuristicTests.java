@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -236,8 +238,11 @@ public class SignificanceHeuristicTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+            QueryParseContext parseContext = new QueryParseContext(registry);
+            parseContext.reset(stParser);
+            parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
             stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", stParser, searchContext);
+            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
             fail();
         } catch (ElasticsearchParseException e) {
             assertTrue(e.getMessage().contains(expectedError));
@@ -256,9 +261,12 @@ public class SignificanceHeuristicTests extends ESTestCase {
     private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
             SearchContext searchContext, XContentParser stParser) throws IOException {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
+        QueryParseContext parseContext = new QueryParseContext(registry);
+        parseContext.reset(stParser);
+        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         stParser.nextToken();
         SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(
-                heuristicParserMapper, registry).parse("testagg", stParser, searchContext);
+                heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
         assertThat(stParser.currentToken(), equalTo(null));

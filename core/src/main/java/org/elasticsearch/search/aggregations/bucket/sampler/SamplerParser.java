@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
 
         XContentParser.Token token;
         String currentFieldName = null;

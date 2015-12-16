@@ -53,6 +53,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -145,16 +146,16 @@ public class DefaultSearchContext extends SearchContext {
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private FetchPhase fetchPhase;
 
-    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
-                                TimeValue timeout
-    ) {
+    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
+            IndexService indexService, IndexShard indexShard, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
+            FetchPhase fetchPhase) {
         super(parseFieldMatcher, request);
         this.id = id;
         this.request = request;
+        this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
@@ -690,6 +691,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
     }
 
     @Override

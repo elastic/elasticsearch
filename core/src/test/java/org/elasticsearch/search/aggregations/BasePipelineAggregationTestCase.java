@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -39,9 +40,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
@@ -84,6 +87,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     private static NamedWriteableRegistry namedWriteableRegistry;
 
     private static AggregatorParsers aggParsers;
+    private static ParseFieldMatcher parseFieldMatcher;
+    private static IndicesQueriesRegistry queriesRegistry;
 
     protected abstract AF createTestAggregatorFactory();
 
@@ -138,6 +143,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
             currentTypes[i] = type;
         }
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
+        queriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
 
     @AfterClass
@@ -176,6 +183,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         String contentString = factories.toString();
         System.out.println(contentString);
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
+        parseContext.reset(parser);
+        parseContext.parseFieldMatcher(parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name(), parser.currentName());
@@ -184,7 +194,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         assertEquals(testAgg.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         PipelineAggregatorFactory newAgg = aggParsers.pipelineAggregator(testAgg.getWriteableName()).parse(testAgg.name(), parser,
-                SearchContext.current());
+                parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());

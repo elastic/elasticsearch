@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
+    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -62,20 +62,21 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (context.parseFieldMatcher().match(currentFieldName, LAG)) {
                     lag = parser.intValue(true);
                     if (lag <= 0) {
-                        throw new SearchParseException(context, "Lag must be a positive, non-zero integer.  Value supplied was" +
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "Lag must be a positive, non-zero integer.  Value supplied was" +
                                 lag + " in [" + reducerName + "]: ["
-                                + currentFieldName + "].", parser.getTokenLocation());
+                                        + currentFieldName + "].");
                     }
                 }  else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
@@ -86,18 +87,18 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].",
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + reducerName + "].",
                         parser.getTokenLocation());
             }
         }
 
         if (bucketsPaths == null) {
-            throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for derivative aggregation [" + reducerName + "]", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
         }
 
         SerialDiffPipelineAggregator.Factory factory = new SerialDiffPipelineAggregator.Factory(reducerName, bucketsPaths);

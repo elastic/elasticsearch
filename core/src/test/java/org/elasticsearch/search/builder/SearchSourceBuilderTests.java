@@ -284,7 +284,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             // NORELEASE need a random aggregation builder method
             builder.aggregation(AggregationBuilders.avg(randomAsciiOfLengthBetween(5, 20)));
         }
-        if (true) {
+        if (randomBoolean()) {
             // NORELEASE need a method to randomly build content for ext
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();

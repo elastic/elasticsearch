@@ -1080,7 +1080,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             this(fieldName, script, false);
         }
 
-        private ScriptField(String fieldName, Script script, boolean ignoreFailure) {
+        public ScriptField(String fieldName, Script script, boolean ignoreFailure) {
             this.fieldName = fieldName;
             this.script = script;
             this.ignoreFailure = ignoreFailure;

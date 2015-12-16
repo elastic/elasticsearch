@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -46,7 +46,8 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException {
+    public final PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -84,8 +85,8 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         }
 
         if (bucketsPaths == null) {
-            throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
         }
 
         BucketMetricsFactory factory = null;
@@ -98,12 +99,13 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                 factory.gapPolicy(gapPolicy);
             }
         } catch (ParseException exception) {
-            throw new SearchParseException(context, "Could not parse settings for aggregation ["
-                    + pipelineAggregatorName + "].", null, exception);
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Could not parse settings for aggregation [" + pipelineAggregatorName + "].", exception);
         }
 
         if (leftover.size() > 0) {
-            throw new SearchParseException(context, "Unexpected tokens " + leftover.keySet() + " in [" + pipelineAggregatorName + "].", null);
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Unexpected tokens " + leftover.keySet() + " in [" + pipelineAggregatorName + "].");
         }
         assert(factory != null);
 

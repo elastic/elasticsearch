@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class ChildrenParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         String childType = null;
 
         XContentParser.Token token;
@@ -49,18 +49,17 @@ public class ChildrenParser implements Aggregator.Parser {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
         if (childType == null) {
-            throw new SearchParseException(context, "Missing [child_type] field for children aggregation [" + aggregationName + "]",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing [child_type] field for children aggregation [" + aggregationName + "]");
         }
 
 

@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.pipeline.derivative;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException {
+    public PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -64,8 +65,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, UNIT)) {
                     units = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
@@ -76,18 +77,18 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + pipelineAggregatorName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
             }
         }
 
         if (bucketsPaths == null) {
-            throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for derivative aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
+                    + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
         DerivativePipelineAggregator.Factory factory = new DerivativePipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);

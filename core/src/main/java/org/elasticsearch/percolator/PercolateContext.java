@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -123,13 +125,15 @@ public class PercolateContext extends SearchContext {
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private final FetchPhase fetchPhase;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
-                            IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
+            IndexService indexService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService,
+            Query aliasFilter, ParseFieldMatcher parseFieldMatcher, FetchPhase fetchPhase) {
         super(parseFieldMatcher, request);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.fetchPhase = fetchPhase;
         this.fieldDataService = indexService.fieldData();
         this.searchShardTarget = searchShardTarget;
         this.percolateQueryRegistry = indexShard.percolateRegistry();
@@ -633,6 +637,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
     }
 
     @Override

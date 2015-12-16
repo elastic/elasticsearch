@@ -238,7 +238,7 @@ Format in `lat,lon`.
     "sort" : [
         {
             "_geo_distance" : {
-                "pin.location" : "-70,40",
+                "pin.location" : "40,-70",
                 "order" : "asc",
                 "unit" : "km"
             }
@@ -301,7 +301,7 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 [source,js]
 --------------------------------------------------
 "pin.location" : [[-70, 40], [-71, 42]]
-"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+"pin.location" : [{"lat": 40, "lon": -70}, {"lat": 42, "lon": -71}]
 --------------------------------------------------
 
 and so forth.

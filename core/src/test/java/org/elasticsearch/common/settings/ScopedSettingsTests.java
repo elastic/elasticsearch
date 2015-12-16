@@ -21,12 +21,15 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -137,5 +140,16 @@ public class ScopedSettingsTests extends ESTestCase {
         diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
         assertEquals(diff.getAsMap().size(), 1);
         assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
+    }
+
+    public void testUpdateTracer() {
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicReference<List<String>> ref = new AtomicReference<>();
+        settings.addSettingsUpdateConsumer(TransportService.TRACE_LOG_INCLUDE_SETTING, ref::set);
+        settings.applySettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
+        assertNotNull(ref.get().size());
+        assertEquals(ref.get().size(), 2);
+        assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
+        assertTrue(ref.get().contains("internal:gateway/local*"));
     }
 }

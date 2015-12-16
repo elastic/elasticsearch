@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -34,7 +33,7 @@ import java.util.function.Consumer;
 public abstract class AbstractScopedSettings extends AbstractComponent {
     private Settings lastSettingsApplied = Settings.EMPTY;
     private final List<SettingUpdater> settingUpdaters = new ArrayList<>();
-    private final Map<String, Setting<?>> groupSettings = new HashMap<>();
+    private final Map<String, Setting<?>> complexMatchers = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
     private final Setting.Scope scope;
 
@@ -45,7 +44,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
             }
             if (entry.isGroupSetting()) {
-                groupSettings.put(entry.getKey(), entry);
+                complexMatchers.put(entry.getKey(), entry);
             } else {
                 keySettings.put(entry.getKey(), entry);
             }
@@ -216,7 +215,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public Setting get(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting == null) {
-            for (Map.Entry<String, Setting<?>> entry : groupSettings.entrySet()) {
+            for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
                 if (entry.getValue().match(key)) {
                     return entry.getValue();
                 }

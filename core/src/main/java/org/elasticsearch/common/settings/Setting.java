@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  */
@@ -95,6 +96,10 @@ public class Setting<T> extends ToXContentToBytes {
         return false;
     }
 
+    boolean hasComplexMatcher() {
+        return isGroupSetting();
+    }
+
     /**
      * Returns the default values string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
@@ -143,7 +148,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @see #isGroupSetting()
      */
     public boolean match(String toTest) {
-        return Regex.simpleMatch(key, toTest);
+        return key.equals(toTest);
     }
 
     @Override
@@ -326,15 +331,21 @@ public class Setting<T> extends ToXContentToBytes {
             }
         };
         return new Setting<List<T>>(key, arrayToParsableString(defaultStringValue.toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
-
+            private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
             public String getRaw(Settings settings) {
                 String[] array = settings.getAsArray(key, null);
-
                 return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
             }
 
+            public boolean match(String toTest) {
+                return pattern.matcher(toTest).matches();
+            }
 
+            @Override
+            boolean hasComplexMatcher() {
+                return true;
+            }
         };
     }
 

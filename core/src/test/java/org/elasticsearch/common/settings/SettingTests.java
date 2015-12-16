@@ -300,6 +300,24 @@ public class SettingTests extends ESTestCase {
         for (int i = 0; i < intValues.size(); i++) {
             assertEquals(i, intValues.get(i).intValue());
         }
+    }
+
+    public void testListSettingAcceptsNumberSyntax() {
+        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, Setting.Scope.CLUSTER);
+        List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
+        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        // try to parse this really annoying format
+        for (String key : builder.internalMap().keySet()) {
+            assertTrue("key: " + key + " doesn't match", listSetting.match(key));
+        }
+        builder = Settings.builder().put("foo.bar", "1,2,3");
+        for (String key : builder.internalMap().keySet()) {
+            assertTrue("key: " + key + " doesn't match", listSetting.match(key));
+        }
+        assertFalse(listSetting.match("foo_bar"));
+        assertFalse(listSetting.match("foo_bar.1"));
+        assertTrue(listSetting.match("foo.bar"));
+        assertTrue(listSetting.match("foo.bar." + randomIntBetween(0,10000)));
 
     }
 }

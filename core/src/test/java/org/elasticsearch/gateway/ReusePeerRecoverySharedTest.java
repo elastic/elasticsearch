@@ -98,7 +98,7 @@ public class ReusePeerRecoverySharedTest {
             client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         } else {
             logger.info("--> trying to sync flush");
-            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
+            assertEquals(client().admin().indices().prepareSyncedFlush("test").get().failedShards(), 0);
             assertSyncIdsNotNull();
         }
 

@@ -53,7 +53,7 @@ import java.util.Map;
  */
 public final class XContentBuilder implements BytesStream, Releasable {
 
-    public static enum FieldCaseConversion {
+    public enum FieldCaseConversion {
         /**
          * No conversion will occur.
          */
@@ -251,14 +251,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder field(XContentBuilderString name) throws IOException {
-        if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
-            generator.writeFieldName(name.underscore());
-        } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
-            generator.writeFieldName(name.camelCase());
-        } else {
-            generator.writeFieldName(name.underscore());
-        }
-        return this;
+        return field(name, fieldCaseConversion);
     }
 
     public XContentBuilder field(XContentBuilderString name, FieldCaseConversion conversion) throws IOException {
@@ -273,22 +266,13 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder field(String name) throws IOException {
-        if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            name = Strings.toUnderscoreCase(name, cachedStringBuilder);
-        } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            name = Strings.toCamelCase(name, cachedStringBuilder);
-        }
-        generator.writeFieldName(name);
-        return this;
+        return field(name, fieldCaseConversion);
     }
 
     public XContentBuilder field(String name, FieldCaseConversion conversion) throws IOException {
+        if (name == null) {
+            throw new IllegalArgumentException("field name cannot be null");
+        }
         if (conversion == FieldCaseConversion.UNDERSCORE) {
             if (cachedStringBuilder == null) {
                 cachedStringBuilder = new StringBuilder();

@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent.builder;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,6 +39,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -52,9 +52,6 @@ import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConvers
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class XContentBuilderTests extends ESTestCase {
 
     @Test
@@ -366,4 +363,33 @@ public class XContentBuilderTests extends ESTestCase {
                 "}", string.trim());
     }
 
+    public void testWriteMapWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.map(Collections.singletonMap((String)null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+        }
+    }
+
+    public void testWriteMapValueWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.value(Collections.singletonMap(null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+        }
+    }
+
+    public void testWriteFieldMapWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.field("map", Collections.singletonMap(null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+        }
+    }
 }

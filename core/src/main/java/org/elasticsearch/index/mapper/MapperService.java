@@ -338,7 +338,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (FieldMapper fieldMapper : fieldMappers) {
             if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
-                throw new IllegalArgumentException("Field [{}] is defined as a field in mapping [" + fieldMapper.name() + "] but this name is already used for an object in other types");
+                throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
         }
 

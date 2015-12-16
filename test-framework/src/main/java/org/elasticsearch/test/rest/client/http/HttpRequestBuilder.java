@@ -168,6 +168,7 @@ public class HttpRequestBuilder {
             logger.trace("sending request \n{}", stringBuilder.toString());
         }
         for (Map.Entry<String, String> entry : this.headers.entrySet()) {
+            logger.trace("adding header [{} => {}]", entry.getKey(), entry.getValue());
             httpUriRequest.addHeader(entry.getKey(), entry.getValue());
         }
         try (CloseableHttpResponse closeableHttpResponse = httpClient.execute(httpUriRequest)) {

@@ -131,7 +131,7 @@ public class AttachmentMapper extends FieldMapper {
         private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
 
         public Builder(String name) {
-            super(name, new AttachmentFieldType());
+            super(name, new AttachmentFieldType(), new AttachmentFieldType());
             this.builder = this;
             this.contentBuilder = stringField(FieldNames.CONTENT);
         }

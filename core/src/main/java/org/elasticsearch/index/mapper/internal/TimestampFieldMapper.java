@@ -96,7 +96,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         private Boolean ignoreMissing = null;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             if (existing != null) {
                 // if there is an existing type, always use that store value (only matters for < 2.0)
                 explicitStore = true;

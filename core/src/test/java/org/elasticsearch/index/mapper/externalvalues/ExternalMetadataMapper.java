@@ -98,7 +98,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
 
         protected Builder() {
-            super(CONTENT_TYPE, FIELD_TYPE);
+            super(CONTENT_TYPE, FIELD_TYPE, FIELD_TYPE);
         }
 
         @Override

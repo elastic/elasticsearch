@@ -356,7 +356,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          * @param name of the completion field to build
          */
         public Builder(String name) {
-            super(name, new CompletionFieldType());
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 

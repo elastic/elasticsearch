@@ -14,6 +14,7 @@ indices:admin/forcemerge[n]
 indices:admin/flush[s]
 indices:admin/flush[s][p]
 indices:admin/flush[s][r]
+indices:admin/synced_flush
 indices:admin/mappings/fields/get[index]
 indices:admin/mappings/fields/get[index][s]
 indices:admin/refresh[s]

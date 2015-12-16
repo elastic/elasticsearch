@@ -20,5 +20,10 @@
 grant {
   // needed because geoip2 is using reflection to deserialize data into its own domain classes
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed because jackson-databind is using Class#getDeclaredConstructors(), Class#getDeclaredMethods() and
+  // Class#getDeclaredAnnotations() to find all public, private, protected, package protected and
+  // private constructors, methods or annotations. Just locating all public constructors, methods and annotations
+  // should be enough, so this permission wouldn't then be needed. Unfortunately this is not what jackson-databind does
+  // or can be configured to do.
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

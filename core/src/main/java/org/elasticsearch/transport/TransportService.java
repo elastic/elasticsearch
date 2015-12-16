@@ -42,10 +42,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,8 +84,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final Setting<String[]> TRACE_LOG_INCLUDE_SETTING = new Setting<>("transport.tracer.include", "", Strings::splitStringByCommaToArray , true, Setting.Scope.CLUSTER);
-    public static final Setting<String[]> TRACE_LOG_EXCLUDE_SETTING = new Setting<>("transport.tracer.exclude", "internal:discovery/zen/fd*," + TransportLivenessAction.NAME, Strings::splitStringByCommaToArray , true, Setting.Scope.CLUSTER);;
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = Setting.listSetting("transport.tracer.include", Collections.emptyList(), (s) -> s, true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = Setting.listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME), (s) -> s, true, Setting.Scope.CLUSTER);
 
     private final ESLogger tracerLog;
 
@@ -107,8 +104,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
-        this.tracerLogInclude = TRACE_LOG_INCLUDE_SETTING.get(settings);
-        this.tracelLogExclude = TRACE_LOG_EXCLUDE_SETTING.get(settings);
+        setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
+        setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
     }
@@ -134,15 +131,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     @Inject(optional = true)
     public void setDynamicSettings(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
-        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracelLogExclude);
+        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
     }
 
-    void setTracerLogInclude(String[] tracerLogInclude) {
-        this.tracerLogInclude = tracerLogInclude;
+    void setTracerLogInclude(List<String> tracerLogInclude) {
+        this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
 
-    void setTracelLogExclude(String[] tracelLogExclude) {
-        this.tracelLogExclude = tracelLogExclude;
+    void setTracerLogExclude(List<String> tracelLogExclude) {
+        this.tracelLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
     @Override
     protected void doStart() {

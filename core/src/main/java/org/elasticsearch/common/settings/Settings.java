@@ -597,6 +597,8 @@ public final class Settings implements ToXContent {
         return result.toArray(new String[result.size()]);
     }
 
+
+
     /**
      * Returns group settings for the given setting prefix.
      */

@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -38,7 +42,7 @@ import java.util.function.Function;
  */
 public class Setting<T> extends ToXContentToBytes {
     private final String key;
-    private final Function<Settings, String> defaultValue;
+    protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
     private final boolean dynamic;
     private final Scope scope;
@@ -127,7 +131,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public final String getRaw(Settings settings) {
+    public String getRaw(Settings settings) {
         return settings.get(key, defaultValue.apply(settings));
     }
 
@@ -299,6 +303,54 @@ public class Setting<T> extends ToXContentToBytes {
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, boolean dynamic, Scope scope) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), dynamic, scope);
     }
+
+    public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
+        Function<String, List<T>> parser = (s) -> {
+            try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(s)){
+                XContentParser.Token token = xContentParser.nextToken();
+                if (token != XContentParser.Token.START_ARRAY) {
+                    throw new IllegalArgumentException("expected START_ARRAY but got " + token);
+                }
+                ArrayList<T> list = new ArrayList<>();
+                while ((token = xContentParser.nextToken()) !=XContentParser.Token.END_ARRAY) {
+                    if (token != XContentParser.Token.VALUE_STRING) {
+                        throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
+                    }
+                    list.add(singleValueParser.apply(xContentParser.text()));
+                }
+                return list;
+            } catch (IOException e) {
+                throw new IllegalArgumentException("failed to parse array", e);
+            }
+        };
+        return new Setting<List<T>>(key, arrayToParsableString(defaultStringValue.toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
+
+            @Override
+            public String getRaw(Settings settings) {
+                String[] array = settings.getAsArray(key, null);
+
+                return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
+            }
+
+
+        };
+    }
+
+    private static String arrayToParsableString(String[] array) {
+        try {
+            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            builder.startArray();
+            for (String element : array) {
+                builder.value(element);
+            }
+            builder.endArray();
+            return builder.string();
+        } catch (IOException ex) {
+            throw new ElasticsearchException(ex);
+        }
+    }
+
+
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
         if (key.endsWith(".") == false) {

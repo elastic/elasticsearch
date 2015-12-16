@@ -24,6 +24,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,7 +75,7 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] for setting [foo.bar]", ex.getMessage());
+            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
         }
     }
 
@@ -246,6 +249,57 @@ public class SettingTests extends ESTestCase {
         assertTrue(settingUpdater.apply(Settings.EMPTY, build));
         assertEquals(1, c.a.intValue());
         assertEquals(1, c.b.intValue());
+
+    }
+
+    public void testListSettings() {
+        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, Setting.Scope.CLUSTER);
+        List<String> value = listSetting.get(Settings.EMPTY);
+        assertEquals(1, value.size());
+        assertEquals("foo,bar", value.get(0));
+
+        List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
+        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        value = listSetting.get(builder.build());
+        assertEquals(input.size(), value.size());
+        assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
+
+        // try to parse this really annoying format
+        builder = Settings.builder();
+        for (int i = 0; i < input.size(); i++) {
+            builder.put("foo.bar." + i, input.get(i));
+        }
+        value = listSetting.get(builder.build());
+        assertEquals(input.size(), value.size());
+        assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
+
+        AtomicReference<List<String>> ref = new AtomicReference<>();
+        AbstractScopedSettings.SettingUpdater settingUpdater = listSetting.newUpdater(ref::set, logger);
+        assertTrue(settingUpdater.hasChanged(builder.build(), Settings.EMPTY));
+        settingUpdater.apply(builder.build(), Settings.EMPTY);
+        assertEquals(input.size(), ref.get().size());
+        assertArrayEquals(ref.get().toArray(new String[0]), input.toArray(new String[0]));
+
+        settingUpdater.apply(Settings.builder().putArray("foo.bar", "123").build(), builder.build());
+        assertEquals(1, ref.get().size());
+        assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"123"});
+
+        settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putArray("foo.bar", "123").build());
+        assertEquals(3, ref.get().size());
+        assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"1", "2", "3"});
+
+        settingUpdater.apply(Settings.EMPTY, Settings.builder().put("foo.bar", "1,2,3").build());
+        assertEquals(1, ref.get().size());
+        assertEquals("foo,bar", ref.get().get(0));
+
+        Setting<List<Integer>> otherSettings = Setting.listSetting("foo.bar", Collections.emptyList(), Integer::parseInt, true, Setting.Scope.CLUSTER);
+        List<Integer> defaultValue = otherSettings.get(Settings.EMPTY);
+        assertEquals(0, defaultValue.size());
+        List<Integer> intValues = otherSettings.get(Settings.builder().put("foo.bar", "0,1,2,3").build());
+        assertEquals(4, intValues.size());
+        for (int i = 0; i < intValues.size(); i++) {
+            assertEquals(i, intValues.get(i).intValue());
+        }
 
     }
 }

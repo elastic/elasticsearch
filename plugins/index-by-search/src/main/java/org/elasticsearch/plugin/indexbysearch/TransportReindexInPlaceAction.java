@@ -24,13 +24,10 @@ import java.util.Map;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.TransportClearScrollAction;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,23 +41,16 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportReindexInPlaceAction
         extends HandledTransportAction<ReindexInPlaceRequest, BulkIndexByScrollResponse> {
-    private final TransportSearchAction searchAction;
-    private final TransportSearchScrollAction scrollAction;
-    private final TransportBulkAction bulkAction;
-    private final TransportClearScrollAction clearScrollAction;
+    private final Client client;
     private final ScriptService scriptService;
 
     @Inject
     public TransportReindexInPlaceAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, TransportSearchAction transportSearchAction,
-            TransportSearchScrollAction transportSearchScrollAction, TransportBulkAction bulkAction,
-            TransportClearScrollAction clearScrollAction, TransportService transportService, ScriptService scriptService) {
+            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
+            ScriptService scriptService) {
         super(settings, ReindexInPlaceAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, ReindexInPlaceRequest::new);
-        this.searchAction = transportSearchAction;
-        this.scrollAction = transportSearchScrollAction;
-        this.bulkAction = bulkAction;
-        this.clearScrollAction = clearScrollAction;
+        this.client = client;
         this.scriptService = scriptService;
     }
 
@@ -81,7 +71,7 @@ public class TransportReindexInPlaceAction
         private final CompiledScript script;
         public AsyncIndexBySearchAction(ReindexInPlaceRequest request,
                 ActionListener<BulkIndexByScrollResponse> listener, ScriptService scriptService) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.source(),
+            super(logger, client, request, request.source(),
                     listener);
             this.scriptService = scriptService;
             if (request.script() == null) {

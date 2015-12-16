@@ -1,12 +1,9 @@
 package org.elasticsearch.plugin.indexbysearch;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.TransportClearScrollAction;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -18,11 +15,9 @@ import org.elasticsearch.search.SearchHitField;
 public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkByScrollAction<Request, Response> {
 
-    public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, TransportSearchAction searchAction,
-            TransportSearchScrollAction scrollAction, TransportBulkAction bulkAction,
-            TransportClearScrollAction clearScroll, Request mainRequest, SearchRequest firstSearchRequest,
+    public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, Client client, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
-        super(logger, searchAction, scrollAction, bulkAction, clearScroll, mainRequest, firstSearchRequest, listener);
+        super(logger, client, mainRequest, firstSearchRequest, listener);
     }
 
     /**

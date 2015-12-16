@@ -22,14 +22,11 @@ package org.elasticsearch.plugin.indexbysearch;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.TransportClearScrollAction;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -43,25 +40,17 @@ import org.elasticsearch.transport.TransportService;
 public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexBySearchResponse> {
     private final ClusterService clusterService;
     private final AutoCreateIndex autoCreateIndex;
-    private final TransportSearchAction searchAction;
-    private final TransportSearchScrollAction scrollAction;
-    private final TransportBulkAction bulkAction;
-    private final TransportClearScrollAction clearScrollAction;
+    private final Client client;
 
     @Inject
     public TransportIndexBySearchAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
-            AutoCreateIndex autoCreateIndex, TransportSearchAction transportSearchAction,
-            TransportSearchScrollAction transportSearchScrollAction, TransportBulkAction bulkAction,
-            TransportClearScrollAction clearScrollAction, TransportService transportService) {
+            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
         super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 IndexBySearchRequest::new);
         this.clusterService = clusterService;
         this.autoCreateIndex = autoCreateIndex;
-        this.searchAction = transportSearchAction;
-        this.scrollAction = transportSearchScrollAction;
-        this.bulkAction = bulkAction;
-        this.clearScrollAction = clearScrollAction;
+        this.client = client;
 
     }
 
@@ -94,7 +83,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.source(), listener);
+            super(logger, client, request, request.source(), listener);
         }
 
         @Override

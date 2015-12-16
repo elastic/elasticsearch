@@ -34,16 +34,13 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.TransportClearScrollAction;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,22 +65,15 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final List<Failure> failures = new CopyOnWriteArrayList<>();
 
     private final ESLogger logger;
-    private final TransportSearchAction searchAction;
-    private final TransportSearchScrollAction scrollAction;
-    private final TransportBulkAction bulkAction;
-    private final TransportClearScrollAction clearScroll;
+    private final Client client;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
 
-    public AbstractAsyncBulkByScrollAction(ESLogger logger, TransportSearchAction searchAction, TransportSearchScrollAction scrollAction,
-            TransportBulkAction bulkAction, TransportClearScrollAction clearScroll, Request mainRequest, SearchRequest firstSearchRequest,
+    public AbstractAsyncBulkByScrollAction(ESLogger logger, Client client, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
         // NOCOMMIT switch this from Transport*Action to Client.
         this.logger = logger;
-        this.searchAction = searchAction;
-        this.scrollAction = scrollAction;
-        this.bulkAction = bulkAction;
-        this.clearScroll = clearScroll;
+        this.client = client;
         this.mainRequest = mainRequest;
         this.firstSearchRequest = firstSearchRequest;
         this.listener = listener;
@@ -159,7 +149,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         firstSearchRequest.indices() == null ? "all indices" : firstSearchRequest.indices(),
                         firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? "" : firstSearchRequest.types());
             }
-            searchAction.execute(firstSearchRequest, new ActionListener<SearchResponse>() {
+            client.search(firstSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
                     logger.debug("[{}] documents match query", response.getHits().getTotalHits());
@@ -210,7 +200,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));
             }
-            bulkAction.execute(request, new ActionListener<BulkResponse>() {
+            client.bulk(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     onBulkResponse(response);
@@ -272,7 +262,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void startNextScrollRequest() {
         SearchScrollRequest request = new SearchScrollRequest(mainRequest);
         request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
-        scrollAction.execute(request, new ActionListener<SearchResponse>() {
+        client.searchScroll(request, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse response) {
                 onScrollResponse(response);
@@ -318,7 +308,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest(mainRequest);
         clearScrollRequest.addScrollId(scroll);
-        clearScroll.execute(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
             @Override
             public void onResponse(ClearScrollResponse response) {
                 logger.debug("Freed [{}] contexts", response.getNumFreed());

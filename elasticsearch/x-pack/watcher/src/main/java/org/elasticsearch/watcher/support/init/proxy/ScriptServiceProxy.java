@@ -12,6 +12,7 @@ import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -46,7 +47,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
     }
 
     public CompiledScript compile(org.elasticsearch.script.Script script) {
-        return service.compile(script, WatcherScriptContext.CTX, contextAndHeaderHolder);
+        return service.compile(script, WatcherScriptContext.CTX, contextAndHeaderHolder, Collections.emptyMap());
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
@@ -55,7 +56,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
 
 
     public ExecutableScript executable(org.elasticsearch.script.Script script) {
-        return service.executable(script, WatcherScriptContext.CTX, contextAndHeaderHolder);
+        return service.executable(script, WatcherScriptContext.CTX, contextAndHeaderHolder, Collections.emptyMap());
     }
 
     public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");

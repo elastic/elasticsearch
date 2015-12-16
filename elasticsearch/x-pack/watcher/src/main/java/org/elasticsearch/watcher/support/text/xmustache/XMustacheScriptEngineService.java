@@ -50,7 +50,7 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String template) {
+    public Object compile(String template, Map<String, String> params) {
         /** Factory to generate Mustache objects from. */
         XContentType xContentType = detectContentType(template);
         template = trimContentType(template);

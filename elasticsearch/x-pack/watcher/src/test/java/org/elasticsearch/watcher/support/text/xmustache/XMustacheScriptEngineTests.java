@@ -16,6 +16,7 @@ import org.junit.Before;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,7 +37,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
             BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
@@ -48,7 +49,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
             BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
@@ -73,7 +74,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
 
         vars.put("test_var1", var1Writer.toString());
         vars.put("test_var2", var2Writer.toString());
-        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
         BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
         String s1 = o.toUtf8();
         String s2 =  prefix + " " + var1Writer.toString() + " " + var2Writer.toString();

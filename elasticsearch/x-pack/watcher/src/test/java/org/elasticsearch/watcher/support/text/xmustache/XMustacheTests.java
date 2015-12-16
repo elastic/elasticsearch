@@ -46,7 +46,7 @@ public class XMustacheTests extends ESTestCase {
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[] { "foo", "bar" },
@@ -72,7 +72,7 @@ public class XMustacheTests extends ESTestCase {
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[][] { new String[] { "foo", "bar" }},
@@ -89,7 +89,7 @@ public class XMustacheTests extends ESTestCase {
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new Map[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
@@ -156,7 +156,7 @@ public class XMustacheTests extends ESTestCase {
 
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("data", unescaped.toString());
-            CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+            CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
             Object output = engine.executable(mustache, dataMap).run();
 
             assertThat(output, notNullValue());

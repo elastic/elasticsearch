@@ -7,19 +7,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Script;
 
 /**
  * Request to reindex a set of documents where they are without changing their
  * locations or IDs.
  */
-public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexInPlaceRequest> {
+public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<ReindexInPlaceRequest> {
     /**
      * Version type to use on the index requests. Defaults to INFER.
      */
     private ReindexVersionType versionType = ReindexVersionType.INFER;
-
-    private Script script;
 
     public ReindexInPlaceRequest() {
     }
@@ -43,21 +40,6 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
         return this;
     }
 
-    /**
-     * Script to use to update the document on reindex.
-     */
-    public Script script() {
-        return script;
-    }
-
-    /**
-     * Script to use to update the document on reindex.
-     */
-    public ReindexInPlaceRequest script(Script script) {
-        this.script = script;
-        return this;
-    }
-
     @Override
     protected ReindexInPlaceRequest self() {
         return this;
@@ -67,19 +49,12 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         versionType = ReindexVersionType.PROTOTYPE.readFrom(in);
-        if (in.readBoolean()) {
-            script = Script.readScript(in);
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         versionType.writeTo(out);
-        out.writeBoolean(script != null);
-        if (script != null) {
-            script.writeTo(out);
-        }
     }
 
     @Override
@@ -87,9 +62,6 @@ public class ReindexInPlaceRequest extends AbstractBulkByScrollRequest<ReindexIn
         StringBuilder b = new StringBuilder();
         b.append("reindex ");
         searchToString(b);
-        if (script != null) {
-            b.append(" updated with [").append(script).append(']');
-        }
         return b.toString();
     }
 

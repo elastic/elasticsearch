@@ -56,5 +56,4 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
         request.abortOnVersionConflict(abortOnVersionConflict);
         return self();
     }
-
 }

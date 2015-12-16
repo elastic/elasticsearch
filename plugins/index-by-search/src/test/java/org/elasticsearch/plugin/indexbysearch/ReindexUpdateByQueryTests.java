@@ -8,22 +8,17 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.plugin.indexbysearch.ReindexInPlaceRequest.ReindexVersionType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.AbstractExecutableScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 public class ReindexUpdateByQueryTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(SetBar.RegistrationPlugin.class);
+        plugins.add(SetBarScript.RegistrationPlugin.class);
         return plugins;
     }
 
@@ -76,60 +71,5 @@ public class ReindexUpdateByQueryTests extends ReindexTestCase {
         refresh();
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("bar", "cat")).get(), "1");
         assertEquals(reindexVersionType ? 2 : 3, client().prepareGet("test", "test", "1").get().getVersion());
-    }
-
-    public static class SetBar extends AbstractExecutableScript {
-        private final Object newValue;
-        private Map<String, Object> ctx;
-
-        public SetBar(Object newValue) {
-            this.newValue = newValue;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void setNextVar(String name, Object value) {
-            if (name.equals("ctx")) {
-                ctx = (Map<String, Object>) value;
-                return;
-            }
-            throw new IllegalArgumentException("Unexpected variable [" + name + "]");
-        }
-
-        @Override
-        public Object run() {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-            source.put("bar", newValue);
-            return null;
-        }
-
-        public static class RegistrationPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "set-bar-script";
-            }
-
-            @Override
-            public String description() {
-                return "test plugin";
-            }
-
-            public void onModule(ScriptModule scripts) {
-                scripts.registerScript("set-bar", Factory.class);
-            }
-        }
-
-        public static class Factory implements NativeScriptFactory {
-            @Override
-            public ExecutableScript newScript(Map<String, Object> params) {
-                return new SetBar(params.get("to"));
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-        }
     }
 }

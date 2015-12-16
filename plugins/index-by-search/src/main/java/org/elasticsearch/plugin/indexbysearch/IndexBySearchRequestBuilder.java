@@ -28,7 +28,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.plugin.indexbysearch.IndexBySearchRequest.OpType;
 
 public class IndexBySearchRequestBuilder extends
-        AbstractBulkByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
+        AbstractBulkIndexByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
     private final IndexRequestBuilder destination;
 
     public IndexBySearchRequestBuilder(ElasticsearchClient client,

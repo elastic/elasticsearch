@@ -47,6 +47,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.script.Script;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -78,6 +79,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("destination"), ValueType.OBJECT);
         PARSER.declareInt(IndexBySearchRequest::size, new ParseField("size"));
+        PARSER.declareField((p, v, c) -> {v.script(Script.parse(p, c.parseFieldMatcher()));}, new ParseField("script"), ValueType.OBJECT);
         PARSER.declareString(IndexBySearchRequest::conflicts, new ParseField("conflicts"));
         PARSER.declareField((p, v, c) -> {v.opType(OpType.fromString(p.text()));}, new ParseField("op_type"), ValueType.STRING);
     }

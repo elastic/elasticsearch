@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
-public class IndexBySearchRequest extends AbstractBulkByScrollRequest<IndexBySearchRequest> {
+public class IndexBySearchRequest extends AbstractBulkIndexByScrollRequest<IndexBySearchRequest> {
     /**
      * Prototype for index requests.
      *

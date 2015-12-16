@@ -1,5 +1,5 @@
 ---
-"Update a document using reindex":
+"Modify a document on copy":
   - do:
       index:
         index:  twitter
@@ -10,19 +10,22 @@
       indices.refresh: {}
 
   - do:
-      reindex:
-        index: twitter
+      index_by_search:
         body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
           script:
             inline: ctx._source.user = "not" + ctx._source.user
-  - match: {updated: 1}
+  - match: {created: 1}
   - match: {noops: 0}
   - do:
       indices.refresh: {}
 
   - do:
       search:
-        index: twitter
+        index: new_twitter
         body:
           query:
             match:
@@ -47,19 +50,22 @@
       indices.refresh: {}
 
   - do:
-      reindex:
-        index: twitter
+      index_by_search:
         body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
           script:
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
-  - match: {updated: 1}
+  - match: {created: 1}
   - match: {noops: 1}
   - do:
       indices.refresh: {}
 
   - do:
       search:
-        index: twitter
+        index: new_twitter
         body:
           query:
             match:
@@ -93,9 +99,12 @@
       indices.refresh: {}
 
   - do:
-      reindex:
-        index: twitter
+      index_by_search:
         body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
           script:
             inline: ctx.op = "noop"
   - match: {updated: 0}

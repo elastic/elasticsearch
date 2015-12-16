@@ -17,7 +17,27 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
 subprojects {
+  // fixtures is just an intermediate parent project
+  if (name == 'fixtures') return
+
   group = 'org.elasticsearch.test'
-  apply plugin: 'com.bmuschko.nexus'
+  apply plugin: 'elasticsearch.build'
+
+  
+  // the main files are actually test files, so use the appopriate forbidden api sigs
+  forbiddenApisMain {
+    bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
+                      PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
+  }
+
+  // TODO: should we have licenses for our test deps?
+  dependencyLicenses.enabled = false
+
+  // TODO: why is the test framework pulled in...
+  forbiddenApisMain.enabled = false
+  jarHell.enabled = false
 }

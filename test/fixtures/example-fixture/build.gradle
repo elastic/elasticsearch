@@ -17,4 +17,4 @@
  * under the License.
  */
 
-apply plugin: 'java'
+apply plugin: 'elasticsearch.build'

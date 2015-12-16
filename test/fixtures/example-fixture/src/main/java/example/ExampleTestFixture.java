@@ -19,6 +19,7 @@
 
 package example;
 
+import java.lang.management.ManagementFactory;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -37,20 +38,29 @@ import java.util.Collections;
 public class ExampleTestFixture {
     public static void main(String args[]) throws Exception {
         if (args.length != 1) {
-            throw new IllegalArgumentException("ExampleTestFixture <portFile>");
+            throw new IllegalArgumentException("ExampleTestFixture <logDirectory>");
         }
+        Path dir = Paths.get(args[0]);
         AsynchronousServerSocketChannel server = AsynchronousServerSocketChannel
                 .open()
                 .bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+
+        // write pid file
+        Path tmp = Files.createTempFile(dir, null, null);
+        String pid = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
+        Files.write(tmp, Collections.singleton(pid));
+        Files.move(tmp, dir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
+
         // write port file
-        Path tmp = Files.createTempFile(null, null);
+        tmp = Files.createTempFile(dir, null, null);
         InetSocketAddress bound = (InetSocketAddress) server.getLocalAddress();
         if (bound.getAddress() instanceof Inet6Address) {
             Files.write(tmp, Collections.singleton("[" + bound.getHostString() + "]:" + bound.getPort()));
         } else {
             Files.write(tmp, Collections.singleton(bound.getHostString() + ":" + bound.getPort()));
         }
-        Files.move(tmp, Paths.get(args[0]), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tmp, dir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
+
         // go time
         server.accept(null, new CompletionHandler<AsynchronousSocketChannel,Void>() {
             @Override
@@ -66,6 +76,7 @@ public class ExampleTestFixture {
             @Override
             public void failed(Throwable exc, Void attachment) {}
         });
+
         // wait forever, until you kill me
         Thread.sleep(Long.MAX_VALUE);
     }

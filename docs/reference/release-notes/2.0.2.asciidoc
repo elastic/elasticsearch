@@ -1,0 +1,28 @@
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-2.0.2]]
+== 2.0.2 Release Notes
+
+[[bug-2.0.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* [Children agg] fix bug that prevented all child docs from being evaluated {pull}15457[#15457]
+
+Index APIs::
+* Field stats: Index constraints should remove indices in the response if the field to evaluate is empty {pull}14868[#14868]
+* Field stats: Fix NPE for index constraint on empty index {pull}14841[#14841]
+
+Internal::
+* Throw a meaningful error when loading metadata and an alias and index have the same name {pull}14842[#14842] (issue: {issue}14706[#14706])
+
+Mapping::
+* Multi field names may not contain dots {pull}15118[#15118] (issue: {issue}14957[#14957])
+
+Translog::
+* Fail and close translog hard if writing to disk fails {pull}15420[#15420] (issue: {issue}15333[#15333])
+* Prevent writing to closed channel if translog is already closed {pull}15012[#15012] (issue: {issue}14866[#14866])
+* Don't delete temp recovered checkpoint file it was renamed {pull}14872[#14872] (issue: {issue}14695[#14695])
+

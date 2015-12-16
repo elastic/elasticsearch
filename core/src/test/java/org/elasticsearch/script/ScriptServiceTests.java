@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ScriptServiceTests extends ESTestCase {
 
     private ResourceWatcherService resourceWatcherService;
-    private Set<ScriptEngineService> scriptEngineServices;
+    private ScriptEngineService scriptEngineService;
     private Map<String, ScriptEngineService> scriptEnginesByLangMap;
     private ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
@@ -72,8 +73,8 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = newHashSet(new TestEngineService());
-        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
+        scriptEngineService = new TestEngineService();
+        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
@@ -100,7 +101,7 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry) {
+        scriptService = new ScriptService(finalSettings, environment, Collections.singleton(scriptEngineService), resourceWatcherService, scriptContextRegistry) {
             @Override
             String getScriptFromIndex(String scriptLang, String id, HasContextAndHeaders headersContext) {
                 //mock the script that gets retrieved from an index
@@ -225,13 +226,11 @@ public class ScriptServiceTests extends ESTestCase {
             } while (scriptContextSettings.containsKey(scriptContext));
             scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
         }
-        int numEngineSettings = randomIntBetween(0, 10);
+        int numEngineSettings = randomIntBetween(0, ScriptType.values().length * scriptContexts.length);
         Map<String, ScriptMode> engineSettings = new HashMap<>();
         for (int i = 0; i < numEngineSettings; i++) {
             String settingKey;
             do {
-                ScriptEngineService[] scriptEngineServices = this.scriptEngineServices.toArray(new ScriptEngineService[this.scriptEngineServices.size()]);
-                ScriptEngineService scriptEngineService = randomFrom(scriptEngineServices);
                 ScriptType scriptType = randomFrom(ScriptType.values());
                 ScriptContext scriptContext = randomFrom(this.scriptContexts);
                 settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey();
@@ -288,40 +287,38 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
-        for (ScriptEngineService scriptEngineService : scriptEngineServices) {
-            for (ScriptType scriptType : ScriptType.values()) {
-                //make sure file scripts have a different name than inline ones.
-                //Otherwise they are always considered file ones as they can be found in the static cache.
-                String script = scriptType == ScriptType.FILE ? "file_script" : "script";
-                for (ScriptContext scriptContext : this.scriptContexts) {
-                    //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey());
-                    if (scriptMode == null) {
-                        scriptMode = scriptContextSettings.get(scriptContext.getKey());
-                    }
-                    if (scriptMode == null) {
-                        scriptMode = scriptSourceSettings.get(scriptType);
-                    }
-                    if (scriptMode == null) {
-                        scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
-                    }
+        for (ScriptType scriptType : ScriptType.values()) {
+            //make sure file scripts have a different name than inline ones.
+            //Otherwise they are always considered file ones as they can be found in the static cache.
+            String script = scriptType == ScriptType.FILE ? "file_script" : "script";
+            for (ScriptContext scriptContext : this.scriptContexts) {
+                //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
+                ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey());
+                if (scriptMode == null) {
+                    scriptMode = scriptContextSettings.get(scriptContext.getKey());
+                }
+                if (scriptMode == null) {
+                    scriptMode = scriptSourceSettings.get(scriptType);
+                }
+                if (scriptMode == null) {
+                    scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
+                }
 
-                    for (String lang : scriptEngineService.types()) {
-                        switch (scriptMode) {
-                            case ON:
+                for (String lang : scriptEngineService.types()) {
+                    switch (scriptMode) {
+                        case ON:
+                        assertCompileAccepted(lang, script, scriptType, scriptContext, contextAndHeaders);
+                            break;
+                        case OFF:
+                        assertCompileRejected(lang, script, scriptType, scriptContext, contextAndHeaders);
+                            break;
+                        case SANDBOX:
+                            if (scriptEngineService.sandboxed()) {
                             assertCompileAccepted(lang, script, scriptType, scriptContext, contextAndHeaders);
-                                break;
-                            case OFF:
+                            } else {
                             assertCompileRejected(lang, script, scriptType, scriptContext, contextAndHeaders);
-                                break;
-                            case SANDBOX:
-                                if (scriptEngineService.sandboxed()) {
-                                assertCompileAccepted(lang, script, scriptType, scriptContext, contextAndHeaders);
-                                } else {
-                                assertCompileRejected(lang, script, scriptType, scriptContext, contextAndHeaders);
-                                }
-                                break;
-                        }
+                            }
+                            break;
                     }
                 }
             }
@@ -338,15 +335,13 @@ public class ScriptServiceTests extends ESTestCase {
             unknownContext = randomAsciiOfLength(randomIntBetween(1, 30));
         } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
 
-        for (ScriptEngineService scriptEngineService : scriptEngineServices) {
-            for (String type : scriptEngineService.types()) {
-                try {
-                    scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
-                            pluginName, unknownContext), contextAndHeaders);
-                    fail("script compilation should have been rejected");
-                } catch(IllegalArgumentException e) {
-                    assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
-                }
+        for (String type : scriptEngineService.types()) {
+            try {
+                scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
+                        pluginName, unknownContext), contextAndHeaders);
+                fail("script compilation should have been rejected");
+            } catch(IllegalArgumentException e) {
+                assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
             }
         }
     }

@@ -35,11 +35,9 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
@@ -111,14 +109,14 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
 
         @Override
         public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                               MappedFieldType defaultFieldType, Settings indexSettings, ContentPath.Type pathType, DoubleFieldMapper latMapper,
+                                               MappedFieldType defaultFieldType, Settings indexSettings, DoubleFieldMapper latMapper,
                                                DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
             fieldType.setHasDocValues(false);
             defaultFieldType.setHasDocValues(false);
-            return new GeoPointFieldMapperLegacy(simpleName, fieldType, defaultFieldType, indexSettings, pathType, latMapper, lonMapper,
+            return new GeoPointFieldMapperLegacy(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,
                     geoHashMapper, multiFields, ignoreMalformed, coerce(context), copyTo);
         }
 
@@ -288,32 +286,27 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     protected Explicit<Boolean> coerce;
 
     public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                     ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
+                                     DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
                                      StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                      Explicit<Boolean> coerce, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, pathType, latMapper, lonMapper, geoHashMapper, multiFields,
+        super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
         this.coerce = coerce;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
 
         GeoPointFieldMapperLegacy gpfmMergeWith = (GeoPointFieldMapperLegacy) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
+                throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
             }
         }
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            if (gpfmMergeWith.coerce.explicit()) {
-                this.coerce = gpfmMergeWith.coerce;
-            }
+        if (gpfmMergeWith.coerce.explicit()) {
+            this.coerce = gpfmMergeWith.coerce;
         }
     }
 

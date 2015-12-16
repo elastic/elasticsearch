@@ -81,8 +81,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (FloatFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

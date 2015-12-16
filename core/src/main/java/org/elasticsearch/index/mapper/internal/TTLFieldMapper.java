@@ -32,7 +32,6 @@ import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -258,21 +257,19 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
-        if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
-            if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {
-                mergeResult.addConflict("_ttl cannot be disabled once it was enabled.");
+        if (ttlMergeWith.enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
+            if (this.enabledState == EnabledAttributeMapper.ENABLED && ttlMergeWith.enabledState == EnabledAttributeMapper.DISABLED) {
+                throw new IllegalArgumentException("_ttl cannot be disabled once it was enabled.");
             } else {
-                if (!mergeResult.simulate()) {
-                    this.enabledState = ttlMergeWith.enabledState;
-                }
+                this.enabledState = ttlMergeWith.enabledState;
             }
         }
         if (ttlMergeWith.defaultTTL != -1) {
             // we never build the default when the field is disabled so we should also not set it
             // (it does not make a difference though as everything that is not build in toXContent will also not be set in the cluster)
-            if (!mergeResult.simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
+            if (enabledState == EnabledAttributeMapper.ENABLED) {
                 this.defaultTTL = ttlMergeWith.defaultTTL;
             }
         }

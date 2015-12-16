@@ -108,6 +108,9 @@ public class OsInfo implements Streamable, ToXContent {
         refreshInterval = in.readLong();
         availableProcessors = in.readInt();
         allocatedProcessors = in.readInt();
+        name = in.readOptionalString();
+        arch = in.readOptionalString();
+        version = in.readOptionalString();
     }
 
     @Override
@@ -115,5 +118,8 @@ public class OsInfo implements Streamable, ToXContent {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
         out.writeInt(allocatedProcessors);
+        out.writeOptionalString(name);
+        out.writeOptionalString(arch);
+        out.writeOptionalString(version);
     }
 }

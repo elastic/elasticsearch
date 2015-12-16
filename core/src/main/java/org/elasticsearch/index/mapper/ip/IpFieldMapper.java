@@ -122,8 +122,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (IpFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

@@ -34,11 +34,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
@@ -194,13 +192,18 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
-
-        List<String> expectedConflicts = new ArrayList<>(Arrays.asList(conflicts));
-        for (String conflict : mergeResult.buildConflicts()) {
-            assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
+        if (conflicts.length == 0) {
+            docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+        } else {
+            try {
+                docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+                fail();
+            } catch (IllegalArgumentException e) {
+                for (String conflict : conflicts) {
+                    assertThat(e.getMessage(), containsString(conflict));
+                }
+            }
         }
-        assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
     }
 
     public void testEnabledNotUpdateable() throws Exception {

@@ -61,7 +61,6 @@ public class TypeParsers {
 
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ContentPath.Type pathType = null;
             FieldMapper.Builder mainFieldBuilder = null;
             List<FieldMapper.Builder> fields = null;
             String firstType = null;
@@ -70,10 +69,7 @@ public class TypeParsers {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    pathType = parsePathType(name, fieldNode.toString());
-                    iterator.remove();
-                } else if (fieldName.equals("fields")) {
+                if (fieldName.equals("fields")) {
                     Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
                     for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
                         Map.Entry<String, Object> entry1 = fieldsIterator.next();
@@ -132,17 +128,10 @@ public class TypeParsers {
                 }
             }
 
-            if (fields != null && pathType != null) {
+            if (fields != null) {
                 for (Mapper.Builder field : fields) {
                     mainFieldBuilder.addMultiField(field);
                 }
-                mainFieldBuilder.multiFieldPathType(pathType);
-            } else if (fields != null) {
-                for (Mapper.Builder field : fields) {
-                    mainFieldBuilder.addMultiField(field);
-                }
-            } else if (pathType != null) {
-                mainFieldBuilder.multiFieldPathType(pathType);
             }
             return mainFieldBuilder;
         }
@@ -337,10 +326,7 @@ public class TypeParsers {
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         parserContext = parserContext.createMultiFieldContext(parserContext);
-        if (propName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-            builder.multiFieldPathType(parsePathType(name, propNode.toString()));
-            return true;
-        } else if (propName.equals("fields")) {
+        if (propName.equals("fields")) {
 
             final Map<String, Object> multiFieldsPropNodes;
 
@@ -454,17 +440,6 @@ public class TypeParsers {
             return true;
         } else {
             return nodeBooleanValue(store);
-        }
-    }
-
-    public static ContentPath.Type parsePathType(String name, String path) throws MapperParsingException {
-        path = Strings.toUnderscoreCase(path);
-        if ("just_name".equals(path)) {
-            return ContentPath.Type.JUST_NAME;
-        } else if ("full".equals(path)) {
-            return ContentPath.Type.FULL;
-        } else {
-            throw new MapperParsingException("wrong value for pathType [" + path + "] for object [" + name + "]");
         }
     }
 

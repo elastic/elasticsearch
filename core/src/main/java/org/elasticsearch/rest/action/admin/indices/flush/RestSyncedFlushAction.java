@@ -19,14 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices.flush;
 
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -38,12 +38,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSyncedFlushAction extends BaseRestHandler {
 
-    private final SyncedFlushService syncedFlushService;
-
     @Inject
-    public RestSyncedFlushAction(Settings settings, RestController controller, Client client, SyncedFlushService syncedFlushService) {
+    public RestSyncedFlushAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        this.syncedFlushService = syncedFlushService;
         controller.registerHandler(POST, "/_flush/synced", this);
         controller.registerHandler(POST, "/{index}/_flush/synced", this);
 
@@ -53,12 +50,12 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
-
-        syncedFlushService.attemptSyncedFlush(indices, indicesOptions, new RestBuilderListener<IndicesSyncedFlushResult>(channel) {
+        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        syncedFlushRequest.indicesOptions(indicesOptions);
+        client.admin().indices().syncedFlush(syncedFlushRequest, new RestBuilderListener<SyncedFlushResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndicesSyncedFlushResult results, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(SyncedFlushResponse results, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 results.toXContent(builder, request);
                 builder.endObject();

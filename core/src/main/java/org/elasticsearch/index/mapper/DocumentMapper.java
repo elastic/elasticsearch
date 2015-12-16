@@ -52,6 +52,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -117,7 +118,7 @@ public class DocumentMapper implements ToXContent {
 
     private volatile CompressedXContent mappingSource;
 
-    private final Mapping mapping;
+    private volatile Mapping mapping;
 
     private final DocumentParser documentParser;
 
@@ -352,16 +353,19 @@ public class DocumentMapper implements ToXContent {
         mapperService.addMappers(type, objectMappers, fieldMappers);
     }
 
-    public MergeResult merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {
+    public void merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {
         try (ReleasableLock lock = mappingWriteLock.acquire()) {
             mapperService.checkMappersCompatibility(type, mapping, updateAllTypes);
-            final MergeResult mergeResult = new MergeResult(simulate, updateAllTypes);
-            this.mapping.merge(mapping, mergeResult);
+            // do the merge even if simulate == false so that we get exceptions
+            Mapping merged = this.mapping.merge(mapping, updateAllTypes);
             if (simulate == false) {
-                addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers(), updateAllTypes);
+                this.mapping = merged;
+                Collection<ObjectMapper> objectMappers = new ArrayList<>();
+                Collection<FieldMapper> fieldMappers = new ArrayList<>(Arrays.asList(merged.metadataMappers));
+                MapperUtils.collect(merged.root, objectMappers, fieldMappers);
+                addMappers(objectMappers, fieldMappers, updateAllTypes);
                 refreshSource();
             }
-            return mergeResult;
         }
     }
 

@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
@@ -150,8 +149,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             StringFieldMapper fieldMapper = new StringFieldMapper(
                     name, fieldType, defaultFieldType, positionIncrementGap, ignoreAbove,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -257,22 +255,41 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     @Override
-    public void includeInAll(Boolean includeInAll) {
+    protected StringFieldMapper clone() {
+        return (StringFieldMapper) super.clone();
+    }
+
+    @Override
+    public StringFieldMapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
-            this.includeInAll = includeInAll;
+            StringFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void includeInAllIfNotSet(Boolean includeInAll) {
+    public StringFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
-            this.includeInAll = includeInAll;
+            StringFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void unsetIncludeInAll() {
-        includeInAll = null;
+    public StringFieldMapper unsetIncludeInAll() {
+        if (includeInAll != null) {
+            StringFieldMapper clone = clone();
+            clone.includeInAll = null;
+            return clone;
+        } else {
+            return this;
+        }
     }
 
     @Override
@@ -359,15 +376,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
-            this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
+        this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
     }
 
     @Override

@@ -84,12 +84,14 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -651,7 +653,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchParseException {
+    private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchContextException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -802,19 +804,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             fieldDataFieldsContext.setHitExecutionNeeded(true);
         }
         if (source.highlighter() != null) {
-            XContentParser highlighterParser = null;
+            HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                highlighterParser = XContentFactory.xContent(source.highlighter()).createParser(source.highlighter());
-                this.elementParsers.get("highlight").parse(highlighterParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                context.highlight(highlightBuilder.build(context.indexShard().getQueryShardContext()));
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
         }
         if (source.innerHits() != null) {

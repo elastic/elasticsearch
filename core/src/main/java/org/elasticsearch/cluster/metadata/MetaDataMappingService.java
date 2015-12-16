@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -251,11 +250,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), existingMapper == null);
                     if (existingMapper != null) {
                         // first, simulate
-                        MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
-                        // if we have conflicts, throw an exception
-                        if (mergeResult.hasConflicts()) {
-                            throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(mergeResult.buildConflicts()) + "}");
-                        }
+                        // this will just throw exceptions in case of problems
+                        existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
                     } else {
                         // TODO: can we find a better place for this validation?
                         // The reason this validation is here is that the mapper service doesn't learn about

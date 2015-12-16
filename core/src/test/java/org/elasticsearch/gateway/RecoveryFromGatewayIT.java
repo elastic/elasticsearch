@@ -369,7 +369,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             ensureGreen();
         } else {
             logger.info("--> trying to sync flush");
-            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
+            assertEquals(client().admin().indices().prepareSyncedFlush("test").get().failedShards(), 0);
             assertSyncIdsNotNull();
         }
 

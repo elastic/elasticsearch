@@ -84,8 +84,7 @@ public class LongFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (LongFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

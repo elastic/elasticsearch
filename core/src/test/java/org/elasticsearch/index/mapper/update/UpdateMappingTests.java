@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -77,9 +76,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), false, false);
-        // assure we have no conflicts
-        assertThat(mergeResult.buildConflicts().length, equalTo(0));
+        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), false, false);
         // make sure mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
@@ -101,9 +98,12 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), true, false);
-        // assure we have conflicts
-        assertThat(mergeResult.buildConflicts().length, equalTo(1));
+        try {
+            indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), true, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
         // make sure simulate flag actually worked - no mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
@@ -200,6 +200,51 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
         assertNotNull(mapperService.documentMapper("type2"));
         assertNull(mapperService.documentMapper("type2").mapping().root().getMapper("foo"));
+    }
+
+    public void testReuseMetaField() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("_id").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+    }
+
+    public void testReuseMetaFieldBackCompat() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("_id").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+        // the logic is different for 2.x indices since they record some meta mappers (including _id)
+        // in the root object
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
+
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+        }
     }
 
     public void testIndexFieldParsingBackcompat() throws IOException {

@@ -283,9 +283,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      *            successful - it may have accumulated failures in the failures
      *            list.
      */
-    void finishHim(final Throwable failure) {
+    void finishHim(Throwable failure) {
         String scroll = this.scroll.get();
-        if (Strings.hasLength(scroll) != false) {
+        if (Strings.hasLength(scroll)) {
             /*
              * Fire off the clear scroll but don't wait for it it return before
              * we send the use their response.

@@ -16,16 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.flush;
+package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,13 +43,16 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The result of performing a sync flush operation on all shards of multiple indices
  */
-public class IndicesSyncedFlushResult implements ToXContent {
+public class SyncedFlushResponse extends ActionResponse implements ToXContent {
 
-    final Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
-    final ShardCounts shardCounts;
+    Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
+    ShardCounts shardCounts;
 
+    SyncedFlushResponse() {
 
-    public IndicesSyncedFlushResult(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
+    }
+
+    public SyncedFlushResponse(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
         // shardsResultPerIndex is never modified after it is passed to this
         // constructor so this is safe even though shardsResultPerIndex is a
         // ConcurrentHashMap
@@ -48,17 +60,23 @@ public class IndicesSyncedFlushResult implements ToXContent {
         this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));
     }
 
-    /** total number shards, including replicas, both assigned and unassigned */
+    /**
+     * total number shards, including replicas, both assigned and unassigned
+     */
     public int totalShards() {
         return shardCounts.total;
     }
 
-    /** total number of shards for which the operation failed */
+    /**
+     * total number of shards for which the operation failed
+     */
     public int failedShards() {
         return shardCounts.failed;
     }
 
-    /** total number of shards which were successfully sync-flushed */
+    /**
+     * total number of shards which were successfully sync-flushed
+     */
     public int successfulShards() {
         return shardCounts.successful;
     }
@@ -91,8 +109,8 @@ public class IndicesSyncedFlushResult implements ToXContent {
                         builder.endObject();
                         continue;
                     }
-                    Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> failedShards = shardResults.failedShards();
-                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardEntry : failedShards.entrySet()) {
+                    Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> failedShards = shardResults.failedShards();
+                    for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry : failedShards.entrySet()) {
                         builder.startObject();
                         builder.field(Fields.SHARD, shardResults.shardId().id());
                         builder.field(Fields.REASON, shardEntry.getValue().failureReason());
@@ -123,16 +141,20 @@ public class IndicesSyncedFlushResult implements ToXContent {
         return new ShardCounts(total, successful, failed);
     }
 
-    static final class ShardCounts implements ToXContent {
+    static final class ShardCounts implements ToXContent, Streamable {
 
-        public final int total;
-        public final int successful;
-        public final int failed;
+        public int total;
+        public int successful;
+        public int failed;
 
         ShardCounts(int total, int successful, int failed) {
             this.total = total;
             this.successful = successful;
             this.failed = failed;
+        }
+
+        ShardCounts() {
+
         }
 
         @Override
@@ -141,6 +163,20 @@ public class IndicesSyncedFlushResult implements ToXContent {
             builder.field(Fields.SUCCESSFUL, successful);
             builder.field(Fields.FAILED, failed);
             return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            total = in.readInt();
+            successful = in.readInt();
+            failed = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(total);
+            out.writeInt(successful);
+            out.writeInt(failed);
         }
     }
 
@@ -153,5 +189,38 @@ public class IndicesSyncedFlushResult implements ToXContent {
         static final XContentBuilderString SHARD = new XContentBuilderString("shard");
         static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        shardCounts = new ShardCounts();
+        shardCounts.readFrom(in);
+        Map<String, List<ShardsSyncedFlushResult>> tmpShardsResultPerIndex = new HashMap<>();
+        int numShardsResults = in.readInt();
+        for (int i =0 ; i< numShardsResults; i++) {
+            String index = in.readString();
+            List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>();
+            int numShards = in.readInt();
+            for (int j =0; j< numShards; j++) {
+                shardsSyncedFlushResults.add(ShardsSyncedFlushResult.readShardsSyncedFlushResult(in));
+            }
+            tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);
+        }
+        shardsResultPerIndex = Collections.unmodifiableMap(tmpShardsResultPerIndex);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        shardCounts.writeTo(out);
+        out.writeInt(shardsResultPerIndex.size());
+        for (Map.Entry<String, List<ShardsSyncedFlushResult>> entry : shardsResultPerIndex.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeInt(entry.getValue().size());
+            for (ShardsSyncedFlushResult shardsSyncedFlushResult : entry.getValue()) {
+                shardsSyncedFlushResult.writeTo(out);
+            }
+        }
     }
 }

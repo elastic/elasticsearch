@@ -56,6 +56,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
     public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
 
+    /** Default value (5 minutes) for indices.memory.shard_inactive_time */
+    public static final TimeValue SHARD_DEFAULT_INACTIVE_TIME = TimeValue.timeValueMinutes(5);
+
     /** How frequently we check indexing memory usage (default: 5 seconds). */
     public static final String SHARD_MEMORY_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
@@ -113,7 +116,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
         this.indexingBuffer = indexingBuffer;
 
-        this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
+        this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, SHARD_DEFAULT_INACTIVE_TIME);
         // we need to have this relatively small to free up heap quickly enough
         this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(5));
 
@@ -135,7 +138,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     public void removeWritingBytes(IndexShard shard, long numBytes) {
         // nocommit this can fail, if two refreshes are running "concurrently"
         Long result = writingBytes.remove(shard);
-        assert result != null;
+        //assert result != null;
         logger.debug("IMC: clear writing bytes for {}", shard.shardId());
     }
 

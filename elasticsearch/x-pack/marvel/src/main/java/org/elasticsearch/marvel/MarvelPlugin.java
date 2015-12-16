@@ -29,9 +29,11 @@ import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class MarvelPlugin extends Plugin {
 
@@ -58,22 +60,29 @@ public class MarvelPlugin extends Plugin {
         return "Elasticsearch Marvel";
     }
 
-    public boolean isEnabled() {
+    boolean isEnabled() {
         return enabled;
     }
 
     @Override
     public Collection<Module> nodeModules() {
-        if (!enabled) {
-            return Collections.emptyList();
+        List<Module> modules = new ArrayList<>();
+
+        // Always load the security integration for tribe nodes.
+        // This is useful if the tribe node is connected to a
+        // protected monitored cluster: __marvel_user operations must be allowed.
+        if (enabled || isTribeNode(settings) || isTribeClientNode(settings)) {
+            modules.add(new MarvelShieldModule(settings));
         }
-        return Arrays.<Module>asList(
-            new MarvelModule(),
-            new LicenseModule(),
-            new CollectorModule(),
-            new ExporterModule(settings),
-            new MarvelShieldModule(settings),
-            new RendererModule());
+
+        if (enabled) {
+            modules.add(new MarvelModule());
+            modules.add(new LicenseModule());
+            modules.add(new CollectorModule());
+            modules.add(new ExporterModule(settings));
+            modules.add(new RendererModule());
+        }
+        return Collections.unmodifiableList(modules);
     }
 
     @Override
@@ -85,17 +94,29 @@ public class MarvelPlugin extends Plugin {
     }
 
     public static boolean marvelEnabled(Settings settings) {
-        String tribe = settings.get(TribeService.TRIBE_NAME);
-        if (tribe != null) {
-            logger.trace("marvel cannot be started on tribe node [{}]", tribe);
-            return false;
-        }
-
         if (!"node".equals(settings.get(Client.CLIENT_TYPE_SETTING))) {
             logger.trace("marvel cannot be started on a transport client");
             return false;
         }
-        return settings.getAsBoolean(ENABLED, true);
+        // By default, marvel is disabled on tribe nodes
+        return settings.getAsBoolean(ENABLED, !isTribeNode(settings) && !isTribeClientNode(settings));
+    }
+
+    static boolean isTribeNode(Settings settings) {
+        if (settings.getGroups("tribe", true).isEmpty() == false) {
+            logger.trace("detecting tribe node");
+            return true;
+        }
+        return false;
+    }
+
+    static boolean isTribeClientNode(Settings settings) {
+        String tribeName = settings.get(TribeService.TRIBE_NAME);
+        if (tribeName != null) {
+            logger.trace("detecting tribe client node [{}]", tribeName);
+            return true;
+        }
+        return false;
     }
 
     // NOTE: The fact this signature takes a module is a hack, and effectively like the previous
@@ -103,7 +124,7 @@ public class MarvelPlugin extends Plugin {
     // We need to avoid trying to load the AuthorizationModule class unless we know shield integration
     // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
     public void onModule(Module module) {
-        if (enabled && MarvelShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
+        if (MarvelShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
             ((AuthorizationModule)module).registerReservedRole(InternalMarvelUser.ROLE);
         }
     }

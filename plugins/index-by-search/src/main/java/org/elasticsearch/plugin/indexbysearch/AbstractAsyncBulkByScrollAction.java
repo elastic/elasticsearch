@@ -163,6 +163,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 finishHim(null);
                 return;
             }
+            batches.incrementAndGet();
             List<SearchHit> docsIterable = Arrays.asList(docs);
             if (mainRequest.size() != -1) {
                 // Truncate the docs if we have more than the request size
@@ -186,7 +187,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));
             }
-            batches.incrementAndGet();
             client.bulk(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {

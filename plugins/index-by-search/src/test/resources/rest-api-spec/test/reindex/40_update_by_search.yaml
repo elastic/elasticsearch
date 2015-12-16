@@ -100,5 +100,6 @@
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
+  - match: {batches: 1}
   - do:
       indices.refresh: {}

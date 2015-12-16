@@ -60,6 +60,24 @@ public abstract class ModuleTestCase extends ESTestCase {
         fail("Did not find any binding to " + to.getName() + ". Found these bindings:\n" + s);
     }
 
+    /** Configures the module and asserts "clazz" is not bound to anything. */
+    public void assertNotBound(Module module, Class clazz) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof LinkedKeyBinding) {
+                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
+                    fail("Found binding for " + clazz.getName() + " to " + binding.getKey().getTypeLiteral().getType().getTypeName());
+                }
+            } else if (element instanceof UntargettedBinding) {
+                UntargettedBinding binding = (UntargettedBinding) element;
+                if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
+                    fail("Found binding for " + clazz.getName());
+                }
+            }
+        }
+    }
+
     /**
      * Attempts to configure the module, and asserts an {@link IllegalArgumentException} is
      * caught, containing the given messages

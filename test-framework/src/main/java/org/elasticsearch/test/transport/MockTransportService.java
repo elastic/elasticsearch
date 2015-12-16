@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -38,7 +39,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -75,12 +75,12 @@ public class MockTransportService extends TransportService {
         public String description() {
             return "a mock transport service for testing";
         }
-        public void onModule(TransportModule transportModule) {
-            transportModule.addTransportService("mock", MockTransportService.class);
+        public void onModule(NetworkModule module) {
+            module.registerTransportService("mock", MockTransportService.class);
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
+            return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
         }
     }
 

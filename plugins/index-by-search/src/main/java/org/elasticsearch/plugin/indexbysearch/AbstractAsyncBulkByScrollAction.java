@@ -154,7 +154,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
     }
 
-    void onScrollResponse(final SearchResponse searchResponse) {
+    void onScrollResponse(SearchResponse searchResponse) {
         try {
             scroll.set(searchResponse.getScrollId());
             SearchHit[] docs = searchResponse.getHits().getHits();

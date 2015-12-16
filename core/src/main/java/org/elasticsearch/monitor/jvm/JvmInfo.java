@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.lang.management.*;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.PlatformManagedObject;
+import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +107,21 @@ public class JvmInfo implements Streamable, ToXContent {
             info.memoryPools[i] = memoryPoolMXBean.getName();
         }
 
+        try {
+            @SuppressWarnings("unchecked") Class<? extends PlatformManagedObject> clazz =
+                (Class<? extends PlatformManagedObject>)Class.forName("com.sun.management.HotSpotDiagnosticMXBean");
+            Class<?> vmOptionClazz = Class.forName("com.sun.management.VMOption");
+            PlatformManagedObject hotSpotDiagnosticMXBean = ManagementFactory.getPlatformMXBean(clazz);
+            Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
+            Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
+            Method valueMethod = vmOptionClazz.getMethod("getValue");
+            String value = (String)valueMethod.invoke(useCompressedOopsVmOption);
+            info.usingCompressedOops = Boolean.parseBoolean(value);
+        } catch (Throwable t) {
+            // unable to deduce the state of compressed oops
+            // usingCompressedOops will hold its default value of null
+        }
+
         INSTANCE = info;
     }
 
@@ -128,6 +150,8 @@ public class JvmInfo implements Streamable, ToXContent {
 
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
+
+    private Boolean usingCompressedOops;
 
     private JvmInfo() {
     }
@@ -252,6 +276,10 @@ public class JvmInfo implements Streamable, ToXContent {
         return this.systemProperties;
     }
 
+    public Boolean usingCompressedOops() {
+        return this.usingCompressedOops;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -272,6 +300,8 @@ public class JvmInfo implements Streamable, ToXContent {
 
         builder.field(Fields.GC_COLLECTORS, gcCollectors);
         builder.field(Fields.MEMORY_POOLS, memoryPools);
+
+        builder.field(Fields.USING_COMPRESSED_OOPS, usingCompressedOops == null ? "unknown" : Boolean.toString(usingCompressedOops));
 
         builder.endObject();
         return builder;
@@ -300,6 +330,7 @@ public class JvmInfo implements Streamable, ToXContent {
         static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
         static final XContentBuilderString GC_COLLECTORS = new XContentBuilderString("gc_collectors");
         static final XContentBuilderString MEMORY_POOLS = new XContentBuilderString("memory_pools");
+        static final XContentBuilderString USING_COMPRESSED_OOPS = new XContentBuilderString("using_compressed_ordinary_object_pointers");
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
@@ -331,6 +362,14 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.readFrom(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
+
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (in.readBoolean()) {
+                usingCompressedOops = in.readBoolean();
+            } else {
+                usingCompressedOops = null;
+            }
+        }
     }
 
     @Override
@@ -355,6 +394,15 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
+
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (usingCompressedOops != null) {
+                out.writeBoolean(true);
+                out.writeBoolean(usingCompressedOops);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     public static class Mem implements Streamable {

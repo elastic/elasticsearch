@@ -114,8 +114,14 @@ public class SnapshotSharedTest {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
+        String snapshotName;
+        if (ESIntegTestCase.getMinimumVersionInCluster().onOrAfter(Version.V_2_2_0)) {
+            snapshotName = randomFrom("test-snap", "_all", "*", "*-snap", "test*");
+        } else {
+            snapshotName = "test-snap";
+        }
         SnapshotInfo snapshotInfo = client().admin().cluster().prepareGetSnapshots("test-repo")
-            .setSnapshots(randomFrom("test-snap", "_all", "*", "*-snap", "test*")).get().getSnapshots().get(0);
+            .setSnapshots(snapshotName).get().getSnapshots().get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), snapshotVersion);
 

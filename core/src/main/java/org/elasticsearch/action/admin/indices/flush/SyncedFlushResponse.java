@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,7 +192,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContent {
         super.readFrom(in);
         shardCounts = new ShardCounts();
         shardCounts.readFrom(in);
-        shardsResultPerIndex = new HashMap<>();
+        Map<String, List<ShardsSyncedFlushResult>> tmpShardsResultPerIndex = new HashMap<>();
         int numShardsResults = in.readInt();
         for (int i =0 ; i< numShardsResults; i++) {
             String index = in.readString();
@@ -200,8 +201,9 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContent {
             for (int j =0; j< numShards; j++) {
                 shardsSyncedFlushResults.add(ShardsSyncedFlushResult.readShardsSyncedFlushResult(in));
             }
-            shardsResultPerIndex.put(index, shardsSyncedFlushResults);
+            tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);
         }
+        shardsResultPerIndex = Collections.unmodifiableMap(tmpShardsResultPerIndex);
     }
 
     @Override

@@ -51,8 +51,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType) {
-            super(name, fieldType);
+        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
+            super(name, fieldType, defaultFieldType);
         }
     }
 

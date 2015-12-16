@@ -97,7 +97,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         private final MappedFieldType childJoinFieldType = Defaults.JOIN_FIELD_TYPE.clone();
 
         public Builder(String documentType) {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             this.indexName = name;
             this.documentType = documentType;
             builder = this;

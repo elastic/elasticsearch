@@ -98,7 +98,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         protected Boolean ignoreMalformed;
 
         public Builder(String name, GeoPointFieldType fieldType) {
-            super(name, fieldType);
+            super(name, fieldType, fieldType);
         }
 
         @Override

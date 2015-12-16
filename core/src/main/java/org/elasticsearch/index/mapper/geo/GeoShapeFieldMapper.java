@@ -121,7 +121,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         private Boolean coerce;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         public GeoShapeFieldType fieldType() {

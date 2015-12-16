@@ -1223,6 +1223,29 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    private void handleRefreshException(Exception e) {
+        if (e instanceof EngineClosedException) {
+            // ignore
+        } else if (e instanceof RefreshFailedEngineException e) {
+            RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
+            if (rfee.getCause() instanceof InterruptedException) {
+                // ignore, we are being shutdown
+            } else if (rfee.getCause() instanceof ClosedByInterruptException) {
+                // ignore, we are being shutdown
+            } else if (rfee.getCause() instanceof ThreadInterruptedException) {
+                // ignore, we are being shutdown
+            } else {
+                if (state != IndexShardState.CLOSED) {
+                    logger.warn("Failed to perform engine refresh", e);
+                }
+            }
+        } else {
+            if (state != IndexShardState.CLOSED) {
+                logger.warn("Failed to perform engine refresh", e);
+            }
+        }
+    }
+
     /**
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
@@ -1242,24 +1265,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                         } finally {
                             indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
                         }
-                    } catch (EngineClosedException ex) {
-                        // ignore
-                    } catch (RefreshFailedEngineException e) {
-                        if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine refresh", e);
-                            }
-                        }
                     } catch (Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("Failed to perform scheduled engine refresh", e);
-                        }
+                        handleRefreshException(e);
                     }
                 }
             });
@@ -1282,24 +1289,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                         if (getEngine().refreshNeeded()) {
                             refresh("schedule");
                         }
-                    } catch (EngineClosedException e) {
-                        // we are being closed, ignore
-                    } catch (RefreshFailedEngineException e) {
-                        if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine refresh", e);
-                            }
-                        }
                     } catch (Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("Failed to perform scheduled engine refresh", e);
-                        }
+                        handleRefreshException(e);
                     }
 
                     reschedule();

@@ -32,10 +32,10 @@ dependency-reduced-pom.xml
 # osx stuff
 .DS_Store
 
-# random old stuff that we should look at the necessity of...
-docs/html/
-docs/build.log
+# needed in case docs build is run...maybe we can configure doc build to generate files under build?
 html_docs
+
+# random old stuff that we should look at the necessity of...
 /tmp/
 backwards/
 

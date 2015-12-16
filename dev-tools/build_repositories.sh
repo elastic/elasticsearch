@@ -167,7 +167,7 @@ createrepo --update $centosdir
 
 echo "RPM: Resigning repomd.xml"
 rm -f $centosdir/repodata/repomd.xml.asc
-gpg $GPG_HOMEDIR -u GPG_KEY_ID --passphrase "$GPG_PASSPHRASE" -a -b -o $centosdir/repodata/repomd.xml.asc $centosdir/repodata/repomd.xml
+gpg $GPG_HOMEDIR -u $GPG_KEY_ID --passphrase "$GPG_PASSPHRASE" -a -b -o $centosdir/repodata/repomd.xml.asc $centosdir/repodata/repomd.xml
 
 echo "RPM: Syncing back repository for $version into S3 bucket $S3_BUCKET_SYNC_TO"
 $s3cmd sync -P $centosdir/ s3://$S3_BUCKET_SYNC_TO/elasticsearch/$version/centos/

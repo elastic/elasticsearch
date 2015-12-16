@@ -301,7 +301,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         GeoPointFieldMapperLegacy gpfmMergeWith = (GeoPointFieldMapperLegacy) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
-                throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
+                throw new IllegalArgumentException("mapper [" + fieldType().name() + "] has different [coerce]");
             }
         }
 
@@ -330,17 +330,17 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
+            Field field = new Field(fieldType().name(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
             context.doc().add(field);
         }
 
         super.parse(context, point, geoHash);
 
         if (fieldType().hasDocValues()) {
-            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().names().indexName());
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomGeoPointDocValuesField(fieldType().names().indexName(), point.lat(), point.lon());
-                context.doc().addWithKey(fieldType().names().indexName(), field);
+                field = new CustomGeoPointDocValuesField(fieldType().name(), point.lat(), point.lon());
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(point.lat(), point.lon());
             }

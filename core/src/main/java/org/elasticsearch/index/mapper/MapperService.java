@@ -552,15 +552,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns an {@link MappedFieldType} which has the given index name.
-     *
-     * If multiple types have fields with the same index name, the first is returned.
-     */
-    public MappedFieldType indexName(String indexName) {
-        return fieldTypes.getByIndexName(indexName);
-    }
-
-    /**
      * Returns the {@link MappedFieldType} for the give fullName.
      *
      * If multiple types have fields with the same full name, the first is returned.
@@ -578,30 +569,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singletonList(pattern);
         }
-        return fieldTypes.simpleMatchToIndexNames(pattern);
+        return fieldTypes.simpleMatchToFullName(pattern);
     }
 
-    // TODO: remove this since the underlying index names are now the same across all types
-    public Collection<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
-        return simpleMatchToIndexNames(pattern);
-    }
-
-    // TODO: remove types param, since the object mapper must be the same across all types
-    public ObjectMapper getObjectMapper(String name, @Nullable String[] types) {
+    public ObjectMapper getObjectMapper(String name) {
         return fullPathObjectMappers.get(name);
-    }
-
-    public MappedFieldType smartNameFieldType(String smartName) {
-        MappedFieldType fieldType = fullName(smartName);
-        if (fieldType != null) {
-            return fieldType;
-        }
-        return indexName(smartName);
-    }
-
-    // TODO: remove this since the underlying index names are now the same across all types
-    public MappedFieldType smartNameFieldType(String smartName, @Nullable String[] types) {
-        return smartNameFieldType(smartName);
     }
 
     /**
@@ -697,7 +669,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = smartNameFieldType(fieldName);
+            MappedFieldType fieldType = fullName(fieldName);
             if (fieldType != null) {
                 Analyzer analyzer = extractAnalyzer.apply(fieldType);
                 if (analyzer != null) {

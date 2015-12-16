@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -38,8 +37,8 @@ import java.io.IOException;
 
 public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVAtomicFieldData> {
 
-    public BytesBinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
-        super(index, fieldNames, fieldDataType);
+    public BytesBinaryDVIndexFieldData(Index index, String fieldName, FieldDataType fieldDataType) {
+        super(index, fieldName, fieldDataType);
     }
 
     @Override
@@ -50,7 +49,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     @Override
     public BytesBinaryDVAtomicFieldData load(LeafReaderContext context) {
         try {
-            return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
+            return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
@@ -67,8 +66,8 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
-            final Names fieldNames = fieldType.names();
-            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
+            final String fieldName = fieldType.name();
+            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName, fieldType.fieldDataType());
         }
 
     }

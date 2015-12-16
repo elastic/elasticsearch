@@ -46,7 +46,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new IndexIndexFieldData(indexSettings, fieldType.names());
+            return new IndexIndexFieldData(indexSettings, fieldType.name());
         }
 
     }
@@ -100,8 +100,8 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final AtomicOrdinalsFieldData atomicFieldData;
 
-    private IndexIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names names) {
-        super(indexSettings, names, new FieldDataType("string"), null, null);
+    private IndexIndexFieldData(IndexSettings indexSettings, String name) {
+        super(indexSettings, name, new FieldDataType("string"), null, null);
         atomicFieldData = new IndexAtomicFieldData(index().name());
     }
 

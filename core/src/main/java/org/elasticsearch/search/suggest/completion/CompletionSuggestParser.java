@@ -140,13 +140,13 @@ public class CompletionSuggestParser implements SuggestContextParser {
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
         TLP_PARSER.parse(parser, suggestion, contextAndSuggest);
         final XContentParser contextParser = contextAndSuggest.contextParser;
-        MappedFieldType mappedFieldType = mapperService.smartNameFieldType(suggestion.getField());
+        MappedFieldType mappedFieldType = mapperService.fullName(suggestion.getField());
         if (mappedFieldType == null) {
             throw new ElasticsearchException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         } else if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             if (type.hasContextMappings() == false && contextParser != null) {
-                throw new IllegalArgumentException("suggester [" + type.names().fullName() + "] doesn't expect any context");
+                throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
             Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
             if (type.hasContextMappings() && contextParser != null) {

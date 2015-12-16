@@ -57,13 +57,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
                                                                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PagedBytesIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
+            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 
-    public PagedBytesIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
+    public PagedBytesIndexFieldData(IndexSettings indexSettings, String fieldName,
                                     FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache, breakerService);
+        super(indexSettings, fieldName, fieldDataType, cache, breakerService);
     }
 
     @Override
@@ -71,8 +71,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldNames().fullName());
-        Terms terms = reader.terms(getFieldNames().indexName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        Terms terms = reader.terms(getFieldName());
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -167,10 +167,10 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         public long estimateStringFieldData() {
             try {
                 LeafReader reader = context.reader();
-                Terms terms = reader.terms(getFieldNames().indexName());
+                Terms terms = reader.terms(getFieldName());
 
                 Fields fields = reader.fields();
-                final Terms fieldTerms = fields.terms(getFieldNames().indexName());
+                final Terms fieldTerms = fields.terms(getFieldName());
 
                 if (fieldTerms instanceof FieldReader) {
                     final Stats stats = ((FieldReader) fieldTerms).getStats();

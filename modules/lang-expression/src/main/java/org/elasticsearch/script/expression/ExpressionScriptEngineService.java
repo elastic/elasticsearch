@@ -184,7 +184,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         throw new ScriptException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                     }
 
-                    MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
+                    MappedFieldType fieldType = mapper.fullName(fieldname);
 
                     if (fieldType == null) {
                         throw new ScriptException("Field [" + fieldname + "] used in expression does not exist in mappings");

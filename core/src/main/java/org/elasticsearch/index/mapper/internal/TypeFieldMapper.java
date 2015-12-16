@@ -70,7 +70,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -84,7 +84,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setNames(buildNames(context));
+            fieldType.setName(buildFullName(context));
             return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
@@ -186,9 +186,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), context.type(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(context.type())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.type())));
         }
     }
 

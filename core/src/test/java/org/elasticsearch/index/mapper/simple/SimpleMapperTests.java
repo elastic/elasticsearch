@@ -55,7 +55,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
         doc = docMapper.parse("test", "person", "1", json).rootDoc();
     }
 
@@ -68,8 +68,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse("test", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -80,8 +80,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -89,8 +89,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {

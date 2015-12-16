@@ -58,9 +58,9 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         for (FieldMapper mapper : mappers) {
             fieldMappers.put(mapper.name(), mapper);
             MappedFieldType fieldType = mapper.fieldType();
-            put(indexAnalyzers, fieldType.names().indexName(), fieldType.indexAnalyzer(), defaultIndex);
-            put(searchAnalyzers, fieldType.names().indexName(), fieldType.searchAnalyzer(), defaultSearch);
-            put(searchQuoteAnalyzers, fieldType.names().indexName(), fieldType.searchQuoteAnalyzer(), defaultSearchQuote);
+            put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
+            put(searchAnalyzers, fieldType.name(), fieldType.searchAnalyzer(), defaultSearch);
+            put(searchQuoteAnalyzers, fieldType.name(), fieldType.searchQuoteAnalyzer(), defaultSearchQuote);
         }
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
@@ -76,10 +76,10 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
     public Collection<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (FieldMapper fieldMapper : this) {
-            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
-                fields.add(fieldMapper.fieldType().names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().indexName())) {
-                fields.add(fieldMapper.fieldType().names().fullName());
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
+                fields.add(fieldMapper.fieldType().name());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
+                fields.add(fieldMapper.fieldType().name());
             }
         }
         return fields;
@@ -91,7 +91,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
             return fieldMapper;
         }
         for (FieldMapper otherFieldMapper : this) {
-            if (otherFieldMapper.fieldType().names().indexName().equals(name)) {
+            if (otherFieldMapper.fieldType().name().equals(name)) {
                 return otherFieldMapper;
             }
         }

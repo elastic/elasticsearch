@@ -699,17 +699,12 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().smartNameFieldType(name, request.types());
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return mapperService().smartNameFieldType(name);
+        return mapperService().fullName(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name, request.types());
+        return mapperService().getObjectMapper(name);
     }
 
     @Override

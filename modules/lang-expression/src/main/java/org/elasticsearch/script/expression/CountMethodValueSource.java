@@ -67,6 +67,6 @@ public class CountMethodValueSource extends ValueSource {
 
     @Override
     public String description() {
-        return "count: field(" + fieldData.getFieldNames().toString() + ")";
+        return "count: field(" + fieldData.getFieldName() + ")";
     }
 }

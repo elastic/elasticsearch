@@ -55,13 +55,13 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().names().fullName()));
+        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().name()));
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.fieldType().names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

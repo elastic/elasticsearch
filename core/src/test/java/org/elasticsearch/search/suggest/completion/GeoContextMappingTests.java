@@ -80,7 +80,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -117,7 +117,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -156,7 +156,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .field("weight", 5)
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -194,7 +194,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", builder.bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 

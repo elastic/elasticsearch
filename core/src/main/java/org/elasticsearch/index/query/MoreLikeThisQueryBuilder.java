@@ -810,7 +810,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
-                moreLikeFields.add(fieldType == null ? field : fieldType.names().indexName());
+                moreLikeFields.add(fieldType == null ? field : fieldType.name());
             }
         }
 

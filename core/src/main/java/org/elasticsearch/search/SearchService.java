@@ -971,7 +971,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final String indexName = fieldMapper.fieldType().names().indexName();
+                    final String indexName = fieldMapper.fieldType().name();
                     Loading normsLoading = fieldMapper.fieldType().normsLoading();
                     if (normsLoading == null) {
                         normsLoading = defaultLoading;
@@ -1047,10 +1047,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         fieldDataType = joinFieldType.fieldDataType();
                         // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
                         // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     } else {
                         fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     }
 
                     if (fieldDataType == null) {
@@ -1079,10 +1079,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                                 final long start = System.nanoTime();
                                 indexFieldDataService.getForField(fieldType).load(ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.names().fullName());
+                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.name());
                             } finally {
                                 latch.countDown();
                             }
@@ -1115,10 +1115,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         fieldDataType = joinFieldType.fieldDataType();
                         // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
                         // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     } else {
                         fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     }
                     if (fieldDataType == null) {
                         continue;
@@ -1144,10 +1144,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
                             ifd.loadGlobal(searcher.getDirectoryReader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
                         } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.names().fullName());
+                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.name());
                         } finally {
                             latch.countDown();
                         }

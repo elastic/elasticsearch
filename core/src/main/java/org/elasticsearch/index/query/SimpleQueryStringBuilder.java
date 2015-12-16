@@ -294,7 +294,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static String resolveIndexName(String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            return fieldType.names().indexName();
+            return fieldType.name();
         }
         return fieldName;
     }

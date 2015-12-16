@@ -69,7 +69,7 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         if (fieldsValues == null) {
             return;
         }
-        List<Object> fieldValues = fieldsValues.get(fieldType.names().indexName());
+        List<Object> fieldValues = fieldsValues.get(fieldType.name());
         if (fieldValues == null) {
             return;
         }

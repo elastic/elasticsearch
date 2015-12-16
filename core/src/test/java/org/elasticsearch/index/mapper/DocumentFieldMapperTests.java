@@ -109,14 +109,14 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     public void testAnalyzers() throws IOException {
         FakeFieldType fieldType1 = new FakeFieldType();
-        fieldType1.setNames(new MappedFieldType.Names("field1"));
+        fieldType1.setName("field1");
         fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", new FakeAnalyzer("index")));
         fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", new FakeAnalyzer("search")));
         fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", new FakeAnalyzer("search_quote")));
         FieldMapper fieldMapper1 = new FakeFieldMapper("field1", fieldType1);
 
         FakeFieldType fieldType2 = new FakeFieldType();
-        fieldType2.setNames(new MappedFieldType.Names("field2"));
+        fieldType2.setName("field2");
         FieldMapper fieldMapper2 = new FakeFieldMapper("field2", fieldType2);
 
         Analyzer defaultIndex = new FakeAnalyzer("default_index");

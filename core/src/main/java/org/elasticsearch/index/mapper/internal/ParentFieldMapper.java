@@ -75,7 +75,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 
             JOIN_FIELD_TYPE.setHasDocValues(true);
@@ -120,9 +120,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             if (parentType == null) {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
-            parentJoinFieldType.setNames(new MappedFieldType.Names(joinField(documentType)));
+            parentJoinFieldType.setName(joinField(documentType));
             parentJoinFieldType.setFieldDataType(null);
-            childJoinFieldType.setNames(new MappedFieldType.Names(joinField(parentType)));
+            childJoinFieldType.setName(joinField(parentType));
             return new ParentFieldMapper(fieldType, parentJoinFieldType, childJoinFieldType, parentType, context.indexSettings());
         }
     }
@@ -242,7 +242,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                 }
             }
-            return new TermsQuery(names().indexName(), bValues);
+            return new TermsQuery(name(), bValues);
         }
     }
 
@@ -269,7 +269,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType joinFieldTypeForParentType(String parentType, Settings indexSettings) {
         MappedFieldType parentJoinFieldType = Defaults.JOIN_FIELD_TYPE.clone();
-        parentJoinFieldType.setNames(new MappedFieldType.Names(joinField(parentType)));
+        parentJoinFieldType.setName(joinField(parentType));
         parentJoinFieldType.freeze();
         return parentJoinFieldType;
     }
@@ -312,7 +312,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            fields.add(new Field(fieldType().names().indexName(), Uid.createUid(context.stringBuilder(), parentType, parentId), fieldType()));
+            fields.add(new Field(fieldType().name(), Uid.createUid(context.stringBuilder(), parentType, parentId), fieldType()));
             addJoinFieldIfNeeded(fields, childJoinFieldType, parentId);
         } else {
             // otherwise, we are running it post processing of the xcontent
@@ -324,7 +324,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                         throw new MapperParsingException("No parent id provided, not within the document, and not externally");
                     }
                     // we did not add it in the parsing phase, add it now
-                    fields.add(new Field(fieldType().names().indexName(), Uid.createUid(context.stringBuilder(), parentType, parentId), fieldType()));
+                    fields.add(new Field(fieldType().name(), Uid.createUid(context.stringBuilder(), parentType, parentId), fieldType()));
                     addJoinFieldIfNeeded(fields, childJoinFieldType, parentId);
                 } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), parentType, parentId))) {
                     throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
@@ -336,7 +336,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     private void addJoinFieldIfNeeded(List<Field> fields, MappedFieldType fieldType, String id) {
         if (fieldType.hasDocValues()) {
-            fields.add(new SortedDocValuesField(fieldType.names().indexName(), new BytesRef(id)));
+            fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(id)));
         }
     }
 

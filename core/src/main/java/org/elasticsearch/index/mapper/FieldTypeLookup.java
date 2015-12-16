@@ -42,29 +42,17 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /** Full field name to types containing a mapping for this full name. */
     final CopyOnWriteHashMap<String, Set<String>> fullNameToTypes;
 
-    /** Index field name to field type */
-    final CopyOnWriteHashMap<String, MappedFieldType> indexNameToFieldType;
-
-    /** Index field name to types containing a mapping for this index name. */
-    final CopyOnWriteHashMap<String, Set<String>> indexNameToTypes;
-
     /** Create a new empty instance. */
     public FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         fullNameToTypes = new CopyOnWriteHashMap<>();
-        indexNameToFieldType = new CopyOnWriteHashMap<>();
-        indexNameToTypes = new CopyOnWriteHashMap<>();
     }
 
     private FieldTypeLookup(
             CopyOnWriteHashMap<String, MappedFieldType> fullName,
-            CopyOnWriteHashMap<String, Set<String>> fullNameToTypes,
-            CopyOnWriteHashMap<String, MappedFieldType> indexName,
-            CopyOnWriteHashMap<String, Set<String>> indexNameToTypes) {
+            CopyOnWriteHashMap<String, Set<String>> fullNameToTypes) {
         this.fullNameToFieldType = fullName;
         this.fullNameToTypes = fullNameToTypes;
-        this.indexNameToFieldType = indexName;
-        this.indexNameToTypes = indexNameToTypes;
     }
 
     private static CopyOnWriteHashMap<String, Set<String>> addType(CopyOnWriteHashMap<String, Set<String>> map, String key, String type) {
@@ -97,31 +85,21 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, Set<String>> fullNameToTypes = this.fullNameToTypes;
-        CopyOnWriteHashMap<String, MappedFieldType> indexName = this.indexNameToFieldType;
-        CopyOnWriteHashMap<String, Set<String>> indexNameToTypes = this.indexNameToTypes;
 
         for (FieldMapper fieldMapper : fieldMappers) {
             MappedFieldType fieldType = fieldMapper.fieldType();
-            MappedFieldType fullNameFieldType = fullName.get(fieldType.names().fullName());
-            MappedFieldType indexNameFieldType = indexName.get(fieldType.names().indexName());
-
-            if (fullNameFieldType != null && indexNameFieldType != null && fullNameFieldType != indexNameFieldType) {
-                // this new field bridges between two existing field names (a full and index name), which we cannot support
-                throw new IllegalStateException("insane mappings found. field " + fieldType.names().fullName() + " maps across types to field " + fieldType.names().indexName());
-            }
+            MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
             // is the update even legal?
             checkCompatibility(type, fieldMapper, updateAllTypes);
 
-            if (fieldType != fullNameFieldType || fieldType != indexNameFieldType) {
-                fullName = fullName.copyAndPut(fieldType.names().fullName(), fieldMapper.fieldType());
-                indexName = indexName.copyAndPut(fieldType.names().indexName(), fieldMapper.fieldType());
+            if (fieldType != fullNameFieldType) {
+                fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
             }
 
-            fullNameToTypes = addType(fullNameToTypes, fieldType.names().fullName(), type);
-            indexNameToTypes = addType(indexNameToTypes, fieldType.names().indexName(), type);
+            fullNameToTypes = addType(fullNameToTypes, fieldType.name(), type);
         }
-        return new FieldTypeLookup(fullName, fullNameToTypes, indexName, indexNameToTypes);
+        return new FieldTypeLookup(fullName, fullNameToTypes);
     }
 
     private static boolean beStrict(String type, Set<String> types, boolean updateAllTypes) {
@@ -142,26 +120,14 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * If updateAllTypes is true, only basic compatibility is checked.
      */
     private void checkCompatibility(String type, FieldMapper fieldMapper, boolean updateAllTypes) {
-        MappedFieldType fieldType = fullNameToFieldType.get(fieldMapper.fieldType().names().fullName());
+        MappedFieldType fieldType = fullNameToFieldType.get(fieldMapper.fieldType().name());
         if (fieldType != null) {
             List<String> conflicts = new ArrayList<>();
-            final Set<String> types = fullNameToTypes.get(fieldMapper.fieldType().names().fullName());
+            final Set<String> types = fullNameToTypes.get(fieldMapper.fieldType().name());
             boolean strict = beStrict(type, types, updateAllTypes);
             fieldType.checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
             if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with existing mapping in other types:\n" + conflicts.toString());
-            }
-        }
-
-        // field type for the index name must be compatible too
-        fieldType = indexNameToFieldType.get(fieldMapper.fieldType().names().indexName());
-        if (fieldType != null) {
-            List<String> conflicts = new ArrayList<>();
-            final Set<String> types = indexNameToTypes.get(fieldMapper.fieldType().names().indexName());
-            boolean strict = beStrict(type, types, updateAllTypes);
-            fieldType.checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
-            if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with mapping with the same index name in other types" + conflicts.toString());
+                throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().name() + "] conflicts with existing mapping in other types:\n" + conflicts.toString());
             }
         }
     }
@@ -180,45 +146,16 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         return types;
     }
 
-    /** Returns the field type for the given index name */
-    public MappedFieldType getByIndexName(String field) {
-        return indexNameToFieldType.get(field);
-    }
-
-    /** Get the set of types that have a mapping for the given field. */
-    public Set<String> getTypesByIndexName(String field) {
-        Set<String> types = indexNameToTypes.get(field);
-        if (types == null) {
-            types = Collections.emptySet();
-        }
-        return types;
-    }
-
-    /**
-     * Returns a list of the index names of a simple match regex like pattern against full name and index name.
-     */
-    public Collection<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> fields = new HashSet<>();
-        for (MappedFieldType fieldType : this) {
-            if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
-                fields.add(fieldType.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldType.names().indexName())) {
-                fields.add(fieldType.names().indexName());
-            }
-        }
-        return fields;
-    }
-
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     public Collection<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
-            if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
-                fields.add(fieldType.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldType.names().indexName())) {
-                fields.add(fieldType.names().fullName());
+            if (Regex.simpleMatch(pattern, fieldType.name())) {
+                fields.add(fieldType.name());
+            } else if (Regex.simpleMatch(pattern, fieldType.name())) {
+                fields.add(fieldType.name());
             }
         }
         return fields;

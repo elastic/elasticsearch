@@ -244,7 +244,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setNames(new MappedFieldType.Names("_dummy"));
+            FIELD_TYPE.setName("_dummy");
             FIELD_TYPE.freeze();
         }
 

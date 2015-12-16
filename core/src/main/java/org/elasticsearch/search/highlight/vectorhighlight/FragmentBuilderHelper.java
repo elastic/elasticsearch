@@ -55,7 +55,7 @@ public final class FragmentBuilderHelper {
      */
     public static WeightedFragInfo fixWeightedFragInfo(FieldMapper mapper, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
-        assert mapper.fieldType().names().indexName().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
+        assert mapper.fieldType().name().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
         if (!fragInfo.getSubInfos().isEmpty() && (containsBrokenAnalysis(mapper.fieldType().indexAnalyzer()))) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort

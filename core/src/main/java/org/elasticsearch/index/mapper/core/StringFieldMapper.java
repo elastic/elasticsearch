@@ -248,7 +248,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
-            throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
+            throw new MapperParsingException("Field [" + fieldType.name() + "] cannot be analyzed and have doc values");
         }
         this.positionIncrementGap = positionIncrementGap;
         this.ignoreAbove = ignoreAbove;
@@ -315,19 +315,19 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().names().fullName(), valueAndBoost.value(), valueAndBoost.boost());
+            context.allEntries().addText(fieldType().name(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), valueAndBoost.value(), fieldType());
+            Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(valueAndBoost.value())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(valueAndBoost.value())));
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
+            context.ignoredValue(fieldType().name(), valueAndBoost.value());
         }
     }
 

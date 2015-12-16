@@ -217,31 +217,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        protected MappedFieldType.Names buildNames(BuilderContext context) {
-            return new MappedFieldType.Names(buildIndexName(context), buildIndexNameClean(context), buildFullName(context));
-        }
-
-        protected String buildIndexName(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-                return buildFullName(context);
-            }
-            String actualIndexName = indexName == null ? name : indexName;
-            return context.path().pathAsText(actualIndexName);
-        }
-
-        protected String buildIndexNameClean(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-                return buildFullName(context);
-            }
-            return indexName == null ? name : indexName;
-        }
-
         protected String buildFullName(BuilderContext context) {
             return context.path().pathAsText(name);
         }
 
         protected void setupFieldType(BuilderContext context) {
-            fieldType.setNames(buildNames(context));
+            fieldType.setName(buildFullName(context));
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -288,7 +269,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public String name() {
-        return fieldType().names().fullName();
+        return fieldType().name();
     }
 
     public MappedFieldType fieldType() {
@@ -318,7 +299,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
         }
         multiFields.parse(this, context);
         return null;
@@ -367,7 +348,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();
             }
-            throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
         }
         FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
         multiFields = multiFields.merge(fieldMergeWith.multiFields);
@@ -379,7 +360,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.names().fullName());
+        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());
         if (newFieldType == null) {
             throw new IllegalStateException();
         }
@@ -404,9 +385,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (indexCreatedBefore2x && (includeDefaults || !simpleName().equals(fieldType().names().originalIndexName()))) {
-            builder.field("index_name", fieldType().names().originalIndexName());
-        }
 
         if (includeDefaults || fieldType().boost() != 1.0f) {
             builder.field("boost", fieldType().boost());

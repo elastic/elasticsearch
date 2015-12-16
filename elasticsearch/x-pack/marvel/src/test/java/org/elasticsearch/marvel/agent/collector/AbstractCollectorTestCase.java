@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
@@ -28,13 +29,16 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -201,7 +205,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         }
 
         @Override
-        public void onModule(RestModule module) {
+        public void onModule(NetworkModule module) {
         }
 
         @Override

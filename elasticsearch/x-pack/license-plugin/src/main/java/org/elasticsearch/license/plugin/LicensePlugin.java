@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
@@ -25,7 +26,6 @@ import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,11 +60,10 @@ public class LicensePlugin extends Plugin {
         return "Internal Elasticsearch Licensing Plugin";
     }
 
-    public void onModule(RestModule module) {
-        // Register REST endpoint
-        module.addRestAction(RestPutLicenseAction.class);
-        module.addRestAction(RestGetLicenseAction.class);
-        module.addRestAction(RestDeleteLicenseAction.class);
+    public void onModule(NetworkModule module) {
+        module.registerRestHandler(RestPutLicenseAction.class);
+        module.registerRestHandler(RestGetLicenseAction.class);
+        module.registerRestHandler(RestDeleteLicenseAction.class);
     }
 
     public void onModule(ActionModule module) {

@@ -33,8 +33,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
@@ -111,13 +111,12 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapperWithoutTtl = parser.parse("type", new CompressedXContent(mappingWithoutTtl));
-        DocumentMapper mapperWithTtl = parser.parse("type", new CompressedXContent(mappingWithTtl));
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapperWithoutTtl = mapperService.merge("type", new CompressedXContent(mappingWithoutTtl), true, false);
+        DocumentMapper mapperWithTtl = mapperService.merge("type", new CompressedXContent(mappingWithTtl), false, false);
 
-        mapperWithoutTtl.merge(mapperWithTtl.mapping(), false, false);
-
-        assertThat(mapperWithoutTtl.TTLFieldMapper().enabled(), equalTo(true));
+        assertThat(mapperWithoutTtl.TTLFieldMapper().enabled(), equalTo(false));
+        assertThat(mapperWithTtl.TTLFieldMapper().enabled(), equalTo(true));
     }
 
     public void testThatChangingTTLKeepsMapperEnabled() throws Exception {
@@ -135,24 +134,22 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper initialMapper = parser.parse("type", new CompressedXContent(mappingWithTtl));
-        DocumentMapper updatedMapper = parser.parse("type", new CompressedXContent(updatedMapping));
-
-        initialMapper.merge(updatedMapper.mapping(), true, false);
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper initialMapper = mapperService.merge("type", new CompressedXContent(mappingWithTtl), true, false);
+        DocumentMapper updatedMapper = mapperService.merge("type", new CompressedXContent(updatedMapping), false, false);
 
         assertThat(initialMapper.TTLFieldMapper().enabled(), equalTo(true));
+        assertThat(updatedMapper.TTLFieldMapper().enabled(), equalTo(true));
     }
 
     public void testThatDisablingTTLReportsConflict() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper initialMapper = parser.parse("type", new CompressedXContent(mappingWithTtl));
-        DocumentMapper updatedMapper = parser.parse("type", new CompressedXContent(mappingWithTtlDisabled));
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper initialMapper = mapperService.merge("type", new CompressedXContent(mappingWithTtl), true, false);
 
         try {
-            initialMapper.merge(updatedMapper.mapping(), true, false);
+            mapperService.merge("type", new CompressedXContent(mappingWithTtlDisabled), false, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -190,20 +187,20 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testNoConflictIfNothingSetAndDisabledLater() throws Exception {
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
         XContentBuilder mappingWithTtlDisabled = getMappingWithTtlDisabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlDisabled.string()), true).mapping(), randomBoolean(), false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlDisabled.string()), randomBoolean(), false);
     }
 
     public void testNoConflictIfNothingSetAndEnabledLater() throws Exception {
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlEnabled.string()), true).mapping(), randomBoolean(), false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlEnabled.string()), randomBoolean(), false);
     }
 
     public void testMergeWithOnlyDefaultSet() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
         IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtlEnabled);
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), true).mapping(), false, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), false, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":360000},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
     }
@@ -214,63 +211,9 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         CompressedXContent mappingAfterCreation = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterCreation, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), true).mapping(), false, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), false, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
-    }
-
-    public void testThatSimulatedMergingLeavesStateUntouched() throws Exception {
-        //check if default ttl changed when simulate set to true
-        XContentBuilder mappingWithTtl = getMappingWithTtlEnabled("6d");
-        IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtl);
-        CompressedXContent mappingBeforeMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        XContentBuilder mappingWithTtlDifferentDefault = getMappingWithTtlEnabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlDifferentDefault.string()), true).mapping(), true, false);
-        // make sure simulate flag actually worked - no mappings applied
-        CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(mappingBeforeMerge));
-
-        client().admin().indices().prepareDelete("testindex").get();
-        // check if enabled changed when simulate set to true
-        XContentBuilder mappingWithoutTtl = getMappingWithTtlDisabled();
-        indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithoutTtl);
-        mappingBeforeMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled();
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlEnabled.string()), true).mapping(), true, false);
-        // make sure simulate flag actually worked - no mappings applied
-        mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(mappingBeforeMerge));
-
-        client().admin().indices().prepareDelete("testindex").get();
-        // check if enabled changed when simulate set to true
-        mappingWithoutTtl = getMappingWithTtlDisabled("6d");
-        indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithoutTtl);
-        mappingBeforeMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlEnabled.string()), true).mapping(), true, false);
-        // make sure simulate flag actually worked - no mappings applied
-        mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(mappingBeforeMerge));
-
-        client().admin().indices().prepareDelete("testindex").get();
-        // check if switching simulate flag off works
-        mappingWithoutTtl = getMappingWithTtlDisabled("6d");
-        indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithoutTtl);
-        mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlEnabled.string()), true).mapping(), false, false);
-        // make sure simulate flag actually worked - mappings applied
-        mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":604800000},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
-
-        client().admin().indices().prepareDelete("testindex").get();
-        // check if switching simulate flag off works if nothing was applied in the beginning
-        indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
-        mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingWithTtlEnabled.string()), true).mapping(), false, false);
-        // make sure simulate flag actually worked - mappings applied
-        mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":604800000},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
-
     }
 
     public void testIncludeInObjectBackcompat() throws Exception {

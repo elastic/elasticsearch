@@ -35,11 +35,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -65,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -97,12 +94,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
-
-    // A lock for mappings: modifications (put mapping) need to be performed
-    // under the write lock and read operations (document parsing) need to be
-    // performed under the read lock
-    final ReentrantReadWriteLock mappingLock = new ReentrantReadWriteLock();
-    private final ReleasableLock mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
 
     private volatile FieldTypeLookup fieldTypes;
     private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
@@ -216,7 +207,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper mapper = documentParser.parse(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
-            try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            synchronized (this) {
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
             try {
@@ -226,7 +217,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return mapper;
         } else {
-            try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            synchronized (this) {
                 // only apply the default mapping if we don't have the type yet
                 applyDefault &= mappers.containsKey(type) == false;
                 return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
@@ -234,9 +225,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
-    // instances of field mappers to properly remove existing doc mapper
-    private DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
+    private synchronized DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
         if (mapper.type().length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
@@ -262,34 +251,89 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
             }
         }
-        // we can add new field/object mappers while the old ones are there
-        // since we get new instances of those, and when we remove, we remove
-        // by instance equality
+
+        // 1. compute the merged DocumentMapper
         DocumentMapper oldMapper = mappers.get(mapper.type());
-
+        DocumentMapper newMapper;
         if (oldMapper != null) {
-            oldMapper.merge(mapper.mapping(), false, updateAllTypes);
-            return oldMapper;
+            newMapper = oldMapper.merge(mapper.mapping(), updateAllTypes);
         } else {
-            Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
-                    mapper.type(), mapper.mapping(), updateAllTypes);
-            Collection<ObjectMapper> newObjectMappers = newMappers.v1();
-            Collection<FieldMapper> newFieldMappers = newMappers.v2();
-            addMappers(mapper.type(), newObjectMappers, newFieldMappers);
+            newMapper = mapper;
+        }
 
+        // 2. check basic sanity of the new mapping
+        List<ObjectMapper> objectMappers = new ArrayList<>();
+        List<FieldMapper> fieldMappers = new ArrayList<>();
+        Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
+        MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
+        checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers);
+        checkObjectsCompatibility(newMapper.type(), objectMappers, fieldMappers, updateAllTypes);
+
+        // 3. update lookup data-structures
+        // this will in particular make sure that the merged fields are compatible with other types
+        FieldTypeLookup fieldTypes = this.fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, updateAllTypes);
+
+        boolean hasNested = this.hasNested;
+        Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
+        for (ObjectMapper objectMapper : objectMappers) {
+            fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
+            if (objectMapper.nested().isNested()) {
+                hasNested = true;
+            }
+        }
+        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+        Set<String> parentTypes = this.parentTypes;
+        if (oldMapper == null && newMapper.parentFieldMapper().active()) {
+            parentTypes = new HashSet<>(parentTypes.size() + 1);
+            parentTypes.addAll(this.parentTypes);
+            parentTypes.add(mapper.parentFieldMapper().type());
+            parentTypes = Collections.unmodifiableSet(parentTypes);
+        }
+
+        Map<String, DocumentMapper> mappers = new HashMap<>(this.mappers);
+        mappers.put(newMapper.type(), newMapper);
+        for (Map.Entry<String, DocumentMapper> entry : mappers.entrySet()) {
+            if (entry.getKey().equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+            DocumentMapper m = entry.getValue();
+            // apply changes to the field types back
+            m = m.updateFieldType(fieldTypes.fullNameToFieldType);
+            entry.setValue(m);
+        }
+        mappers = Collections.unmodifiableMap(mappers);
+
+        // 4. commit the change
+        this.mappers = mappers;
+        this.fieldTypes = fieldTypes;
+        this.hasNested = hasNested;
+        this.fullPathObjectMappers = fullPathObjectMappers;
+        this.parentTypes = parentTypes;
+
+        // 5. send notifications about the change
+        if (oldMapper == null) {
+            // means the mapping was created
             for (DocumentTypeListener typeListener : typeListeners) {
                 typeListener.beforeCreate(mapper);
             }
-            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
-            if (mapper.parentFieldMapper().active()) {
-                Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
-                newParentTypes.addAll(parentTypes);
-                newParentTypes.add(mapper.parentFieldMapper().type());
-                parentTypes = unmodifiableSet(newParentTypes);
-            }
-            assert assertSerialization(mapper);
-            return mapper;
         }
+
+        assert assertSerialization(newMapper);
+        assert assertMappersShareSameFieldType();
+
+        return newMapper;
+    }
+
+    private boolean assertMappersShareSameFieldType() {
+        for (DocumentMapper mapper : docMappers(false)) {
+            List<FieldMapper> fieldMappers = new ArrayList<>();
+            Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
+            MapperUtils.collect(mapper.root(), new ArrayList<ObjectMapper>(), fieldMappers);
+            for (FieldMapper fieldMapper : fieldMappers) {
+                assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
+            }
+        }
+        return true;
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
@@ -339,8 +383,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    protected void checkMappersCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
-        assert mappingLock.isWriteLockedByCurrentThread();
+    private void checkObjectsCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
+        assert Thread.holdsLock(this);
 
         checkFieldUniqueness(type, objectMappers, fieldMappers);
 
@@ -358,31 +402,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
         }
-
-        fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
-    }
-
-    protected Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> checkMappersCompatibility(
-            String type, Mapping mapping, boolean updateAllTypes) {
-        List<ObjectMapper> objectMappers = new ArrayList<>();
-        List<FieldMapper> fieldMappers = new ArrayList<>();
-        Collections.addAll(fieldMappers, mapping.metadataMappers);
-        MapperUtils.collect(mapping.root, objectMappers, fieldMappers);
-        checkMappersCompatibility(type, objectMappers, fieldMappers, updateAllTypes);
-        return new Tuple<>(objectMappers, fieldMappers);
-    }
-
-    protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
-        assert mappingLock.isWriteLockedByCurrentThread();
-        Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
-        for (ObjectMapper objectMapper : objectMappers) {
-            fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
-            if (objectMapper.nested().isNested()) {
-                hasNested = true;
-            }
-        }
-        this.fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
-        this.fieldTypes = this.fieldTypes.copyAndAddAll(type, fieldMappers);
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {

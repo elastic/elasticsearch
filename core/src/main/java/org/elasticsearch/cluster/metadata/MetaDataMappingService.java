@@ -259,9 +259,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 } else {
                     newMapper = indexService.mapperService().parse(request.type(), mappingUpdateSource, existingMapper == null);
                     if (existingMapper != null) {
-                        // first, simulate
-                        // this will just throw exceptions in case of problems
-                        existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
+                        // first, simulate: just call merge and ignore the result
+                        existingMapper.merge(newMapper.mapping(), request.updateAllTypes());
                     } else {
                         // TODO: can we find a better place for this validation?
                         // The reason this validation is here is that the mapper service doesn't learn about

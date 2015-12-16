@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
@@ -160,11 +161,11 @@ public class ExternalMapper extends FieldMapper {
     private final String generatedValue;
     private final String mapperName;
 
-    private final BinaryFieldMapper binMapper;
-    private final BooleanFieldMapper boolMapper;
-    private final BaseGeoPointFieldMapper pointMapper;
-    private final GeoShapeFieldMapper shapeMapper;
-    private final FieldMapper stringMapper;
+    private BinaryFieldMapper binMapper;
+    private BooleanFieldMapper boolMapper;
+    private BaseGeoPointFieldMapper pointMapper;
+    private GeoShapeFieldMapper shapeMapper;
+    private FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
@@ -214,6 +215,36 @@ public class ExternalMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // ignore this for now
+    }
+
+    @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        ExternalMapper update = (ExternalMapper) super.updateFieldType(fullNameToFieldType);
+        MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
+        BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
+        BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
+        GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
+        GeoShapeFieldMapper shapeMapperUpdate = (GeoShapeFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
+        StringFieldMapper stringMapperUpdate = (StringFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
+        if (update == this
+                && multiFieldsUpdate == multiFields
+                && binMapperUpdate == binMapper
+                && boolMapperUpdate == boolMapper
+                && pointMapperUpdate == pointMapper
+                && shapeMapperUpdate == shapeMapper
+                && stringMapperUpdate == stringMapper) {
+            return this;
+        }
+        if (update == this) {
+            update = (ExternalMapper) clone();
+        }
+        update.multiFields = multiFieldsUpdate;
+        update.binMapper = binMapperUpdate;
+        update.boolMapper = boolMapperUpdate;
+        update.pointMapper = pointMapperUpdate;
+        update.shapeMapper = shapeMapperUpdate;
+        update.stringMapper = stringMapperUpdate;
+        return update;
     }
 
     @Override

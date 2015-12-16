@@ -1087,4 +1087,14 @@ public abstract class Engine implements Closeable {
          */
         void warm(Engine.Searcher searcher, boolean isTopLevelReader);
     }
+
+    /**
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link deactivateThrottling}.
+     */
+    public abstract void activateThrottling();
+
+    /**
+     * Reverses a previous {@link #activateThrottling} call.
+     */
+    public abstract void deactivateThrottling();
 }

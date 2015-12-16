@@ -539,9 +539,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
         indexingMemoryController.addWritingBytes(this, ramBytesUsed);
         try {
-            if (logger.isTraceEnabled()) {
-                logger.trace("refresh with source: {} indexBufferRAMBytesUsed={}", source, ramBytesUsed);
-            }
+            logger.debug("refresh with source: {} indexBufferRAMBytesUsed={}", source, ramBytesUsed);
             long time = System.nanoTime();
             getEngine().refresh(source);
             refreshMetric.inc(System.nanoTime() - time);
@@ -1207,6 +1205,22 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public IndexEventListener getIndexEventListener() {
         return indexEventListener;
+    }
+
+    public void activateThrottling() {
+        try {
+            getEngine().activateThrottling();
+        } catch (EngineClosedException ex) {
+            // ignore
+        }
+    }
+
+    public void deactivateThrottling() {
+        try {
+            getEngine().deactivateThrottling();
+        } catch (EngineClosedException ex) {
+            // ignore
+        }
     }
 
     /**

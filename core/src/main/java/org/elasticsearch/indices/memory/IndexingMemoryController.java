@@ -70,6 +70,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final TimeValue inactiveTime;
     private final TimeValue interval;
 
+    /** Contains shards currently being throttled because we can't write segments quickly enough */
+    private final Set<IndexShard> throttled = new HashSet<>();
+
     private volatile ScheduledFuture scheduler;
 
     private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(
@@ -77,10 +80,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    /** How many bytes we are currently moving to disk by the engine to refresh */
-    private final AtomicLong bytesRefreshingNow = new AtomicLong();
-
-    private final Map<IndexShard,Long> refreshingBytes = new ConcurrentHashMap<>();
+    /** Maps each shard to how many bytes it is currently, asynchronously, writing to disk */
+    private final Map<IndexShard,Long> writingBytes = new ConcurrentHashMap<>();
 
     @Inject
     public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
@@ -124,16 +125,18 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
     }
 
-    /** Shard calls this to notify us that this many bytes are being asynchronously moved from RAM to disk */
+    /** Shard calls this when it starts writing its indexing buffer to disk to notify us */
     public void addWritingBytes(IndexShard shard, long numBytes) {
-        refreshingBytes.put(shard, numBytes);
+        writingBytes.put(shard, numBytes);
+        logger.debug("IMC: add writing bytes for {}, {} MB", shard.shardId(), numBytes/1024./1024.);
     }
 
-    /** Shard calls this to notify us that this many bytes are are done being asynchronously moved from RAM to disk */
+    /** Shard calls when it's done writing these bytes to disk */
     public void removeWritingBytes(IndexShard shard, long numBytes) {
         // nocommit this can fail, if two refreshes are running "concurrently"
-        Long result = refreshingBytes.remove(shard);
+        Long result = writingBytes.remove(shard);
         assert result != null;
+        logger.debug("IMC: clear writing bytes for {}", shard.shardId());
     }
 
     @Override
@@ -189,7 +192,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
     }
 
-    /** check if any shards active status changed, now. */
+    /** used by tests to check if any shards active status changed, now. */
     public void forceCheck() {
         statusChecker.run();
     }
@@ -224,12 +227,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         /** Shard calls this on each indexing/delete op */
         public synchronized void bytesWritten(int bytes) {
             bytesWrittenSinceCheck += bytes;
-            if (bytesWrittenSinceCheck > indexingBuffer.bytes()/20) {
+            if (bytesWrittenSinceCheck > indexingBuffer.bytes()/30) {
                 // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
                 // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
                 // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
                 // processed by indexing:
-                System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": NOW CHECK xlog=" + bytesWrittenSinceCheck);
                 run();
             }
         }
@@ -237,69 +239,101 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         @Override
         public synchronized void run() {
 
-            // nocommit add defensive try/catch-everything here?  bad if an errant EngineClosedExc kills off this thread!!
+            // NOTE: even if we hit an errant exc here, our ThreadPool.scheduledWithFixedDelay will log the exception and re-invoke us
+            // again, on schedule
 
-            // Fast check to sum up how much heap all shards' indexing buffers are using now:
+            // First pass to sum up how much heap all shards' indexing buffers are using now, and how many bytes they are currently moving
+            // to disk:
             long totalBytesUsed = 0;
+            long totalBytesWriting = 0;
             for (IndexShard shard : availableShards()) {
 
                 // Give shard a chance to transition to inactive so sync'd flush can happen:
                 checkIdle(shard, inactiveTime.nanos());
 
-                // nocommit explain why order is important here!
-                Long bytes = refreshingBytes.get(shard);
+                // How many bytes this shard is currently (async'd) moving from heap to disk:
+                Long shardWritingBytes = writingBytes.get(shard);
 
+                // How many heap bytes this shard is currently using
                 long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                if (bytes != null) {
-                    // Only count up bytes not already being refreshed:
-                    shardBytesUsed -= bytes;
+                if (shardWritingBytes != null) {
+                    shardBytesUsed -= shardWritingBytes;
+                    totalBytesWriting += shardWritingBytes;
 
-                    // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
-                    // have a negative value here:
+                    // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+                    // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
                     if (shardBytesUsed < 0) {
                         continue;
                     }
                 }
 
                 totalBytesUsed += shardBytesUsed;
-                System.out.println("IMC:   " + shard.shardId() + " using " + (shardBytesUsed/1024./1024.) + " MB");
             }
 
-            System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": TOT=" + totalBytesUsed + " vs " + indexingBuffer.bytes());
+            if (logger.isTraceEnabled()) {
+                logger.trace("total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
+            }
 
-            if (totalBytesUsed - bytesRefreshingNow.get() > indexingBuffer.bytes()) {
-                // OK we are using too much; make a queue and ask largest shard(s) to refresh:
-                logger.debug("now refreshing some shards: total indexing bytes used [{}] vs index_buffer_size [{}]", new ByteSizeValue(totalBytesUsed), indexingBuffer);
+            if (totalBytesUsed > indexingBuffer.bytes()) {
+                // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
+                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
-                for (IndexShard shard : availableShards()) {
-                    // nocommit explain why order is important here!
-                    Long bytes = refreshingBytes.get(shard);
 
+                for (IndexShard shard : availableShards()) {
+                    // How many bytes this shard is currently (async'd) moving from heap to disk:
+                    Long shardWritingBytes = writingBytes.get(shard);
+
+                    // How many heap bytes this shard is currently using
                     long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                    if (bytes != null) {
+                    if (shardWritingBytes != null) {
                         // Only count up bytes not already being refreshed:
-                        shardBytesUsed -= bytes;
+                        shardBytesUsed -= shardWritingBytes;
 
-                        // If the refresh completed just after we pulled refreshingBytes and before we pulled index buffer bytes, then we could
-                        // have a negative value here:
+                        // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+                        // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
                         if (shardBytesUsed < 0) {
                             continue;
                         }
                     }
 
                     if (shardBytesUsed > 0) {
+                        if (logger.isTraceEnabled()) {
+                            if (shardWritingBytes != null) {
+                                logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed, shardWritingBytes);
+                            } else {
+                                logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
+                            }
+                        }
                         queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
                     }
                 }
 
+                // If we are using more than 50% of our budget across both indexing buffer and bytes we are moving to disk, then we now
+                // throttle the top shards to give back-pressure:
+                boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.bytes();
+
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
-                    System.out.println("IMC: write " + largest.shard.shardId() + ": " + (largest.bytesUsed/1024./1024.) + " MB");
-                    logger.debug("refresh shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
+                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
                     writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
+                    if (doThrottle && throttled.contains(largest.shard) == false) {
+                        logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
+                        throttled.add(largest.shard);
+                        largest.shard.activateThrottling();
+                    }
+                }
+
+                if (doThrottle == false) {
+                    for(IndexShard shard : throttled) {
+                        logger.info("stop throttling indexing for shard [{}]", shard.shardId());
+                        shard.deactivateThrottling();
+                    }
+                    throttled.clear();
                 }
             }
 

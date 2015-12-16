@@ -237,4 +237,14 @@ public class ShadowEngine extends Engine {
         // No indexing buffer
         throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
     }
+
+    @Override
+    public void activateThrottling() {
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
+
+    @Override
+    public void deactivateThrottling() {
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
 }

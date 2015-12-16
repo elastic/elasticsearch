@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -510,9 +511,12 @@ public class InternalEngine extends Engine {
     public void writeIndexingBuffer() throws EngineException {
 
         // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
-        // searcher managers, one for searching which is only refreshed by the schedule the user asks for, and another for version
-        // map interactions:
-        boolean useRefresh = versionMapRefreshPending.get() || (indexWriter.ramBytesUsed()/4 < versionMap.ramBytesUsedForRefresh());
+        // searcher managers, one for searching which is only refreshed by the schedule the user requested (refresh_interval, or invoking
+        // refresh API), and another for version map interactions:
+        long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+        long indexingBufferBytes = indexWriter.ramBytesUsed();
+
+        boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
 
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
@@ -520,9 +524,13 @@ public class InternalEngine extends Engine {
             ensureOpen();
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
-                searcherManager.maybeRefreshBlocking();
+                logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
+                             new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                refresh("write indexing buffer");
             } else {
                 // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
+                logger.debug("use flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
+                             new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }
         } catch (AlreadyClosedException e) {
@@ -1043,12 +1051,24 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private final AtomicInteger throttleRequestCount = new AtomicInteger();
+
+    @Override
     public void activateThrottling() {
-        throttle.activate();
+        int count = throttleRequestCount.incrementAndGet();
+        assert count >= 1;
+        if (count == 1) {
+            throttle.activate();
+        }
     }
 
+    @Override
     public void deactivateThrottling() {
-        throttle.deactivate();
+        int count = throttleRequestCount.decrementAndGet();
+        assert count >= 0;
+        if (count == 0) {
+            throttle.deactivate();
+        }
     }
 
     long getGcDeletesInMillis() {

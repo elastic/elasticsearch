@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -79,7 +78,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
         public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit(false, false);
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends BaseGeoPointFieldMapper> extends FieldMapper.Builder<T, Y> {
@@ -361,13 +360,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
     }
 
-    protected final DoubleFieldMapper latMapper;
+    protected DoubleFieldMapper latMapper;
 
-    protected final DoubleFieldMapper lonMapper;
+    protected DoubleFieldMapper lonMapper;
 
     protected final ContentPath.Type pathType;
 
-    protected final StringFieldMapper geoHashMapper;
+    protected StringFieldMapper geoHashMapper;
 
     protected Explicit<Boolean> ignoreMalformed;
 
@@ -527,5 +526,26 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
         }
+    }
+
+    @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        BaseGeoPointFieldMapper updated = (BaseGeoPointFieldMapper) super.updateFieldType(fullNameToFieldType);
+        StringFieldMapper geoUpdated = geoHashMapper == null ? null : (StringFieldMapper) geoHashMapper.updateFieldType(fullNameToFieldType);
+        DoubleFieldMapper latUpdated = latMapper == null ? null : (DoubleFieldMapper) latMapper.updateFieldType(fullNameToFieldType);
+        DoubleFieldMapper lonUpdated = lonMapper == null ? null : (DoubleFieldMapper) lonMapper.updateFieldType(fullNameToFieldType);
+        if (updated == this
+                && geoUpdated == geoHashMapper
+                && latUpdated == latMapper
+                && lonUpdated == lonMapper) {
+            return this;
+        }
+        if (updated == this) {
+            updated = (BaseGeoPointFieldMapper) updated.clone();
+        }
+        updated.geoHashMapper = geoUpdated;
+        updated.latMapper = latUpdated;
+        updated.lonMapper = lonUpdated;
+        return updated;
     }
 }

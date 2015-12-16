@@ -29,14 +29,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -65,22 +64,14 @@ class DocumentParser implements Closeable {
     private final Settings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
-    private final ReleasableLock parseLock;
 
-    public DocumentParser(Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
+    public DocumentParser(Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
-        this.parseLock = parseLock;
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        try (ReleasableLock lock = parseLock.acquire()){
-            return innerParseDocument(source);
-        }
-    }
-
-    private ParsedDocument innerParseDocument(SourceToParse source) throws MapperParsingException {
         if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }

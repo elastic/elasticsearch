@@ -2039,10 +2039,8 @@ public class InternalEngineTests extends ESTestCase {
             SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
             MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
             MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, null, mapperRegistry);
-            DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityLookupService, null, mapperRegistry);
-            this.docMapper = b.build(mapperService, parser);
-
+            DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
+            this.docMapper = b.build(mapperService);
         }
 
         @Override

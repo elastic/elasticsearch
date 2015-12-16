@@ -23,7 +23,6 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -44,12 +43,10 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     @Test
     public void testSimpleMapper() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.indexSettings();
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc(settings,
+        DocumentMapper docMapper = doc(
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false))),
-            indexService.mapperService()).build(indexService.mapperService(), mapperParser);
+            indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
@@ -122,12 +119,10 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     @Test
     public void testNoDocumentSent() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.indexSettings();
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc(settings,
+        DocumentMapper docMapper = doc(
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false))),
-            indexService.mapperService()).build(indexService.mapperService(), mapperParser);
+            indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
         try {

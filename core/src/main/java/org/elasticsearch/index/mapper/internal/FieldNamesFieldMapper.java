@@ -217,7 +217,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             FieldNamesFieldType newFieldType = fieldType().clone();
             newFieldType.setEnabled(false);
             newFieldType.freeze();
-            fieldTypeRef.set(newFieldType);
+            this.fieldType = newFieldType;
         }
     }
 

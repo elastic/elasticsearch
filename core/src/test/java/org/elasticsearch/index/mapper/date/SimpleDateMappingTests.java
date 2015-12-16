@@ -68,7 +68,9 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = mapper("test", "type", mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -82,6 +84,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         DateFieldMapper dateFieldMapper = (DateFieldMapper)fieldMapper;
@@ -372,7 +375,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
-        defaultMapper.merge(mergeMapper.mapping(), false, false);
+        defaultMapper = defaultMapper.merge(mergeMapper.mapping(), false);
 
         assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
 

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -44,9 +43,9 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
     @Test
     public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = mapperService.merge("person", new CompressedXContent(mapping), true, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
@@ -59,11 +58,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(f, nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
-        DocumentMapper docMapper2 = parser.parse("person", new CompressedXContent(mapping));
-
-        docMapper.merge(docMapper2.mapping(), true, false);
-
-        docMapper.merge(docMapper2.mapping(), false, false);
+        docMapper = mapperService.merge("person", new CompressedXContent(mapping), false, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -80,11 +75,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
-        DocumentMapper docMapper3 = parser.parse("person", new CompressedXContent(mapping));
-
-        docMapper.merge(docMapper3.mapping(), true, false);
-
-        docMapper.merge(docMapper3.mapping(), false, false);
+        docMapper = mapperService.merge("person", new CompressedXContent(mapping), false, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -95,11 +86,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
-        DocumentMapper docMapper4 = parser.parse("person", new CompressedXContent(mapping));
-
-        docMapper.merge(docMapper4.mapping(), true, false);
-
-        docMapper.merge(docMapper4.mapping(), false, false);
+        docMapper = mapperService.merge("person", new CompressedXContent(mapping), false, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -129,7 +116,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade1.json");
-        mapperService.merge("person", new CompressedXContent(mapping), false, false);
+        docMapper = mapperService.merge("person", new CompressedXContent(mapping), false, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -146,7 +133,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade2.json");
-        mapperService.merge("person", new CompressedXContent(mapping), false, false);
+        docMapper = mapperService.merge("person", new CompressedXContent(mapping), false, false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 

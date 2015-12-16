@@ -48,6 +48,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
 
@@ -275,7 +276,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected MappedFieldTypeReference fieldTypeRef;
+    protected MappedFieldType fieldType;
     protected final MappedFieldType defaultFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
@@ -285,7 +286,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
-        this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // the reference ctor freezes the field type
+        fieldType.freeze();
+        this.fieldType = fieldType;
         defaultFieldType.freeze();
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
@@ -298,23 +300,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     public MappedFieldType fieldType() {
-        return fieldTypeRef.get();
-    }
-
-    /** Returns a reference to the MappedFieldType for this mapper. */
-    public MappedFieldTypeReference fieldTypeReference() {
-        return fieldTypeRef;
-    }
-
-    /**
-     * Updates the reference to this field's MappedFieldType.
-     * Implementations should assert equality of the underlying field type
-     */
-    public void setFieldTypeReference(MappedFieldTypeReference ref) {
-        if (ref.get().equals(fieldType()) == false) {
-            throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
-        }
-        this.fieldTypeRef = ref;
+        return fieldType;
     }
 
     /**
@@ -358,10 +344,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return false;
     }
 
+    @Override
     public Iterator<Mapper> iterator() {
-        if (multiFields == null) {
-            return Collections.emptyIterator();
-        }
         return multiFields.iterator();
     }
 
@@ -397,10 +381,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
         // apply changeable values
-        MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
-        fieldType.freeze();
-        fieldTypeRef.set(fieldType);
+        this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
+    }
+
+    @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.names().fullName());
+        if (newFieldType == null) {
+            throw new IllegalStateException();
+        }
+        MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
+        if (fieldType == newFieldType && multiFields == updatedMultiFields) {
+            return this; // no change
+        }
+        FieldMapper updated = clone();
+        updated.fieldType = newFieldType;
+        updated.multiFields = updatedMultiFields;
+        return updated;
     }
 
     @Override
@@ -649,6 +647,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
                     newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
+            }
+
+            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
+            return new MultiFields(pathType, mappers);
+        }
+
+        public MultiFields updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
+
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                FieldMapper updated = cursor.value.updateFieldType(fullNameToFieldType);
+                if (updated != cursor.value) {
+                    if (newMappersBuilder == null) {
+                        newMappersBuilder = ImmutableOpenMap.builder(mappers);
+                    }
+                    newMappersBuilder.put(updated.simpleName(), updated);
+                }
+            }
+
+            if (newMappersBuilder == null) {
+                return this;
             }
 
             ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();

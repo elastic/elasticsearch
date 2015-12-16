@@ -187,15 +187,13 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper mapperEnabled = parser.parse("type", new CompressedXContent(enabledMapping));
-        DocumentMapper mapperDisabled = parser.parse("type", new CompressedXContent(disabledMapping));
-        mapperEnabled.merge(mapperDisabled.mapping(), false, false);
-        assertFalse(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
+        DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = parser.parse("type", new CompressedXContent(enabledMapping));
-        mapperDisabled.merge(mapperEnabled.mapping(), false, false);
+        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), false, false);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 

@@ -107,7 +107,7 @@ public final class Mapping implements ToXContent {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
+    /** @see DocumentMapper#merge(Mapping, boolean) */
     public Mapping merge(Mapping mergeWith, boolean updateAllTypes) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, updateAllTypes);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
@@ -123,7 +123,19 @@ public final class Mapping implements ToXContent {
         }
         return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), sourceTransforms, mergeWith.meta);
     }
-    
+
+    /**
+     * Recursively update sub field types.
+     */
+    public Mapping updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        final MetadataFieldMapper[] updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
+        for (int i = 0; i < updatedMeta.length; ++i) {
+            updatedMeta[i] = (MetadataFieldMapper) updatedMeta[i].updateFieldType(fullNameToFieldType);
+        }
+        RootObjectMapper updatedRoot = root.updateFieldType(fullNameToFieldType);
+        return new Mapping(indexCreated, updatedRoot, updatedMeta, sourceTransforms, meta);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, new ToXContent() {

@@ -108,7 +108,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * The number of bulk requests this request has completed.
+     * The number of scan responses this request has processed.
      */
     public int batches() {
         return batches.get();
@@ -185,6 +185,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));
             }
+            batches.incrementAndGet();
             client.bulk(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
@@ -203,7 +204,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     void onBulkResponse(BulkResponse response) {
         try {
-            batches.incrementAndGet();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
                     recordFailure(item.getFailure());

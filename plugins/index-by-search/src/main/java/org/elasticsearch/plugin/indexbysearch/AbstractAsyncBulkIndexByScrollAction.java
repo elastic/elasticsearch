@@ -183,8 +183,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (false == Objects.equals(oldTtl, newTtl)) {
             throw new IllegalArgumentException("Modifying _ttl not allowed.");
         }
-
-        // TODO support modifying the some of the metadata in some cases. Should be strict - if user tries and isn't allowed then send them an error.
         return true;
     }
 

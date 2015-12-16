@@ -1,0 +1,62 @@
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-2.1.1]]
+== 2.1.1 Release Notes
+
+[[enhancement-2.1.1]]
+[float]
+=== Enhancements
+
+Core::
+* If we can't get a MAC address for the node, use a dummy one {pull}15266[#15266] (issue: {issue}10099[#10099])
+* Simplify shard inactive logging {pull}15259[#15259] (issue: {issue}15252[#15252])
+* Simplify IndexingMemoryController#checkIdle {pull}15252[#15252] (issue: {issue}15251[#15251])
+* IndexingMemoryController should not track shard index states {pull}15251[#15251] (issues: {issue}13918[#13918], {issue}15225[#15225])
+
+Index Templates::
+* Disallow index template pattern to be the same as an alias name {pull}15184[#15184] (issue: {issue}14842[#14842])
+
+Mapping::
+* throw exception if a copy_to is within a multi field {pull}15213[#15213] (issues: {issue}10802[#10802], {issue}14946[#14946])
+* Register field mappers at the node level. {pull}14896[#14896] (issue: {issue}14828[#14828])
+
+
+
+[[bug-2.1.1]]
+[float]
+=== Bug fixes
+
+Index APIs::
+* Field stats: Index constraints should remove indices in the response if the field to evaluate is empty {pull}14868[#14868]
+
+Internal::
+* Throw a meaningful error when loading metadata and an alias and index have the same name {pull}14842[#14842] (issue: {issue}14706[#14706])
+
+Mapping::
+* Multi field names may not contain dots {pull}15118[#15118] (issue: {issue}14957[#14957])
+
+Packaging::
+* fix command line options for windows bat file [OPEN] {pull}15320[#15320] (issue: {issue}15284[#15284])
+
+Search::
+* Fix NPE when a segment with an empty cache gets closed. {pull}15202[#15202] (issue: {issue}15043[#15043])
+
+Translog::
+* Fail and close translog hard if writing to disk fails {pull}15420[#15420] (issue: {issue}15333[#15333])
+* Prevent writing to closed channel if translog is already closed {pull}15012[#15012] (issue: {issue}14866[#14866])
+* Don't delete temp recovered checkpoint file it was renamed {pull}14872[#14872] (issue: {issue}14695[#14695])
+
+Tribe Node::
+* Fix tribe node to load config file for internal client nodes {pull}15300[#15300] (issues: {issue}13383[#13383], {issue}14573[#14573])
+
+
+
+[[regression-2.1.1]]
+[float]
+=== Regressions
+
+Query DSL::
+* RangeQueryParser should accept `_name` in inner field {pull}15394[#15394] (issue: {issue}15306[#15306])
+
+

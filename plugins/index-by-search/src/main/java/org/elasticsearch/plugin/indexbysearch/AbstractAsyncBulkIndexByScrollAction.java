@@ -2,6 +2,7 @@ package org.elasticsearch.plugin.indexbysearch;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.elasticsearch.action.ActionListener;
@@ -65,7 +66,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             if (script != null) {
                 if (executableScript == null) {
                     executableScript = scriptService.executable(script, mainRequest.script().getParams());
-                    scriptCtx = new HashMap<>(3);
+                    scriptCtx = new HashMap<>(16);
                 }
                 if (applyScript(index, doc, executableScript, scriptCtx) == false) {
                     continue;
@@ -81,30 +82,26 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      * Copies the metadata from a hit to the index request.
      */
     protected void copyMetadata(IndexRequest index, SearchHit doc) {
-        SearchHitField parent = doc.field("_parent");
-        if (parent != null) {
-            index.parent(parent.value());
-        }
+        index.parent(fieldValue(doc, "_parent"));
         copyRouting(index, doc);
-        SearchHitField timestamp = doc.field("_timestamp");
+        // Comes back as a Long but needs to be a string
+        Long timestamp = fieldValue(doc, "_timestamp");
         if (timestamp != null) {
-            // Comes back as a Long but needs to be a string
-            index.timestamp(timestamp.value().toString());
+            index.timestamp(timestamp.toString());
         }
-        SearchHitField ttl = doc.field("_ttl");
-        if (ttl != null) {
-            index.ttl(ttl.value());
-        }
+        index.ttl(fieldValue(doc, "_ttl"));
     }
 
     /**
      * Part of copyMetadata but called out individual for easy overwriting.
      */
     protected void copyRouting(IndexRequest index, SearchHit doc) {
-        SearchHitField routing = doc.field("_routing");
-        if (routing != null) {
-            index.routing(routing.value());
-        }
+        index.routing(fieldValue(doc, "_routing"));
+    }
+
+    protected <T> T fieldValue(SearchHit doc, String fieldName) {
+        SearchHitField field = doc.field(fieldName);
+        return field == null ? null : field.value();
     }
 
     /**
@@ -113,17 +110,28 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      * @return is this request still ok to apply (true) or is it a noop (false)
      */
     @SuppressWarnings("unchecked")
-    protected boolean applyScript(IndexRequest index, SearchHit doc, ExecutableScript script, Map<String, Object> ctx) {
+    protected boolean applyScript(IndexRequest index, SearchHit doc, ExecutableScript script, final Map<String, Object> ctx) {
         if (script == null) {
             return true;
         }
-        ctx.put("_source", index.sourceAsMap());
+        ctx.put("_index", doc.index());
+        ctx.put("_type", doc.type());
         ctx.put("_id", doc.id());
+        ctx.put("_version", doc.getVersion());
+        String oldParent = fieldValue(doc, "_parent");
+        ctx.put("_parent", oldParent);
+        String oldRouting = fieldValue(doc, "_routing");
+        ctx.put("_routing", oldRouting);
+        Long oldTimestamp = fieldValue(doc, "_timestamp");
+        ctx.put("_timestamp", oldTimestamp);
+        Long oldTtl = fieldValue(doc, "_ttl");
+        ctx.put("_ttl", oldTtl);
+        ctx.put("_source", index.sourceAsMap());
         ctx.put("op", "update");
         script.setNextVar("ctx", ctx);
         script.run();
-        ctx = (Map<String, Object>) script.unwrap(ctx);
-        String newOp = (String) ctx.get("op");
+        Map<String, Object> resultCtx = (Map<String, Object>) script.unwrap(ctx);
+        String newOp = (String) resultCtx.get("op");
         if (newOp == null) {
             throw new IllegalArgumentException("Script cleared op!");
         }
@@ -140,10 +148,51 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          * modified but it isn't worth keeping two copies of it
          * around just to check!
          */
-        Map<String, Object> newSource = (Map<String, Object>) ctx.get("_source");
-        index.source(newSource);
+        index.source((Map<String, Object>) resultCtx.get("_source"));
+
+        if (false == doc.index().equals(ctx.get("_index"))) {
+            throw new IllegalArgumentException("Modifying _index not allowed.");
+        }
+        if (false == doc.type().equals(ctx.get("_type"))) {
+            throw new IllegalArgumentException("Modifying _type not allowed.");
+        }
+        if (false == doc.id().equals(ctx.get("_id"))) {
+            throw new IllegalArgumentException("Modifying _id not allowed.");
+        }
+        Long version = (Long) ctx.get("_version");
+        if (version == null || version != doc.version()) {
+            throw new IllegalArgumentException("Modifying _version not allowed.");
+        }
+        String newParent = (String) ctx.get("_parent");
+        if (false == Objects.equals(oldParent, newParent)) {
+            scriptChangedParent(index, oldParent, newParent);
+        }
+        /*
+         * Its important that routing comes after parent in case you want to
+         * change them both.
+         */
+        String newRouting = (String) ctx.get("_routing");
+        if (false == Objects.equals(oldRouting, newRouting)) {
+            scriptChangedRouting(index, oldRouting, newRouting);
+        }
+        Long newTimestamp = (Long) ctx.get("_timestamp");
+        if (false == Objects.equals(oldTimestamp, newTimestamp)) {
+            throw new IllegalArgumentException("Modifying _timestamp not allowed.");
+        }
+        Object newTtl = ctx.get("_ttl");
+        if (false == Objects.equals(oldTtl, newTtl)) {
+            throw new IllegalArgumentException("Modifying _ttl not allowed.");
+        }
 
         // TODO support modifying the some of the metadata in some cases. Should be strict - if user tries and isn't allowed then send them an error.
         return true;
+    }
+
+    protected void scriptChangedRouting(IndexRequest index, String from, String to) {
+        throw new IllegalArgumentException("Modifying _routing not allowed.");
+    }
+
+    protected void scriptChangedParent(IndexRequest index, String from, String to) {
+        throw new IllegalArgumentException("Modifying _parent not allowed.");
     }
 }

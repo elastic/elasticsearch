@@ -82,6 +82,108 @@
   - match: { hits.total: 1 }
 
 ---
+"Add new parent":
+  - do:
+      indices.create:
+          index: new_twitter
+          body:
+            mappings:
+              tweet:
+                _parent: { type: "user" }
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  new_twitter
+        type:   user
+        id:     kimchy
+        body:   { "name": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            inline: ctx._parent = ctx._source.user
+  - match: {created: 1}
+  - match: {noops: 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+        body:
+          query:
+            has_parent:
+              parent_type: user
+              query:
+                match:
+                  name: kimchy
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.user: kimchy }
+
+---
+"Add routing":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          src:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            inline: ctx._routing = ctx._source.user
+  - match: {created: 2}
+  - match: {noops: 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index:   new_twitter
+        type:    tweet
+        id:      1
+        routing: kimchy
+  - match: { _routing: kimchy }
+
+  - do:
+      get:
+        index:   new_twitter
+        type:    tweet
+        id:      2
+        routing: foo
+  - match: { _routing: foo }
+
+---
 "Noop one doc":
   - do:
       index:

@@ -151,5 +151,16 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
         protected IndexBySearchResponse buildResponse(long took) {
             return new IndexBySearchResponse(took, created(), updated(), batches(), versionConflicts(), noops(), failures());
         }
+
+        @Override
+        protected void scriptChangedParent(IndexRequest index, String from, String to) {
+            // Have to override routing with parent just in case it wasn't changed
+            index.parent(to).routing(to);
+        }
+
+        @Override
+        protected void scriptChangedRouting(IndexRequest index, String from, String to) {
+            index.routing(to);
+        }
     }
 }

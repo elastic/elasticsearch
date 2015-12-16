@@ -1,37 +1,42 @@
+
+# intellij files
 .idea/
-.gradle/
 *.iml
 *.ipr
 *.iws
-work/
-/data/
-logs/
-.DS_Store
-build/
-generated-resources/
-**/.local*
-docs/html/
-docs/build.log
-/tmp/
-backwards/
-html_docs
-.vagrant/
 
-## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
-## All files (.project, .classpath, .settings/*) should be generated through Maven which
-## will correctly set the classpath based on the declared dependencies and write settings
-## files to ensure common coding style across Eclipse and IDEA.
+# eclipse files
 .project
 .classpath
 eclipse-build
 .settings
 
-## netbeans ignores
+# netbeans files
 nb-configuration.xml
 nbactions.xml
 
-dependency-reduced-pom.xml
+# gradle stuff
+.gradle/
+build/
+generated-resources/
 
-# old patterns specific to maven
+# maven stuff (to be removed when trunk becomes 4.x)
 *-execution-hints.log
 target/
+dependency-reduced-pom.xml
+
+# testing stuff
+**/.local*
+.vagrant/
+
+# osx stuff
+.DS_Store
+
+# random old stuff that we should look at the necessity of...
+docs/html/
+docs/build.log
+html_docs
+/tmp/
+backwards/
+
+

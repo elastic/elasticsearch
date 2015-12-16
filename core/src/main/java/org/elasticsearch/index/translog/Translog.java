@@ -162,7 +162,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         try {
             if (translogGeneration != null) {
-                final Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+                final Checkpoint checkpoint = readCheckpoint();
                 this.recoveredTranslogs = recoverFromFiles(translogGeneration, checkpoint);
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
@@ -519,13 +519,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
-            if (current.getTragicException() != null) {
-                try {
-                    close();
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
-            }
+            closeOnTragicEvent(ex);
             throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -605,13 +599,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current.sync();
             }
         } catch (AlreadyClosedException | IOException ex) {
-            if (current.getTragicException() != null) {
-                try {
-                    close();
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
-            }
+            closeOnTragicEvent(ex);
             throw ex;
         }
     }
@@ -643,8 +631,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
+        } catch (AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
         }
         return false;
+    }
+
+    private void closeOnTragicEvent(Throwable ex) {
+        if (current.getTragicException() != null) {
+            try {
+                close();
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+        }
     }
 
     /**
@@ -1880,6 +1881,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *  Otherwise (no tragic exception has occurred) it returns null. */
     public Throwable getTragicException() {
         return current.getTragicException();
+    }
+
+    /** Reads and returns the current checkpoint */
+    final Checkpoint readCheckpoint() throws IOException {
+        return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
 }

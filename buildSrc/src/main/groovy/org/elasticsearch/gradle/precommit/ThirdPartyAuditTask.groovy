@@ -91,7 +91,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (listener instanceof BuildLogger) {
               listener.messageOutputLevel = Project.MSG_ERR;
             }
-       	};
+        };
         
         // we only want third party dependencies.
         FileCollection jars = project.configurations.testCompile.fileCollection({ dependency -> 

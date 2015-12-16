@@ -25,6 +25,7 @@ import static java.util.Collections.unmodifiableList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -283,38 +284,30 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      *            list.
      */
     void finishHim(final Throwable failure) {
-        if (failure != null) {
-            logger.warn("scrolling failed", failure);
-        }
-
         String scroll = this.scroll.get();
-        if (Strings.hasLength(scroll) == false) {
+        if (Strings.hasLength(scroll) != false) {
+            /*
+             * Fire off the clear scroll but don't wait for it it return before
+             * we send the use their response.
+             */
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest(mainRequest);
+            clearScrollRequest.addScrollId(scroll);
+            client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+                @Override
+                public void onResponse(ClearScrollResponse response) {
+                    logger.debug("Freed [{}] contexts", response.getNumFreed());
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    logger.warn("Failed to clear scroll", e);
+                }
+            });
+        }
+        if (failure == null) {
+            listener.onResponse(buildResponse(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime.get())));
             return;
         }
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest(mainRequest);
-        clearScrollRequest.addScrollId(scroll);
-        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse response) {
-                logger.debug("Freed [{}] contexts", response.getNumFreed());
-                if (failure == null) {
-                    long took = System.nanoTime() - startTime.get();
-                    took /= 1000000; // Millis instead of nanos
-                    listener.onResponse(buildResponse(took));
-                } else {
-                    listener.onFailure(failure);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                logger.warn("Failed to clear scroll", e);
-                if (failure == null) {
-                    listener.onFailure(e);
-                    return;
-                }
-                listener.onFailure(failure);
-            }
-        });
+        listener.onFailure(failure);
     }
 }

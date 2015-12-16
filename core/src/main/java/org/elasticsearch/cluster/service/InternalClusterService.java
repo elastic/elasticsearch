@@ -72,6 +72,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
@@ -442,9 +443,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
 
         assert batchResult.executionResults != null;
-        assert batchResult.executionResults.size() == toExecute.size();
-        final ClusterStateTaskExecutor.BatchResult<T> finalBatchResult = batchResult;
-        assert toExecute.stream().map(updateTask -> updateTask.task).allMatch(finalBatchResult.executionResults::containsKey);
+        assert batchResult.executionResults.size() == toExecute.size()
+            : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", toExecute.size(), toExecute.size() == 1 ? "" : "s", batchResult.executionResults.size());
+        boolean assertsEnabled = false;
+        assert (assertsEnabled = true);
+        if (assertsEnabled) {
+            for (UpdateTask<T> updateTask : toExecute) {
+                assert batchResult.executionResults.containsKey(updateTask.task) : "missing task result for [" + updateTask.task + "]";
+            }
+        }
 
         ClusterState newClusterState = batchResult.resultingState;
         final ArrayList<UpdateTask<T>> proccessedListeners = new ArrayList<>();

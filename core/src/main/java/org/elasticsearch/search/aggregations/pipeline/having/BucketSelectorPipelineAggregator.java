@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS, reduceContext);
+        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS, reduceContext, Collections.emptyMap());
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

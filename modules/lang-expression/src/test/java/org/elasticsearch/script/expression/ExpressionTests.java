@@ -33,23 +33,23 @@ public class ExpressionTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
-        
+
         ExpressionScriptEngineService service = new ExpressionScriptEngineService(Settings.EMPTY);
         SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
 
-        Object compiled = service.compile("1.2");
+        Object compiled = service.compile("1.2", Collections.emptyMap());
         SearchScript ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
-        compiled = service.compile("doc['d'].value");
+        compiled = service.compile("doc['d'].value", Collections.emptyMap());
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
-        compiled = service.compile("1/_score");
+        compiled = service.compile("1/_score", Collections.emptyMap());
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
 
-        compiled = service.compile("doc['d'].value * _score");
+        compiled = service.compile("doc['d'].value * _score", Collections.emptyMap());
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
     }

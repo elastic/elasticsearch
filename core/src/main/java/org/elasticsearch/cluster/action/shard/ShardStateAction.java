@@ -148,20 +148,9 @@ public class ShardStateAction extends AbstractComponent {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         try {
-                            int numberOfUnassignedShards = newState.getRoutingNodes().unassigned().size();
-                            if (oldState != newState && numberOfUnassignedShards > 0) {
-                                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shard [%s]", numberOfUnassignedShards, request.shardRouting);
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace(reason + ", scheduling a reroute");
-                                }
-                                routingService.reroute(reason);
-                            }
-                        } finally {
-                            try {
-                                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                            } catch (Throwable channelThrowable) {
-                                logger.warn("failed to send response while failing shard [{}]", channelThrowable, request.shardRouting);
-                            }
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Throwable channelThrowable) {
+                            logger.warn("failed to send response while failing shard [{}]", channelThrowable, request.shardRouting);
                         }
                     }
                 }
@@ -188,6 +177,18 @@ public class ShardStateAction extends AbstractComponent {
                 batchResultBuilder.failures(tasks, t);
             }
             return batchResultBuilder.build(maybeUpdatedState);
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
+            if (numberOfUnassignedShards > 0) {
+                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(reason + ", scheduling a reroute");
+                }
+                routingService.reroute(reason);
+            }
         }
     }
 

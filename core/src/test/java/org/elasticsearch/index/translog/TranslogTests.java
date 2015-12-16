@@ -1308,6 +1308,9 @@ public class TranslogTests extends ESTestCase {
                 locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
                 translog.sync();
                 opsSynced++;
+            } catch (MockDirectoryWrapper.FakeIOException ex) {
+                failed = true;
+                assertFalse(translog.isOpen());
             } catch (IOException ex) {
                 failed = true;
                 assertFalse(translog.isOpen());
@@ -1322,7 +1325,11 @@ public class TranslogTests extends ESTestCase {
                 fail("we are already closed");
             } catch (AlreadyClosedException ex) {
                 assertNotNull(ex.getCause());
-                assertEquals(ex.getCause().getMessage(), "__FAKE__ no space left on device");
+                if (ex.getCause() instanceof MockDirectoryWrapper.FakeIOException) {
+                    assertNull(ex.getCause().getMessage());
+                } else {
+                    assertEquals(ex.getCause().getMessage(), "__FAKE__ no space left on device");
+                }
             }
 
         }
@@ -1422,6 +1429,22 @@ public class TranslogTests extends ESTestCase {
             fail.set(true);
             for (int i = 0; i < threadCount; i++) {
                 threads[i].join();
+            }
+            boolean atLeastOneFailed = false;
+            for (Throwable ex : threadExceptions) {
+                if (ex != null) {
+                    atLeastOneFailed = true;
+                    break;
+                }
+            }
+            if (atLeastOneFailed == false) {
+                try {
+                    boolean syncNeeded = translog.syncNeeded();
+                    translog.close();
+                    assertFalse("should have failed if sync was needed", syncNeeded);
+                } catch (IOException ex) {
+                    // boom now we failed
+                }
             }
             Collections.sort(writtenOperations, (a, b) -> a.location.compareTo(b.location));
             assertFalse(translog.isOpen());

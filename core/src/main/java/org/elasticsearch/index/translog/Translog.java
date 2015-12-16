@@ -421,13 +421,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
-            if (current.getTragicException() != null) {
-                try {
-                    close();
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
-            }
+            closeOnTragicEvent(ex);
             throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -507,13 +501,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current.sync();
             }
         } catch (AlreadyClosedException | IOException ex) {
-            if (current.getTragicException() != null) {
-                try {
-                    close();
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
-            }
+            closeOnTragicEvent(ex);
             throw ex;
         }
     }
@@ -546,16 +534,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return current.syncUpTo(location.translogLocation + location.size);
             }
         } catch (AlreadyClosedException | IOException ex) {
-            if (current.getTragicException() != null) {
-                try {
-                    close();
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
-            }
+            closeOnTragicEvent(ex);
             throw ex;
         }
         return false;
+    }
+
+    private void closeOnTragicEvent(Throwable ex) {
+        if (current.getTragicException() != null) {
+            try {
+                close();
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+        }
     }
 
     /**

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -267,7 +269,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         return shardIdentifier;
     }
 
-    public boolean allocatedPostIndexCreate() {
+    public boolean allocatedPostIndexCreate(IndexMetaData indexMetaData) {
         if (active()) {
             return true;
         }
@@ -276,6 +278,11 @@ public final class ShardRouting implements Streamable, ToXContent {
         // for unassigned and initializing (we checked for active() before),
         // we can safely assume it is there
         if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            return false;
+        }
+
+        if (indexMetaData.activeAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_3_0_0)) {
+            // when no shards with this id have ever been active for this index
             return false;
         }
 

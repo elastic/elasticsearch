@@ -14,6 +14,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_cache_concurrency>>
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
+* <<breaking_30_allocation>>
 
 [[breaking_30_search_changes]]
 === Search changes
@@ -515,3 +516,23 @@ from `OsStats.Cpu#getPercent`.
 Only stored fields are retrievable with this option.
 The fields option won't be able to load non stored fields from _source anymore.
 
+[[breaking_30_allocation]]
+=== Primary shard allocation
+
+Previously, primary shards were only assigned if a quorum of shard copies were found (configurable using
+`index.recovery.initial_shards`, now deprecated). In case where a primary had only a single replica, quorum was defined
+to be a single shard. This meant that any shard copy of an index with replication factor 1 could become primary, even it
+was a stale copy of the data on disk. This is now fixed by using allocation IDs.
+
+Allocation IDs assign unique identifiers to shard copies. This allows the cluster to differentiate between multiple
+copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
+containing only the most recent data can become primaries.
+
+==== `index.shared_filesystem.recover_on_any_node` changes
+
+The behavior of `index.shared_filesystem.recover_on_any_node = true` has been changed. Previously, in the case where no
+shard copies could be found, an arbitrary node was chosen by potentially ignoring allocation deciders. Now, we take
+balancing into account but don't assign the shard if the allocation deciders are not satisfied. The behavior has also changed
+in the case where shard copies can be found. Previously, a node not holding the shard copy was chosen if none of the nodes
+holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
+even if none of the nodes holding a shard copy satisfy the allocation deciders.

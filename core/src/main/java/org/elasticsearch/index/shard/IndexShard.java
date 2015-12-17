@@ -1119,7 +1119,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        final boolean shouldExist = shardRouting.allocatedPostIndexCreate();
+        boolean shouldExist = shardRouting.allocatedPostIndexCreate(idxSettings.getIndexMetaData());
+
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
     }

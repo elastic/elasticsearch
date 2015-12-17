@@ -9,6 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -20,33 +21,33 @@ import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
-public class AgentService extends AbstractLifecycleComponent<AgentService> implements NodeSettingsService.Listener {
+public class AgentService extends AbstractLifecycleComponent<AgentService> {
 
     private volatile ExportingWorker exportingWorker;
 
     private volatile Thread workerThread;
     private volatile long samplingInterval;
-
-    private final MarvelSettings marvelSettings;
-
     private final Collection<Collector> collectors;
+    private final String[] settingsCollectors;
     private final Exporters exporters;
 
     @Inject
-    public AgentService(Settings settings, NodeSettingsService nodeSettingsService,
-                        MarvelSettings marvelSettings, Set<Collector> collectors, Exporters exporters) {
+    public AgentService(Settings settings, ClusterSettings clusterSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
-        this.marvelSettings = marvelSettings;
-        this.samplingInterval = marvelSettings.interval().millis();
-
-        this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, marvelSettings.collectors()));
+        samplingInterval = MarvelSettings.INTERVAL_SETTING.get(settings).millis();
+        settingsCollectors = MarvelSettings.COLLECTORS_SETTING.get(settings).toArray(new String[0]);
+        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL_SETTING, this::setInterval);
+        this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, settingsCollectors));
         this.exporters = exporters;
+    }
 
-        nodeSettingsService.addListener(this);
+    private void setInterval(TimeValue interval) {
+        this.samplingInterval = interval.millis();
+        applyIntervalSettings();
     }
 
     protected Set<Collector> filterCollectors(Set<Collector> collectors, String[] filters) {
@@ -136,14 +137,12 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
         }
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        TimeValue newSamplingInterval = settings.getAsTime(MarvelSettings.INTERVAL, null);
-        if (newSamplingInterval != null && newSamplingInterval.millis() != samplingInterval) {
-            logger.info("sampling interval updated to [{}]", newSamplingInterval);
-            samplingInterval = newSamplingInterval.millis();
-            applyIntervalSettings();
-        }
+    public TimeValue getSamplingInterval() {
+        return new TimeValue(samplingInterval, TimeUnit.MILLISECONDS);
+    }
+
+    public String[] collectors() {
+        return settingsCollectors;
     }
 
     class ExportingWorker implements Runnable {

@@ -34,7 +34,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1");
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
             settings.put("marvel.agent.exporters._exporter." + setting.getKey(), setting.getValue());

@@ -5,24 +5,18 @@
  */
 package org.elasticsearch.marvel.agent.settings;
 
-import org.elasticsearch.cluster.settings.Validator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.MarvelPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 
-import static org.elasticsearch.marvel.agent.settings.MarvelSetting.*;
-
-public class MarvelSettings extends AbstractComponent implements NodeSettingsService.Listener {
+public class MarvelSettings extends AbstractComponent {
 
     private static final String PREFIX = MarvelPlugin.NAME + ".agent.";
 
@@ -30,150 +24,104 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     public static final String MARVEL_DATA_INDEX_NAME = MARVEL_INDICES_PREFIX + "data";
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
-    public static final String INTERVAL                     = PREFIX + "interval";
-    public static final String INDEX_STATS_TIMEOUT          = PREFIX + "index.stats.timeout";
-    public static final String INDICES_STATS_TIMEOUT        = PREFIX + "indices.stats.timeout";
-    public static final String INDICES                      = PREFIX + "indices";
-    public static final String CLUSTER_STATE_TIMEOUT        = PREFIX + "cluster.state.timeout";
-    public static final String CLUSTER_STATS_TIMEOUT        = PREFIX + "cluster.stats.timeout";
-    public static final String INDEX_RECOVERY_TIMEOUT       = PREFIX + "index.recovery.timeout";
-    public static final String INDEX_RECOVERY_ACTIVE_ONLY   = PREFIX + "index.recovery.active_only";
-    public static final String COLLECTORS                   = PREFIX + "collectors";
+    /** Sampling interval between two collections (default to 10s) */
+    public static final Setting<TimeValue> INTERVAL_SETTING                     = Setting.timeSetting(PREFIX + "interval", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** Timeout value when collecting index statistics (default to 10m) */
+    public static final Setting<TimeValue> INDEX_STATS_TIMEOUT_SETTING          = Setting.timeSetting(PREFIX + "index.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** Timeout value when collecting total indices statistics (default to 10m) */
+    public static final Setting<TimeValue> INDICES_STATS_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "indices.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** List of indices names whose stats will be exported (default to all indices) */
+    public static final Setting<List<String>> INDICES_SETTING                   = Setting.listSetting(PREFIX + "indices", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+    /** Timeout value when collecting the cluster state (default to 10m) */
+    public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** Timeout value when collecting the recovery information (default to 10m) */
+    public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "cluster.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** Timeout value when collecting the recovery information (default to 10m) */
+    public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT_SETTING       = Setting.timeSetting(PREFIX + "index.recovery.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    /** Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected) */
+    public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY_SETTING     = Setting.boolSetting(PREFIX + "index.recovery.active_only", false, true, Setting.Scope.CLUSTER) ;
+    /** List of collectors allowed to collect data (default to all)*/
+    public static final Setting<List<String>> COLLECTORS_SETTING                = Setting.listSetting(PREFIX + "collectors", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
 
-    private Map<String, ? extends MarvelSetting> settings = Collections.emptyMap();
+    private TimeValue indexStatsTimeout;
+    private TimeValue indicesStatsTimeout;
+    private TimeValue clusterStateTimeout;
+    private TimeValue clusterStatsTimeout;
+    private TimeValue recoveryTimeout;
+    private boolean recoveryActiveOnly;
+    private String[] indices;
 
     @Inject
-    public MarvelSettings(Settings clusterSettings, NodeSettingsService nodeSettingsService) {
-        super(clusterSettings);
+    public MarvelSettings(Settings settings, ClusterSettings clusterSettings) {
+        super(settings);
 
         logger.trace("initializing marvel settings");
-        this.settings = defaultSettings();
-
-        logger.trace("updating marvel settings with cluster settings");
-        updateSettings(clusterSettings);
-
-        logger.trace("registering the service as a node settings listener");
-        nodeSettingsService.addListener(this);
-    }
-
-    private Map<String, MarvelSetting> defaultSettings() {
-        Map<String, MarvelSetting> map = new HashMap<>();
-        map.put(INTERVAL, timeSetting(INTERVAL, TimeValue.timeValueSeconds(10),
-                "Sampling interval between two collections (default to 10s)"));
-        map.put(INDEX_STATS_TIMEOUT, timeoutSetting(INDEX_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting index statistics (default to 10m)"));
-        map.put(INDICES_STATS_TIMEOUT, timeoutSetting(INDICES_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting total indices statistics (default to 10m)"));
-        map.put(INDICES, arraySetting(INDICES, Strings.EMPTY_ARRAY,
-                "List of indices names whose stats will be exported (default to all indices)"));
-        map.put(CLUSTER_STATE_TIMEOUT, timeoutSetting(CLUSTER_STATE_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting the cluster state (default to 10m)"));
-        map.put(CLUSTER_STATS_TIMEOUT, timeoutSetting(CLUSTER_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting the cluster statistics (default to 10m)"));
-        map.put(INDEX_RECOVERY_TIMEOUT, timeoutSetting(INDEX_RECOVERY_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting the recovery information (default to 10m)"));
-        map.put(INDEX_RECOVERY_ACTIVE_ONLY, booleanSetting(INDEX_RECOVERY_ACTIVE_ONLY, Boolean.FALSE,
-                "Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)"));
-        map.put(COLLECTORS, arraySetting(COLLECTORS, Strings.EMPTY_ARRAY,
-                "List of collectors allowed to collect data (default to all)"));
-        return Collections.unmodifiableMap(map);
-    }
-
-    public static Map<String, Validator> dynamicSettings() {
-        Map<String, Validator> dynamics = new HashMap<>();
-        dynamics.put(INTERVAL, Validator.TIME);
-        dynamics.put(INDEX_STATS_TIMEOUT, Validator.TIMEOUT);
-        dynamics.put(INDICES_STATS_TIMEOUT, Validator.TIMEOUT);
-        dynamics.put(INDICES + ".*", Validator.EMPTY);
-        dynamics.put(CLUSTER_STATE_TIMEOUT, Validator.TIMEOUT);
-        dynamics.put(CLUSTER_STATS_TIMEOUT, Validator.TIMEOUT);
-        dynamics.put(INDEX_RECOVERY_TIMEOUT, Validator.TIMEOUT);
-        dynamics.put(INDEX_RECOVERY_ACTIVE_ONLY, Validator.BOOLEAN);
-        return dynamics;
-    }
-
-    @Override
-    public void onRefreshSettings(Settings clusterSettings) {
-        if (clusterSettings.names() == null || clusterSettings.names().isEmpty()) {
-            return;
-        }
-        updateSettings(clusterSettings);
-    }
-
-    private void updateSettings(Settings clusterSettings) {
-        for (MarvelSetting setting : settings.values()) {
-            if (setting.onRefresh(clusterSettings)) {
-                logger.info("{} updated", setting);
-            }
-        }
-    }
-
-    /**
-     * Returns the setting corresponding to the given name
-     *
-     * @param name The given name
-     * @return The associated setting, null if not found
-     */
-    MarvelSetting getSetting(String name) {
-        MarvelSetting setting = settings.get(name);
-        if (setting == null) {
-            throw new IllegalArgumentException("no marvel setting initialized for [" + name + "]");
-        }
-        return setting;
-    }
-
-    /**
-     * Returns the settings corresponding to the given name
-     *
-     * @param name The given name
-     * @return The associated setting
-     */
-    <T> T getSettingValue(String name) {
-        MarvelSetting setting = getSetting(name);
-        if (setting == null) {
-            throw new IllegalArgumentException("no marvel setting initialized for [" + name + "]");
-        }
-        return (T) setting.getValue();
-    }
-
-    Collection<? extends MarvelSetting> settings() {
-        return settings.values();
-    }
-
-    public TimeValue interval() {
-        return getSettingValue(INTERVAL);
+        setIndexStatsTimeout(INDEX_STATS_TIMEOUT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDEX_STATS_TIMEOUT_SETTING, this::setIndexStatsTimeout);
+        setIndicesStatsTimeout(INDICES_STATS_TIMEOUT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDICES_STATS_TIMEOUT_SETTING, this::setIndicesStatsTimeout);
+        setIndices(INDICES_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDICES_SETTING, this::setIndices);
+        setClusterStateTimeout(CLUSTER_STATE_TIMEOUT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATE_TIMEOUT_SETTING, this::setClusterStateTimeout);
+        setClusterStatsTimeout(CLUSTER_STATS_TIMEOUT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATS_TIMEOUT_SETTING, this::setClusterStatsTimeout);
+        setRecoveryTimeout(INDEX_RECOVERY_TIMEOUT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDEX_RECOVERY_TIMEOUT_SETTING, this::setRecoveryTimeout);
+        setRecoveryActiveOnly(INDEX_RECOVERY_ACTIVE_ONLY_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDEX_RECOVERY_ACTIVE_ONLY_SETTING, this::setRecoveryActiveOnly);
     }
 
     public TimeValue indexStatsTimeout() {
-        return getSettingValue(INDEX_STATS_TIMEOUT);
+        return indexStatsTimeout;
     }
 
-    public TimeValue indicesStatsTimeout() {
-        return getSettingValue(INDICES_STATS_TIMEOUT);
-    }
+    public TimeValue indicesStatsTimeout() { return indicesStatsTimeout; }
 
     public String[] indices() {
-        return getSettingValue(INDICES);
+        return indices;
     }
 
     public TimeValue clusterStateTimeout() {
-        return getSettingValue(CLUSTER_STATE_TIMEOUT);
+        return clusterStateTimeout;
     }
 
     public TimeValue clusterStatsTimeout() {
-        return getSettingValue(CLUSTER_STATS_TIMEOUT);
+        return clusterStatsTimeout;
     }
 
     public TimeValue recoveryTimeout() {
-        return getSettingValue(INDEX_RECOVERY_TIMEOUT);
+        return recoveryTimeout;
     }
 
-    public boolean recoveryActiveOnly() {
-        return getSettingValue(INDEX_RECOVERY_ACTIVE_ONLY);
+    public boolean recoveryActiveOnly() { return recoveryActiveOnly; }
+
+    private void setIndexStatsTimeout(TimeValue indexStatsTimeout) {
+        this.indexStatsTimeout = indexStatsTimeout;
     }
 
-    public String[] collectors() {
-        return getSettingValue(COLLECTORS);
+    private void setIndicesStatsTimeout(TimeValue indicesStatsTimeout) {
+        this.indicesStatsTimeout = indicesStatsTimeout;
+    }
+
+    private void setClusterStateTimeout(TimeValue clusterStateTimeout) {
+        this.clusterStateTimeout = clusterStateTimeout;
+    }
+
+    private void setClusterStatsTimeout(TimeValue clusterStatsTimeout) {
+        this.clusterStatsTimeout = clusterStatsTimeout;
+    }
+
+    private void setRecoveryTimeout(TimeValue recoveryTimeout) {
+        this.recoveryTimeout = recoveryTimeout;
+    }
+
+    private void setRecoveryActiveOnly(boolean recoveryActiveOnly) {
+        this.recoveryActiveOnly = recoveryActiveOnly;
+    }
+
+    private void setIndices(List<String> indices) {
+        this.indices = indices.toArray(new String[0]);
     }
 
 }

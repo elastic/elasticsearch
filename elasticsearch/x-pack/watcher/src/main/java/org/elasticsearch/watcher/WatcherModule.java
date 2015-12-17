@@ -8,6 +8,7 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
@@ -19,11 +20,15 @@ public class WatcherModule extends AbstractModule {
     public static final String HISTORY_TEMPLATE_NAME = "watch_history";
     public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = "watches";
+    public static final Setting<Settings> HISTORY_TEMPLATE_SETTING = Setting.groupSetting("watcher.history.index.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> TRIGGERED_TEMPLATE_SETTING = Setting.groupSetting("watcher.triggered_watches.index.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> WATCHES_TEMPLATE_SETTING = Setting.groupSetting("watcher.watches.index.", true, Setting.Scope.CLUSTER);
+
 
     public final static TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
-            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "watcher.triggered_watches.index"),
-            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watcher.history.index"),
-            new TemplateConfig(WATCHES_TEMPLATE_NAME, "watcher.watches.index")
+            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, TRIGGERED_TEMPLATE_SETTING),
+            new TemplateConfig(HISTORY_TEMPLATE_NAME, HISTORY_TEMPLATE_SETTING),
+            new TemplateConfig(WATCHES_TEMPLATE_NAME, WATCHES_TEMPLATE_SETTING)
     };
 
     protected final Settings settings;

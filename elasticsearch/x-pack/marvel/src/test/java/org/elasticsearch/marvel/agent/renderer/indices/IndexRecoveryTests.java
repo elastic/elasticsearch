@@ -34,9 +34,9 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put(MarvelSettings.INDICES, INDEX_PREFIX + "*")
-                .put(MarvelSettings.COLLECTORS, IndexRecoveryCollector.NAME)
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .put(MarvelSettings.INDICES_SETTING.getKey(), INDEX_PREFIX + "*")
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), IndexRecoveryCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", "local")
                 .build();
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
@@ -131,7 +132,6 @@ public class ShieldPlugin extends Plugin {
             list.add(InternalCryptoService.class);
             list.add(FileRolesStore.class);
             list.add(Realms.class);
-            list.add(IPFilter.class);
             return list;
         }
         return Collections.emptyList();
@@ -153,12 +153,13 @@ public class ShieldPlugin extends Plugin {
         return settingsBuilder.build();
     }
 
-    public void onModule(ClusterModule clusterDynamicSettingsModule) {
-        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.transport.filter.*", Validator.EMPTY);
-        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.http.filter.*", Validator.EMPTY);
-        clusterDynamicSettingsModule.registerClusterDynamicSetting("transport.profiles.*", Validator.EMPTY);
-        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_SETTING, Validator.EMPTY);
-        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, Validator.EMPTY);
+    public void onModule(SettingsModule settingsModule) {
+        settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_SETTING);
+        settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
+        settingsModule.registerSetting(IPFilter.HTTP_FILTER_ALLOW_SETTING);
+        settingsModule.registerSetting(IPFilter.HTTP_FILTER_DENY_SETTING);
+        settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_ALLOW_SETTING);
+        settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_DENY_SETTING);
     }
 
     @Override

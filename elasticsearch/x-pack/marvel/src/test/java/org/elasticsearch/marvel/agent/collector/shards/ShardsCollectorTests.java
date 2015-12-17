@@ -31,7 +31,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INDICES, "test-shards*")
+                .put(MarvelSettings.INDICES_SETTING.getKey(), "test-shards*")
                 .build();
     }
 

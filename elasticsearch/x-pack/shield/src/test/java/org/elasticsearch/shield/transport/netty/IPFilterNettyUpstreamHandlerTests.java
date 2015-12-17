@@ -7,12 +7,12 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -32,6 +32,8 @@ import org.junit.Before;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Arrays;
+import java.util.HashSet;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -57,18 +59,24 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-
-        NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
+                IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                IPFilter.HTTP_FILTER_DENY_SETTING,
+                IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                IPFilter.IP_FILTER_ENABLED_SETTING,
+                IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                Transport.TRANSPORT_PROFILES_SETTING)));
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.securityEnabled()).thenReturn(true);
-        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, nodeSettingsService, transport, licenseState).start();
-
+        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);
             InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
             when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { httpAddress }, httpAddress));
             when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-            ipFilter.setHttpServerTransport(httpTransport);
+            ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         }
 
         if (isHttpEnabled) {

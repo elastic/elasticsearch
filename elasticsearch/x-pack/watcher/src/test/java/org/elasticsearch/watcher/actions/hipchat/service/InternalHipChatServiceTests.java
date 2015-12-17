@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.watcher.actions.hipchat.service;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.junit.Before;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -29,13 +31,11 @@ import static org.mockito.Mockito.verify;
  */
 public class InternalHipChatServiceTests extends ESTestCase {
     private HttpClient httpClient;
-    private NodeSettingsService nodeSettingsService;
     private WatcherSettingsFilter settingsFilter;
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-        nodeSettingsService = mock(NodeSettingsService.class);
         settingsFilter = mock(WatcherSettingsFilter.class);
     }
 
@@ -58,7 +58,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
             settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
-        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService, settingsFilter);
+        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)), settingsFilter);
         service.start();
 
         HipChatAccount account = service.getAccount(accountName);
@@ -107,7 +107,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
             settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, null, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
-        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService, settingsFilter);
+        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)), settingsFilter);
         service.start();
 
         HipChatAccount account = service.getAccount(accountName);
@@ -136,7 +136,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.INTEGRATION.value())
                 .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
-        try (InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService,
+        try (InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)),
                 settingsFilter)) {
             service.start();
             fail("Expected SettingsException");
@@ -164,7 +164,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
             settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, defaultUser, null, defaultColor, defaultFormat, defaultNotify);
-        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService, settingsFilter);
+        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)), settingsFilter);
         service.start();
 
         HipChatAccount account = service.getAccount(accountName);
@@ -227,7 +227,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
             buildMessageDefaults(name, settingsBuilder, null, null, null, defaultColor, defaultFormat, defaultNotify);
         }
 
-        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService, settingsFilter);
+        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)), settingsFilter);
         service.start();
 
         for (int i = 0; i < 5; i++) {

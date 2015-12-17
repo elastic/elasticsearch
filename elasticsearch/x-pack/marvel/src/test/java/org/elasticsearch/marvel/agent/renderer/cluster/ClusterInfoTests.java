@@ -35,8 +35,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put(MarvelSettings.COLLECTORS, ClusterInfoCollector.NAME)
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterInfoCollector.NAME)
                 .build();
     }
 

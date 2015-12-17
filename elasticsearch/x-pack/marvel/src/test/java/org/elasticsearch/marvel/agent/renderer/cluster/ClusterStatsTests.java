@@ -29,8 +29,8 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put(MarvelSettings.COLLECTORS, ClusterStatsCollector.NAME)
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterStatsCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", "local")
                 .build();
     }

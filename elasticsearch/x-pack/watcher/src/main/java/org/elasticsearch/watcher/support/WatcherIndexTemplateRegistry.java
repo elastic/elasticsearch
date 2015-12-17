@@ -15,9 +15,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.WatchStore;
@@ -34,7 +35,7 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  */
-public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener, NodeSettingsService.Listener {
+public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private final ClientProxy client;
@@ -45,7 +46,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     private volatile Map<String, Settings> customIndexSettings;
 
     @Inject
-    public WatcherIndexTemplateRegistry(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService,
+    public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
                                         ThreadPool threadPool, ClientProxy client, Set<TemplateConfig> configs) {
         super(settings);
         this.client = client;
@@ -53,12 +54,12 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         this.clusterService = clusterService;
         this.indexTemplates = unmodifiableSet(new HashSet<>(configs));
         clusterService.add(this);
-        nodeSettingsService.addListener(this);
 
         Map<String, Settings> customIndexSettings = new HashMap<>();
         for (TemplateConfig indexTemplate : indexTemplates) {
-            Settings customSettings = this.settings.getAsSettings(indexTemplate.getSettingsPrefix());
-            customIndexSettings.put(indexTemplate.getSettingsPrefix(), customSettings);
+            clusterSettings.addSettingsUpdateConsumer(indexTemplate.getSetting(), (s) -> updateConfig(indexTemplate, s));
+            Settings customSettings = this.settings.getAsSettings(indexTemplate.getSetting().getKey());
+            customIndexSettings.put(indexTemplate.getSetting().getKey(), customSettings);
         }
         this.customIndexSettings = unmodifiableMap(customIndexSettings);
     }
@@ -101,51 +102,44 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         }
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
+    private void updateConfig(TemplateConfig config, Settings settings) {
         if (clusterService.localNode().masterNode() == false) {
             // Only the node that runs or will run Watcher should update the templates. Otherwise unnecessary put template
             // calls would happen
             return;
         }
+        if (settings.names().isEmpty()) {
+            return;
+        }
 
-        for (TemplateConfig config : indexTemplates) {
-            Settings newSettings = Settings.builder()
-                    .put(settings.getAsSettings(config.getSettingsPrefix()))
-                    .build();
-            if (newSettings.names().isEmpty()) {
+        Settings existingSettings = customIndexSettings.get(config.getSetting().getKey());
+        if (existingSettings == null) {
+            existingSettings = Settings.EMPTY;
+        }
+
+        boolean changed = false;
+        Settings.Builder builder = Settings.builder().put(existingSettings);
+        for (Map.Entry<String, String> newSettingsEntry : settings.getAsMap().entrySet()) {
+            String name = "index." + newSettingsEntry.getKey();
+            if (FORBIDDEN_INDEX_SETTING.equals(name)) {
+                logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 continue;
             }
 
-            Settings existingSettings = customIndexSettings.get(config.getSettingsPrefix());
-            if (existingSettings == null) {
-                existingSettings = Settings.EMPTY;
+            String newValue = newSettingsEntry.getValue();
+            String currentValue = existingSettings.get(name);
+            if (!newValue.equals(currentValue)) {
+                changed = true;
+                builder.put(name, newValue);
+                logger.info("changing setting [{}] from [{}] to [{}]", name, currentValue, newValue);
             }
+        }
 
-            boolean changed = false;
-            Settings.Builder builder = Settings.builder().put(existingSettings);
-            for (Map.Entry<String, String> newSettingsEntry : newSettings.getAsMap().entrySet()) {
-                String name = "index." + newSettingsEntry.getKey();
-                if (FORBIDDEN_INDEX_SETTING.equals(name)) {
-                    logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
-                    continue;
-                }
-
-                String newValue = newSettingsEntry.getValue();
-                String currentValue = existingSettings.get(name);
-                if (!newValue.equals(currentValue)) {
-                    changed = true;
-                    builder.put(name, newValue);
-                    logger.info("changing setting [{}] from [{}] to [{}]", name, currentValue, newValue);
-                }
-            }
-
-            if (changed) {
-                Map<String, Settings> customIndexSettings = new HashMap<String, Settings>(this.customIndexSettings);
-                customIndexSettings.put(config.getSettingsPrefix(), builder.build());
-                this.customIndexSettings = customIndexSettings;
-                putTemplate(config, false);
-            }
+        if (changed) {
+            Map<String, Settings> customIndexSettings = new HashMap<String, Settings>(this.customIndexSettings);
+            customIndexSettings.put(config.getSetting().getKey(), builder.build());
+            this.customIndexSettings = customIndexSettings;
+            putTemplate(config, false);
         }
     }
 
@@ -171,7 +165,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
                     }
 
                     PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template);
-                    Settings customSettings = customIndexSettings.get(config.getSettingsPrefix());
+                    Settings customSettings = customIndexSettings.get(config.getSetting().getKey());
                     if (customSettings != null && customSettings.names().size() > 0) {
                         Settings updatedSettings = Settings.builder()
                                 .put(request.settings())
@@ -190,23 +184,19 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public static class TemplateConfig {
 
         private final String templateName;
-        private final String settingsPrefix;
+        private final Setting<Settings> setting;
 
-        public TemplateConfig(String templateName, String settingsPrefix) {
+        public TemplateConfig(String templateName, Setting<Settings> setting) {
             this.templateName = templateName;
-            this.settingsPrefix = settingsPrefix;
+            this.setting = setting;
         }
 
         public String getTemplateName() {
             return templateName;
         }
 
-        public String getSettingsPrefix() {
-            return settingsPrefix;
-        }
-
-        public String getDynamicSettingsPrefix() {
-            return settingsPrefix + ".*";
+        public Setting<Settings> getSetting() {
+            return setting;
         }
     }
 }

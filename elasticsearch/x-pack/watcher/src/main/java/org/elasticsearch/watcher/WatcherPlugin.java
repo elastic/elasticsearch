@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
@@ -184,10 +185,13 @@ public class WatcherPlugin extends Plugin {
         }
     }
 
-    public void onModule(ClusterModule module) {
+    public void onModule(SettingsModule module) {
         for (TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
-            module.registerClusterDynamicSetting(templateConfig.getDynamicSettingsPrefix(), Validator.EMPTY);
+            module.registerSetting(templateConfig.getSetting());
         }
+        module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);
+        module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
+        module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
     }
 
     public void onModule(NetworkModule module) {

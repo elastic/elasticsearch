@@ -9,8 +9,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
@@ -25,22 +26,24 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
 
     private volatile Accounts accounts;
 
+    public static final Setting<Settings> EMAIL_ACCOUNT_SETTING = Setting.groupSetting("watcher.actions.email.service.", true, Setting.Scope.CLUSTER);
+
+
     @Inject
-    public InternalEmailService(Settings settings, SecretService secretService, NodeSettingsService nodeSettingsService, WatcherSettingsFilter settingsFilter) {
+    public InternalEmailService(Settings settings, SecretService secretService, ClusterSettings clusterSettings, WatcherSettingsFilter settingsFilter) {
         super(settings);
         this.secretService = secretService;
-        nodeSettingsService.addListener(new NodeSettingsService.Listener() {
-            @Override
-            public void onRefreshSettings(Settings settings) {
-                reset(settings);
-            }
-        });
+        clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setEmailAccountSettings);
         settingsFilter.filterOut("watcher.actions.email.service.account.*.smtp.password");
+        setEmailAccountSettings(EMAIL_ACCOUNT_SETTING.get(settings));
+    }
+
+    private void setEmailAccountSettings(Settings settings) {
+        this.accounts = createAccounts(settings, logger);
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        reset(settings);
     }
 
     @Override
@@ -73,24 +76,6 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
             throw new MessagingException("failed to send email with subject [" + email.subject() + "] via account [" + account.name() + "]", me);
         }
         return new EmailSent(account.name(), email);
-    }
-
-    void reset(Settings nodeSettings) {
-        Settings.Builder builder = Settings.builder();
-        String prefix = "watcher.actions.email.service";
-        for (String setting : settings.getAsMap().keySet()) {
-            if (setting.startsWith(prefix)) {
-                builder.put(setting.substring(prefix.length()+1), settings.get(setting));
-            }
-        }
-        if (nodeSettings != settings) { // if it's the same settings, no point in re-applying it
-            for (String setting : nodeSettings.getAsMap().keySet()) {
-                if (setting.startsWith(prefix)) {
-                    builder.put(setting.substring(prefix.length() + 1), nodeSettings.get(setting));
-                }
-            }
-        }
-        accounts = createAccounts(builder.build(), logger);
     }
 
     protected Accounts createAccounts(Settings settings, ESLogger logger) {

@@ -63,6 +63,14 @@ public class ShieldNettyTransport extends NettyTransport {
     }
 
     @Override
+    protected void doStart() {
+        super.doStart();
+        if (authenticator != null) {
+            authenticator.setBoundTransportAddress(this.boundAddress(), profileBoundAddresses());
+        }
+    }
+
+    @Override
     public ChannelPipelineFactory configureClientChannelPipelineFactory() {
         return new SslClientChannelPipelineFactory(this);
     }

@@ -365,7 +365,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(MarvelSettings.INTERVAL, value, timeUnit)));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(MarvelSettings.INTERVAL_SETTING.getKey(), value, timeUnit)));
     }
 
     /** Shield related settings */

@@ -6,13 +6,12 @@
 package org.elasticsearch.marvel;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 
 public class MarvelPlugin extends Plugin {
 
@@ -110,10 +108,16 @@ public class MarvelPlugin extends Plugin {
         }
     }
 
-    public void onModule(ClusterModule module) {
-        Exporters.registerDynamicSettings(module);
-        for (Map.Entry<String, Validator> setting : MarvelSettings.dynamicSettings().entrySet()) {
-            module.registerClusterDynamicSetting(setting.getKey(), setting.getValue());
-        }
+    public void onModule(SettingsModule module) {
+        module.registerSetting(Exporters.EXPORTERS_SETTING);
+        module.registerSetting(MarvelSettings.INDICES_SETTING);
+        module.registerSetting(MarvelSettings.INTERVAL_SETTING);
+        module.registerSetting(MarvelSettings.INDEX_RECOVERY_TIMEOUT_SETTING);
+        module.registerSetting(MarvelSettings.INDEX_STATS_TIMEOUT_SETTING);
+        module.registerSetting(MarvelSettings.INDICES_STATS_TIMEOUT_SETTING);
+        module.registerSetting(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY_SETTING);
+        module.registerSetting(MarvelSettings.COLLECTORS_SETTING);
+        module.registerSetting(MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING);
+        module.registerSetting(MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING);
     }
 }

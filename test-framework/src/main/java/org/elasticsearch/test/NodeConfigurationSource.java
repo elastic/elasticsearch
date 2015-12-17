@@ -19,10 +19,18 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.test.store.MockFSIndexStore;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public abstract class NodeConfigurationSource {
 
@@ -42,6 +50,18 @@ public abstract class NodeConfigurationSource {
      * @return the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
      */
     public abstract Settings nodeSettings(int nodeOrdinal);
+
+    /** Plugins that will be randomly added to the node */
+    public Collection<Class<? extends Plugin>> mockPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(MockFSIndexStore.TestPlugin.class);
+        plugins.add(NodeMocksPlugin.class);
+        plugins.add(MockEngineFactoryPlugin.class);
+        plugins.add(MockSearchService.TestPlugin.class);
+        plugins.add(AssertingLocalTransport.TestPlugin.class);
+        return plugins;
+    }
 
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {

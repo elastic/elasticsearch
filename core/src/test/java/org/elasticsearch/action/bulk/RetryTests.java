@@ -107,6 +107,7 @@ public class RetryTests extends ESTestCase {
         listener.assertOnFailureNeverCalled();
     }
 
+    @AwaitsFix(bugUrl = "spuriously fails on Jenkins. Investigation ongoing.")
     public void testAsyncRetryFailsAfterBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();

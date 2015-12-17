@@ -282,7 +282,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.shard(new SearchShardTarget("_node_id", indexName, 0));
         hit.sourceRef(new BytesArray("{}"));
         hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
-        SearchResponse searchResponse2 = new SearchResponse(new InternalSearchResponse(hits, null, null, false, null), "_scrollId", 1, 1, 1, null);
+        SearchResponse searchResponse2 = new SearchResponse(new InternalSearchResponse(hits, null, null, null, false, null), "_scrollId", 1, 1, 1, null);
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId", 1, 1, 1, null);
         when(clientProxy.searchScroll(eq("_scrollId"), any(TimeValue.class))).thenReturn(searchResponse2, searchResponse3);
 

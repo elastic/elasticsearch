@@ -247,14 +247,14 @@ The meaning of the stats are as follows:
 === All parameters:
 
 [horizontal]
-
 `create_weight`::
 
     A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
     executes a search against a specific Lucene Index).  This puts Lucene in a tricky spot, since many queries
     need to accumulate temporary state/statistics associated with the index it is being used against, but the
     Query contract mandates that it must be immutable.
-
+    {empty} +
+    {empty} +
     To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
     object to hold state associated with this particular (IndexSearcher, Query) tuple.  The `weight` metric
     shows how long this process takes
@@ -265,7 +265,8 @@ The meaning of the stats are as follows:
     iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
     Note, this records the time required to generate the Scorer object, not actuall score the documents.  Some
     queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
-
+    {empty} +
+    {empty} +
     This may also showing timing associated with caching, if enabled and/or applicable for the query
 
 `next_doc`::
@@ -280,7 +281,8 @@ The meaning of the stats are as follows:
     `advance` is the "lower level" version of next_doc: it serves the same purpose of finding the next matching
     doc, but requires the calling query to perform extra tasks such as identifying and moving past skips, etc.
     However,  not all queries can use next_doc, so `advance` is also timed for those queries.
-
+    {empty} +
+    {empty} +
     Conjunctions (e.g. `must` clauses in a boolean) are typical consumers of `advance`
 
 `matches`::
@@ -288,17 +290,20 @@ The meaning of the stats are as follows:
     Some queries, such as phrase queries, match documents using a "Two Phase" process.  First, the document is
     "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
     (and expensive) process.  The second phase verification is what the `matches` statistic measures.
-
+    {empty} +
+    {empty} +
     For example, a phrase query first checks a document approximately by ensuring all terms in the phrase are
     present in the doc.  If all the terms are present, it then executes the second phase verification to ensure
     the terms are in-order to form the phrase, which is relatively more expensive than just checking for presence
     of the terms.
-
+    {empty} +
+    {empty} +
     Because this two-phase process is only used by a handful of queries, the `metric` statistic will often be zero
 
 `score`::
 
     This records the time taken to score a particular document via it's Scorer
+
 
 === `collectors` Section
 
@@ -378,15 +383,15 @@ For reference, the various collector reason's are:
 
 === `rewrite` Section
 
-    All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
-    more times, and the process continues until the query stops changing.  This process allows Lucene to perform
-    optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
-    etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
-    are unnecessary in this case.
+All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
+more times, and the process continues until the query stops changing.  This process allows Lucene to perform
+optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
+etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
+are unnecessary in this case.
 
-    The rewriting process is complex and difficult to display, since queries can change drastically.  Rather than
-    showing the intermediate results, the total rewrite time is simply displayed as a value (in nanoseconds).  This
-    value is cumulative and contains the total time for all queries being rewritten.
+The rewriting process is complex and difficult to display, since queries can change drastically.  Rather than
+showing the intermediate results, the total rewrite time is simply displayed as a value (in nanoseconds).  This
+value is cumulative and contains the total time for all queries being rewritten.
 
 === A more complex example
 
@@ -553,7 +558,7 @@ represented:
 
 1. The first `TermQuery` (message:search) represents the main `term` query
 2. The second `TermQuery` (my_field:foo) represents the `post_filter` query
-3. There is a  `MatchAllDocsQuery` (*:*) query which is being executed as a second, distinct search.  This was
+3. There is a  `MatchAllDocsQuery` (\*:*) query which is being executed as a second, distinct search.  This was
 not part of the query specified by the user, but is auto-generated by the global aggregation to provide a global query scope
 
 The Collector tree is fairly straightforward, showing how a single MultiCollector wraps a FilteredCollector

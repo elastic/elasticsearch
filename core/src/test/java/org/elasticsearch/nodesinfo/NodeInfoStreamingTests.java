@@ -59,6 +59,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 public class NodeInfoStreamingTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "need to figure out how to test streaming to earlier versions")
     public void testNodeInfoStreaming() throws IOException {
         NodeInfo nodeInfo = createNodeInfo();
 

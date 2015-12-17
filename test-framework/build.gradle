@@ -48,4 +48,4 @@ forbiddenApisMain {
 dependencyLicenses.enabled = false
 
 // we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true

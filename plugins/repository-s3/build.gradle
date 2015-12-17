@@ -51,7 +51,7 @@ test {
 }
 
 // classes are missing, e.g. org.apache.log.Logger
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true
 thirdPartyAudit.excludes = [
     // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
     // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault

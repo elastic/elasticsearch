@@ -37,15 +37,12 @@ dependencies {
   compile "commons-lang:commons-lang:2.6"
   compile "commons-io:commons-io:2.4"
   compile 'javax.mail:mail:1.4.5'
-  compile 'javax.activation:activation:1.1'
   compile 'javax.inject:javax.inject:1'
   compile "com.sun.jersey:jersey-client:${versions.jersey}"
   compile "com.sun.jersey:jersey-core:${versions.jersey}"
   compile "com.sun.jersey:jersey-json:${versions.jersey}"
   compile 'org.codehaus.jettison:jettison:1.1' 
   compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
-  compile 'javax.xml.bind:jaxb-api:2.2.2'
-  compile 'javax.xml.stream:stax-api:1.0-2'
   compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
@@ -57,7 +54,6 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'
   mapping from: /jaxb-.*/, to: 'jaxb'
-  mapping from: /stax-.*/, to: 'stax'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
@@ -67,9 +63,10 @@ compileJava.options.compilerArgs << '-Xlint:-deprecation'
 compileTestJava.options.compilerArgs << '-Xlint:-static'
 
 // classes are missing, e.g. org.osgi.framework.BundleActivator
-thirdPartyAudit.lenient = true
-// WE ARE JAR HELLING WITH THE JDK AND THAT IS WHY THIS HAPPENS
-// TODO: fix this!!!!!!!!!!!
+thirdPartyAudit.missingClasses = true
+// TODO: figure out what is happening and fix this!!!!!!!!!!!
+// there might be still some undetected jar hell!
+// we need to fix https://github.com/policeman-tools/forbidden-apis/issues/91 first
 thirdPartyAudit.excludes = [
     // uses internal java api: com.sun.xml.fastinfoset.stax.StAXDocumentParser
     'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector',

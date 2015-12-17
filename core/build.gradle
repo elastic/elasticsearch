@@ -112,7 +112,7 @@ forbiddenPatterns {
 }
 
 // classes are missing, e.g. org.jboss.marshalling.Marshaller
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true
 // uses internal sun ssl classes!
 thirdPartyAudit.excludes = [
     // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)

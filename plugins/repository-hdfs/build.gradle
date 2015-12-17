@@ -203,4 +203,4 @@ integTest {
 }
 
 // classes are missing, e.g. org.mockito.Mockito
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true

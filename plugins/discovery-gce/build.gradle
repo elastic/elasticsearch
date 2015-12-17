@@ -33,4 +33,4 @@ test {
 }
 
 // classes are missing, e.g. org.apache.log.Logger
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true

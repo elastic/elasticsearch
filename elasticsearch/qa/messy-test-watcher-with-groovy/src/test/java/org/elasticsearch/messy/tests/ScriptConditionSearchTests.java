@@ -7,7 +7,7 @@ package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchShardTarget;
@@ -91,7 +91,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
     public void testExecuteAccessHits() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
-        InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
+        InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));
 

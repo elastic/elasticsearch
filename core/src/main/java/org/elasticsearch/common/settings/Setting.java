@@ -312,6 +312,9 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
+        return listSetting(key, (s) -> defaultStringValue, singleValueParser, dynamic, scope);
+    }
+    public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
         Function<String, List<T>> parser = (s) -> {
             try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(s)){
                 XContentParser.Token token = xContentParser.nextToken();
@@ -330,7 +333,7 @@ public class Setting<T> extends ToXContentToBytes {
                 throw new IllegalArgumentException("failed to parse array", e);
             }
         };
-        return new Setting<List<T>>(key, arrayToParsableString(defaultStringValue.toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
+        return new Setting<List<T>>(key, (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
             private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
             public String getRaw(Settings settings) {

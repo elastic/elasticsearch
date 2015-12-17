@@ -295,7 +295,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 this.serverOpenChannels = openChannels;
 
                 // extract default profile first and create standard bootstrap
-                Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
+                Map<String, Settings> profiles = TRANSPORT_PROFILES_SETTING.get(settings()).getAsGroups(true);
                 if (!profiles.containsKey(DEFAULT_PROFILE)) {
                     profiles = new HashMap<>(profiles);
                     profiles.put(DEFAULT_PROFILE, Settings.EMPTY);

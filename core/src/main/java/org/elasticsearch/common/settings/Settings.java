@@ -652,7 +652,11 @@ public final class Settings implements ToXContent {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getAsGroups() throws SettingsException {
-        return getGroupsInternal("", false);
+        return getAsGroups(false);
+    }
+
+    public Map<String, Settings> getAsGroups(boolean ignoreNonGrouped) throws SettingsException {
+        return getGroupsInternal("", ignoreNonGrouped);
     }
 
     /**

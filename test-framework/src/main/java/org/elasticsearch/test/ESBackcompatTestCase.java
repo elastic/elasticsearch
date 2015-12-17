@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 
@@ -40,6 +41,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -173,6 +176,11 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Collections.emptyList();
             }
 
             @Override

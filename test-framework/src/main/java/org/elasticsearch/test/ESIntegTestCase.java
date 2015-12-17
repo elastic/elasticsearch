@@ -95,6 +95,7 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -111,13 +112,18 @@ import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.store.MockFSIndexStore;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -128,6 +134,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
+import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -1806,14 +1813,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
             nodeMode = "local";
         }
 
-        boolean enableMockModules = enableMockModules();
+        Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
+
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, enableMockModules);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
     }
 
-    protected boolean enableMockModules() {
-        return RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
+    /** Return the mock plugins the cluster should use. These may be randomly omitted based on the cluster seed. */
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        return pluginList(MockTransportService.TestPlugin.class,
+                          MockFSIndexStore.TestPlugin.class,
+                          NodeMocksPlugin.class,
+                          MockEngineFactoryPlugin.class,
+                          MockSearchService.TestPlugin.class,
+                          AssertingLocalTransport.TestPlugin.class);
     }
 
     /**

@@ -199,7 +199,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
-    private final boolean enableMockModules;
+    private final Collection<Class<? extends Plugin>> mockPlugins;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -212,7 +212,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix, boolean enableMockModules) {
+                               boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins) {
         super(clusterSeed);
         if ("network".equals(nodeMode) == false && "local".equals(nodeMode) == false) {
             throw new IllegalArgumentException("Unknown nodeMode: " + nodeMode);
@@ -248,7 +248,7 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
-        this.enableMockModules = enableMockModules;
+        this.mockPlugins = mockPlugins;
 
         /*
          *  TODO
@@ -359,16 +359,10 @@ public final class InternalTestCluster extends TestCluster {
 
     private Collection<Class<? extends Plugin>> getPlugins(long seed) {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
-        Random random = new Random(seed);
-        if (enableMockModules && usually(random)) {
-            plugins.add(MockTransportService.TestPlugin.class);
-            plugins.add(MockFSIndexStore.TestPlugin.class);
-            plugins.add(NodeMocksPlugin.class);
-            plugins.add(MockEngineFactoryPlugin.class);
-            plugins.add(MockSearchService.TestPlugin.class);
-            if (isLocalTransportConfigured()) {
-                plugins.add(AssertingLocalTransport.TestPlugin.class);
-            }
+        plugins.addAll(mockPlugins);
+        if (isLocalTransportConfigured() == false) {
+            // this is crazy we must do this here...we should really just always be using local transport...
+            plugins.remove(AssertingLocalTransport.TestPlugin.class);
         }
         return plugins;
     }

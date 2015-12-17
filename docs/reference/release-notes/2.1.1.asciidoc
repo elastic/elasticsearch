@@ -36,9 +36,6 @@ Internal::
 Mapping::
 * Multi field names may not contain dots {pull}15118[#15118] (issue: {issue}14957[#14957])
 
-Packaging::
-* fix command line options for windows bat file [OPEN] {pull}15320[#15320] (issue: {issue}15284[#15284])
-
 Search::
 * Fix NPE when a segment with an empty cache gets closed. {pull}15202[#15202] (issue: {issue}15043[#15043])
 

@@ -73,6 +73,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -139,7 +141,7 @@ public class PercolateContext extends SearchContext {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.scriptService = scriptService;
         this.numberOfShards = request.getNumberOfShards();
         this.aliasFilter = aliasFilter;
@@ -755,5 +757,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
+    }
+
+
+    @Override
+    public Profilers getProfilers() {
+        throw new UnsupportedOperationException();
     }
 }

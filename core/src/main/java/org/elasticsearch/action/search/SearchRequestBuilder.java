@@ -974,6 +974,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Should the query be profiled. Defaults to <code>false</code>
+     */
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
+        return this;
+    }
+
+    /**
      * Sets the source builder to be used with this request. Note, any operations done
      * on this require builder before are discarded as this internal builder replaces
      * what has been built up until this point.

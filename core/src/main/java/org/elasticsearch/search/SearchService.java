@@ -93,6 +93,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QueryPhase;
@@ -639,7 +640,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
+        DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
         try {
             if (request.scroll() != null) {
@@ -662,6 +663,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.size(0);
             } else if (context.size() == -1) {
                 context.size(10);
+            }
+
+            if (context.request().isProfile()) {
+                context.setProfilers(new Profilers(context.searcher()));
             }
 
             // pre process

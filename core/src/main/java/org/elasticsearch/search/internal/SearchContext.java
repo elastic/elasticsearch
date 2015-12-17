@@ -58,6 +58,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -310,6 +311,11 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
     public abstract QuerySearchResult queryResult();
 
     public abstract FetchSearchResult fetchResult();
+
+    /**
+     * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
+     */
+    public abstract Profilers getProfilers();
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object

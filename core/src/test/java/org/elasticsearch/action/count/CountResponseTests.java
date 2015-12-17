@@ -33,7 +33,7 @@ public class CountResponseTests extends ESTestCase {
 
     @Test
     public void testFromSearchResponse() {
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(null, randomLong(), randomFloat()), null, null, randomBoolean(), randomBoolean());
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(null, randomLong(), randomFloat()), null, null, null,  randomBoolean(), randomBoolean());
         ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[randomIntBetween(0, 5)];
         for (int i = 0; i < shardSearchFailures.length; i++) {
             shardSearchFailures[i] = new ShardSearchFailure(new IllegalArgumentException());

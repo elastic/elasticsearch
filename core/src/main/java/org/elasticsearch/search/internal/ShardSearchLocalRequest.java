@@ -73,6 +73,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private Boolean requestCache;
     private long nowInMillis;
 
+    private boolean profile;
+
     ShardSearchLocalRequest() {
     }
 
@@ -178,6 +180,16 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     @Override
     public Scroll scroll() {
         return scroll;
+    }
+
+    @Override
+    public void setProfile(boolean profile) {
+        this.profile = profile;
+    }
+
+    @Override
+    public boolean isProfile() {
+        return profile;
     }
 
     @SuppressWarnings("unchecked")

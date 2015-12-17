@@ -49,6 +49,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -530,5 +531,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return in.queryCollectors();
+    }
+
+    @Override
+    public Profilers getProfilers() {
+        return in.getProfilers();
     }
 }

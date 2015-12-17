@@ -62,6 +62,8 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -140,10 +142,10 @@ public class DefaultSearchContext extends SearchContext {
     private List<RescoreSearchContext> rescore;
     private SearchLookup searchLookup;
     private volatile long keepAlive;
-    private ScoreDoc lastEmittedDoc;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
+    private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -169,7 +171,7 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
     }
@@ -744,5 +746,14 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
+    }
+
+    @Override
+    public Profilers getProfilers() {
+        return profilers;
+    }
+
+    public void setProfilers(Profilers profilers) {
+        this.profilers = profilers;
     }
 }

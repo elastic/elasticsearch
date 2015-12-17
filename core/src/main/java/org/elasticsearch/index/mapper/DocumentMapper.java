@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -114,7 +114,7 @@ public class DocumentMapper implements ToXContent {
     private final MapperService mapperService;
 
     private final String type;
-    private final StringAndBytesText typeText;
+    private final Text typeText;
 
     private volatile CompressedXContent mappingSource;
 
@@ -138,7 +138,7 @@ public class DocumentMapper implements ToXContent {
                           ReentrantReadWriteLock mappingLock) {
         this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
-        this.typeText = new StringAndBytesText(this.type);
+        this.typeText = new Text(this.type);
         this.mapping = new Mapping(
                 Version.indexCreated(indexSettings),
                 rootObjectMapper,

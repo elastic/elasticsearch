@@ -33,7 +33,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleFieldFragList;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -159,7 +159,7 @@ public class FastVectorHighlighter implements Highlighter {
             }
 
             if (fragments != null && fragments.length > 0) {
-                return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+                return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
             }
 
             int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
@@ -170,7 +170,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.fieldType().names().indexName(),
                         fieldFragList, 1, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
                 if (fragments != null && fragments.length > 0) {
-                    return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+                    return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
                 }
             }
 

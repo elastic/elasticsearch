@@ -38,7 +38,7 @@ import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -164,7 +164,7 @@ public class PercolateContext extends SearchContext {
             fields.put(field.name(), new InternalSearchHitField(field.name(), Collections.emptyList()));
         }
         hitContext().reset(
-                new InternalSearchHit(0, "unknown", new StringText(parsedDocument.type()), fields),
+                new InternalSearchHit(0, "unknown", new Text(parsedDocument.type()), fields),
                 atomicReaderContext, 0, docSearcher.searcher()
         );
     }

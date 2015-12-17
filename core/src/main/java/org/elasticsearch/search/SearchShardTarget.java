@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -42,8 +42,8 @@ public class SearchShardTarget implements Streamable, Comparable<SearchShardTarg
     }
 
     public SearchShardTarget(String nodeId, String index, int shardId) {
-        this.nodeId = nodeId == null ? null : new StringAndBytesText(nodeId);
-        this.index = new StringAndBytesText(index);
+        this.nodeId = nodeId == null ? null : new Text(nodeId);
+        this.index = new Text(index);
         this.shardId = shardId;
     }
 

@@ -198,6 +198,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
+            // NOTE: never apply the default here
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
@@ -211,67 +212,69 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return mapper;
         } else {
-            return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+            try (ReleasableLock lock = mappingWriteLock.acquire()) {
+                // only apply the default mapping if we don't have the type yet
+                applyDefault &= mappers.containsKey(type) == false;
+                return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+            }
         }
     }
 
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            if (mapper.type().length() == 0) {
-                throw new InvalidTypeNameException("mapping type name is empty");
-            }
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-            }
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-            }
-            if (mapper.type().contains("#")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-            }
-            if (mapper.type().contains(",")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-            }
-            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
-                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
-            if (typeNameStartsWithIllegalDot(mapper)) {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                    throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
-                } else {
-                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
-                }
-            }
-            // we can add new field/object mappers while the old ones are there
-            // since we get new instances of those, and when we remove, we remove
-            // by instance equality
-            DocumentMapper oldMapper = mappers.get(mapper.type());
-
-            if (oldMapper != null) {
-                oldMapper.merge(mapper.mapping(), false, updateAllTypes);
-                return oldMapper;
+        if (mapper.type().length() == 0) {
+            throw new InvalidTypeNameException("mapping type name is empty");
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
+        }
+        if (mapper.type().charAt(0) == '_') {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
+        }
+        if (mapper.type().contains("#")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
+        }
+        if (mapper.type().contains(",")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
+        }
+        if (mapper.type().equals(mapper.parentFieldMapper().type())) {
+            throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
+        }
+        if (typeNameStartsWithIllegalDot(mapper)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
             } else {
-                Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
-                        mapper.type(), mapper.mapping(), updateAllTypes);
-                Collection<ObjectMapper> newObjectMappers = newMappers.v1();
-                Collection<FieldMapper> newFieldMappers = newMappers.v2();
-                addMappers(mapper.type(), newObjectMappers, newFieldMappers);
-
-                for (DocumentTypeListener typeListener : typeListeners) {
-                    typeListener.beforeCreate(mapper);
-                }
-                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
-                if (mapper.parentFieldMapper().active()) {
-                    Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
-                    newParentTypes.addAll(parentTypes);
-                    newParentTypes.add(mapper.parentFieldMapper().type());
-                    parentTypes = unmodifiableSet(newParentTypes);
-                }
-                assert assertSerialization(mapper);
-                return mapper;
+                logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
             }
+        }
+        // we can add new field/object mappers while the old ones are there
+        // since we get new instances of those, and when we remove, we remove
+        // by instance equality
+        DocumentMapper oldMapper = mappers.get(mapper.type());
+
+        if (oldMapper != null) {
+            oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+            return oldMapper;
+        } else {
+            Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
+                    mapper.type(), mapper.mapping(), updateAllTypes);
+            Collection<ObjectMapper> newObjectMappers = newMappers.v1();
+            Collection<FieldMapper> newFieldMappers = newMappers.v2();
+            addMappers(mapper.type(), newObjectMappers, newFieldMappers);
+
+            for (DocumentTypeListener typeListener : typeListeners) {
+                typeListener.beforeCreate(mapper);
+            }
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+            if (mapper.parentFieldMapper().active()) {
+                Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
+                newParentTypes.addAll(parentTypes);
+                newParentTypes.add(mapper.parentFieldMapper().type());
+                parentTypes = unmodifiableSet(newParentTypes);
+            }
+            assert assertSerialization(mapper);
+            return mapper;
         }
     }
 

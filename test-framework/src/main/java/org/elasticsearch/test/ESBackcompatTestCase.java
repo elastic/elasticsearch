@@ -26,14 +26,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportModule;
 
 import java.io.IOException;
 import java.lang.annotation.ElementType;
@@ -46,7 +44,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.is;
 
@@ -182,6 +179,11 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             }
 
             @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Collections.emptyList();
+            }
+
+            @Override
             public Settings transportClientSettings() {
                 return transportClientSettings();
             }
@@ -238,7 +240,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
-        builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
         builder.put("node.mode", "network");
         return builder.build();
     }

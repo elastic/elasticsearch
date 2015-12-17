@@ -72,7 +72,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             this.builder = this;
         }
 

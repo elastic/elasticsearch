@@ -24,6 +24,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -78,7 +79,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         Map<String, Object> ctx = new HashMap<>();
         vars.put("ctx", ctx);
 
-        Object compiledScript = scriptEngine.compile("return ((Map<String, Object>)input.get(\"ctx\")).get(\"value\");");
+        Object compiledScript = scriptEngine.compile("return ((Map<String, Object>)input.get(\"ctx\")).get(\"value\");", Collections.emptyMap());
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution1", "plan-a", compiledScript), vars);
 
@@ -93,7 +94,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
     public void testChangingVarsCrossExecution2() {
         Map<String, Object> vars = new HashMap<>();
-        Object compiledScript = scriptEngine.compile("return input.get(\"value\");");
+        Object compiledScript = scriptEngine.compile("return input.get(\"value\");", Collections.emptyMap());
 
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution2", "plan-a", compiledScript), vars);

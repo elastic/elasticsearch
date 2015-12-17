@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -65,7 +64,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  * <p>
- * The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
  */
 public class TransportClient extends AbstractClient {
@@ -139,10 +138,9 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService));
+                modules.add(new NetworkModule(networkService, this.settings, true));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new TransportModule(this.settings));
                 modules.add(new SearchModule() {
                     @Override
                     protected void configure() {
@@ -150,7 +148,6 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(true));
-                modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
 
                 pluginsService.processModules(modules);

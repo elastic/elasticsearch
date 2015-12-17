@@ -64,10 +64,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo;
 
-        protected Builder(String name, MappedFieldType fieldType) {
+        protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name);
             this.fieldType = fieldType.clone();
-            this.defaultFieldType = fieldType.clone();
+            this.defaultFieldType = defaultFieldType.clone();
             this.defaultOptions = fieldType.indexOptions(); // we have to store it the fieldType is mutable
             multiFieldsBuilder = new MultiFields.Builder();
         }

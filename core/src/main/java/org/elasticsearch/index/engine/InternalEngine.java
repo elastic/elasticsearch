@@ -103,9 +103,9 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
-    // How many callers are currently requesting index throttling.  Currently there are only two times we do this: when merges are falling
-    // behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling incoming
-    // indexing ops to a single thread:
+    // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
+    // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
+    // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
 
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
@@ -515,16 +515,17 @@ public class InternalEngine extends Engine {
     @Override
     public void writeIndexingBuffer() throws EngineException {
 
-        // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
-        // searcher managers, one for searching which is only refreshed by the schedule the user requested (refresh_interval, or invoking
-        // refresh API), and another for version map interactions:
-        long versionMapBytes = versionMap.ramBytesUsedForRefresh();
-        long indexingBufferBytes = indexWriter.ramBytesUsed();
-
-        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
+        // we obtain a read lock here, since we don't want a flush to happen while we are writing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+
+            // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
+            // searcher managers, one for searching which is only refreshed by the schedule the user requested (refresh_interval, or invoking
+            // refresh API), and another for version map interactions:
+            long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+            long indexingBufferBytes = indexWriter.ramBytesUsed();
+
             boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears

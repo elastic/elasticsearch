@@ -544,8 +544,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (canIndex()) {
             long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
             indexingMemoryController.addWritingBytes(this, ramBytesUsed);
-            logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(ramBytesUsed));
             try {
+                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(ramBytesUsed));
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
@@ -1019,7 +1019,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so. */
+     *  indexing operation, and notify listeners that we are now inactive so e.g. sync'd flush can happen. */
     public void checkIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
@@ -1254,24 +1254,23 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     public void writeIndexingBufferAsync() {
+        if (canIndex() == false) {
+            throw new UnsupportedOperationException();
+        }
         threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
                         Engine engine = getEngine();
-                        if (canIndex()) {
-                            long bytes = engine.indexBufferRAMBytesUsed();
-                            // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
-                            // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
-                            // there's still up to the 20% being used and continue writing if necessary:
-                            indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
-                            try {
-                                getEngine().writeIndexingBuffer();
-                            } finally {
-                                indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
-                            }
-                        } else {
+                        long bytes = engine.indexBufferRAMBytesUsed();
+                        // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
+                        // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
+                        // there's still up to the 20% being used and continue writing if necessary:
+                        indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
+                        try {
                             getEngine().writeIndexingBuffer();
+                        } finally {
+                            indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
                         }
                     } catch (Exception e) {
                         handleRefreshException(e);

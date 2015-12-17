@@ -126,9 +126,9 @@ public class RetryTests extends ESTestCase {
 
     private static class AssertingListener implements ActionListener<BulkResponse> {
         private final CountDownLatch latch;
-        private int countOnResponseCalled = 0;
-        private Throwable lastFailure;
-        private BulkResponse response;
+        private volatile int countOnResponseCalled = 0;
+        private volatile Throwable lastFailure;
+        private volatile BulkResponse response;
 
         private AssertingListener() {
             latch = new CountDownLatch(1);

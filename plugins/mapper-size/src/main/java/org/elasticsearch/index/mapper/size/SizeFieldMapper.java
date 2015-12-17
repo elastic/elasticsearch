@@ -66,7 +66,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
+            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing, Defaults.SIZE_FIELD_TYPE);
             builder = this;
         }
 

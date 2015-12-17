@@ -81,7 +81,7 @@ public class ExternalMapper extends FieldMapper {
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
-            super(name, new ExternalFieldType());
+            super(name, new ExternalFieldType(), new ExternalFieldType());
             this.builder = this;
             this.stringBuilder = stringField(name).store(false);
             this.generatedValue = generatedValue;

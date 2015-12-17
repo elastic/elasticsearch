@@ -88,7 +88,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private String[] excludes = null;
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         public Builder enabled(boolean enabled) {

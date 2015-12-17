@@ -34,7 +34,7 @@ compileJava.options.compilerArgs << '-Xlint:-cast,-fallthrough,-rawtypes'
 compileTestJava.options.compilerArgs << '-Xlint:-unchecked'
 
 // classes are missing, e.g. org.objectweb.asm.tree.LabelNode
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true
 
 // regeneration logic, comes in via ant right now
 // don't port it to gradle, it works fine.

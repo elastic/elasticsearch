@@ -37,7 +37,7 @@ integTest {
 }
 
 // classes are missing, e.g. jline.console.completer.Completer
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true
 thirdPartyAudit.excludes = [
     // uses internal java api: sun.misc.Unsafe
     'groovy.json.internal.FastStringUtils',

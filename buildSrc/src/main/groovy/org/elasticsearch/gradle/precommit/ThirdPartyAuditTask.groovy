@@ -18,6 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import java.nio.file.Files
+import java.nio.file.FileVisitResult
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+
 import org.gradle.api.DefaultTask
 import org.gradle.api.artifacts.UnknownConfigurationException
 import org.gradle.api.file.FileCollection
@@ -32,7 +38,7 @@ import org.apache.tools.ant.Project
 public class ThirdPartyAuditTask extends DefaultTask {
 
     // true to be lenient about MISSING CLASSES
-    private boolean lenient;
+    private boolean missingClasses;
     
     // patterns for classes to exclude, because we understand their issues
     private String[] excludes = new String[0];
@@ -43,19 +49,19 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     /** 
-     * Set to true to be lenient with dependencies. By default this check will fail if it finds
+     * Set to true to be lenient with missing classes. By default this check will fail if it finds
      * MISSING CLASSES. This means the set of jars is incomplete. However, in some cases
      * this can be due to intentional exclusions that are well-tested and understood.
      */      
-    public void setLenient(boolean value) {
-        lenient = value;
+    public void setMissingClasses(boolean value) {
+        missingClasses = value;
     }
     
     /**
      * Returns true if leniency about missing classes is enabled.
      */
-    public boolean isLenient() {
-        return lenient;
+    public boolean isMissingClasses() {
+        return missingClasses;
     }
     
     /**
@@ -118,9 +124,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
         logger.error("[thirdPartyAudit] Scanning: " + names)
         
-        // warn that you won't see any forbidden apis warnings
-        if (lenient) {
-            logger.warn("[thirdPartyAudit] WARNING: leniency is enabled, will not fail if classes are missing!")
+        // warn that classes are missing
+        // TODO: move these to excludes list!
+        if (missingClasses) {
+            logger.warn("[thirdPartyAudit] WARNING: CLASSES ARE MISSING! Expect NoClassDefFoundError in bug reports from users!")
         }
         
         // TODO: forbidden-apis + zipfileset gives O(n^2) behavior unless we dump to a tmpdir first, 
@@ -135,7 +142,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         for (File jar : jars) {
             ant.unzip(src: jar.getAbsolutePath(), dest: tmpDir.getAbsolutePath())
         }
-
+        
         // convert exclusion class names to binary file names
         String[] excludedFiles = new String[excludes.length];
         for (int i = 0; i < excludes.length; i++) {
@@ -146,13 +153,55 @@ public class ThirdPartyAuditTask extends DefaultTask {
             }
         }
         
+        // jarHellReprise
+        checkSheistyClasses(tmpDir.toPath(), new HashSet<>(Arrays.asList(excludedFiles)));
+        
         ant.thirdPartyAudit(internalRuntimeForbidden: true, 
                             failOnUnsupportedJava: false, 
-                            failOnMissingClasses: !lenient,
+                            failOnMissingClasses: !missingClasses,
                             classpath: project.configurations.testCompile.asPath) {
             fileset(dir: tmpDir, excludes: excludedFiles.join(','))
         }
         // clean up our mess (if we succeed)
         ant.delete(dir: tmpDir.getAbsolutePath())
+    }
+    
+    /**
+     * check for sheisty classes: if they also exist in the extensions classloader, its jar hell with the jdk!
+     */
+    private void checkSheistyClasses(Path root, Set<String> excluded) {
+        // system.parent = extensions loader.
+        // note: for jigsaw, this evilness will need modifications (e.g. use jrt filesystem!). 
+        // but groovy/gradle needs to work at all first!
+        ClassLoader ext = ClassLoader.getSystemClassLoader().getParent()
+        assert ext != null
+        
+        Set<String> sheistySet = new TreeSet<>();
+        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String entry = root.relativize(file).toString()
+                if (entry.endsWith(".class")) {
+                    if (ext.getResource(entry) != null) {
+                        sheistySet.add(entry);
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        
+        // check if we are ok
+        if (sheistySet.isEmpty()) {
+            return;
+        }
+        
+        // leniency against exclusions list
+        sheistySet.removeAll(excluded);
+        
+        if (sheistySet.isEmpty()) {
+            logger.warn("[thirdPartyAudit] WARNING: JAR HELL WITH JDK! Expect insanely hard-to-debug problems!")
+        } else {
+            throw new IllegalStateException("JAR HELL WITH JDK! " + sheistySet);
+        }
     }
 }

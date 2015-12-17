@@ -78,7 +78,7 @@ public class BulkProcessor implements Closeable {
         private int bulkActions = 1000;
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
-        private BackoffPolicy backoffPolicy = BackoffPolicy.noBackoff();
+        private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
@@ -140,7 +140,9 @@ public class BulkProcessor implements Closeable {
          * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
          * in case they have failed due to resource constraints (i.e. a thread pool was full).
          *
-         * The default is to not back off, i.e. failing immediately.
+         * The default is to back off exponentially.
+         *
+         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
          */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
@@ -162,7 +164,7 @@ public class BulkProcessor implements Closeable {
         if (client == null) {
             throw new NullPointerException("The client you specified while building a BulkProcessor is null");
         }
-        
+
         return new Builder(client, listener);
     }
 

@@ -29,6 +29,8 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
@@ -41,6 +43,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -97,6 +100,14 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         return Settings.builder().put(super.transportClientSettings())
                 .put("shield.enabled", false)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
+        plugins.remove(MockTransportService.TestPlugin.class); // shield has its own transport service
+        plugins.remove(AssertingLocalTransport.TestPlugin.class); // shield has its own transport
+        return plugins;
     }
 
     @Override

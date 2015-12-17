@@ -192,8 +192,10 @@ public class ShieldPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        // we want to expose the shield rest action even when the plugin is disabled
-        module.registerRestHandler(RestShieldInfoAction.class);
+        if (clientMode == false) {
+            // we want to expose the shield rest action even when the plugin is disabled
+            module.registerRestHandler(RestShieldInfoAction.class);
+        }
 
         if (enabled == false) {
             return;

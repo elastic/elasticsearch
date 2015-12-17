@@ -18,6 +18,8 @@ import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.local.LocalTransport;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -54,11 +56,16 @@ public class AuditTrailModuleTests extends ESTestCase {
         try {
             Injector injector = Guice.createInjector(
                     new SettingsModule(settings, new SettingsFilter(settings)),
+                    new NetworkModule(new NetworkService(settings), settings, false) {
+                        @Override
+                        protected void configure() {
+                            bind(Transport.class).to(LocalTransport.class).asEagerSingleton();
+                        }
+                    },
                     new AuditTrailModule(settings),
                     new CircuitBreakerModule(settings),
                     new ThreadPoolModule(pool),
-                    new Version.Module(Version.CURRENT),
-                    new NetworkModule(new NetworkService(settings), settings, false)
+                    new Version.Module(Version.CURRENT)
             );
             AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
             assertThat(auditTrail, instanceOf(AuditTrailService.class));

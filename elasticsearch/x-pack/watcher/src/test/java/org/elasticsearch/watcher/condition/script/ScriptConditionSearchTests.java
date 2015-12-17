@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.condition.script;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -81,7 +81,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
     public void testExecuteAccessHits() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
-        InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
+        InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));
 

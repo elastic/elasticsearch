@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
@@ -267,7 +267,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
-        InternalSearchHit hit = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
         hit.version(1l);
         hit.shard(new SearchShardTarget("_node_id", indexName, 0));
         hit.sourceRef(new BytesArray("{}"));
@@ -277,7 +277,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
         hit.version(1l);
         hit.shard(new SearchShardTarget("_node_id", indexName, 0));
         hit.sourceRef(new BytesArray("{}"));

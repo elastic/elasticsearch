@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHitField;
@@ -230,17 +230,17 @@ public class WatchStoreTests extends ESTestCase {
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         BytesReference source = new BytesArray("{}");
-        InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new StringText("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new Text("type"), Collections.<String, SearchHitField>emptyMap());
         hit1.sourceRef(source);
-        InternalSearchHit hit2 = new InternalSearchHit(1, "_id2", new StringText("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit2 = new InternalSearchHit(1, "_id2", new Text("type"), Collections.<String, SearchHitField>emptyMap());
         hit2.sourceRef(source);
         SearchResponse searchResponse1 = mockSearchResponse(1, 1, 2, hit1, hit2);
 
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
-        InternalSearchHit hit3 = new InternalSearchHit(2, "_id3", new StringText("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit3 = new InternalSearchHit(2, "_id3", new Text("type"), Collections.<String, SearchHitField>emptyMap());
         hit3.sourceRef(source);
-        InternalSearchHit hit4 = new InternalSearchHit(3, "_id4", new StringText("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit4 = new InternalSearchHit(3, "_id4", new Text("type"), Collections.<String, SearchHitField>emptyMap());
         hit4.sourceRef(source);
         SearchResponse searchResponse2 = mockSearchResponse(1, 1, 2, hit3, hit4);
         SearchResponse searchResponse3 = mockSearchResponse(1, 1, 2);

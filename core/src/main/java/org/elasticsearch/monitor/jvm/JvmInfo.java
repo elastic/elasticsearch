@@ -375,7 +375,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.readFrom(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
-        useCompressedOops = in.readOptionalString();
+        useCompressedOops = in.readString();
     }
 
     @Override
@@ -400,7 +400,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
-        out.writeOptionalString(useCompressedOops);
+        out.writeString(useCompressedOops);
     }
 
     public static class Mem implements Streamable {

@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -23,6 +25,8 @@ import org.junit.rules.ExternalResource;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -143,6 +147,14 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         return Settings.builder().put(super.transportClientSettings())
                 .put(customShieldSettingsSource.transportClientSettings())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
+        plugins.remove(MockTransportService.TestPlugin.class); // shield has its own transport service
+        plugins.remove(AssertingLocalTransport.TestPlugin.class); // shield has its own transport
+        return plugins;
     }
 
     @Override

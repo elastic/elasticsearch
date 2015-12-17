@@ -35,6 +35,7 @@ public class LicensePlugin extends Plugin {
 
     public static final String NAME = "license";
     private final boolean isEnabled;
+    protected final boolean transportClient;
 
     static {
         MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
@@ -48,6 +49,7 @@ public class LicensePlugin extends Plugin {
         } else {
             this.isEnabled = true;
         }
+        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING));
     }
 
     @Override
@@ -61,9 +63,11 @@ public class LicensePlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        module.registerRestHandler(RestPutLicenseAction.class);
-        module.registerRestHandler(RestGetLicenseAction.class);
-        module.registerRestHandler(RestDeleteLicenseAction.class);
+        if (transportClient == false) {
+            module.registerRestHandler(RestPutLicenseAction.class);
+            module.registerRestHandler(RestGetLicenseAction.class);
+            module.registerRestHandler(RestDeleteLicenseAction.class);
+        }
     }
 
     public void onModule(ActionModule module) {

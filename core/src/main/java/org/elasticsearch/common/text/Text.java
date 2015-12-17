@@ -18,39 +18,101 @@
  */
 package org.elasticsearch.common.text;
 
+import java.nio.charset.StandardCharsets;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
-
 /**
- * Text represents a (usually) long text data. We use this abstraction instead of {@link String}
- * so we can represent it in a more optimized manner in memory as well as serializing it over the
- * network as well as converting it to json format.
+ * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
+ * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
  */
-public interface Text extends Comparable<Text> {
+public final class Text implements Comparable<Text> {
+
+    public static final Text[] EMPTY_ARRAY = new Text[0];
+
+    public static Text[] convertFromStringArray(String[] strings) {
+        if (strings.length == 0) {
+            return EMPTY_ARRAY;
+        }
+        Text[] texts = new Text[strings.length];
+        for (int i = 0; i < strings.length; i++) {
+            texts[i] = new Text(strings[i]);
+        }
+        return texts;
+    }
+
+    private BytesReference bytes;
+    private String text;
+    private int hash;
+
+    public Text(BytesReference bytes) {
+        this.bytes = bytes;
+    }
+
+    public Text(String text) {
+        this.text = text;
+    }
 
     /**
-     * Are bytes available without the need to be converted into bytes when calling {@link #bytes()}.
+     * Whether a {@link BytesReference} view of the data is already materialized.
      */
-    boolean hasBytes();
+    public boolean hasBytes() {
+        return bytes != null;
+    }
 
     /**
-     * The UTF8 bytes representing the the text, might be converted on the fly, see {@link #hasBytes()}
+     * Returns a {@link BytesReference} view of the data.
      */
-    BytesReference bytes();
+    public BytesReference bytes() {
+        if (bytes == null) {
+            bytes = new BytesArray(text.getBytes(StandardCharsets.UTF_8));
+        }
+        return bytes;
+    }
 
     /**
-     * Is there a {@link String} representation of the text. If not, then it {@link #hasBytes()}.
+     * Whether a {@link String} view of the data is already materialized.
      */
-    boolean hasString();
+    public boolean hasString() {
+        return text != null;
+    }
 
     /**
-     * Returns the string representation of the text, might be converted to a string on the fly.
+     * Returns a {@link String} view of the data.
      */
-    String string();
+    public String string() {
+        if (text == null) {
+            if (!bytes.hasArray()) {
+                bytes = bytes.toBytesArray();
+            }
+            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), StandardCharsets.UTF_8);
+        }
+        return text;
+    }
 
-    /**
-     * Returns the string representation of the text, might be converted to a string on the fly.
-     */
     @Override
-    String toString();
+    public String toString() {
+        return string();
+    }
+
+    @Override
+    public int hashCode() {
+        if (hash == 0) {
+            hash = bytes().hashCode();
+        }
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        return bytes().equals(((Text) obj).bytes());
+    }
+
+    @Override
+    public int compareTo(Text text) {
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
+    }
 }

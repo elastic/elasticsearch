@@ -5,113 +5,103 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.marvel.support.VersionUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Properties;
 
-/**
- *
- */
 public final class MarvelTemplateUtils {
 
-    public static final String MARVEL_TEMPLATE_FILE = "/marvel_index_template.json";
-    public static final String INDEX_TEMPLATE_NAME = ".marvel-es";
-    public static final String MARVEL_VERSION_FIELD = "marvel_version";
-    public static final Version MIN_SUPPORTED_TEMPLATE_VERSION = Version.V_2_0_0_beta2;
+    static final String INDEX_TEMPLATE_FILE         = "/marvel-es.json";
+    static final String INDEX_TEMPLATE_NAME_PREFIX  = ".marvel-es-";
+
+    static final String DATA_TEMPLATE_FILE          = "/marvel-es-data.json";
+    static final String DATA_TEMPLATE_NAME_PREFIX   = ".marvel-es-data-";
+
+    static final String PROPERTIES_FILE             = "/marvel.properties";
+    static final String VERSION_FIELD               = "marvel.template.version";
+
+    public static final Integer TEMPLATE_VERSION    = loadTemplateVersion();
 
     private MarvelTemplateUtils() {
     }
 
     /**
-     * Loads the default Marvel template
+     * Loads the default template for the timestamped indices
      */
-    public static byte[] loadDefaultTemplate() {
-        try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(MARVEL_TEMPLATE_FILE)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(is, out);
-            return out.toByteArray();
+    public static byte[] loadTimestampedIndexTemplate() {
+        try {
+            return load(INDEX_TEMPLATE_FILE);
         } catch (IOException e) {
             throw new IllegalStateException("unable to load marvel template", e);
         }
     }
 
-    public static Version loadDefaultTemplateVersion() {
-        return parseTemplateVersion(loadDefaultTemplate());
-    }
-
-    public static Version templateVersion(IndexTemplateMetaData templateMetaData) {
-        String version = templateMetaData.settings().get("index." + MARVEL_VERSION_FIELD);
-        if (Strings.hasLength(version)) {
-            try {
-                return Version.fromString(version);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    public static IndexTemplateMetaData findMarvelTemplate(ClusterState state) {
-        MetaData metaData = state.getMetaData();
-        return metaData != null ? metaData.getTemplates().get(INDEX_TEMPLATE_NAME) : null;
-    }
-
-    public static Version parseTemplateVersion(byte[] template) {
+    /**
+     * Loads the default template for the data index
+     */
+    public static byte[] loadDataIndexTemplate() {
         try {
-            return VersionUtils.parseVersion(MARVEL_VERSION_FIELD, template);
-        } catch (IllegalArgumentException e) {
+            return load(DATA_TEMPLATE_FILE);
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to load marvel data template", e);
+        }
+    }
+
+    /**
+     * Loads a resource with a given name and returns it as a byte array.
+     */
+    static byte[] load(String name) throws IOException {
+        try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(name)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(is, out);
+            return out.toByteArray();
+        }
+    }
+
+    /**
+     * Loads the current version of templates
+     *
+     * When executing tests in Intellij, the properties file might not be
+     * resolved: try running 'gradle processResources' first.
+     */
+    static Integer loadTemplateVersion() {
+        try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(PROPERTIES_FILE)) {
+            Properties properties = new Properties();
+            properties.load(is);
+            String version = properties.getProperty(VERSION_FIELD);
+            if (Strings.hasLength(version)) {
+                return Integer.parseInt(version);
+            }
             return null;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("failed to parse marvel template version");
+        } catch (IOException e) {
+            throw new IllegalArgumentException("failed to load marvel template version");
         }
     }
 
-    public static boolean installedTemplateVersionIsSufficient(Version installed) {
-        // null indicates couldn't parse the version from the installed template, this means it is probably too old or invalid...
-        if (installed == null) {
-            return false;
-        }
-        // ensure the template is not too old
-        if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-            return false;
-        }
-
-        // We do not enforce that versions are equivalent to the current version as we may be in a rolling upgrade scenario
-        // and until a master is elected with the new version, data nodes that have been upgraded will not be able to ship
-        // data. This means that there is an implication that the new shippers will ship data correctly even with an old template.
-        // There is also no upper bound and we rely on elasticsearch nodes not being able to connect to each other across major
-        // versions
-        return true;
+    public static String indexTemplateName() {
+        return indexTemplateName(TEMPLATE_VERSION);
     }
 
-    public static boolean installedTemplateVersionMandatesAnUpdate(Version current, Version installed, ESLogger logger, String exporterName) {
-        if (installed == null) {
-            logger.debug("exporter [{}] - currently installed marvel template is missing a version - installing a new one [{}]", exporterName, current);
-            return true;
-        }
-        // Never update a very old template
-        if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-            return false;
-        }
-        // Always update a template to the last up-to-date version
-        if (current.after(installed)) {
-            logger.debug("exporter [{}] - currently installed marvel template version [{}] will be updated to a newer version [{}]", exporterName, installed, current);
-            return true;
-            // When the template is up-to-date, do not update
-        } else if (current.equals(installed)) {
-            logger.debug("exporter [{}] - currently installed marvel template version [{}] is up-to-date", exporterName, installed);
-            return false;
-            // Never update a template that is newer than the expected one
-        } else {
-            logger.debug("exporter [{}] - currently installed marvel template version [{}] is newer than the one required [{}]... keeping it.", exporterName, installed, current);
-            return false;
-        }
+    public static String indexTemplateName(Integer version) {
+        return templateName(INDEX_TEMPLATE_NAME_PREFIX, version);
+    }
+
+    public static String dataTemplateName() {
+        return dataTemplateName(TEMPLATE_VERSION);
+    }
+
+    public static String dataTemplateName(Integer version) {
+        return templateName(DATA_TEMPLATE_NAME_PREFIX, version);
+    }
+
+    static String templateName(String prefix, Integer version) {
+        assert version != null && version >= 0 : "version must be not null and greater or equal to zero";
+        return prefix + String.valueOf(version);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
@@ -182,7 +183,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
                 case ClusterStateCollector.NODE_TYPE:
                     DiscoveryNodeMarvelDoc discoveryNodeMarvelDoc = (DiscoveryNodeMarvelDoc) marvelDoc;
-                    assertThat(discoveryNodeMarvelDoc.index(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_NAME));
+                    assertThat(discoveryNodeMarvelDoc.index(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
                     assertThat(discoveryNodeMarvelDoc.id(),  not(isEmptyOrNullString()));
                     assertNotNull(discoveryNodeMarvelDoc.getNode());
                     discoveryNodes.add(discoveryNodeMarvelDoc);

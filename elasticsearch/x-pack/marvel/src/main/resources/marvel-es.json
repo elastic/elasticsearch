@@ -1,7 +1,8 @@
 {
-  "template": ".marvel-es-*",
+  "template": ".marvel-es-${marvel.template.version}-*",
   "settings": {
-    "marvel_version": "${project.version}",
+    "marvel.plugin.version": "${marvel.plugin.version}",
+    "marvel.template.version": "${marvel.template.version}",
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
     "index.codec": "best_compression",
@@ -195,12 +196,6 @@
           }
         }
       }
-    },
-    "cluster_info": {
-      "enabled": false
-    },
-    "node": {
-      "enabled": false
     },
     "nodes": {
       "properties": {

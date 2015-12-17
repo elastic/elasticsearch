@@ -36,13 +36,13 @@ public class SecuredClientTests extends MarvelIntegTestCase {
         assertAccessIsAllowed(securedClient.admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX));
         assertAccessIsAllowed(securedClient.admin().indices().prepareCreate(MarvelSettings.MARVEL_INDICES_PREFIX + "test"));
 
-        assertAccessIsAllowed(securedClient.admin().indices().preparePutTemplate("foo").setSource(MarvelTemplateUtils.loadDefaultTemplate()));
+        assertAccessIsAllowed(securedClient.admin().indices().preparePutTemplate("foo").setSource(MarvelTemplateUtils.loadTimestampedIndexTemplate()));
         assertAccessIsAllowed(securedClient.admin().indices().prepareGetTemplates("foo"));
     }
 
     public void testDeniedAccess() {
         SecuredClient securedClient = internalCluster().getInstance(SecuredClient.class);
-        assertAcked(securedClient.admin().indices().preparePutTemplate("foo").setSource(MarvelTemplateUtils.loadDefaultTemplate()).get());
+        assertAcked(securedClient.admin().indices().preparePutTemplate("foo").setSource(MarvelTemplateUtils.loadDataIndexTemplate()).get());
 
         if (shieldEnabled) {
             assertAccessIsDenied(securedClient.admin().indices().prepareDeleteTemplate("foo"));

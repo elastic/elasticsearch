@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -21,6 +22,8 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,20 +60,21 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> waiting for the marvel data index to be created (it should have been created by the LicenseCollector)");
-        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_NAME);
+        logger.debug("--> waiting for the marvel data index to be created (it should have been created by the ClusterInfoCollector)");
+        String dataIndex = ".marvel-es-data-" + MarvelTemplateUtils.TEMPLATE_VERSION;
+        awaitIndexExists(dataIndex);
 
         logger.debug("--> waiting for cluster info collector to collect data");
         awaitMarvelDocsCount(equalTo(1L), ClusterInfoCollector.TYPE);
 
         logger.debug("--> retrieving cluster info document");
-        GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterInfoCollector.TYPE, clusterUUID).get();
-        assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " document does not exist", response.isExists());
+        GetResponse response = client().prepareGet(dataIndex, ClusterInfoCollector.TYPE, clusterUUID).get();
+        assertTrue("cluster_info document does not exist in data index", response.isExists());
 
         logger.debug("--> checking that the document contains all required information");
 
         logger.debug("--> checking that the document contains license information");
-        assertThat(response.getIndex(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_NAME));
+        assertThat(response.getIndex(), equalTo(dataIndex));
         assertThat(response.getType(), equalTo(ClusterInfoCollector.TYPE));
         assertThat(response.getId(), equalTo(clusterUUID));
 
@@ -111,14 +115,15 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         assertThat(clusterStats, instanceOf(Map.class));
         assertThat(((Map) clusterStats).size(), greaterThan(0));
 
-        assertMarvelTemplateInstalled();
+        waitForMarvelTemplate(indexTemplateName());
+        waitForMarvelTemplate(dataTemplateName());
 
         logger.debug("--> check that the cluster_info is not indexed");
         securedFlush();
         securedRefresh();
 
         assertHitCount(client().prepareSearch().setSize(0)
-                .setIndices(MarvelSettings.MARVEL_DATA_INDEX_NAME)
+                .setIndices(dataIndex)
                 .setTypes(ClusterInfoCollector.TYPE)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))

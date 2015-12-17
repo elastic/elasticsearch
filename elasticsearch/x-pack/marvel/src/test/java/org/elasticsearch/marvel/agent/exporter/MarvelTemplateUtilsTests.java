@@ -5,89 +5,54 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.marvel.support.VersionUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.MARVEL_VERSION_FIELD;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
+//import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.MARVEL_VERSION_FIELD;
 
 public class MarvelTemplateUtilsTests extends ESTestCase {
 
-    public void testLoadTemplate() {
-        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
+    public void testLoadTimestampedIndexTemplate() {
+        byte[] template = MarvelTemplateUtils.loadTimestampedIndexTemplate();
         assertNotNull(template);
-        assertThat(template.length, Matchers.greaterThan(0));
+        assertThat(template.length, greaterThan(0));
     }
 
-    public void testParseTemplateVersionFromByteArrayTemplate() throws IOException {
-        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
+    public void testLoadDataIndexTemplate() {
+        byte[] template = MarvelTemplateUtils.loadDataIndexTemplate();
         assertNotNull(template);
+        assertThat(template.length, greaterThan(0));
+    }
 
-        Version version = MarvelTemplateUtils.parseTemplateVersion(template);
+    public void testLoad() throws IOException {
+        String resource = randomFrom(MarvelTemplateUtils.INDEX_TEMPLATE_FILE, MarvelTemplateUtils.DATA_TEMPLATE_FILE);
+        byte[] template = MarvelTemplateUtils.load(resource);
+        assertNotNull(template);
+        assertThat(template.length, greaterThan(0));
+    }
+
+    public void testLoadTemplateVersion() {
+        Integer version = MarvelTemplateUtils.loadTemplateVersion();
         assertNotNull(version);
+        assertThat(version, greaterThan(0));
+        assertThat(version, equalTo(MarvelTemplateUtils.TEMPLATE_VERSION));
     }
 
-    public void testParseTemplateVersionFromStringTemplate() throws IOException {
-        List<String> templates = new ArrayList<>();
-        templates.add("{\"marvel_version\": \"1.4.0.Beta1\"}");
-        templates.add("{\"marvel_version\": \"1.6.2-SNAPSHOT\"}");
-        templates.add("{\"marvel_version\": \"1.7.1\"}");
-        templates.add("{\"marvel_version\": \"2.0.0-beta1\"}");
-        templates.add("{\"marvel_version\": \"2.0.0\"}");
-        templates.add("{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }");
-
-        for (String template : templates) {
-            Version version = MarvelTemplateUtils.parseTemplateVersion(Strings.toUTF8Bytes(template));
-            assertNotNull(version);
-        }
-
-        Version version = MarvelTemplateUtils.parseTemplateVersion(Strings.toUTF8Bytes("{\"marvel.index_format\": \"7\"}"));
-        assertNull(version);
+    public void testIndexTemplateName() {
+        assertThat(MarvelTemplateUtils.indexTemplateName(),
+                equalTo(MarvelTemplateUtils.INDEX_TEMPLATE_NAME_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
+        int version = randomIntBetween(1, 100);
+        assertThat(MarvelTemplateUtils.indexTemplateName(version), equalTo(".marvel-es-" + version));
     }
 
-    public void testParseVersion() throws IOException {
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0-beta1\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"1.5.2\"}"));
-        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }"));
-        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel.index_format\": \"7\"}"));
-        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD + "unkown", "{\"marvel_version\": \"1.5.2\"}"));
-    }
-
-    public void testTemplateVersionMandatesAnUpdate() {
-        // Version is unknown
-        assertTrue(MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, null, logger, "unit-test"));
-
-        // Version is too old
-        Version unsupported = org.elasticsearch.test.VersionUtils.getPreviousVersion(MarvelTemplateUtils.MIN_SUPPORTED_TEMPLATE_VERSION);
-        assertFalse(MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, unsupported, logger, "unit-test"));
-
-        // Version is old but supported
-        assertTrue(MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, MarvelTemplateUtils.MIN_SUPPORTED_TEMPLATE_VERSION, logger, "unit-test"));
-
-        // Version is up to date
-        assertFalse(MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, Version.CURRENT, logger, "unit-test"));
-
-        // Version is up to date
-        Version previous = org.elasticsearch.test.VersionUtils.getPreviousVersion(Version.CURRENT);
-        assertFalse(MarvelTemplateUtils.installedTemplateVersionMandatesAnUpdate(previous, Version.CURRENT, logger, "unit-test"));
-    }
-
-    public void testTemplateVersionIsSufficient() {
-        // Version is unknown
-        assertFalse(MarvelTemplateUtils.installedTemplateVersionIsSufficient(null));
-
-        // Version is too old
-        Version unsupported = org.elasticsearch.test.VersionUtils.getPreviousVersion(MarvelTemplateUtils.MIN_SUPPORTED_TEMPLATE_VERSION);
-        assertFalse(MarvelTemplateUtils.installedTemplateVersionIsSufficient(unsupported));
-
-        // Version is OK
-        assertTrue(MarvelTemplateUtils.installedTemplateVersionIsSufficient(Version.CURRENT));
+    public void testDataTemplateName() {
+        assertThat(MarvelTemplateUtils.dataTemplateName(),
+                equalTo(MarvelTemplateUtils.DATA_TEMPLATE_NAME_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
+        int version = randomIntBetween(1, 100);
+        assertThat(MarvelTemplateUtils.dataTemplateName(version), equalTo(".marvel-es-data-" + version));
     }
 }

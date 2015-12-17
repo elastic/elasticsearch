@@ -71,7 +71,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
                 results.add(new ClusterStateNodeMarvelDoc(clusterUUID, NODES_TYPE, timestamp, stateUUID, node.getId()));
 
                 // Adds a document for every node in the marvel data index (type "node")
-                results.add(new DiscoveryNodeMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, NODE_TYPE, node.getId(), clusterUUID, timestamp, node));
+                results.add(new DiscoveryNodeMarvelDoc(dataIndexNameResolver.resolve(timestamp), NODE_TYPE, node.getId(), clusterUUID, timestamp, node));
             }
         }
 

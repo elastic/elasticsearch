@@ -6,14 +6,10 @@
 package org.elasticsearch.marvel.test;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexModule;
@@ -68,11 +64,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
         logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
         return super.buildTestCluster(scope, seed);
-    }
-
-    @Override
-    protected Set<String> excludeTemplates() {
-        return Collections.singleton(MarvelTemplateUtils.INDEX_TEMPLATE_NAME);
     }
 
     @Override
@@ -212,63 +203,29 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected void assertMarvelTemplateInstalled() {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        if (clusterStateResponse != null) {
-            ClusterState state = clusterStateResponse.getState();
-            MetaData md = state.getMetaData();
-        }
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-        for (IndexTemplateMetaData template : response.getIndexTemplates()) {
-            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
-                return;
+    protected void assertTemplateInstalled(String name) {
+        boolean found = false;
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+            if (Regex.simpleMatch(name, template.getName())) {
+                found =  true;
             }
         }
-        fail("marvel template should exist");
+        assertTrue("failed to find a template matching [" + name + "]", found);
     }
 
-    protected void assertMarvelTemplateMissing() {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
-            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
-                fail("marvel template shouldn't exist");
-            }
-        }
-    }
-
-    protected void awaitMarvelTemplateInstalled() throws Exception {
+    protected void waitForMarvelTemplate(String name) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertMarvelTemplateInstalled();
+                assertTemplateInstalled(name);
             }
         }, 30, TimeUnit.SECONDS);
-    }
-
-    protected void awaitMarvelTemplateInstalled(Version version) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMarvelTemplateInstalled(version);
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    protected void assertMarvelTemplateInstalled(Version version) {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
-            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
-                Version templateVersion = MarvelTemplateUtils.templateVersion(template);
-                if (templateVersion != null && templateVersion.id == version.id) {
-                    return;
-                }
-                fail("did not find marvel template with expected version [" + version + "]. found version [" + templateVersion + "]");
-            }
-        }
-        fail("marvel template could not be found");
     }
 
     protected void waitForMarvelIndices() throws Exception {
-        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_NAME);
-        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + "*");
+        String currentVersion = String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION);
+        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + currentVersion);
+        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + currentVersion + "-*");
         assertBusy(new Runnable() {
             @Override
             public void run() {

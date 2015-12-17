@@ -11,11 +11,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
+import java.util.Objects;
 
 public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T> implements Collector<T> {
 
@@ -24,6 +27,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     protected final ClusterService clusterService;
     protected final MarvelSettings marvelSettings;
     protected final MarvelLicensee licensee;
+    protected final IndexNameResolver dataIndexNameResolver;
 
     @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee licensee) {
@@ -32,6 +36,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
         this.clusterService = clusterService;
         this.marvelSettings = marvelSettings;
         this.licensee = licensee;
+        this.dataIndexNameResolver = new DataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
     }
 
     @Override
@@ -108,5 +113,28 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected String clusterUUID() {
         return clusterService.state().metaData().clusterUUID();
+    }
+
+    /**
+     * Resolves marvel's data index name
+     */
+    public class DataIndexNameResolver implements IndexNameResolver {
+
+        private final String index;
+
+        DataIndexNameResolver(Integer version) {
+            Objects.requireNonNull(version, "index version cannot be null");
+            this.index = MarvelSettings.MARVEL_DATA_INDEX_PREFIX + String.valueOf(version);
+        }
+
+        @Override
+        public String resolve(MarvelDoc doc) {
+            return index;
+        }
+
+        @Override
+        public String resolve(long timestamp) {
+            return index;
+        }
     }
 }

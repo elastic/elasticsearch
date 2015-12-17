@@ -60,11 +60,10 @@ public class LocalBulk extends ExportBulk {
             }
 
             IndexRequestBuilder request = client.prepareIndex();
-            if (marvelDoc.index() != null) {
-                request.setIndex(marvelDoc.index());
-            } else {
-                request.setIndex(indexNameResolver.resolve(marvelDoc));
-            }
+
+            // we need the index to be based on the document timestamp and/or template version
+            request.setIndex(indexNameResolver.resolve(marvelDoc));
+
             if (marvelDoc.type() != null) {
                 request.setType(marvelDoc.type());
             }

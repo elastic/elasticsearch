@@ -77,7 +77,8 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
         }
 
         String clusterUUID = clusterUUID();
-        results.add(new ClusterInfoMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
+        long timestamp = System.currentTimeMillis();
+        results.add(new ClusterInfoMarvelDoc(dataIndexNameResolver.resolve(timestamp), TYPE, clusterUUID, clusterUUID, timestamp,
                 clusterName.value(), Version.CURRENT.toString(), license, clusterStats));
         return Collections.unmodifiableCollection(results);
     }

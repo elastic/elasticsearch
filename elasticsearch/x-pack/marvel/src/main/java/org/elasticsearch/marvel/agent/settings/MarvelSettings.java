@@ -22,7 +22,7 @@ public class MarvelSettings extends AbstractComponent {
     private static final String PREFIX = MarvelPlugin.NAME + ".agent.";
 
     public static final String MARVEL_INDICES_PREFIX = ".marvel-es-";
-    public static final String MARVEL_DATA_INDEX_NAME = MARVEL_INDICES_PREFIX + "data";
+    public static final String MARVEL_DATA_INDEX_PREFIX = MARVEL_INDICES_PREFIX + "data-";
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     /** Sampling interval between two collections (default to 10s) */

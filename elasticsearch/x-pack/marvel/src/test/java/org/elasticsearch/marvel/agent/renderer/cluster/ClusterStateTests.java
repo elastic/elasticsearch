@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -156,9 +157,10 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         for (final String nodeName : internalCluster().getNodeNames()) {
             final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+            final String dataIndex = ".marvel-es-data-" + MarvelTemplateUtils.TEMPLATE_VERSION;
 
             logger.debug("--> getting marvel document for node id [{}]", nodeId);
-            assertThat(client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterStateCollector.NODE_TYPE, nodeId).get().isExists(), is(true));
+            assertThat(client().prepareGet(dataIndex, ClusterStateCollector.NODE_TYPE, nodeId).get().isExists(), is(true));
 
             // checks that document is not indexed
             assertHitCount(client().prepareSearch().setSize(0)

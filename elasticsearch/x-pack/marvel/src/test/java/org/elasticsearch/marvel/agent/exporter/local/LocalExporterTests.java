@@ -6,9 +6,7 @@
 package org.elasticsearch.marvel.agent.exporter.local;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -36,11 +34,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -105,8 +104,8 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         updateMarvelInterval(3L, TimeUnit.SECONDS);
 
         // lets wait until the marvel template will be installed
-        awaitMarvelTemplateInstalled();
-        assertThat(getCurrentlyInstalledTemplateVersion(), is(Version.CURRENT));
+        waitForMarvelTemplate(indexTemplateName());
+        waitForMarvelTemplate(dataTemplateName());
     }
 
     public void testIndexTimestampFormat() throws Exception {
@@ -122,12 +121,12 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         LocalExporter exporter = getLocalExporter("_local");
 
         // first lets test that the index resolver works with time
-        String indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
+        String indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
         assertThat(exporter.indexNameResolver().resolve(time), equalTo(indexName));
 
         // now lets test that the index name resolver works with a doc
         MarvelDoc doc = newRandomMarvelDoc();
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random marvel document");
@@ -138,7 +137,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
         updateClusterSettings(Settings.builder().put("marvel.agent.exporters._local.index.name.time_format", timeFormat));
         exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]", timeFormat, indexName);
@@ -193,14 +192,5 @@ public class LocalExporterTests extends MarvelIntegTestCase {
             return new ClusterStateMarvelDoc(internalCluster().getClusterName(),
                     ClusterStateCollector.TYPE, timeStampGenerator.incrementAndGet(), ClusterState.PROTO, ClusterHealthStatus.GREEN);
         }
-    }
-
-    private Version getCurrentlyInstalledTemplateVersion() {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get();
-        assertThat(response, notNullValue());
-        assertThat(response.getIndexTemplates(), notNullValue());
-        assertThat(response.getIndexTemplates(), hasSize(1));
-        assertThat(response.getIndexTemplates().get(0), notNullValue());
-        return MarvelTemplateUtils.templateVersion(response.getIndexTemplates().get(0));
     }
 }

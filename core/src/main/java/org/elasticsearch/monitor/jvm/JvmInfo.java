@@ -116,11 +116,10 @@ public class JvmInfo implements Streamable, ToXContent {
             Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
             Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
             Method valueMethod = vmOptionClazz.getMethod("getValue");
-            String value = (String)valueMethod.invoke(useCompressedOopsVmOption);
-            info.usingCompressedOops = Boolean.parseBoolean(value);
+            info.useCompressedOops = (String)valueMethod.invoke(useCompressedOopsVmOption);
         } catch (Throwable t) {
             // unable to deduce the state of compressed oops
-            // usingCompressedOops will hold its default value of null
+            info.useCompressedOops = "unknown";
         }
 
         INSTANCE = info;
@@ -157,7 +156,7 @@ public class JvmInfo implements Streamable, ToXContent {
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
 
-    private Boolean usingCompressedOops;
+    private String useCompressedOops;
 
     private JvmInfo() {
     }
@@ -282,8 +281,16 @@ public class JvmInfo implements Streamable, ToXContent {
         return this.systemProperties;
     }
 
-    public Boolean usingCompressedOops() {
-        return this.usingCompressedOops;
+    /**
+     * The value of the JVM flag UseCompressedOops, if available otherwise
+     * "unknown". The value "unknown" indicates that an attempt was
+     * made to obtain the value of the flag on this JVM and the attempt
+     * failed.
+     *
+     * @return the value of the JVM flag UseCompressedOops or "unknown"
+     */
+    public String useCompressedOops() {
+        return this.useCompressedOops;
     }
 
     @Override
@@ -307,7 +314,7 @@ public class JvmInfo implements Streamable, ToXContent {
         builder.field(Fields.GC_COLLECTORS, gcCollectors);
         builder.field(Fields.MEMORY_POOLS, memoryPools);
 
-        builder.field(Fields.USING_COMPRESSED_OOPS, usingCompressedOops == null ? "unknown" : Boolean.toString(usingCompressedOops));
+        builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 
         builder.endObject();
         return builder;
@@ -368,11 +375,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.readFrom(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
-        if (in.readBoolean()) {
-            usingCompressedOops = in.readBoolean();
-        } else {
-            usingCompressedOops = null;
-        }
+        useCompressedOops = in.readOptionalString();
     }
 
     @Override
@@ -397,12 +400,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
-        if (usingCompressedOops != null) {
-            out.writeBoolean(true);
-            out.writeBoolean(usingCompressedOops);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalString(useCompressedOops);
     }
 
     public static class Mem implements Streamable {

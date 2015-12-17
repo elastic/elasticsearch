@@ -141,7 +141,7 @@ artifacts {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.lenient = true
+thirdPartyAudit.missingClasses = true
 thirdPartyAudit.excludes = [
     // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',

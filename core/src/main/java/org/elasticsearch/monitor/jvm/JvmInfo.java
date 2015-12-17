@@ -279,8 +279,8 @@ public class JvmInfo implements Streamable, ToXContent {
      * The value of the JVM flag UseCompressedOops, if available otherwise
      * "unknown" or null. The value "unknown" indicates that an attempt
      * was made to obtain the value of the flag on this JVM and the
-     * attempt
-     * failed.
+     * attempt failed. The value null is can happen when streaming a
+     * response that does not contain a value for the this field.
      *
      * @return the value of the JVM flag UseCompressedOops or "unknown"
      */

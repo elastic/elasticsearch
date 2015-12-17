@@ -8,6 +8,9 @@
 [float]
 === Enhancements
 
+Aggregations::
+* [Children agg] fix bug that prevented all child docs from being evaluated {pull}15457[#15457]
+
 Core::
 * If we can't get a MAC address for the node, use a dummy one {pull}15266[#15266] (issue: {issue}10099[#10099])
 * Simplify shard inactive logging {pull}15259[#15259] (issue: {issue}15252[#15252])

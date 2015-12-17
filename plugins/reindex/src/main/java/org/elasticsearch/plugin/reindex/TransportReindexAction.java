@@ -37,14 +37,14 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportIndexBySearchAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
     private final Client client;
 
     @Inject
-    public TransportIndexBySearchAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,

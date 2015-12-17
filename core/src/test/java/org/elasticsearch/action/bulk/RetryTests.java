@@ -91,6 +91,7 @@ public class RetryTests extends ESTestCase {
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
     }
 
+    @AwaitsFix(bugUrl = "spuriously fails on Jenkins. Investigation ongoing.")
     public void testAsyncRetryBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();

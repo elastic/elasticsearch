@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.transport.TransportMessage;
@@ -51,12 +52,11 @@ public interface AuthenticationService {
     User authenticate(String action, TransportMessage message, User fallbackUser) throws IOException;
 
     /**
-     * Checks if there's alreay a user header attached to the given message. If missing, a new header is
+     * Checks if there's already a user header attached to the given message. If missing, a new header is
      * set on the message with the given user (encoded).
      *
      * @param message   The message
      * @param user      The user to be attached if the header is missing
      */
-    void attachUserHeaderIfMissing(TransportMessage message, User user) throws IOException;
-
+    void attachUserHeaderIfMissing(ContextAndHeaderHolder message, User user) throws IOException;
 }

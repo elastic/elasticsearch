@@ -38,6 +38,7 @@ import org.elasticsearch.shield.license.LicenseModule;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.shield.rest.ShieldRestModule;
+import org.elasticsearch.shield.rest.action.RestAuthenticateAction;
 import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
 import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
 import org.elasticsearch.shield.ssl.SSLModule;
@@ -210,6 +211,7 @@ public class ShieldPlugin extends Plugin {
 
         if (clientMode == false) {
             module.registerRestHandler(RestClearRealmCacheAction.class);
+            module.registerRestHandler(RestAuthenticateAction.class);
             module.registerHttpTransport(ShieldPlugin.NAME, ShieldNettyHttpServerTransport.class);
         }
     }

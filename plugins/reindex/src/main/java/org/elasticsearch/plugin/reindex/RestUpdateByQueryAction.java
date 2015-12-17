@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -65,11 +64,6 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
                 internalRequest.conflicts(conflicts);
                 modified = true;
             }
-            String versionType = (String) body.v2().remove("version_type");
-            if (versionType != null) {
-                internalRequest.versionType(ReindexVersionType.fromString(versionType));
-                modified = true;
-            }
             @SuppressWarnings("unchecked")
             Map<String, Object> script = (Map<String, Object>) body.v2().remove("script");
             if (script != null) {
@@ -88,10 +82,6 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         String conflicts = request.param("conflicts");
         if (conflicts != null) {
             internalRequest.conflicts(conflicts);
-        }
-        String versionType = request.param("version_type");
-        if (versionType != null) {
-            internalRequest.versionType(ReindexVersionType.fromString(versionType));
         }
 
         // TODO allow the user to modify the batch size? Or pick something better than just a default.

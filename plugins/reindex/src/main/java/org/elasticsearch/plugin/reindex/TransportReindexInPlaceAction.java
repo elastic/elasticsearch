@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,7 +74,7 @@ public class TransportReindexInPlaceAction
             index.type(doc.type());
             index.id(doc.id());
             index.source(doc.sourceRef());
-            index.versionType(mainRequest.versionType().versionType(mainRequest));
+            index.versionType(VersionType.INTERNAL);
             index.version(doc.version());
             return index;
         }

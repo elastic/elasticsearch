@@ -4,7 +4,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
 
 public class UpdateByQueryRequestBuilder extends
         AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> {
@@ -22,11 +21,6 @@ public class UpdateByQueryRequestBuilder extends
 
     @Override
     protected UpdateByQueryRequestBuilder self() {
-        return this;
-    }
-
-    public UpdateByQueryRequestBuilder versionType(ReindexVersionType versionType) {
-        request.versionType(versionType);
         return this;
     }
 

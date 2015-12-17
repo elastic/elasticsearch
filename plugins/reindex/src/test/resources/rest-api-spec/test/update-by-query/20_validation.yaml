@@ -11,23 +11,3 @@
       update-by-query:
         index: test
         conflicts: cat
-
----
-"invalid version_type fails":
-  - do:
-      index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /ReindexVersionType may only be .* but was \[cat\]/
-      update-by-query:
-        index: test
-        version_type: cat
-  - do:
-      catch: /ReindexVersionType may only be .* but was \[cat\]/
-      update-by-query:
-        index: test
-        body:
-          version_type: cat

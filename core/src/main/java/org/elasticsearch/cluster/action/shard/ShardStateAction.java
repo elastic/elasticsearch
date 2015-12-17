@@ -20,7 +20,12 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.BasicClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -36,11 +41,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -151,11 +163,19 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState != newState && newState.getRoutingNodes().unassigned().size() > 0) {
-                    logger.trace("unassigned shards after shard failures. scheduling a reroute.");
-                    routingService.reroute("unassigned shards after shard failures, scheduling a reroute");
+        public void clusterStatePublished(ClusterState newClusterState) {
+            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
+            if (numberOfUnassignedShards > 0) {
+                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(reason + ", scheduling a reroute");
                 }
+                routingService.reroute(reason);
+            }
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         }
 
         @Override

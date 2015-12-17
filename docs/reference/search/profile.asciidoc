@@ -13,7 +13,7 @@ The output from the Profile API is *very* verbose, especially for complicated qu
 many shards. Pretty-printing the response is recommended to help understand the output
 
 [NOTE]
----------------------
+=======================================
 The details provided by the Profile API directly expose Lucene class names and concepts, which means
 that complete interpretation of the results require fairly advanced knowledge of Lucene.  This
 page attempts to give a crash-course in how Lucene executes queries so that you can use the Profile API to successfully
@@ -23,7 +23,7 @@ to Lucene's documentation and, in places, the code.
 With that said, a complete understanding is often not required to fix a slow query.  It is usually
 sufficient to see that a particular component of a query is slow, and not necessarily understand why
 the `advance` phase of that query is the cause, for example.
----------------------
+=======================================
 
 [float]
 === Usage
@@ -185,7 +185,7 @@ The overall structure of this query tree will resemble your original Elasticsear
        "query_type": "BooleanQuery",
        "lucene": "message:search message:test",
        "time": "15.52889800ms",
-       "breakdown": {...},
+       "breakdown": {...},               <1>
        "children": [
           {
              "query_type": "TermQuery",

@@ -36,7 +36,7 @@ import java.util.Map;
 public interface Transport extends LifecycleComponent<Transport> {
 
 
-    Setting<Settings> TRANSPORT_PROFILES_SETTING = Setting.groupSetting("transport.profiles.", false, Setting.Scope.CLUSTER);
+    Setting<Settings> TRANSPORT_PROFILES_SETTING = Setting.groupSetting("transport.profiles.", true, Setting.Scope.CLUSTER);
 
     public static class TransportSettings {
         public static final String TRANSPORT_TCP_COMPRESS = "transport.tcp.compress";

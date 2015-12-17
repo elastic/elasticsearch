@@ -9,13 +9,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType;
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequestBuilder;
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
-public class ReindexUpdateByQueryTests extends ReindexTestCase {
+public class UpdateByQueryWithQueryTests extends UpdateByQueryTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
@@ -26,7 +26,7 @@ public class ReindexUpdateByQueryTests extends ReindexTestCase {
     public void testBasicUpdateByQuery() throws Exception {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"));
 
-        ReindexInPlaceRequestBuilder update = reindex().source("test")
+        UpdateByQueryRequestBuilder update = request().source("test")
                 .script(new Script("set-bar", ScriptType.INLINE, "native", singletonMap("to", "cat")));
         assertThat(update.get(), responseMatcher().updated(1));
         refresh();
@@ -52,7 +52,7 @@ public class ReindexUpdateByQueryTests extends ReindexTestCase {
          */
         indexRandom(false, client().prepareIndex("test", "test", "1").setSource("foo", "b"));
 
-        ReindexInPlaceRequestBuilder update = reindex().source("test")
+        UpdateByQueryRequestBuilder update = request().source("test")
                 .script(new Script("set-bar", ScriptType.INLINE, "native", singletonMap("to", "cat")));
         if (reindexVersionType) {
             update.versionType(ReindexVersionType.REINDEX);

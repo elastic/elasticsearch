@@ -8,16 +8,9 @@
         body:    { "text": "test" }
   - do:
       catch: /conflicts may only be .* but was \[cat\]/
-      reindex:
+      update-by-query:
         index: test
         conflicts: cat
-  - do:
-      catch: /conflicts may only be .* but was \[cat\]/
-      reindex:
-        index: test
-        body:
-          conflicts: cat
-
 
 ---
 "invalid version_type fails":
@@ -29,12 +22,12 @@
         body:    { "text": "test" }
   - do:
       catch: /ReindexVersionType may only be .* but was \[cat\]/
-      reindex:
+      update-by-query:
         index: test
         version_type: cat
   - do:
       catch: /ReindexVersionType may only be .* but was \[cat\]/
-      reindex:
+      update-by-query:
         index: test
         body:
           version_type: cat

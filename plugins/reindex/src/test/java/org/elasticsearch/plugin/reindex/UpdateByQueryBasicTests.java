@@ -3,12 +3,11 @@ package org.elasticsearch.plugin.reindex;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType;
-
 import java.util.function.Supplier;
 
-public class ReindexBasicTests extends ReindexTestCase {
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
+
+public class UpdateByQueryBasicTests extends UpdateByQueryTestCase {
     public void testReindexVersionType() throws Exception {
         basicTestCase(true);
     }
@@ -26,39 +25,39 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
-        Supplier<ReindexInPlaceRequestBuilder> reindex = () -> {
-            ReindexInPlaceRequestBuilder request = reindex().source("test");
+        Supplier<UpdateByQueryRequestBuilder> request = () -> {
+            UpdateByQueryRequestBuilder builder = request().source("test");
             if (reindexVersionType) {
                 if (rarely()) {
-                    request.versionType(ReindexVersionType.REINDEX);
+                    builder.versionType(ReindexVersionType.REINDEX);
                 }
             } else {
-                request.versionType(ReindexVersionType.INTERNAL);
+                builder.versionType(ReindexVersionType.INTERNAL);
             }
-            return request;
+            return builder;
         };
 
         // Reindex all the docs
-        assertThat(reindex.get().get(), responseMatcher().updated(4));
+        assertThat(request.get().get(), responseMatcher().updated(4));
         assertEquals(reindexVersionType ? 1 : 2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(reindexVersionType ? 1 : 2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now none of them
         refresh();
-        assertThat(reindex.get().filter(termQuery("foo", "no_match")).get(), responseMatcher().updated(0));
+        assertThat(request.get().filter(termQuery("foo", "no_match")).get(), responseMatcher().updated(0));
         assertEquals(reindexVersionType ? 1 : 2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(reindexVersionType ? 1 : 2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now half of them
         refresh();
-        assertThat(reindex.get().filter(termQuery("foo", "a")).get(), responseMatcher().updated(2));
+        assertThat(request.get().filter(termQuery("foo", "a")).get(), responseMatcher().updated(2));
         refresh();
         assertEquals(reindexVersionType ? 1 : 3, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(reindexVersionType ? 1 : 2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Limit with size
         refresh();
-        assertThat(reindex.get().size(1).get(), responseMatcher().updated(1));
+        assertThat(request.get().size(1).get(), responseMatcher().updated(1));
         // We can't assert anything about versions here because we don't know which one was updated
     }
 

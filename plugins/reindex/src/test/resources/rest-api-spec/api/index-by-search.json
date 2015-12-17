@@ -1,6 +1,6 @@
 {
   "index_by_search": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-index-by-search.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
     "methods": ["POST"],
     "url": {
       "path": "/_index_by_search",

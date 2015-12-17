@@ -25,21 +25,21 @@ import java.util.Collection;
 
 import org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse;
 import org.elasticsearch.plugin.reindex.ReindexPlugin;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceAction;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequestBuilder;
+import org.elasticsearch.plugin.reindex.UpdateByQueryAction;
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
-public class ReindexTestCase extends ESIntegTestCase {
+public class UpdateByQueryTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);
     }
 
-    protected ReindexInPlaceRequestBuilder reindex() {
-        return ReindexInPlaceAction.INSTANCE.newRequestBuilder(client());
+    protected UpdateByQueryRequestBuilder request() {
+        return UpdateByQueryAction.INSTANCE.newRequestBuilder(client());
     }
 
     public BulkIndexbyScrollResponseMatcher responseMatcher() {

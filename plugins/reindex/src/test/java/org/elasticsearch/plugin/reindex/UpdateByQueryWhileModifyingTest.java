@@ -1,9 +1,9 @@
 package org.elasticsearch.plugin.reindex;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType.INFER;
-import static org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType.INTERNAL;
-import static org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType.REINDEX;
+import static org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType.INFER;
+import static org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType.INTERNAL;
+import static org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType.REINDEX;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -14,41 +14,39 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType;
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
 
 /**
- * Mutates a document while reindexing it and asserts that the mutation always
- * sticks. Reindex should never revert.
+ * Mutates a document while update-by-query-ing it and asserts that the mutation
+ * always sticks. Update-by-query should never revert.
  */
-
-public class ReindexWhileModifyingTest extends ReindexTestCase {
+public class UpdateByQueryWhileModifyingTest extends UpdateByQueryTestCase {
     private static final int MAX_MUTATIONS = 50;
 
     public void testUpdateWhileReindexingUsingReindexVersionType() throws Exception {
-        updateWhileReindexingTestCase(REINDEX);
+        updateWhileUpdatingByQueryTestCase(REINDEX);
     }
 
     public void testUpdateWhileReindexingUsingInternalVersionType() throws Exception {
-        updateWhileReindexingTestCase(INTERNAL);
+        updateWhileUpdatingByQueryTestCase(INTERNAL);
     }
 
     public void testUpdateWhileReindexingUsingInferVersionType() throws Exception {
-        updateWhileReindexingTestCase(INFER);
+        updateWhileUpdatingByQueryTestCase(INFER);
     }
 
-    private void updateWhileReindexingTestCase(ReindexVersionType versionType) throws Exception {
+    private void updateWhileUpdatingByQueryTestCase(ReindexVersionType versionType) throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
         indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        AtomicBoolean keepReindexing = new AtomicBoolean(true);
-        Thread reindexer = new Thread(new Runnable() {
+        AtomicBoolean keepUpdating = new AtomicBoolean(true);
+        Thread updater = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (keepReindexing.get()) {
+                while (keepUpdating.get()) {
                     try {
-                        ReindexInPlaceRequestBuilder reindex = reindex().source("test").versionType(versionType);
+                        UpdateByQueryRequestBuilder reindex = request().source("test").versionType(versionType);
                         assertThat(reindex.get(), responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                                 .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                         client().admin().indices().prepareRefresh("test").get();
@@ -58,7 +56,7 @@ public class ReindexWhileModifyingTest extends ReindexTestCase {
                 }
             }
         });
-        reindexer.start();
+        updater.start();
 
         try {
             for (int i = 0; i < MAX_MUTATIONS; i++) {
@@ -93,8 +91,8 @@ public class ReindexWhileModifyingTest extends ReindexTestCase {
                 }
             }
         } finally {
-            keepReindexing.set(false);
-            reindexer.join(TimeUnit.SECONDS.toMillis(10));
+            keepUpdating.set(false);
+            updater.join(TimeUnit.SECONDS.toMillis(10));
             if (failure.get() != null) {
                 throw new RuntimeException(failure.get());
             }

@@ -1,5 +1,5 @@
 ---
-"default version type doesn't increment the version number":
+"Default version type doesn't increment the version number":
   - do:
       index:
         index:   test
@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: test
   - match: {updated: 1}
   - match: {version_conflicts: 0}
@@ -34,7 +34,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: test
         version_type: reindex
   - match: {updated: 1}
@@ -59,7 +59,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: test
         version_type: internal
   - match: {updated: 1}
@@ -84,7 +84,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: test
         body:
           version_type: internal

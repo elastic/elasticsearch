@@ -1,5 +1,5 @@
 ---
-"Update a document using reindex":
+"Update a document using update-by-query":
   - do:
       index:
         index:  twitter
@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: twitter
         body:
           script:
@@ -47,7 +47,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: twitter
         body:
           script:
@@ -93,7 +93,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: twitter
         body:
           script:

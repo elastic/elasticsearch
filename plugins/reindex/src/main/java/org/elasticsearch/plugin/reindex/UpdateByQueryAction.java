@@ -22,18 +22,18 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ReindexInPlaceAction extends
-        Action<ReindexInPlaceRequest, BulkIndexByScrollResponse, ReindexInPlaceRequestBuilder> {
-    public static final ReindexInPlaceAction INSTANCE = new ReindexInPlaceAction();
+public class UpdateByQueryAction extends
+        Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> {
+    public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
     public static final String NAME = "indices:data/write/reindex";
 
-    private ReindexInPlaceAction() {
+    private UpdateByQueryAction() {
         super(NAME);
     }
 
     @Override
-    public ReindexInPlaceRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ReindexInPlaceRequestBuilder(client, this);
+    public UpdateByQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new UpdateByQueryRequestBuilder(client, this);
     }
 
     @Override

@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: test
   - match: {updated: 1}
   - match: {version_conflicts: 0}
@@ -44,7 +44,7 @@
         body:    { "text": "test2" }
 
   - do:
-      reindex:
+      update-by-query:
         index: test
   - match: {updated: 0}
   - match: {version_conflicts: 1}
@@ -77,7 +77,7 @@
         body:    { "text": "test2" }
 
   - do:
-      reindex:
+      update-by-query:
         index: test
         conflicts: abort
   - match: {updated: 0}
@@ -111,7 +111,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: twitter
         body:
           query:
@@ -141,7 +141,7 @@
       indices.refresh: {}
 
   - do:
-      reindex:
+      update-by-query:
         index: twitter
         size: 1
   - match: {updated: 1}

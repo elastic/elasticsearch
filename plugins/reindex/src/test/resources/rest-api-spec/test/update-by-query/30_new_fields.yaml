@@ -1,5 +1,5 @@
 ---
-"Reindex picks up new fields":
+"Update-by-query picks up new fields":
   - do:
       indices.create:
         index: test
@@ -41,7 +41,7 @@
   - match: { hits.total: 0 }
 
   - do:
-      reindex:
+      update-by-query:
         index: test
   - do:
       indices.refresh: {}

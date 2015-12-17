@@ -12,16 +12,16 @@ import org.elasticsearch.index.VersionType;
  * Request to reindex a set of documents where they are without changing their
  * locations or IDs.
  */
-public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<ReindexInPlaceRequest> {
+public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> {
     /**
      * Version type to use on the index requests. Defaults to INFER.
      */
     private ReindexVersionType versionType = ReindexVersionType.INFER;
 
-    public ReindexInPlaceRequest() {
+    public UpdateByQueryRequest() {
     }
 
-    public ReindexInPlaceRequest(SearchRequest search) {
+    public UpdateByQueryRequest(SearchRequest search) {
         super(search);
     }
 
@@ -35,13 +35,13 @@ public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<Rein
     /**
      * Version type to use on the index requests.
      */
-    public ReindexInPlaceRequest versionType(ReindexVersionType versionType) {
+    public UpdateByQueryRequest versionType(ReindexVersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
     @Override
-    protected ReindexInPlaceRequest self() {
+    protected UpdateByQueryRequest self() {
         return this;
     }
 
@@ -71,7 +71,7 @@ public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<Rein
          */
         REINDEX(0) {
             @Override
-            public VersionType versionType(ReindexInPlaceRequest request) {
+            public VersionType versionType(UpdateByQueryRequest request) {
                 return VersionType.REINDEX;
             }
         },
@@ -80,7 +80,7 @@ public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<Rein
          */
         INTERNAL(1) {
             @Override
-            public VersionType versionType(ReindexInPlaceRequest request) {
+            public VersionType versionType(UpdateByQueryRequest request) {
                 return VersionType.INTERNAL;
             }
         },
@@ -90,7 +90,7 @@ public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<Rein
          */
         INFER(2) {
             @Override
-            public VersionType versionType(ReindexInPlaceRequest request) {
+            public VersionType versionType(UpdateByQueryRequest request) {
                 if (request.script() == null) {
                     return VersionType.REINDEX;
                 }
@@ -109,7 +109,7 @@ public class ReindexInPlaceRequest extends AbstractBulkIndexByScrollRequest<Rein
             this.id = (byte) id;
         }
 
-        public abstract VersionType versionType(ReindexInPlaceRequest request);
+        public abstract VersionType versionType(UpdateByQueryRequest request);
 
         public byte id() {
             return id;

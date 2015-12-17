@@ -1,10 +1,10 @@
 {
-  "reindex": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-index-by-search.html",
+  "update-by-query": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_reindex",
-      "paths": ["/{index}/_reindex", "/{index}/{type}/_reindex"],
+      "path": "/{index}/_update_by_query",
+      "paths": ["/{index}/_update_by_query", "/{index}/{type}/_update_by_query"],
       "comment": "most things below this are just copied from search.json",
       "parts": {
         "index": {

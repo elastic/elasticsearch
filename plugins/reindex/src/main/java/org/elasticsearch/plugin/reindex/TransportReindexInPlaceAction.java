@@ -33,7 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportReindexInPlaceAction
-        extends HandledTransportAction<ReindexInPlaceRequest, BulkIndexByScrollResponse> {
+        extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     private final Client client;
     private final ScriptService scriptService;
 
@@ -41,14 +41,14 @@ public class TransportReindexInPlaceAction
     public TransportReindexInPlaceAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
             ScriptService scriptService) {
-        super(settings, ReindexInPlaceAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, ReindexInPlaceRequest::new);
+        super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
+                indexNameExpressionResolver, UpdateByQueryRequest::new);
         this.client = client;
         this.scriptService = scriptService;
     }
 
     @Override
-    protected void doExecute(ReindexInPlaceRequest request,
+    protected void doExecute(UpdateByQueryRequest request,
             ActionListener<BulkIndexByScrollResponse> listener) {
         new AsyncIndexBySearchAction(request, listener).start();
     }
@@ -59,8 +59,8 @@ public class TransportReindexInPlaceAction
      * requests but this makes no attempt to do any of them so it can be as
      * simple possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexInPlaceRequest, BulkIndexByScrollResponse> {
-        public AsyncIndexBySearchAction(ReindexInPlaceRequest request,
+    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        public AsyncIndexBySearchAction(UpdateByQueryRequest request,
                 ActionListener<BulkIndexByScrollResponse> listener) {
             super(logger, scriptService, client, request, request.source(),
                     listener);

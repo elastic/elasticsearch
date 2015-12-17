@@ -1,6 +1,6 @@
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.ReindexInPlaceAction.INSTANCE;
+import static org.elasticsearch.plugin.reindex.UpdateByQueryAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 import java.util.Map;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.plugin.reindex.ReindexInPlaceRequest.ReindexVersionType;
+import org.elasticsearch.plugin.reindex.UpdateByQueryRequest.ReindexVersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -26,26 +26,26 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Script;
 
-public class RestReindexInPlaceAction extends BaseRestHandler {
+public class RestUpdateByQueryAction extends BaseRestHandler {
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
     @Inject
-    public RestReindexInPlaceAction(Settings settings, RestController controller, Client client,
+    public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        controller.registerHandler(POST, "/{index}/_reindex", this);
-        controller.registerHandler(POST, "/{index}/{type}/_reindex", this);
+        controller.registerHandler(POST, "/{index}/_update_by_query", this);
+        controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
         /*
-         * Passing the search request through ReindexInPlaceRequest first allows
+         * Passing the search request through UpdateByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
          * defaults. Then the parse can override them.
          */
-        ReindexInPlaceRequest internalRequest = new ReindexInPlaceRequest(new SearchRequest());
+        UpdateByQueryRequest internalRequest = new UpdateByQueryRequest(new SearchRequest());
         int batchSize = internalRequest.source().source().size();
         internalRequest.source().source().size(-1);
         /*

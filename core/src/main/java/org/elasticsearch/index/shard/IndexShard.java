@@ -541,15 +541,22 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
-        indexingMemoryController.addWritingBytes(this, ramBytesUsed);
-        try {
+        if (canIndex()) {
+            long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
+            indexingMemoryController.addWritingBytes(this, ramBytesUsed);
             logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(ramBytesUsed));
+            try {
+                long time = System.nanoTime();
+                getEngine().refresh(source);
+                refreshMetric.inc(System.nanoTime() - time);
+            } finally {
+                indexingMemoryController.removeWritingBytes(this, ramBytesUsed);
+            }
+        } else {
+            logger.debug("refresh with source [{}]", source);
             long time = System.nanoTime();
             getEngine().refresh(source);
             refreshMetric.inc(System.nanoTime() - time);
-        } finally {
-            indexingMemoryController.removeWritingBytes(this, ramBytesUsed);
         }
     }
 
@@ -1252,15 +1259,19 @@ public class IndexShard extends AbstractIndexShardComponent {
                 public void run() {
                     try {
                         Engine engine = getEngine();
-                        long bytes = engine.indexBufferRAMBytesUsed();
-                        // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, but this is fine because
-                        // after the writes finish, IMC will poll again and see that there's still up to the 20% being used and continue
-                        // writing if necessary:
-                        indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
-                        try {
+                        if (canIndex()) {
+                            long bytes = engine.indexBufferRAMBytesUsed();
+                            // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
+                            // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
+                            // there's still up to the 20% being used and continue writing if necessary:
+                            indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
+                            try {
+                                getEngine().writeIndexingBuffer();
+                            } finally {
+                                indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
+                            }
+                        } else {
                             getEngine().writeIndexingBuffer();
-                        } finally {
-                            indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
                         }
                     } catch (Exception e) {
                         handleRefreshException(e);

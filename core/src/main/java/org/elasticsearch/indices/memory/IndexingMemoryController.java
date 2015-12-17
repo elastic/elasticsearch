@@ -76,7 +76,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private volatile ScheduledFuture scheduler;
 
-    private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(
+    private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
             IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final ShardsIndicesStatusChecker statusChecker;
@@ -129,13 +129,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** Shard calls this when it starts writing its indexing buffer to disk to notify us */
     public void addWritingBytes(IndexShard shard, long numBytes) {
         writingBytes.put(shard, numBytes);
-        logger.debug("IMC: add writing bytes for {}, {} MB", shard.shardId(), numBytes/1024./1024.);
+        logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(numBytes), shard.shardId());
     }
 
     /** Shard calls when it's done writing these bytes to disk */
     public void removeWritingBytes(IndexShard shard, long numBytes) {
         writingBytes.remove(shard);
-        logger.debug("IMC: clear writing bytes for {}", shard.shardId());
+        logger.debug("clear [{}] writing bytes for shard [{}]", new ByteSizeValue(numBytes), shard.shardId());
+
+        // Since some bytes just freed up, now we check again to give throttling a chance to stop:
+        forceCheck();
     }
 
     @Override
@@ -167,7 +170,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         for (IndexService indexService : indicesService) {
             for (IndexShard shard : indexService) {
-                if (shardAvailable(shard)) {
+                // shadow replica doesn't have an indexing buffer
+                if (shard.canIndex() && CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
                     availableShards.add(shard);
                 }
             }
@@ -185,12 +189,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         shard.writeIndexingBufferAsync();
     }
 
-    /** returns true if shard exists and is availabe for updates */
-    protected boolean shardAvailable(IndexShard shard) {
-        // shadow replica doesn't have an indexing buffer
-        return shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
-    }
-
     /** used by tests to check if any shards active status changed, now. */
     public void forceCheck() {
         statusChecker.run();
@@ -199,6 +197,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** called by IndexShard to record that this many bytes were written to translog */
     public void bytesWritten(int bytes) {
         statusChecker.bytesWritten(bytes);
+    }
+
+    /** Asks this shard to throttle indexing to one thread */
+    protected void activateThrottling(IndexShard shard) {
+        shard.activateThrottling();
+    }
+
+    /** Asks this shard to stop throttling indexing to one thread */
+    protected void deactivateThrottling(IndexShard shard) {
+        shard.deactivateThrottling();
     }
 
     static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
@@ -273,6 +281,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                              new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
             }
 
+            // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
+            // throttle the top shards to send back-pressure to ongoing indexing:
+            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.bytes();
+
             if (totalBytesUsed > indexingBuffer.bytes()) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
                 logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
@@ -309,10 +321,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     }
                 }
 
-                // If we are using more than 50% of our budget across both indexing buffer and bytes we are moving to disk, then we now
-                // throttle the top shards to give back-pressure:
-                boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.bytes();
-
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
@@ -321,17 +329,17 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     if (doThrottle && throttled.contains(largest.shard) == false) {
                         logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
                         throttled.add(largest.shard);
-                        largest.shard.activateThrottling();
+                        activateThrottling(largest.shard);
                     }
                 }
+            }
 
-                if (doThrottle == false) {
-                    for(IndexShard shard : throttled) {
-                        logger.info("stop throttling indexing for shard [{}]", shard.shardId());
-                        shard.deactivateThrottling();
-                    }
-                    throttled.clear();
+            if (doThrottle == false) {
+                for(IndexShard shard : throttled) {
+                    logger.info("stop throttling indexing for shard [{}]", shard.shardId());
+                    deactivateThrottling(shard);
                 }
+                throttled.clear();
             }
 
             bytesWrittenSinceCheck = 0;
@@ -339,8 +347,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /**
-     * ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.
-     * return false if the shard is not idle, otherwise true
+     * ask this shard to check now whether it is inactive, and reduces its indexing buffer if so.
      */
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {

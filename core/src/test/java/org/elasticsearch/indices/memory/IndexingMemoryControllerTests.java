@@ -41,7 +41,14 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
     static class MockController extends IndexingMemoryController {
 
+        // Size of each shard's indexing buffer
         final Map<IndexShard, Long> indexBufferRAMBytesUsed = new HashMap<>();
+
+        // How many bytes this shard is currently moving to disk
+        final Map<IndexShard, Long> writingBytes = new HashMap<>();
+
+        // Shards that are currently throttled
+        final Set<IndexShard> throttled = new HashSet<>();
 
         public MockController(Settings settings) {
             super(Settings.builder()
@@ -53,6 +60,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         public void deleteShard(IndexShard shard) {
             indexBufferRAMBytesUsed.remove(shard);
+            writingBytes.remove(shard);
         }
 
         @Override
@@ -61,18 +69,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected boolean shardAvailable(IndexShard shard) {
-            return indexBufferRAMBytesUsed.containsKey(shard);
-        }
-
-        @Override
         protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
-            Long used = indexBufferRAMBytesUsed.get(shard);
-            if (used == null) {
-                return 0;
-            } else {
-                return used;
-            }
+            return indexBufferRAMBytesUsed.get(shard) + writingBytes.get(shard);
         }
 
         @Override
@@ -81,18 +79,57 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         @Override
         public void writeIndexingBufferAsync(IndexShard shard) {
+            long bytes = indexBufferRAMBytesUsed.put(shard, 0L);
+            writingBytes.put(shard, writingBytes.get(shard) + bytes);
+            addWritingBytes(shard, bytes);
             indexBufferRAMBytesUsed.put(shard, 0L);
         }
 
-        public void assertBuffer(IndexShard shard, ByteSizeValue expected) {
+        @Override
+        public void activateThrottling(IndexShard shard) {
+            assertTrue(throttled.add(shard));
+        }
+
+        @Override
+        public void deactivateThrottling(IndexShard shard) {
+            assertTrue(throttled.remove(shard));
+        }
+
+        public void doneWriting(IndexShard shard) {
+            long bytes = writingBytes.put(shard, 0L);
+            removeWritingBytes(shard, bytes);
+        }
+
+        public void assertBuffer(IndexShard shard, int expectedMB) {
             Long actual = indexBufferRAMBytesUsed.get(shard);
-            assertEquals(expected.bytes(), actual.longValue());
+            if (actual == null) {
+                actual = 0L;
+            }
+            assertEquals(expectedMB * 1024 * 1024, actual.longValue());
+        }
+
+        public void assertThrottled(IndexShard shard) {
+            assertTrue(throttled.contains(shard));
+        }
+
+        public void assertNotThrottled(IndexShard shard) {
+            assertFalse(throttled.contains(shard));
+        }
+
+        public void assertWriting(IndexShard shard, int expectedMB) {
+            Long actual = writingBytes.get(shard);
+            if (actual == null) {
+                actual = 0L;
+            }
+            assertEquals(expectedMB * 1024 * 1024, actual.longValue());
         }
 
         public void simulateIndexing(IndexShard shard) {
             Long bytes = indexBufferRAMBytesUsed.get(shard);
             if (bytes == null) {
                 bytes = 0L;
+                // First time we are seeing this shard:
+                writingBytes.put(shard, 0L);
             }
             // Each doc we index takes up a megabyte!
             bytes += 1024*1024;
@@ -110,18 +147,18 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
-        controller.assertBuffer(shard0, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard0, 1);
 
         // add another shard
         IndexShard shard1 = test.getShard(1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffer(shard0, new ByteSizeValue(1, ByteSizeUnit.MB));
-        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard0, 1);
+        controller.assertBuffer(shard1, 1);
 
         // remove first shard
         controller.deleteShard(shard0);
         controller.forceCheck();
-        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard1, 1);
 
         // remove second shard
         controller.deleteShard(shard1);
@@ -130,7 +167,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         // add a new one
         IndexShard shard2 = test.getShard(2);
         controller.simulateIndexing(shard2);
-        controller.assertBuffer(shard2, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard2, 1);
     }
 
     public void testActiveInactive() {
@@ -148,28 +185,28 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexShard shard1 = test.getShard(1);
         controller.simulateIndexing(shard1);
 
-        controller.assertBuffer(shard0, new ByteSizeValue(1, ByteSizeUnit.MB));
-        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard0, 1);
+        controller.assertBuffer(shard1, 1);
 
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard1);
 
-        controller.assertBuffer(shard0, new ByteSizeValue(2, ByteSizeUnit.MB));
-        controller.assertBuffer(shard1, new ByteSizeValue(2, ByteSizeUnit.MB));
+        controller.assertBuffer(shard0, 2);
+        controller.assertBuffer(shard1, 2);
 
         // index into one shard only, crosses the 5mb limit, so shard1 is refreshed
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
-        controller.assertBuffer(shard0, new ByteSizeValue(0, ByteSizeUnit.MB));
-        controller.assertBuffer(shard1, new ByteSizeValue(2, ByteSizeUnit.MB));
+        controller.assertBuffer(shard0, 0);
+        controller.assertBuffer(shard1, 2);
 
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffer(shard1, new ByteSizeValue(4, ByteSizeUnit.MB));
+        controller.assertBuffer(shard1, 4);
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
         // shard1 crossed 5 mb and is now cleared:
-        controller.assertBuffer(shard1, new ByteSizeValue(0, ByteSizeUnit.MB));
+        controller.assertBuffer(shard1, 0);
     }
 
     public void testMinBufferSizes() {
@@ -186,6 +223,66 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
+    }
+
+    public void testThrottling() throws Exception {
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+
+        MockController controller = new MockController(Settings.builder()
+                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
+        IndexShard shard0 = test.getShard(0);
+        IndexShard shard1 = test.getShard(1);
+        IndexShard shard2 = test.getShard(2);
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard0);
+        controller.assertBuffer(shard0, 3);
+        controller.simulateIndexing(shard1);
+        controller.simulateIndexing(shard1);
+
+        // We are now using 5 MB, so we should be writing shard0 since it's using the most heap:
+        controller.assertWriting(shard0, 3);
+        controller.assertWriting(shard1, 0);
+        controller.assertBuffer(shard0, 0);
+        controller.assertBuffer(shard1, 2);
+
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard1);
+        controller.simulateIndexing(shard1);
+
+        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1, and 2) be throttling shard1:
+        controller.assertWriting(shard0, 3);
+        controller.assertWriting(shard1, 4);
+        controller.assertBuffer(shard0, 1);
+        controller.assertBuffer(shard1, 0);
+
+        controller.assertNotThrottled(shard0);
+        controller.assertThrottled(shard1);
+
+        System.out.println("TEST: now index more");
+
+        // More indexing to shard0
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard0);
+        controller.simulateIndexing(shard0);
+
+        // Now we are using 5 MB again, so shard0 should also be writing and now also be throttled:
+        controller.assertWriting(shard0, 8);
+        controller.assertWriting(shard1, 4);
+        controller.assertBuffer(shard0, 0);
+        controller.assertBuffer(shard1, 0);
+
+        controller.assertThrottled(shard0);
+        controller.assertThrottled(shard1);
+
+        // Both shards finally finish writing, and throttling should stop:
+        controller.doneWriting(shard0);
+        controller.doneWriting(shard1);
+        controller.assertNotThrottled(shard0);
+        controller.assertNotThrottled(shard1);
     }
 
     // #10312

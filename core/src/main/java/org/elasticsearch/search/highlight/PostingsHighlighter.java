@@ -26,7 +26,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.*;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -115,7 +115,7 @@ public class PostingsHighlighter implements Highlighter {
         }
 
         if (fragments.length > 0) {
-            return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+            return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
         }
 
         return null;

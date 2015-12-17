@@ -22,7 +22,6 @@ package org.elasticsearch.search.highlight;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -90,7 +89,7 @@ public class HighlightField implements Streamable {
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
-                fragments = StringText.EMPTY_ARRAY;
+                fragments = Text.EMPTY_ARRAY;
             } else {
                 fragments = new Text[size];
                 for (int i = 0; i < size; i++) {

@@ -29,7 +29,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
@@ -55,7 +55,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
 
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
+        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
 
         String fieldName = suggestionContext.getField();
@@ -78,7 +78,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     final float score = res.value;
                     final CompletionSuggestion.Entry.Option value = results.get(key);
                     if (value == null) {
-                        final CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(new StringText(key), score, res.payload == null ? null
+                        final CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(new Text(key), score, res.payload == null ? null
                                 : new BytesArray(res.payload));
                         results.put(key, option);
                     } else if (value.getScore() < score) {

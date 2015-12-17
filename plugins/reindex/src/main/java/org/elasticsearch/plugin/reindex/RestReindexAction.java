@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.IndexBySearchAction.INSTANCE;
+import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType;
+import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -52,8 +52,8 @@ import org.elasticsearch.script.Script;
 /**
  * Expose IndexBySearchRequest over rest.
  */
-public class RestIndexBySearchAction extends BaseRestHandler {
-    private static final ObjectParser<IndexBySearchRequest, QueryParseContext> PARSER = new ObjectParser<>("index-by-search");
+public class RestReindexAction extends BaseRestHandler {
+    private static final ObjectParser<ReindexRequest, QueryParseContext> PARSER = new ObjectParser<>("reindex");
     static {
         ObjectParser<SearchRequest, QueryParseContext> sourceParser = new ObjectParser<>("source");
         sourceParser.declareStringArray((s, i) -> s.indices(i.toArray(new String[i.size()])), new ParseField("index"));
@@ -78,20 +78,20 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("destination"), ValueType.OBJECT);
-        PARSER.declareInt(IndexBySearchRequest::size, new ParseField("size"));
+        PARSER.declareInt(ReindexRequest::size, new ParseField("size"));
         PARSER.declareField((p, v, c) -> {v.script(Script.parse(p, c.parseFieldMatcher()));}, new ParseField("script"), ValueType.OBJECT);
-        PARSER.declareString(IndexBySearchRequest::conflicts, new ParseField("conflicts"));
+        PARSER.declareString(ReindexRequest::conflicts, new ParseField("conflicts"));
         PARSER.declareField((p, v, c) -> {v.opType(OpType.fromString(p.text()));}, new ParseField("op_type"), ValueType.STRING);
     }
 
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
     @Inject
-    public RestIndexBySearchAction(Settings settings, RestController controller, Client client,
+    public RestReindexAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        controller.registerHandler(POST, "/_index_by_search", this);
+        controller.registerHandler(POST, "/_reindex", this);
     }
 
     @Override
@@ -101,7 +101,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
             return;
         }
 
-        IndexBySearchRequest internalRequest = new IndexBySearchRequest(new SearchRequest(), new IndexRequest());
+        ReindexRequest internalRequest = new ReindexRequest(new SearchRequest(), new IndexRequest());
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internalRequest, new QueryParseContext(indicesQueriesRegistry));

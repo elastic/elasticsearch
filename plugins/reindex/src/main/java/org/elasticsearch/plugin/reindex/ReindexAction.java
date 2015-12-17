@@ -22,21 +22,21 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndexBySearchAction extends Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
-    public static final IndexBySearchAction INSTANCE = new IndexBySearchAction();
-    public static final String NAME = "indices:data/write/index/by_query";
+public class ReindexAction extends Action<ReindexRequest, ReindexResponse, ReindexRequestBuilder> {
+    public static final ReindexAction INSTANCE = new ReindexAction();
+    public static final String NAME = "indices:data/write/reindex";
 
-    private IndexBySearchAction() {
+    private ReindexAction() {
         super(NAME);
     }
 
     @Override
-    public IndexBySearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndexBySearchRequestBuilder(client, this);
+    public ReindexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ReindexRequestBuilder(client, this);
     }
 
     @Override
-    public IndexBySearchResponse newResponse() {
-        return new IndexBySearchResponse();
+    public ReindexResponse newResponse() {
+        return new ReindexResponse();
     }
 }

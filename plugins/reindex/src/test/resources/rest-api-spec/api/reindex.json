@@ -1,15 +1,15 @@
 {
-  "index_by_search": {
+  "reindex": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_index_by_search",
-      "paths": ["/_index_by_search"],
+      "path": "/_reindex",
+      "paths": ["/_reindex"],
       "parts": {},
       "params": {}
     },
     "body": {
-      "description" : "NOCOMMIT some description"
+      "description": "The search definition using the Query DSL and the prototype for the index request."
     }
   }
 }

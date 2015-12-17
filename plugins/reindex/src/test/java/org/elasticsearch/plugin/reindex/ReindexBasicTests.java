@@ -26,9 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 
-public class IndexBySearchBasicTests extends IndexBySearchTestCase {
+public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
         indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("source", "test", "2").setSource("foo", "a"),
@@ -37,7 +37,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest", "all");
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest", "all");
         assertThat(copy.get(), responseMatcher().created(4));
         refresh();
         assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), 4);
@@ -72,7 +72,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest", "all");
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest", "all");
         // Use a small batch size so we have to use more than one batch
         copy.search().setSize(5);
         assertThat(copy.get(), responseMatcher().created(max).batches(max, 5));

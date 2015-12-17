@@ -1,5 +1,5 @@
 ---
-"Set routing on copy":
+"Set routing":
   - do:
       index:
         index:        src
@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           source:
             index:   src
@@ -29,7 +29,7 @@
   - match: { _routing: cat }
 
 ---
-"Discard routing on copy":
+"Discard routing":
   - do:
       index:
         index:        src
@@ -41,7 +41,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index:   src

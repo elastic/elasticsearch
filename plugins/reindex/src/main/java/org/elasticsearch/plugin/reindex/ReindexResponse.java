@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
-public class IndexBySearchResponse extends BulkIndexByScrollResponse {
+public class ReindexResponse extends BulkIndexByScrollResponse {
     private long created;
 
-    public IndexBySearchResponse() {
+    public ReindexResponse() {
     }
 
-    public IndexBySearchResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
+    public ReindexResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
         super(took, updated, batches, versionConflicts, noops, failures);
         this.created = created;
     }

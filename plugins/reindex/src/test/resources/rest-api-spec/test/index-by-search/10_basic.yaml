@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: source
@@ -41,7 +41,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           op_type:   overwrite
           src:
@@ -73,7 +73,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           op_type:  create
           src:
@@ -105,7 +105,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           conflicts: abort
           op_type:   create
@@ -139,7 +139,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -171,7 +171,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -204,7 +204,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -240,7 +240,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -275,7 +275,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: [twitter, blog]
@@ -323,7 +323,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           size: 1
           source:

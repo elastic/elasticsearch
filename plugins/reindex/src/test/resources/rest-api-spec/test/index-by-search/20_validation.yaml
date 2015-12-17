@@ -2,13 +2,13 @@
 "no body fails":
   - do:
       catch: /body required/
-      index_by_search: {}
+      reindex: {}
 
 ---
 "junk in body fails":
   - do:
       catch: /unknown field \[junk\]/
-      index_by_search:
+      reindex:
         body:
           junk:
             more_junk:
@@ -17,7 +17,7 @@
 "junk in source fails":
   - do:
       catch: /unknown field \[junk\]/
-      index_by_search:
+      reindex:
         body:
           src:
             junk: {}
@@ -26,7 +26,7 @@
 "junk in dest fails":
   - do:
       catch: /unknown field \[junk\]/
-      index_by_search:
+      reindex:
         body:
           dest:
             junk: {}
@@ -35,7 +35,7 @@
 "no index on destination fails":
   - do:
       catch: /index must be specified/
-      index_by_search:
+      reindex:
         body:
           dest: {}
 
@@ -48,7 +48,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: source
@@ -66,7 +66,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: source
@@ -82,7 +82,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      index_by_search:
+      reindex:
         body:
           source:
             index: source
@@ -93,7 +93,7 @@
 "search size fails if not a number":
   - do:
       catch: '/NumberFormatException: For input string: "cat"/'
-      index_by_search:
+      reindex:
         body:
           source:
             search:
@@ -105,7 +105,7 @@
 "search from is not supported":
   - do:
       catch: /from is not supported in this context/
-      index_by_search:
+      reindex:
         body:
           source:
             search:
@@ -117,7 +117,7 @@
 "overwriting version is not supported":
   - do:
       catch: /.*\[dest\] unknown field \[version\].*/
-      index_by_search:
+      reindex:
         body:
           dest:
             version: 10
@@ -126,7 +126,7 @@
 "overwriting version type is not supported":
   - do:
       catch: /.*\[dest\] unknown field \[version_type\].*/
-      index_by_search:
+      reindex:
         body:
           dest:
             version_type: external
@@ -135,6 +135,6 @@
 "bad conflicts is error":
   - do:
       catch: /.*conflicts may only be "proceed" or "abort" but was \[cat\]/
-      index_by_search:
+      reindex:
         body:
           conflicts: cat

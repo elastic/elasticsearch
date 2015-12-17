@@ -37,12 +37,12 @@ public class ReindexPlugin extends Plugin {
     }
 
     public void onModule(ActionModule actionModule) {
-        actionModule.registerAction(IndexBySearchAction.INSTANCE, TransportIndexBySearchAction.class);
+        actionModule.registerAction(ReindexAction.INSTANCE, TransportIndexBySearchAction.class);
         actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportReindexInPlaceAction.class);
     }
 
     public void onModule(RestModule restModule) {
-        restModule.addRestAction(RestIndexBySearchAction.class);
+        restModule.addRestAction(RestReindexAction.class);
         restModule.addRestAction(RestUpdateByQueryAction.class);
     }
 }

@@ -24,12 +24,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 import org.elasticsearch.index.get.GetField;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
  */
-public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
+public class ReindexCornerCaseTests extends ReindexTestCase {
     /**
      * Creates two indexes with the provided mapping, indexes a single doc into
      * them and copies the data from one to the other.
@@ -44,7 +44,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         indexRandom(true, client().prepareIndex("source", "test", "test").setSource("foo", "bar"));
 
         // Copy the doc with the timestamp
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -97,7 +97,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
 
         // Copy the child to a new type
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
         if (specification != null) {
             copy.destination().setRouting(specification);
         }

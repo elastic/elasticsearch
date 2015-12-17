@@ -31,13 +31,13 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 import java.util.Collection;
 
-public class IndexBySearchRestIT extends ESRestTestCase {
+public class ReindexRestIT extends ESRestTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);
     }
 
-    public IndexBySearchRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public ReindexRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 

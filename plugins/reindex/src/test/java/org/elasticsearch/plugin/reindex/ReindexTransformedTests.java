@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -16,7 +16,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 /**
  * Tests index-by-search with a script modifying the documents.
  */
-public class IndexBySearchTransformedTests extends IndexBySearchTestCase {
+public class ReindexTransformedTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
@@ -27,7 +27,7 @@ public class IndexBySearchTransformedTests extends IndexBySearchTestCase {
     public void testTransformed() throws Exception {
         indexRandom(true, client().prepareIndex("src", "test", "1").setSource("foo", "a"));
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("src").destination("dest")
+        ReindexRequestBuilder copy = newIndexBySearch().source("src").destination("dest")
                 .script(new Script("set-bar", ScriptType.INLINE, "native", singletonMap("to", "cat")));
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();

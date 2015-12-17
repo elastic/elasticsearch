@@ -25,7 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class UpdateByQueryAction extends
         Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
-    public static final String NAME = "indices:data/write/reindex";
+    public static final String NAME = "indices:data/write/update/byquery";
 
     private UpdateByQueryAction() {
         super(NAME);

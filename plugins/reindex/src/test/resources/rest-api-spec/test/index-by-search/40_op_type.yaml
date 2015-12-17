@@ -29,7 +29,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: src
@@ -75,7 +75,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           op_type: create
           src:
@@ -122,7 +122,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           op_type: refresh
           src:
@@ -167,7 +167,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           op_type: overwrite
           src:

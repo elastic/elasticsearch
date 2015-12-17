@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
-public class IndexBySearchRequest extends AbstractBulkIndexByScrollRequest<IndexBySearchRequest> {
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> {
     /**
      * Prototype for index requests.
      *
@@ -43,16 +43,16 @@ public class IndexBySearchRequest extends AbstractBulkIndexByScrollRequest<Index
 
     private OpType opType = OpType.REFRESH;
 
-    public IndexBySearchRequest() {
+    public ReindexRequest() {
     }
 
-    public IndexBySearchRequest(SearchRequest search, IndexRequest destination) {
+    public ReindexRequest(SearchRequest search, IndexRequest destination) {
         super(search);
         this.destination = destination;
     }
 
     @Override
-    protected IndexBySearchRequest self() {
+    protected ReindexRequest self() {
         return this;
     }
 
@@ -88,7 +88,7 @@ public class IndexBySearchRequest extends AbstractBulkIndexByScrollRequest<Index
         return destination;
     }
 
-    public IndexBySearchRequest opType(OpType opType) {
+    public ReindexRequest opType(OpType opType) {
         this.opType = opType;
         return this;
     }

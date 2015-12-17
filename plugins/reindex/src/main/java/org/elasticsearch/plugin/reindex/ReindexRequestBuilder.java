@@ -25,27 +25,27 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType;
+import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 
-public class IndexBySearchRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
+public class ReindexRequestBuilder extends
+        AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexResponse, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 
-    public IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action) {
+    public ReindexRequestBuilder(ElasticsearchClient client,
+            Action<ReindexRequest, ReindexResponse, ReindexRequestBuilder> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
                 new IndexRequestBuilder(client, IndexAction.INSTANCE));
     }
 
-    private IndexBySearchRequestBuilder(ElasticsearchClient client,
-            Action<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> action,
+    private ReindexRequestBuilder(ElasticsearchClient client,
+            Action<ReindexRequest, ReindexResponse, ReindexRequestBuilder> action,
             SearchRequestBuilder search, IndexRequestBuilder destination) {
-        super(client, action, search, new IndexBySearchRequest(search.request(), destination.request()));
+        super(client, action, search, new ReindexRequest(search.request(), destination.request()));
         this.destination = destination;
     }
 
     @Override
-    protected IndexBySearchRequestBuilder self() {
+    protected ReindexRequestBuilder self() {
         return this;
     }
 
@@ -56,7 +56,7 @@ public class IndexBySearchRequestBuilder extends
     /**
      * Set the destination index.
      */
-    public IndexBySearchRequestBuilder destination(String index) {
+    public ReindexRequestBuilder destination(String index) {
         destination.setIndex(index);
         return this;
     }
@@ -64,18 +64,18 @@ public class IndexBySearchRequestBuilder extends
     /**
      * Set the destination index and type.
      */
-    public IndexBySearchRequestBuilder destination(String index, String type) {
+    public ReindexRequestBuilder destination(String index, String type) {
         destination.setIndex(index).setType(type);
         return this;
     }
 
-    public IndexBySearchRequestBuilder opType(OpType opType) {
+    public ReindexRequestBuilder opType(OpType opType) {
         request.opType(opType);
         return this;
     }
 
     @Override
-    protected IndexBySearchRequest beforeExecute(IndexBySearchRequest request) {
+    protected ReindexRequest beforeExecute(ReindexRequest request) {
         request = super.beforeExecute(request);
         request.fillInConditionalDefaults();
         return request;

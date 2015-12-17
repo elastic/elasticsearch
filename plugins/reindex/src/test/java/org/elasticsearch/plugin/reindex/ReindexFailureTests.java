@@ -29,14 +29,14 @@ import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
-import org.elasticsearch.plugin.reindex.IndexBySearchResponse;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexResponse;
+import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 
 /**
  * Tests failure capturing and abort-on-failure behavior of index-by-search.
  */
-public class IndexBySearchFailureTests extends IndexBySearchTestCase {
+public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*
          * Create the destination index such that the copy will cause a mapping
@@ -47,7 +47,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
 
         indexDocs(100);
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
         /*
          * Set the search size to something very small to cause there to be
          * multiple batches for this request so we can assert that we abort on
@@ -55,7 +55,7 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
          */
         copy.search().setSize(1);
 
-        IndexBySearchResponse response = copy.get();
+        ReindexResponse response = copy.get();
         assertThat(response, responseMatcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
@@ -71,11 +71,11 @@ public class IndexBySearchFailureTests extends IndexBySearchTestCase {
 
         indexDocs(100);
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest").abortOnVersionConflict(true);
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").abortOnVersionConflict(true);
         // Refresh will cause the conflict to prevent the write.
         copy.opType(OpType.REFRESH);
 
-        IndexBySearchResponse response = copy.get();
+        ReindexResponse response = copy.get();
         assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.failures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));

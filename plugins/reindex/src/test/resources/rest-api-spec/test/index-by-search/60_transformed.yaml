@@ -1,5 +1,5 @@
 ---
-"Modify a document on copy":
+"Modify a document":
   - do:
       index:
         index:  twitter
@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -50,7 +50,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -110,7 +110,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -154,7 +154,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -213,7 +213,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -259,7 +259,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter
@@ -308,7 +308,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: twitter

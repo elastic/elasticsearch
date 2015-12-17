@@ -37,7 +37,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportIndexBySearchAction extends HandledTransportAction<IndexBySearchRequest, IndexBySearchResponse> {
+public class TransportIndexBySearchAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
@@ -47,8 +47,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     public TransportIndexBySearchAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
-        super(settings, IndexBySearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                IndexBySearchRequest::new);
+        super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                ReindexRequest::new);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;
@@ -56,7 +56,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     }
 
     @Override
-    protected void doExecute(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
+    protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
         String target = request.destination().index();
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterService.state())) {
             /*
@@ -82,8 +82,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      * requests but this makes no attempt to do any of them so it can be as
      * simple possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
-        public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
+    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
+        public AsyncIndexBySearchAction(ReindexRequest request, ActionListener<ReindexResponse> listener) {
             super(logger, scriptService, client, request, request.source(), listener);
         }
 
@@ -148,8 +148,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
         }
 
         @Override
-        protected IndexBySearchResponse buildResponse(long took) {
-            return new IndexBySearchResponse(took, created(), updated(), batches(), versionConflicts(), noops(), failures());
+        protected ReindexResponse buildResponse(long took) {
+            return new ReindexResponse(took, created(), updated(), batches(), versionConflicts(), noops(), failures());
         }
 
         @Override

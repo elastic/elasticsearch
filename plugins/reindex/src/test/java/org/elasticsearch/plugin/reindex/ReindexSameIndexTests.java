@@ -9,7 +9,7 @@ import org.junit.Before;
 /**
  * Tests that indexing from an index back into itself fails the request.
  */
-public class IndexBySearchSameIndexTests extends IndexBySearchTestCase {
+public class ReindexSameIndexTests extends ReindexTestCase {
     @Before
     public void createIndices() {
         createIndex("target", "target2", "foo", "bar", "baz", "source", "source2");

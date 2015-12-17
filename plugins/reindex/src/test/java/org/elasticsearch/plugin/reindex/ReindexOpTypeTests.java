@@ -20,15 +20,15 @@
 package org.elasticsearch.plugin.reindex;
 
 import static org.elasticsearch.index.VersionType.EXTERNAL;
-import static org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType.CREATE;
-import static org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType.OVERWRITE;
-import static org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType.REFRESH;
+import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.CREATE;
+import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.OVERWRITE;
+import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.REFRESH;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.plugin.reindex.IndexBySearchResponse;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequest.OpType;
+import org.elasticsearch.plugin.reindex.ReindexResponse;
+import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 
-public class IndexBySearchOpTypeTests extends IndexBySearchTestCase {
+public class ReindexOpTypeTests extends ReindexTestCase {
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;
@@ -91,7 +91,7 @@ public class IndexBySearchOpTypeTests extends IndexBySearchTestCase {
      * Build the index by search request. All test cases share this form of the
      * request so its convenient to pull it here.
      */
-    private IndexBySearchResponse copy(OpType opType) {
+    private ReindexResponse copy(OpType opType) {
         return newIndexBySearch().source("source").destination("dest").opType(opType).get();
     }
 

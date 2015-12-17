@@ -16,7 +16,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           src:
             index: test
@@ -52,7 +52,7 @@
       indices.refresh: {}
 
   - do:
-      index_by_search:
+      reindex:
         body:
           size: 1
           src:

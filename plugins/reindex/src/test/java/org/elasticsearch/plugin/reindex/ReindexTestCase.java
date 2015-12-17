@@ -24,10 +24,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 import java.util.Collection;
 
-import org.elasticsearch.plugin.reindex.IndexBySearchAction;
+import org.elasticsearch.plugin.reindex.ReindexAction;
 import org.elasticsearch.plugin.reindex.ReindexPlugin;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
-import org.elasticsearch.plugin.reindex.IndexBySearchResponse;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -35,14 +35,14 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
-public class IndexBySearchTestCase extends ESIntegTestCase {
+public class ReindexTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);
     }
 
-    protected IndexBySearchRequestBuilder newIndexBySearch() {
-        return IndexBySearchAction.INSTANCE.newRequestBuilder(client());
+    protected ReindexRequestBuilder newIndexBySearch() {
+        return ReindexAction.INSTANCE.newRequestBuilder(client());
     }
 
     public IndexBySearchResponseMatcher responseMatcher() {
@@ -50,7 +50,7 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
     }
 
     public static class IndexBySearchResponseMatcher
-            extends AbstractBulkIndexByScrollResponseMatcher<IndexBySearchResponse, IndexBySearchResponseMatcher> {
+            extends AbstractBulkIndexByScrollResponseMatcher<ReindexResponse, IndexBySearchResponseMatcher> {
         private Matcher<Long> createdMatcher = equalTo(0l);
 
         public IndexBySearchResponseMatcher created(Matcher<Long> updatedMatcher) {
@@ -63,7 +63,7 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean matchesSafely(IndexBySearchResponse item) {
+        protected boolean matchesSafely(ReindexResponse item) {
             return super.matchesSafely(item) && createdMatcher.matches(item.created());
         }
 

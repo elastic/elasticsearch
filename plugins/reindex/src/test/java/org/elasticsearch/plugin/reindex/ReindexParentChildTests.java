@@ -27,12 +27,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.plugin.reindex.IndexBySearchRequestBuilder;
+import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 
 /**
  * Index-by-search tests for parent/child.
  */
-public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
+public class ReindexParentChildTests extends ReindexTestCase {
     QueryBuilder<?> findsCountry;
     QueryBuilder<?> findsCity;
     QueryBuilder<?> findsNeighborhood;
@@ -43,7 +43,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         createParentChildDocs("source");
 
         // Copy parent to the new index
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCountry);
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCountry);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -80,7 +80,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         createParentChildIndex("source");
         createParentChildDocs("source");
 
-        IndexBySearchRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
+        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
         try {
             copy.get();
             fail("Expected exception");

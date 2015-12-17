@@ -12,6 +12,7 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
+import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -22,7 +23,12 @@ import static org.hamcrest.Matchers.is;
 
 public class RestAuthenticateActionTests extends ShieldIntegTestCase {
 
-    boolean anonymousEnabled = randomBoolean();
+    private static boolean anonymousEnabled;
+
+    @BeforeClass
+    public static void maybeEnableAnonymous() {
+        anonymousEnabled = randomBoolean();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

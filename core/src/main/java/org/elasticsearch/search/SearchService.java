@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -86,6 +87,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -552,7 +554,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
+        DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
 
         try {
@@ -659,7 +661,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchContextException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchContextException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -714,6 +716,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         context.trackScores(source.trackScores());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
+        }
+        if (source.profile()) {
+            context.setProfilers(new Profilers(context.searcher()));
         }
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());

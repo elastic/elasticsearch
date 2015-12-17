@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -60,6 +59,8 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -293,7 +294,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public void setSearcher(Engine.Searcher searcher) {
-        this.searcher = new ContextIndexSearcher(this, searcher);
+        this.searcher = new ContextIndexSearcher(searcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
     }
 
     @Override
@@ -660,8 +661,11 @@ public class TestSearchContext extends SearchContext {
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+    public Profilers getProfilers() {
+        return null; // no profiling
+    }
 
     @Override
-    public QueryCache getQueryCache() { return indexService.cache().query();}
+    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+
 }

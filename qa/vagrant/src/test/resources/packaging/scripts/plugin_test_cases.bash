@@ -223,10 +223,6 @@ fi
     install_and_check_plugin discovery multicast
 }
 
-@test "[$GROUP] install index-by-search plugin" {
-    install_and_check_plugin - index-by-search
-}
-
 @test "[$GROUP] install lang-expression plugin" {
     install_and_check_plugin lang expression
 }
@@ -253,6 +249,10 @@ fi
 
 @test "[$GROUP] install size mapper plugin" {
     install_and_check_plugin mapper size
+}
+
+@test "[$GROUP] install reindex plugin" {
+    install_and_check_plugin - reindex
 }
 
 @test "[$GROUP] install repository-azure plugin" {
@@ -335,10 +335,6 @@ fi
     remove_plugin discovery-multicast
 }
 
-@test "[$GROUP] remove index-by-search plugin" {
-    remove_plugin index-by-search
-}
-
 @test "[$GROUP] remove lang-expression plugin" {
     remove_plugin lang-expression
 }
@@ -365,6 +361,10 @@ fi
 
 @test "[$GROUP] remove size mapper plugin" {
     remove_plugin mapper-size
+}
+
+@test "[$GROUP] remove reindex plugin" {
+    remove_plugin reindex
 }
 
 @test "[$GROUP] remove repository-azure plugin" {

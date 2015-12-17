@@ -15,6 +15,7 @@ wiki1 1 p STARTED 3013 29.6mb 192.168.56.30 Frankie Raye
 wiki1 2 p STARTED 3973 38.1mb 192.168.56.20 Commander Kraken
 --------------------------------------------------
 
+[float]
 [[index-pattern]]
 === Index pattern
 
@@ -31,6 +32,7 @@ wiki2 2 p STARTED 275 7.8mb 192.168.56.20 Commander Kraken
 --------------------------------------------------
 
 
+[float]
 [[relocation]]
 === Relocation
 
@@ -46,6 +48,7 @@ wiki1 0 r RELOCATING 3014 31.1mb 192.168.56.20 Commander Kraken -> 192.168.56.30
 wiki1 1 r RELOCATING 3013 29.6mb 192.168.56.10 Stiletto -> 192.168.56.30 Frankie Raye
 --------------------------------------------------
 
+[float]
 [[states]]
 === Shard states
 
@@ -66,8 +69,8 @@ wiki1 2 p STARTED      3973 38.1mb 192.168.56.20 Commander Kraken
 --------------------------------------------------
 
 If a shard cannot be assigned, for example you've overallocated the
-number of replicas for the number of nodes in the cluster, they will
-remain `UNASSIGNED`.
+number of replicas for the number of nodes in the cluster, the shard
+will remain `UNASSIGNED` with the <<reason-unassigned,reason code>> `ALLOCATION_FAILED`.
 
 [source,sh]
 --------------------------------------------------
@@ -78,13 +81,33 @@ remain `UNASSIGNED`.
 wiki1 0 p STARTED    3014 31.1mb 192.168.56.10 Stiletto
 wiki1 0 r STARTED    3014 31.1mb 192.168.56.30 Frankie Raye
 wiki1 0 r STARTED    3014 31.1mb 192.168.56.20 Commander Kraken
-wiki1 0 r UNASSIGNED
+wiki1 0 r UNASSIGNED ALLOCATION_FAILED
 wiki1 1 r STARTED    3013 29.6mb 192.168.56.10 Stiletto
 wiki1 1 p STARTED    3013 29.6mb 192.168.56.30 Frankie Raye
 wiki1 1 r STARTED    3013 29.6mb 192.168.56.20 Commander Kraken
-wiki1 1 r UNASSIGNED
+wiki1 1 r UNASSIGNED ALLOCATION_FAILED
 wiki1 2 r STARTED    3973 38.1mb 192.168.56.10 Stiletto
 wiki1 2 r STARTED    3973 38.1mb 192.168.56.30 Frankie Raye
 wiki1 2 p STARTED    3973 38.1mb 192.168.56.20 Commander Kraken
-wiki1 2 r UNASSIGNED
+wiki1 2 r UNASSIGNED ALLOCATION_FAILED
 --------------------------------------------------
+
+[float]
+[[reason-unassigned]]
+=== Reasons for unassigned shard
+
+These are the possible reasons for a shard be in a unassigned state:
+
+[horizontal]
+`INDEX_CREATED`::           Unassigned as a result of an API creation of an index.
+`CLUSTER_RECOVERED`::       Unassigned as a result of a full cluster recovery.
+`INDEX_REOPENED`::          Unassigned as a result of opening a closed index.
+`DANGLING_INDEX_IMPORTED`:: Unassigned as a result of importing a dangling index.
+`NEW_INDEX_RESTORED`::      Unassigned as a result of restoring into a new index.
+`EXISTING_INDEX_RESTORED`:: Unassigned as a result of restoring into a closed index.
+`REPLICA_ADDED`::           Unassigned as a result of explicit addition of a replica.
+`ALLOCATION_FAILED`::       Unassigned as a result of a failed allocation of the shard.
+`NODE_LEFT`::               Unassigned as a result of the node hosting it leaving the cluster.
+`REROUTE_CANCELLED`::       Unassigned as a result of explicit cancel reroute command.
+`REINITIALIZED`::           When a shard moves from started back to initializing, for example, with shadow replicas.
+`REALLOCATED_REPLICA`::     A better replica location is identified and causes the existing replica allocation to be cancelled.

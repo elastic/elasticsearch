@@ -41,6 +41,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -88,6 +89,9 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
+            if (!settings.getAsBoolean("index.mapper.dynamic", true)) {
+                throw new MapperParsingException("trying to auto create mapping, but dynamic mapping is disabled");
+            }
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
             createIndexRequest.index(request.index());
             createIndexRequest.mapping(request.type());

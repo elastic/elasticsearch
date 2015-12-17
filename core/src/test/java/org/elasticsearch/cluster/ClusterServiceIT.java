@@ -43,7 +43,14 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -54,7 +61,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -769,6 +780,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         class TaskExecutor extends ClusterStateTaskExecutor<Task> {
             private AtomicInteger counter = new AtomicInteger();
+            private AtomicInteger batches = new AtomicInteger();
+            private AtomicInteger published = new AtomicInteger();
 
             @Override
             public BatchResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
@@ -776,12 +789,22 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     task.execute();
                 }
                 counter.addAndGet(tasks.size());
-                return BatchResult.<Task>builder().successes(tasks).build(currentState);
+                ClusterState maybeUpdatedClusterState = currentState;
+                if (randomBoolean()) {
+                    maybeUpdatedClusterState = ClusterState.builder(currentState).build();
+                    batches.incrementAndGet();
+                }
+                return BatchResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
             }
 
             @Override
             public boolean runOnlyOnMaster() {
                 return false;
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterState newClusterState) {
+                published.incrementAndGet();
             }
         }
         int numberOfThreads = randomIntBetween(2, 8);
@@ -864,6 +887,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         for (TaskExecutor executor : executors) {
             if (counts.containsKey(executor)) {
                 assertEquals((int) counts.get(executor), executor.counter.get());
+                assertEquals(executor.batches.get(), executor.published.get());
             }
         }
 

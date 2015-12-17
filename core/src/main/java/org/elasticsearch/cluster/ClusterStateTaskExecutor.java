@@ -37,6 +37,13 @@ public abstract class ClusterStateTaskExecutor<T> {
     }
 
     /**
+     * Callback invoked after new cluster state is published. Note that
+     * this method is not invoked if the cluster state was not updated.
+     */
+    public void clusterStatePublished(ClusterState newClusterState) {
+    }
+
+    /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */

@@ -9,6 +9,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.shield.authz.SystemRole;
 
 import java.io.IOException;
@@ -17,7 +19,7 @@ import java.util.Arrays;
 /**
  * An authenticated user
  */
-public abstract class User {
+public abstract class User implements ToXContent {
 
     public static final User SYSTEM = new System();
 
@@ -141,6 +143,15 @@ public abstract class User {
             result = 31 * result + (runAs != null ? runAs.hashCode() : 0);
             return result;
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("username", principal());
+        builder.array("roles", roles());
+        builder.endObject();
+        return builder;
     }
 
     private static class System extends User {

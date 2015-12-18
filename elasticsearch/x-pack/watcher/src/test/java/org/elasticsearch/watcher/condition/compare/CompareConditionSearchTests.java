@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.condition.compare;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -79,11 +79,11 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
     public void testExecuteAccessHits() throws Exception {
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1), logger, SystemClock.INSTANCE);
-        InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
+        InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, false, false);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, null, false, false);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));

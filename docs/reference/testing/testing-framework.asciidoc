@@ -116,7 +116,7 @@ public class Mytests extends ESIntegTestCase {
 
   @Override
   protected Settings nodeSettings(int nodeOrdinal) {
-      return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+      return Settings.builder().put(super.nodeSettings(nodeOrdinal))
              .put("node.mode", "network")
              .build();
   }

@@ -101,7 +101,7 @@ If you must install plugins without internet access, and once you have the updat
 
 * First, remove the exisitng plugin with `bin/plugin remove <plugin name>`.
 
-* Next, install the updated plugin with `bin/plugin --install <plugin name> --url file:///Full/Path/To/<plugin name>.zip`.
+* Next, install the updated plugin with `bin/plugin install <plugin name> --url file:///Full/Path/To/<plugin name>.zip`.
 
 * Repeat these steps for each plugin you have installed.
    

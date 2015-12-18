@@ -23,7 +23,12 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.*
+import org.gradle.api.AntBuilder
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger

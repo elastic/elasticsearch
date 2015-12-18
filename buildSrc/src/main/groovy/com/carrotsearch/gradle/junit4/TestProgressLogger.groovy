@@ -29,7 +29,11 @@ import org.gradle.logging.ProgressLogger
 import org.gradle.logging.ProgressLoggerFactory
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
-import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.*
+import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.ERROR
+import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.FAILURE
+import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.IGNORED
+import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.IGNORED_ASSUMPTION
+import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.OK
 import static java.lang.Math.max
 
 /**

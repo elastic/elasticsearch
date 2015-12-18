@@ -20,11 +20,9 @@
 package org.elasticsearch.common.geo;
 
 import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 
-import java.util.Collection;
 import java.util.List;
 
 /**

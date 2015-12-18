@@ -23,12 +23,9 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
 
-import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * An extension point allowing to plug in custom functionality.

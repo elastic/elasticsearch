@@ -19,11 +19,6 @@
 
 package org.elasticsearch.plan.a;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.util.HashMap;
-import java.util.Map;
-
 /** Tests for addition operator across all types */
 //TODO: NaN/Inf/overflow/...
 public class AdditionTests extends ScriptTestCase {
@@ -40,7 +35,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(0+0, exec("int x = 0; int y = 0; return x+y;"));
         assertEquals(0+0, exec("int x = 0; int y = 0; return x+y;"));
     }
-    
+
     public void testIntConst() throws Exception {
         assertEquals(1+1, exec("return 1+1;"));
         assertEquals(1+2, exec("return 1+2;"));
@@ -52,7 +47,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(1+0, exec("return 1+0;"));
         assertEquals(0+0, exec("return 0+0;"));
     }
-    
+
     public void testByte() throws Exception {
         assertEquals((byte)1+(byte)1, exec("byte x = 1; byte y = 1; return x+y;"));
         assertEquals((byte)1+(byte)2, exec("byte x = 1; byte y = 2; return x+y;"));
@@ -64,7 +59,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((byte)1+(byte)0, exec("byte x = 1; byte y = 0; return x+y;"));
         assertEquals((byte)0+(byte)0, exec("byte x = 0; byte y = 0; return x+y;"));
     }
-    
+
     public void testByteConst() throws Exception {
         assertEquals((byte)1+(byte)1, exec("return (byte)1+(byte)1;"));
         assertEquals((byte)1+(byte)2, exec("return (byte)1+(byte)2;"));
@@ -76,7 +71,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((byte)1+(byte)0, exec("return (byte)1+(byte)0;"));
         assertEquals((byte)0+(byte)0, exec("return (byte)0+(byte)0;"));
     }
-    
+
     public void testChar() throws Exception {
         assertEquals((char)1+(char)1, exec("char x = 1; char y = 1; return x+y;"));
         assertEquals((char)1+(char)2, exec("char x = 1; char y = 2; return x+y;"));
@@ -88,7 +83,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((char)1+(char)0, exec("char x = 1; char y = 0; return x+y;"));
         assertEquals((char)0+(char)0, exec("char x = 0; char y = 0; return x+y;"));
     }
-    
+
     public void testCharConst() throws Exception {
         assertEquals((char)1+(char)1, exec("return (char)1+(char)1;"));
         assertEquals((char)1+(char)2, exec("return (char)1+(char)2;"));
@@ -100,7 +95,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((char)1+(char)0, exec("return (char)1+(char)0;"));
         assertEquals((char)0+(char)0, exec("return (char)0+(char)0;"));
     }
-    
+
     public void testShort() throws Exception {
         assertEquals((short)1+(short)1, exec("short x = 1; short y = 1; return x+y;"));
         assertEquals((short)1+(short)2, exec("short x = 1; short y = 2; return x+y;"));
@@ -112,7 +107,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((short)1+(short)0, exec("short x = 1; short y = 0; return x+y;"));
         assertEquals((short)0+(short)0, exec("short x = 0; short y = 0; return x+y;"));
     }
-    
+
     public void testShortConst() throws Exception {
         assertEquals((short)1+(short)1, exec("return (short)1+(short)1;"));
         assertEquals((short)1+(short)2, exec("return (short)1+(short)2;"));
@@ -124,7 +119,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals((short)1+(short)0, exec("return (short)1+(short)0;"));
         assertEquals((short)0+(short)0, exec("return (short)0+(short)0;"));
     }
-    
+
     public void testLong() throws Exception {
         assertEquals(1L+1L, exec("long x = 1; long y = 1; return x+y;"));
         assertEquals(1L+2L, exec("long x = 1; long y = 2; return x+y;"));
@@ -136,7 +131,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(1L+0L, exec("long x = 1; long y = 0; return x+y;"));
         assertEquals(0L+0L, exec("long x = 0; long y = 0; return x+y;"));
     }
-    
+
     public void testLongConst() throws Exception {
         assertEquals(1L+1L, exec("return 1L+1L;"));
         assertEquals(1L+2L, exec("return 1L+2L;"));
@@ -184,7 +179,7 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(1.0+0.0, exec("double x = 1.0; double y = 0.0; return x+y;"));
         assertEquals(0.0+0.0, exec("double x = 0.0; double y = 0.0; return x+y;"));
     }
-    
+
     public void testDoubleConst() throws Exception {
         assertEquals(1.0+1.0, exec("return 1.0+1.0;"));
         assertEquals(1.0+2.0, exec("return 1.0+2.0;"));

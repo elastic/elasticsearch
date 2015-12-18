@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.vividsolutions.jts.geom.Coordinate;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import com.vividsolutions.jts.geom.Coordinate;
 
 /**
  * The {@link PointCollection} is an abstract base implementation for all GeoShapes. It simply handles a set of points.

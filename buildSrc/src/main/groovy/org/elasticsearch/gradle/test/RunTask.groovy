@@ -1,7 +1,6 @@
 package org.elasticsearch.gradle.test
 
 import org.gradle.api.DefaultTask
-import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.util.ConfigureUtil

@@ -31,7 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.action.search.type.ParsedScrollId.*;
+import static org.elasticsearch.action.search.type.ParsedScrollId.QUERY_AND_FETCH_TYPE;
+import static org.elasticsearch.action.search.type.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
 
 /**

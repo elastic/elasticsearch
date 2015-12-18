@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.bytes;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;

@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -154,7 +154,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
         // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
-        
+
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
           final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
@@ -162,7 +162,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
           bucket.aggregations = bucketAggregations(bucket.bucketOrd);
           bucket.docCountError = 0;
         }
-        
+
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
                 bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, pipelineAggregators(),
                 metaData());

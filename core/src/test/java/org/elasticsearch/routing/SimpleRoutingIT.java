@@ -38,7 +38,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleRoutingIT extends ESIntegTestCase {
 
@@ -46,7 +48,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     protected int minimumNumberOfShards() {
         return 2;
     }
-    
+
     public void testSimpleCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -87,7 +89,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-    
+
     public void testSimpleSearchRouting() {
         createIndex("test");
         ensureGreen();
@@ -153,7 +155,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch().setSize(0).setRouting("0", "1", "0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
         }
     }
-    
+
     public void testRequiredRoutingMapping() throws Exception {
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
@@ -214,7 +216,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
     }
-    
+
     public void testRequiredRoutingWithPathMapping() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
@@ -253,7 +255,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-    
+
     public void testRequiredRoutingWithPathMappingBulk() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
@@ -314,9 +316,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-    
+
     public void testRequiredRoutingWithPathNumericType() throws Exception {
-        
+
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -345,7 +347,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-    
+
     public void testRequiredRoutingMapping_variousAPIs() throws Exception {
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())

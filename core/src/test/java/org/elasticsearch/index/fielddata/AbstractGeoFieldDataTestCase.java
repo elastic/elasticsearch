@@ -24,13 +24,14 @@ import org.apache.lucene.document.GeoPointField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.VersionUtils;
 
 import static org.elasticsearch.test.geo.RandomShapeGenerator.randomPoint;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  *

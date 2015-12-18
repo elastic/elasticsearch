@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongIntHashMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
@@ -79,8 +78,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
                 // fast forward to retrieve the parentDoc this childDoc belongs to
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
-                
-                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket); 
+
+                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket);
                 if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
                     int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
                     if (parentDoc > lastCollectedParentDoc) {

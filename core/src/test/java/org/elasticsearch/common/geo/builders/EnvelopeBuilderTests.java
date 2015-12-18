@@ -21,7 +21,6 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;

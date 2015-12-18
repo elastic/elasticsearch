@@ -20,7 +20,6 @@
 package org.elasticsearch.common;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.Set;

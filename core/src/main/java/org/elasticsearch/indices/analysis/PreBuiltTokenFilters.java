@@ -41,7 +41,19 @@ import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
-import org.apache.lucene.analysis.miscellaneous.*;
+import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
+import org.apache.lucene.analysis.miscellaneous.LengthFilter;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
+import org.apache.lucene.analysis.miscellaneous.Lucene43LengthFilter;
+import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
+import org.apache.lucene.analysis.miscellaneous.Lucene47WordDelimiterFilter;
+import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
+import org.apache.lucene.analysis.miscellaneous.TrimFilter;
+import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
+import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
@@ -57,11 +69,12 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
-import org.tartarus.snowball.ext.FrenchStemmer;
 import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.Locale;
 
@@ -396,7 +409,7 @@ public enum PreBuiltTokenFilters {
             return new CJKWidthFilter(tokenStream);
         }
     },
-    
+
     DECIMAL_DIGIT(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

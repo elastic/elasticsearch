@@ -62,8 +62,8 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.PatternAnalyzer;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.index.analysis.SnowballAnalyzer;
+import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -83,7 +83,7 @@ public enum PreBuiltAnalyzers {
                 a = new StandardAnalyzer();
             }
             a.setVersion(version.luceneVersion);
-            return a;        
+            return a;
         }
     },
 
@@ -432,7 +432,7 @@ public enum PreBuiltAnalyzers {
             return a;
         }
     },
-    
+
     SORANI {
         @Override
         protected Analyzer create(Version version) {

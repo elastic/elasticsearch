@@ -19,16 +19,16 @@
 
 package org.elasticsearch.plan.a;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.bootstrap.BootstrapInfo;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
-
-import org.antlr.v4.runtime.ANTLRInputStream;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.elasticsearch.bootstrap.BootstrapInfo;
 
 final class Compiler {
     private static Definition DEFAULT_DEFINITION = new Definition(new Definition());

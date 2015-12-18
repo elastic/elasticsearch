@@ -37,7 +37,9 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;

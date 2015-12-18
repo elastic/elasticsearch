@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
-
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;

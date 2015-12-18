@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.BufferedReader;
@@ -30,7 +29,14 @@ import java.io.Reader;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
-import java.nio.file.*;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -273,7 +279,7 @@ public final class FileSystemUtils {
             Files.walkFileTree(source, new TreeCopier(source, destination, true));
         }
     }
-    
+
     // TODO: note that this will fail if source and target are on different NIO.2 filesystems.
 
     static class TreeCopier extends SimpleFileVisitor<Path> {

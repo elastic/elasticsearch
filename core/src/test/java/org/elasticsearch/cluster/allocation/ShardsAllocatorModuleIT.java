@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)

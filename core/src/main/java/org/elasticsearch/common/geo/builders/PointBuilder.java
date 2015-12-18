@@ -19,15 +19,14 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-import java.util.Objects;
-
+import com.spatial4j.core.shape.Point;
+import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import com.spatial4j.core.shape.Point;
-import com.vividsolutions.jts.geom.Coordinate;
+import java.io.IOException;
+import java.util.Objects;
 
 public class PointBuilder extends ShapeBuilder {
 

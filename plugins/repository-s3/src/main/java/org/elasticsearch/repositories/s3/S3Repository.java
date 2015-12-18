@@ -85,7 +85,7 @@ public class S3Repository extends BlobStoreRepository {
 
         String region = repositorySettings.settings().get("region", settings.get(REPOSITORY_S3.REGION));
         if (region == null) {
-            // Bucket setting is not set - use global region setting
+            // InternalBucket setting is not set - use global region setting
             String regionSetting = settings.get(CLOUD_AWS.REGION);
             if (regionSetting != null) {
                 regionSetting = regionSetting.toLowerCase(Locale.ENGLISH);

@@ -42,10 +42,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.containsString;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
@@ -260,11 +260,11 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"terms\" : {\n" + 
-                "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"terms\" : {\n" +
+                "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);

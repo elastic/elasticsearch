@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plan.a;
 
+import org.antlr.v4.runtime.ParserRuleContext;
+
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
@@ -26,11 +28,81 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.antlr.v4.runtime.ParserRuleContext;
-
-import static org.elasticsearch.plan.a.Adapter.*;
-import static org.elasticsearch.plan.a.Definition.*;
-import static org.elasticsearch.plan.a.PlanAParser.*;
+import static org.elasticsearch.plan.a.Adapter.ExpressionMetadata;
+import static org.elasticsearch.plan.a.Adapter.ExtNodeMetadata;
+import static org.elasticsearch.plan.a.Adapter.ExternalMetadata;
+import static org.elasticsearch.plan.a.Adapter.StatementMetadata;
+import static org.elasticsearch.plan.a.Adapter.error;
+import static org.elasticsearch.plan.a.Definition.Cast;
+import static org.elasticsearch.plan.a.Definition.Constructor;
+import static org.elasticsearch.plan.a.Definition.Field;
+import static org.elasticsearch.plan.a.Definition.Method;
+import static org.elasticsearch.plan.a.Definition.Pair;
+import static org.elasticsearch.plan.a.Definition.Sort;
+import static org.elasticsearch.plan.a.Definition.Struct;
+import static org.elasticsearch.plan.a.Definition.Transform;
+import static org.elasticsearch.plan.a.Definition.Type;
+import static org.elasticsearch.plan.a.PlanAParser.ADD;
+import static org.elasticsearch.plan.a.PlanAParser.AfterthoughtContext;
+import static org.elasticsearch.plan.a.PlanAParser.ArgumentsContext;
+import static org.elasticsearch.plan.a.PlanAParser.AssignmentContext;
+import static org.elasticsearch.plan.a.PlanAParser.BWAND;
+import static org.elasticsearch.plan.a.PlanAParser.BWOR;
+import static org.elasticsearch.plan.a.PlanAParser.BWXOR;
+import static org.elasticsearch.plan.a.PlanAParser.BinaryContext;
+import static org.elasticsearch.plan.a.PlanAParser.BlockContext;
+import static org.elasticsearch.plan.a.PlanAParser.BoolContext;
+import static org.elasticsearch.plan.a.PlanAParser.BreakContext;
+import static org.elasticsearch.plan.a.PlanAParser.CastContext;
+import static org.elasticsearch.plan.a.PlanAParser.CharContext;
+import static org.elasticsearch.plan.a.PlanAParser.CompContext;
+import static org.elasticsearch.plan.a.PlanAParser.ConditionalContext;
+import static org.elasticsearch.plan.a.PlanAParser.ContinueContext;
+import static org.elasticsearch.plan.a.PlanAParser.DIV;
+import static org.elasticsearch.plan.a.PlanAParser.DeclContext;
+import static org.elasticsearch.plan.a.PlanAParser.DeclarationContext;
+import static org.elasticsearch.plan.a.PlanAParser.DecltypeContext;
+import static org.elasticsearch.plan.a.PlanAParser.DeclvarContext;
+import static org.elasticsearch.plan.a.PlanAParser.DoContext;
+import static org.elasticsearch.plan.a.PlanAParser.EmptyContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExprContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExpressionContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtbraceContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtcallContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtcastContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtdotContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExternalContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtfieldContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtnewContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtprecContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtstartContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtstringContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExttypeContext;
+import static org.elasticsearch.plan.a.PlanAParser.ExtvarContext;
+import static org.elasticsearch.plan.a.PlanAParser.FalseContext;
+import static org.elasticsearch.plan.a.PlanAParser.ForContext;
+import static org.elasticsearch.plan.a.PlanAParser.IfContext;
+import static org.elasticsearch.plan.a.PlanAParser.IncrementContext;
+import static org.elasticsearch.plan.a.PlanAParser.InitializerContext;
+import static org.elasticsearch.plan.a.PlanAParser.LSH;
+import static org.elasticsearch.plan.a.PlanAParser.MUL;
+import static org.elasticsearch.plan.a.PlanAParser.MultipleContext;
+import static org.elasticsearch.plan.a.PlanAParser.NullContext;
+import static org.elasticsearch.plan.a.PlanAParser.NumericContext;
+import static org.elasticsearch.plan.a.PlanAParser.PostincContext;
+import static org.elasticsearch.plan.a.PlanAParser.PrecedenceContext;
+import static org.elasticsearch.plan.a.PlanAParser.PreincContext;
+import static org.elasticsearch.plan.a.PlanAParser.REM;
+import static org.elasticsearch.plan.a.PlanAParser.RSH;
+import static org.elasticsearch.plan.a.PlanAParser.ReturnContext;
+import static org.elasticsearch.plan.a.PlanAParser.SUB;
+import static org.elasticsearch.plan.a.PlanAParser.SingleContext;
+import static org.elasticsearch.plan.a.PlanAParser.SourceContext;
+import static org.elasticsearch.plan.a.PlanAParser.StatementContext;
+import static org.elasticsearch.plan.a.PlanAParser.TrueContext;
+import static org.elasticsearch.plan.a.PlanAParser.USH;
+import static org.elasticsearch.plan.a.PlanAParser.UnaryContext;
+import static org.elasticsearch.plan.a.PlanAParser.WhileContext;
 
 class Analyzer extends PlanAParserBaseVisitor<Void> {
     private static class Variable {

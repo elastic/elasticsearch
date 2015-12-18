@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.bytes;
 
-import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -36,6 +35,7 @@ import java.nio.channels.GatheringByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Note: this is only used by one lone test method.

@@ -23,7 +23,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
-import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.equalTo;

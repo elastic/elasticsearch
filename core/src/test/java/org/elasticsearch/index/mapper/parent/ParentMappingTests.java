@@ -29,8 +29,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.nullValue;
-
 public class ParentMappingTests extends ESSingleNodeTestCase {
 
     public void testParentSetInDocNotAllowed() throws Exception {

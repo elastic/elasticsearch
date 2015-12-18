@@ -19,17 +19,16 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
-
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
 class DateMethodValueSource extends FieldDataValueSource {
 

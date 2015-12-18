@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;

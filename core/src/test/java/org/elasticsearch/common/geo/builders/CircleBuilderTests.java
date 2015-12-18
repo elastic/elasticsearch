@@ -20,7 +20,6 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.io.IOException;

@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest.test;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
-import org.junit.Ignore;
 
 import static org.hamcrest.Matchers.nullValue;
 

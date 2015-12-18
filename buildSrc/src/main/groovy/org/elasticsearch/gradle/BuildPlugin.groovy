@@ -18,21 +18,29 @@
  */
 package org.elasticsearch.gradle
 
-import org.gradle.process.ExecResult
-
-import java.time.ZonedDateTime
-import java.time.ZoneOffset
-
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.*
-import org.gradle.api.artifacts.*
+import org.gradle.api.GradleException
+import org.gradle.api.JavaVersion
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.XmlProvider
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.ModuleDependency
+import org.gradle.api.artifacts.ModuleVersionIdentifier
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.maven.MavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
+import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
+
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 /**
  * Encapsulates build configuration for elasticsearch projects.

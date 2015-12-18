@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;

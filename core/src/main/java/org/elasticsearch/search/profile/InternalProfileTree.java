@@ -21,7 +21,11 @@ package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**

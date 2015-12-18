@@ -112,16 +112,16 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
         // other bucket
         if (showOtherBucket) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, keys.length);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(otherBucketKey, bucketDocCount(bucketOrd),
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, bucketDocCount(bucketOrd),
                     bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
@@ -131,9 +131,9 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);
         }
         return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());

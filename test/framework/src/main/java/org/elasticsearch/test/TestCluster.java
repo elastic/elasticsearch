@@ -37,7 +37,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout

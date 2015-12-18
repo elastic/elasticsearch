@@ -29,9 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.Charset;
-import java.util.Base64;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,10 +117,10 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"wrapper\" : {\n" + 
-                "    \"query\" : \"e30=\"\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"wrapper\" : {\n" +
+                "    \"query\" : \"e30=\"\n" +
+                "  }\n" +
                 "}";
 
 

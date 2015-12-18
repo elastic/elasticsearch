@@ -19,14 +19,13 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.TermQueryParser;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
 
 public class IndicesModuleTests extends ModuleTestCase {
 

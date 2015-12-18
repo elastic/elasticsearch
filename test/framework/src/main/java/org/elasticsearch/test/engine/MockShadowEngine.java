@@ -19,17 +19,12 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ShadowEngine;
-
-import java.io.IOException;
-import java.util.Map;
 
 final class MockShadowEngine extends ShadowEngine {
     private final MockEngineSupport support;

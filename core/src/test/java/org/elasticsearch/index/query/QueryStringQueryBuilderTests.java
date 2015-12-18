@@ -20,7 +20,17 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.hamcrest.Matchers;
@@ -377,26 +387,26 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"query_string\" : {\n" + 
-                "    \"query\" : \"this AND that OR thus\",\n" + 
-                "    \"default_field\" : \"content\",\n" + 
-                "    \"fields\" : [ ],\n" + 
-                "    \"use_dis_max\" : true,\n" + 
-                "    \"tie_breaker\" : 0.0,\n" + 
-                "    \"default_operator\" : \"or\",\n" + 
-                "    \"auto_generated_phrase_queries\" : false,\n" + 
-                "    \"max_determined_states\" : 10000,\n" + 
-                "    \"lowercase_expanded_terms\" : true,\n" + 
-                "    \"enable_position_increment\" : true,\n" + 
-                "    \"fuzziness\" : \"AUTO\",\n" + 
-                "    \"fuzzy_prefix_length\" : 0,\n" + 
-                "    \"fuzzy_max_expansions\" : 50,\n" + 
-                "    \"phrase_slop\" : 0,\n" + 
-                "    \"locale\" : \"und\",\n" + 
-                "    \"escape\" : false,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"query_string\" : {\n" +
+                "    \"query\" : \"this AND that OR thus\",\n" +
+                "    \"default_field\" : \"content\",\n" +
+                "    \"fields\" : [ ],\n" +
+                "    \"use_dis_max\" : true,\n" +
+                "    \"tie_breaker\" : 0.0,\n" +
+                "    \"default_operator\" : \"or\",\n" +
+                "    \"auto_generated_phrase_queries\" : false,\n" +
+                "    \"max_determined_states\" : 10000,\n" +
+                "    \"lowercase_expanded_terms\" : true,\n" +
+                "    \"enable_position_increment\" : true,\n" +
+                "    \"fuzziness\" : \"AUTO\",\n" +
+                "    \"fuzzy_prefix_length\" : 0,\n" +
+                "    \"fuzzy_max_expansions\" : 50,\n" +
+                "    \"phrase_slop\" : 0,\n" +
+                "    \"locale\" : \"und\",\n" +
+                "    \"escape\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         QueryStringQueryBuilder parsed = (QueryStringQueryBuilder) parseQuery(json);

@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -91,7 +92,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
             if (!settings.getAsBoolean(MapperService.DYNAMIC_MAPPING_ENABLED_SETTING, MapperService.DYNAMIC_MAPPING_ENABLED_DEFAULT)) {
-                throw new MapperParsingException("trying to auto create mapping, but dynamic mapping is disabled");
+                String message = String.format("trying to auto create mapping for [%s] in index [%s], but dynamic mapping is disabled", request.type(), request.index());
+                throw new TypeMissingException(null, request.type(), message);
             }
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
             createIndexRequest.index(request.index());

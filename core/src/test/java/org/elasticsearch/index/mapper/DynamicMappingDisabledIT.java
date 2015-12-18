@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -37,9 +38,8 @@ public class DynamicMappingDisabledIT extends ESIntegTestCase {
         try {
             client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
             fail("Indexing request should have failed");
-        } catch (MapperParsingException e) {
-            assertEquals(e.getMessage(), "trying to auto create mapping, but dynamic mapping is disabled");
+        } catch (TypeMissingException e) {
+            assertEquals(e.getMessage(), "type[[type, trying to auto create mapping for [type] in index [index], but dynamic mapping is disabled]] missing");
         }
     }
-
 }

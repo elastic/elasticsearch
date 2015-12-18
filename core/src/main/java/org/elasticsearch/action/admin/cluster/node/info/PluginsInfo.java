@@ -28,38 +28,33 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class PluginsInfo implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString PLUGINS = new XContentBuilderString("plugins");
     }
 
-    private List<PluginInfo> infos;
+    private Set<PluginInfo> infos;
 
     public PluginsInfo() {
-        infos = new ArrayList<>();
-    }
-
-    public PluginsInfo(int size) {
-        infos = new ArrayList<>(size);
+        infos = new TreeSet<>(new Comparator<PluginInfo>() {
+            @Override
+            public int compare(final PluginInfo o1, final PluginInfo o2) {
+                return o1.getName().compareTo(o2.getName());
+            }
+        });
     }
 
     /**
      * @return an ordered list based on plugins name
      */
     public List<PluginInfo> getInfos() {
-        Collections.sort(infos, new Comparator<PluginInfo>() {
-            @Override
-            public int compare(final PluginInfo o1, final PluginInfo o2) {
-                return o1.getName().compareTo(o2.getName());
-            }
-        });
-
-        return infos;
+        return Arrays.asList(infos.toArray(new PluginInfo[infos.size()]));
     }
 
     public void add(PluginInfo info) {
@@ -75,6 +70,7 @@ public class PluginsInfo implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int plugins_size = in.readInt();
+        infos.clear();
         for (int i = 0; i < plugins_size; i++) {
             infos.add(PluginInfo.readFromStream(in));
         }

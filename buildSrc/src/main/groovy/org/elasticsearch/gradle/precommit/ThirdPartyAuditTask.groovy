@@ -18,24 +18,23 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import java.nio.file.Files
+import org.apache.tools.ant.BuildLogger
+import org.apache.tools.ant.DefaultLogger
+import org.apache.tools.ant.Project
+import org.elasticsearch.gradle.AntTask
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
+
 import java.nio.file.FileVisitResult
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 
-import org.gradle.api.DefaultTask
-import org.gradle.api.artifacts.UnknownConfigurationException
-import org.gradle.api.file.FileCollection
-import org.gradle.api.tasks.TaskAction
-
-import org.apache.tools.ant.BuildLogger
-import org.apache.tools.ant.Project
-
 /**
  * Basic static checking to keep tabs on third party JARs
  */
-public class ThirdPartyAuditTask extends DefaultTask {
+public class ThirdPartyAuditTask extends AntTask {
 
     // true to be lenient about MISSING CLASSES
     private boolean missingClasses;
@@ -84,38 +83,37 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return excludes;
     }
 
-    @TaskAction
-    public void check() {
-        AntBuilder ant = new AntBuilder()
+    @Override
+    protected BuildLogger makeLogger(PrintStream stream, int outputLevel) {
+        return new DefaultLogger(
+            errorPrintStream: stream,
+            outputPrintStream: stream,
+            // ignore passed in outputLevel for now, until we are filtering warning messages
+            messageOutputLevel: Project.MSG_ERR)
+    }
 
-        // we are noisy for many reasons, working around performance problems with forbidden-apis, dealing
-        // with warnings about missing classes, etc. so we use our own "quiet" AntBuilder
-        ant.project.buildListeners.each { listener ->
-            if (listener instanceof BuildLogger) {
-              listener.messageOutputLevel = Project.MSG_ERR;
-            }
-        };
-        
+    @Override
+    protected void runAnt(AntBuilder ant) {
+        ant.project.addTaskDefinition('thirdPartyAudit', de.thetaphi.forbiddenapis.ant.AntTask)
+
         // we only want third party dependencies.
-        FileCollection jars = project.configurations.testCompile.fileCollection({ dependency -> 
+        FileCollection jars = project.configurations.testCompile.fileCollection({ dependency ->
             dependency.group.startsWith("org.elasticsearch") == false
         })
-        
+
         // we don't want provided dependencies, which we have already scanned. e.g. don't
         // scan ES core's dependencies for every single plugin
-        try {
-            jars -= project.configurations.getByName("provided")
-        } catch (UnknownConfigurationException ignored) {}
-        
+        Configuration provided = project.configurations.findByName('provided')
+        if (provided != null) {
+            jars -= provided
+        }
+
         // no dependencies matched, we are done
         if (jars.isEmpty()) {
             return;
         }
-        
-        ant.taskdef(name:      "thirdPartyAudit",
-                    classname: "de.thetaphi.forbiddenapis.ant.AntTask",
-                    classpath: project.configurations.buildTools.asPath)
-        
+
+
         // print which jars we are going to scan, always
         // this is not the time to try to be succinct! Forbidden will print plenty on its own!
         Set<String> names = new HashSet<>()
@@ -123,26 +121,26 @@ public class ThirdPartyAuditTask extends DefaultTask {
             names.add(jar.getName())
         }
         logger.error("[thirdPartyAudit] Scanning: " + names)
-        
+
         // warn that classes are missing
         // TODO: move these to excludes list!
         if (missingClasses) {
             logger.warn("[thirdPartyAudit] WARNING: CLASSES ARE MISSING! Expect NoClassDefFoundError in bug reports from users!")
         }
-        
-        // TODO: forbidden-apis + zipfileset gives O(n^2) behavior unless we dump to a tmpdir first, 
+
+        // TODO: forbidden-apis + zipfileset gives O(n^2) behavior unless we dump to a tmpdir first,
         // and then remove our temp dir afterwards. don't complain: try it yourself.
         // we don't use gradle temp dir handling, just google it, or try it yourself.
-        
+
         File tmpDir = new File(project.buildDir, 'tmp/thirdPartyAudit')
-        
+
         // clean up any previous mess (if we failed), then unzip everything to one directory
         ant.delete(dir: tmpDir.getAbsolutePath())
         tmpDir.mkdirs()
         for (File jar : jars) {
             ant.unzip(src: jar.getAbsolutePath(), dest: tmpDir.getAbsolutePath())
         }
-        
+
         // convert exclusion class names to binary file names
         String[] excludedFiles = new String[excludes.length];
         for (int i = 0; i < excludes.length; i++) {
@@ -152,12 +150,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 throw new IllegalStateException("bogus thirdPartyAudit exclusion: '" + excludes[i] + "', not found in any dependency")
             }
         }
-        
+
         // jarHellReprise
         checkSheistyClasses(tmpDir.toPath(), new HashSet<>(Arrays.asList(excludedFiles)));
-        
-        ant.thirdPartyAudit(internalRuntimeForbidden: true, 
-                            failOnUnsupportedJava: false, 
+
+        ant.thirdPartyAudit(internalRuntimeForbidden: true,
+                            failOnUnsupportedJava: false,
                             failOnMissingClasses: !missingClasses,
                             classpath: project.configurations.testCompile.asPath) {
             fileset(dir: tmpDir, excludes: excludedFiles.join(','))

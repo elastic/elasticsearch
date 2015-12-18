@@ -123,17 +123,6 @@ subprojects {
       }
     }
   }
-  // For reasons we don't fully understand yet, external dependencies are not picked up by Ant's optional tasks.
-  // But you can easily do it in another way.
-  // Only if your buildscript and Ant's optional task need the same library would you have to define it twice.
-  // https://docs.gradle.org/current/userguide/organizing_build_logic.html
-  configurations {
-    buildTools
-  }
-  dependencies {
-    buildTools 'de.thetaphi:forbiddenapis:2.0'
-    buildTools 'org.apache.rat:apache-rat:0.11'
-  }
 }
 
 // Ensure similar tasks in dependent projects run first. The projectsEvaluated here is

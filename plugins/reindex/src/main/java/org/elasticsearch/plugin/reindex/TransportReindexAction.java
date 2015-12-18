@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.Objects;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -153,14 +155,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected void scriptChangedParent(IndexRequest index, String from, String to) {
+        protected void scriptChangedParent(IndexRequest index, String from, Object to) {
             // Have to override routing with parent just in case it wasn't changed
-            index.parent(to).routing(to);
+            String routing = Objects.toString(to, null);
+            index.parent(routing).routing(routing);
         }
 
         @Override
-        protected void scriptChangedRouting(IndexRequest index, String from, String to) {
-            index.routing(to);
+        protected void scriptChangedRouting(IndexRequest index, String from, Object to) {
+            index.routing(Objects.toString(to, null));
         }
     }
 }

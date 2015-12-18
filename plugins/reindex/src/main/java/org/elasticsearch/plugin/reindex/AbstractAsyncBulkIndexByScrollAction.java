@@ -117,7 +117,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         ctx.put("_index", doc.index());
         ctx.put("_type", doc.type());
         ctx.put("_id", doc.id());
-        ctx.put("_version", doc.getVersion());
+        Long oldVersion = doc.getVersion();
+        ctx.put("_version", oldVersion);
         String oldParent = fieldValue(doc, "_parent");
         ctx.put("_parent", oldParent);
         String oldRouting = fieldValue(doc, "_routing");
@@ -131,7 +132,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         script.setNextVar("ctx", ctx);
         script.run();
         Map<String, Object> resultCtx = (Map<String, Object>) script.unwrap(ctx);
-        String newOp = (String) resultCtx.get("op");
+        String newOp = (String) resultCtx.remove("op");
         if (newOp == null) {
             throw new IllegalArgumentException("Script cleared op!");
         }
@@ -148,22 +149,22 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          * modified but it isn't worth keeping two copies of it
          * around just to check!
          */
-        index.source((Map<String, Object>) resultCtx.get("_source"));
+        index.source((Map<String, Object>) resultCtx.remove("_source"));
 
-        if (false == doc.index().equals(ctx.get("_index"))) {
-            throw new IllegalArgumentException("Modifying _index not allowed.");
+        if (false == doc.index().equals(ctx.remove("_index"))) {
+            throw new IllegalArgumentException("Modifying [_index] not allowed");
         }
-        if (false == doc.type().equals(ctx.get("_type"))) {
-            throw new IllegalArgumentException("Modifying _type not allowed.");
+        if (false == doc.type().equals(ctx.remove("_type"))) {
+            throw new IllegalArgumentException("Modifying [_type] not allowed");
         }
-        if (false == doc.id().equals(ctx.get("_id"))) {
-            throw new IllegalArgumentException("Modifying _id not allowed.");
+        if (false == doc.id().equals(ctx.remove("_id"))) {
+            throw new IllegalArgumentException("Modifying [_id] not allowed");
         }
-        Long version = (Long) ctx.get("_version");
-        if (version == null || version != doc.version()) {
-            throw new IllegalArgumentException("Modifying _version not allowed.");
+        Object newVersion = ctx.remove("_version");
+        if (false == Objects.equals(oldVersion, newVersion)) {
+            scriptChangedVersion(index, oldVersion, newVersion);
         }
-        String newParent = (String) ctx.get("_parent");
+        Object newParent = ctx.remove("_parent");
         if (false == Objects.equals(oldParent, newParent)) {
             scriptChangedParent(index, oldParent, newParent);
         }
@@ -171,26 +172,33 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          * Its important that routing comes after parent in case you want to
          * change them both.
          */
-        String newRouting = (String) ctx.get("_routing");
+        Object newRouting = ctx.remove("_routing");
         if (false == Objects.equals(oldRouting, newRouting)) {
             scriptChangedRouting(index, oldRouting, newRouting);
         }
-        Long newTimestamp = (Long) ctx.get("_timestamp");
+        Object newTimestamp = ctx.remove("_timestamp");
         if (false == Objects.equals(oldTimestamp, newTimestamp)) {
-            throw new IllegalArgumentException("Modifying _timestamp not allowed.");
+            throw new IllegalArgumentException("Modifying [_timestamp] not allowed");
         }
-        Object newTtl = ctx.get("_ttl");
+        Object newTtl = ctx.remove("_ttl");
         if (false == Objects.equals(oldTtl, newTtl)) {
-            throw new IllegalArgumentException("Modifying _ttl not allowed.");
+            throw new IllegalArgumentException("Modifying [_ttl] not allowed");
+        }
+        if (false == ctx.isEmpty()) {
+            throw new IllegalArgumentException("Invalid fields added to ctx [" + String.join(",", ctx.keySet()) + ']');
         }
         return true;
     }
 
-    protected void scriptChangedRouting(IndexRequest index, String from, String to) {
-        throw new IllegalArgumentException("Modifying _routing not allowed.");
+    protected void scriptChangedVersion(IndexRequest index, Long from, Object to) {
+        throw new IllegalArgumentException("Modifying [_version] not allowed");
     }
 
-    protected void scriptChangedParent(IndexRequest index, String from, String to) {
-        throw new IllegalArgumentException("Modifying _parent not allowed.");
+    protected void scriptChangedRouting(IndexRequest index, String from, Object to) {
+        throw new IllegalArgumentException("Modifying [_routing] not allowed");
+    }
+
+    protected void scriptChangedParent(IndexRequest index, String from, Object to) {
+        throw new IllegalArgumentException("Modifying [_parent] not allowed");
     }
 }

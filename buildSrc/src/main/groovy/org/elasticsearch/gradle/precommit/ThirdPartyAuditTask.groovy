@@ -167,7 +167,7 @@ public class ThirdPartyAuditTask extends AntTask {
     /**
      * check for sheisty classes: if they also exist in the extensions classloader, its jar hell with the jdk!
      */
-    protected void checkSheistyClasses(Path root, Set<String> excluded) {
+    private void checkSheistyClasses(Path root, Set<String> excluded) {
         // system.parent = extensions loader.
         // note: for jigsaw, this evilness will need modifications (e.g. use jrt filesystem!). 
         // but groovy/gradle needs to work at all first!

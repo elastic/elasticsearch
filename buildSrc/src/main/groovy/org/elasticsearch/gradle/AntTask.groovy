@@ -51,13 +51,13 @@ public class AntTask extends DefaultTask {
 
         // remove existing loggers, we add our own
         List<BuildLogger> toRemove = new ArrayList<>();
-        for (BuildListener l : ant.project.getBuildListeners()) {
+        for (BuildListener listener : ant.project.getBuildListeners()) {
             if (l instanceof BuildLogger) {
-                toRemove.add(l);
+                toRemove.add(listener);
             }
         }
-        for (BuildLogger l : toRemove) {
-            ant.project.removeBuildListener(l)
+        for (BuildLogger listener : toRemove) {
+            ant.project.removeBuildListener(listener)
         }
 
         final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : (logger.isInfoEnabled() ? Project.MSG_INFO : Project.MSG_WARN)

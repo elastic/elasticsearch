@@ -108,9 +108,11 @@ public class IngestPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule networkModule) {
-        networkModule.registerRestHandler(RestPutPipelineAction.class);
-        networkModule.registerRestHandler(RestGetPipelineAction.class);
-        networkModule.registerRestHandler(RestDeletePipelineAction.class);
-        networkModule.registerRestHandler(RestSimulatePipelineAction.class);
+        if (transportClient == false) {
+            networkModule.registerRestHandler(RestPutPipelineAction.class);
+            networkModule.registerRestHandler(RestGetPipelineAction.class);
+            networkModule.registerRestHandler(RestDeletePipelineAction.class);
+            networkModule.registerRestHandler(RestSimulatePipelineAction.class);
+        }
     }
 }

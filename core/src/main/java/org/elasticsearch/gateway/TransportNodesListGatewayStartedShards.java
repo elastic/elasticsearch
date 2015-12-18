@@ -139,7 +139,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                         Store.tryOpenIndex(shardPath.resolveIndex());
                     } catch (Exception exception) {
                         logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
-                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, exception);
+                        String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, allocationId, exception);
                     }
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
@@ -149,11 +150,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     logger.warn("{} shard state info found but indexUUID didn't match expected [{}] actual [{}]", shardId, indexUUID, shardStateMetaData.indexUUID);
                 } else {
                     logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
-                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version);
+                    String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
+                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, allocationId);
                 }
             }
             logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), -1);
+            return new NodeGatewayStartedShards(clusterService.localNode(), -1, null);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
         }
@@ -277,22 +279,28 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private long version = -1;
+        private String allocationId = null;
         private Throwable storeException = null;
 
         public NodeGatewayStartedShards() {
         }
-        public NodeGatewayStartedShards(DiscoveryNode node, long version) {
-            this(node, version, null);
+        public NodeGatewayStartedShards(DiscoveryNode node, long version, String allocationId) {
+            this(node, version, allocationId, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long version, Throwable storeException) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long version, String allocationId, Throwable storeException) {
             super(node);
             this.version = version;
+            this.allocationId = allocationId;
             this.storeException = storeException;
         }
 
         public long version() {
             return this.version;
+        }
+
+        public String allocationId() {
+            return this.allocationId;
         }
 
         public Throwable storeException() {
@@ -303,16 +311,17 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             version = in.readLong();
+            allocationId = in.readOptionalString();
             if (in.readBoolean()) {
                 storeException = in.readThrowable();
             }
-
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(version);
+            out.writeOptionalString(allocationId);
             if (storeException != null) {
                 out.writeBoolean(true);
                 out.writeThrowable(storeException);

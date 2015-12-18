@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -47,6 +48,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -80,13 +82,18 @@ public class TribeIT extends ESIntegTestCase {
             }
 
             @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Collections.emptyList();
+            }
+
+            @Override
             public Settings transportClientSettings() {
                 return null;
             }
 
         };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
+                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList());
 
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);

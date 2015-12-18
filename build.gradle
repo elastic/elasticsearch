@@ -109,7 +109,7 @@ subprojects {
   ext.projectSubstitutions = [
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
-    "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
@@ -131,8 +131,8 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test-framework') {
-      // :test-framework:test cannot run before and after :core:test
+    if (project.path == ':test:framework') {
+      // :test:framework:test cannot run before and after :core:test
       return
     }
     configurations.all {
@@ -169,6 +169,30 @@ gradle.projectsEvaluated {
 // intellij configuration
 allprojects {
   apply plugin: 'idea'
+
+  idea {
+    module {
+      // same as for the IntelliJ Gradle tooling integration
+      inheritOutputDirs = false
+      outputDir = file('build/classes/main')
+      testOutputDir = file('build/classes/test')
+
+      iml {
+        // fix so that Gradle idea plugin properly generates support for resource folders
+        // see also https://issues.gradle.org/browse/GRADLE-2975
+        withXml {
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-resource')
+          }
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-test-resource')
+          }
+        }
+      }
+    }
+  }
 }
 
 idea {

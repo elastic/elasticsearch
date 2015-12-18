@@ -39,7 +39,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial cluster state");
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
-                .settings(settings(Version.CURRENT).put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none"))
+                .settings(settings(Version.CURRENT).put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
                 .numberOfShards(3).numberOfReplicas(1)
                 .build();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)

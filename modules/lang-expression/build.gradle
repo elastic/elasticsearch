@@ -33,6 +33,10 @@ dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
+// do we or do we not depend on asm-tree, that is the question
+// classes are missing, e.g. org.objectweb.asm.tree.LabelNode
+thirdPartyAudit.missingClasses = true
+
 compileJava.options.compilerArgs << '-Xlint:-rawtypes'
 compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 

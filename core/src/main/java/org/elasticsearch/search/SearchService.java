@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -38,6 +39,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -70,7 +73,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -86,11 +88,13 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -111,9 +115,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
     public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
     public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
-    public static final String DEFAULT_SEARCH_TIMEOUT = "search.default_search_timeout";
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
+    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
+
 
     private final ThreadPool threadPool;
 
@@ -152,7 +157,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public SearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
@@ -186,19 +191,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.indicesWarmer.addListener(new FieldDataWarmer(indicesWarmer));
         this.indicesWarmer.addListener(new SearchWarmer());
 
-        defaultSearchTimeout = settings.getAsTime(DEFAULT_SEARCH_TIMEOUT, NO_TIMEOUT);
-        nodeSettingsService.addListener(new SearchSettingsListener());
+        defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
     }
 
-    class SearchSettingsListener implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final TimeValue maybeNewDefaultSearchTimeout = settings.getAsTime(SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout);
-            if (!maybeNewDefaultSearchTimeout.equals(SearchService.this.defaultSearchTimeout)) {
-                logger.info("updating [{}] from [{}] to [{}]", SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout, maybeNewDefaultSearchTimeout);
-                SearchService.this.defaultSearchTimeout = maybeNewDefaultSearchTimeout;
-            }
-        }
+    private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
+        this.defaultSearchTimeout = defaultSearchTimeout;
     }
 
     @Override
@@ -551,7 +549,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
+        DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
 
         try {
@@ -560,7 +558,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.scrollContext().scroll = request.scroll();
             }
             if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context, Collections.emptyMap());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
@@ -658,7 +656,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchContextException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchContextException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -713,6 +711,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         context.trackScores(source.trackScores());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
+        }
+        if (source.profile()) {
+            context.setProfilers(new Profilers(context.searcher()));
         }
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());
@@ -835,7 +836,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

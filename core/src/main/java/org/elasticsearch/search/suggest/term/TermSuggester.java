@@ -27,8 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
@@ -54,10 +52,10 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
                     token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
-            Text key = new BytesText(new BytesArray(token.term.bytes()));
+            Text key = new Text(new BytesArray(token.term.bytes()));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
-                Text word = new StringText(suggestWord.string);
+                Text word = new Text(suggestWord.string);
                 resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
             }
             response.addTerm(resultEntry);

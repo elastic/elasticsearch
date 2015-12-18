@@ -79,7 +79,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 

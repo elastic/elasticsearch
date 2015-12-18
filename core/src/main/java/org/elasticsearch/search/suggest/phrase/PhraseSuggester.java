@@ -30,7 +30,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -127,11 +126,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                 if (!collateMatch && !collatePrune) {
                     continue;
                 }
-                Text phrase = new StringText(spare.toString());
+                Text phrase = new Text(spare.toString());
                 Text highlighted = null;
                 if (suggestion.getPreTag() != null) {
                     spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()));
-                    highlighted = new StringText(spare.toString());
+                    highlighted = new Text(spare.toString());
                 }
                 if (collatePrune) {
                     resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
@@ -147,7 +146,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
 
     private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
-        return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length(), cutoffScore);
+        return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
     }
 
     ScriptService scriptService() {

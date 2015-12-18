@@ -87,6 +87,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
                 assertThat(storeStatus.getVersion(), greaterThan(-1l));
+                assertThat(storeStatus.getAllocationId(), notNullValue());
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
             }
@@ -108,7 +109,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
             assertThat("must report for one store", storesStatus.value.size(), equalTo(1));
-            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocation(), equalTo(IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY));
+            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocationStatus(), equalTo(IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY));
         }
         logger.info("--> enable allocation");
         enableAllocation(index);

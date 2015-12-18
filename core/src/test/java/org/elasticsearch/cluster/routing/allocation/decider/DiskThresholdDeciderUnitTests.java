@@ -28,12 +28,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  */
 public class DiskThresholdDeciderUnitTests extends ESTestCase {
     public void testDynamicSettings() {
-        NodeSettingsService nss = new NodeSettingsService(Settings.EMPTY);
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
@@ -59,18 +59,15 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         assertTrue(decider.isEnabled());
         assertTrue(decider.isIncludeRelocations());
 
-        DiskThresholdDecider.ApplySettings applySettings = decider.newApplySettings();
-
         Settings newSettings = Settings.builder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, false)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "70%")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "500mb")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, "30s")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "500mb")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
                 .build();
 
-        applySettings.onRefreshSettings(newSettings);
-
+        nss.applySettings(newSettings);
         assertThat("high threshold bytes should be unset",
                 decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "test")));
         assertThat("high threshold percentage should be changed",
@@ -86,7 +83,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
     }
 
     public void testCanAllocateUsesMaxAvailableSpace() {
-        NodeSettingsService nss = new NodeSettingsService(Settings.EMPTY);
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
 
@@ -127,7 +124,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {
-        NodeSettingsService nss = new NodeSettingsService(Settings.EMPTY);
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
         ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingMap = ImmutableOpenMap.builder();

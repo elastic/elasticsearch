@@ -25,6 +25,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +36,7 @@ public class SimpleBench {
 
     public static void main(String[] args) {
         JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        Object compiled = se.compile("x + y");
+        Object compiled = se.compile("x + y", Collections.emptyMap());
         CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled);
 
         Map<String, Object> vars = new HashMap<String, Object>();

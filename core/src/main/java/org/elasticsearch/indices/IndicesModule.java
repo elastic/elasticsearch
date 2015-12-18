@@ -22,18 +22,87 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.ByteFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryParser;
+import org.elasticsearch.index.query.BoostingQueryParser;
+import org.elasticsearch.index.query.CommonTermsQueryParser;
+import org.elasticsearch.index.query.ConstantScoreQueryParser;
+import org.elasticsearch.index.query.DisMaxQueryParser;
+import org.elasticsearch.index.query.ExistsQueryParser;
+import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
+import org.elasticsearch.index.query.FuzzyQueryParser;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
+import org.elasticsearch.index.query.GeoDistanceQueryParser;
+import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
+import org.elasticsearch.index.query.GeoPolygonQueryParser;
+import org.elasticsearch.index.query.GeoShapeQueryParser;
+import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.index.query.HasChildQueryParser;
+import org.elasticsearch.index.query.HasParentQueryParser;
+import org.elasticsearch.index.query.IdsQueryParser;
+import org.elasticsearch.index.query.IndicesQueryParser;
+import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.index.query.MatchNoneQueryParser;
+import org.elasticsearch.index.query.MatchQueryParser;
+import org.elasticsearch.index.query.MoreLikeThisQueryParser;
+import org.elasticsearch.index.query.MultiMatchQueryParser;
+import org.elasticsearch.index.query.NestedQueryParser;
+import org.elasticsearch.index.query.PrefixQueryParser;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryStringQueryParser;
+import org.elasticsearch.index.query.RangeQueryParser;
+import org.elasticsearch.index.query.RegexpQueryParser;
+import org.elasticsearch.index.query.ScriptQueryParser;
+import org.elasticsearch.index.query.SimpleQueryStringParser;
+import org.elasticsearch.index.query.SpanContainingQueryParser;
+import org.elasticsearch.index.query.SpanFirstQueryParser;
+import org.elasticsearch.index.query.SpanMultiTermQueryParser;
+import org.elasticsearch.index.query.SpanNearQueryParser;
+import org.elasticsearch.index.query.SpanNotQueryParser;
+import org.elasticsearch.index.query.SpanOrQueryParser;
+import org.elasticsearch.index.query.SpanTermQueryParser;
+import org.elasticsearch.index.query.SpanWithinQueryParser;
+import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.index.query.TermsQueryParser;
+import org.elasticsearch.index.query.TypeQueryParser;
+import org.elasticsearch.index.query.WildcardQueryParser;
+import org.elasticsearch.index.query.WrapperQueryParser;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -122,7 +191,7 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MatchNoneQueryParser.class);
 
-        if (ShapesAvailability.JTS_AVAILABLE) {
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQueryParser(GeoShapeQueryParser.class);
         }
     }
@@ -146,7 +215,7 @@ public class IndicesModule extends AbstractModule {
         registerMapper(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         registerMapper(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
 
-        if (ShapesAvailability.JTS_AVAILABLE) {
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerMapper(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
         }
     }
@@ -219,6 +288,7 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
         bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
+        bind(ShapeBuilderRegistry.class).asEagerSingleton();
     }
 
     // public for testing

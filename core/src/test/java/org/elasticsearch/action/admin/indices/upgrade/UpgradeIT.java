@@ -65,7 +65,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
     public void testUpgrade() throws Exception {
         // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
         Settings.Builder builder = Settings.builder();
-        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 100);
+        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), 100);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
 
         int numIndexes = randomIntBetween(2, 4);
@@ -117,13 +117,13 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ensureGreen();
         // disable allocation entirely until all nodes are upgraded
         builder = Settings.builder();
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
         builder = Settings.builder();
         // disable rebalanceing entirely for the time being otherwise we might get relocations / rebalance from nodes with old segments
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE);
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.ALL);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();
         logger.info("--> Nodes upgrade complete");

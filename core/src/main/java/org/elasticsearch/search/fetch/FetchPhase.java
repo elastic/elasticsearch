@@ -31,7 +31,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -198,7 +198,7 @@ public class FetchPhase implements SearchPhase {
         DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
         Text typeText;
         if (documentMapper == null) {
-            typeText = new StringAndBytesText(fieldsVisitor.uid().type());
+            typeText = new Text(fieldsVisitor.uid().type());
         } else {
             typeText = documentMapper.typeText();
         }

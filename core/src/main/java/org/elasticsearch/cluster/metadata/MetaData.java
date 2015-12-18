@@ -40,8 +40,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -134,13 +134,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         //noinspection unchecked
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }
 
 
-    public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
+    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting("cluster.blocks.read_only", false, true, Setting.Scope.CLUSTER);
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
@@ -745,23 +745,23 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** All known byte-sized cluster settings. */
     public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC));
+        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(),
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
 
     /** All known time cluster settings. */
     public static final Set<String> CLUSTER_TIME_SETTINGS = unmodifiableSet(newHashSet(
-                                    IndicesTTLService.INDICES_TTL_INTERVAL,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK,
-                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT,
-                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT,
-                                    DiscoverySettings.PUBLISH_TIMEOUT,
-                                    InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD));
+                                    IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
+                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
+                                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
+                                    InternalClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey()));
 
     /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
      *  specify a unit. */

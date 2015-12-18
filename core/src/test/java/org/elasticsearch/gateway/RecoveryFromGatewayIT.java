@@ -418,7 +418,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             // Disable allocations while we are closing nodes
             client().admin().cluster().prepareUpdateSettings()
                     .setTransientSettings(settingsBuilder()
-                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                     .get();
             logger.info("--> full cluster restart");
             internalCluster().fullRestart();
@@ -427,7 +427,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             ensureGreen();
         } else {
             logger.info("--> trying to sync flush");
-            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
+            assertEquals(client().admin().indices().prepareSyncedFlush("test").get().failedShards(), 0);
             assertSyncIdsNotNull();
         }
 
@@ -435,7 +435,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);

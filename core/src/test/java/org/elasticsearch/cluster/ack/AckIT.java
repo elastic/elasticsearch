@@ -67,8 +67,8 @@ public class AckIT extends ESIntegTestCase {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
-    }
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), 0).build();
+}
 
     public void testUpdateSettingsAcknowledgement() {
         createIndex("test");

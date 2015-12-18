@@ -27,7 +27,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -43,9 +51,11 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -275,15 +285,18 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT).put(settings)).numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT).put(settings))
+                        .numberOfShards(1).numberOfReplicas(1)
+                        .putActiveAllocationIds(0, new HashSet<>(Arrays.asList(primaryShard.allocationId().getId()))))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
-                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10))
-                                        .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, 1, false, new UnassignedInfo(reason, null)))
-                                        .build())
+                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
+                                .addShard(primaryShard)
+                                .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, 1, false, new UnassignedInfo(reason, null)))
+                                .build())
                 )
                 .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
@@ -294,15 +307,18 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT))
+                        .numberOfShards(1).numberOfReplicas(1)
+                        .putActiveAllocationIds(0, new HashSet<>(Arrays.asList(primaryShard.allocationId().getId()))))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
-                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10))
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, 1, false, ShardRoutingState.INITIALIZING, 10, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
-                                        .build())
+                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
+                                .addShard(primaryShard)
+                                .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, 1, false, ShardRoutingState.INITIALIZING, 10, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
+                                .build())
                 )
                 .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)

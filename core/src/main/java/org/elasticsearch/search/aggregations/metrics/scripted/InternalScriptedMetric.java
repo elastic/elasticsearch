@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +92,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
             CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, reduceContext);
+                    ScriptContext.Standard.AGGS, reduceContext, Collections.emptyMap());
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {

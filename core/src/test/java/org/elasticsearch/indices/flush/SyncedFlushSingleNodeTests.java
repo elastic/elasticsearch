@@ -98,7 +98,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertNotNull(syncedFlushResult);
         assertEquals(1, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
-        SyncedFlushService.SyncedFlushResponse response = syncedFlushResult.shardResponses().values().iterator().next();
+        SyncedFlushService.ShardSyncedFlushResponse response = syncedFlushResult.shardResponses().values().iterator().next();
         assertTrue(response.success());
     }
 

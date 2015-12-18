@@ -66,7 +66,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         private Boolean coerce;
         
         public Builder(String name, MappedFieldType fieldType, int defaultPrecisionStep) {
-            super(name, fieldType);
+            super(name, fieldType, fieldType);
             this.fieldType.setNumericPrecisionStep(defaultPrecisionStep);
         }
 

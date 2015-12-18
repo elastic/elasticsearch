@@ -34,7 +34,9 @@ class PrecommitTasks {
         List<Task> precommitTasks = [
             configureForbiddenApis(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class)]
+            project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+            project.tasks.create('jarHell', JarHellTask.class),
+            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
         // the task optional

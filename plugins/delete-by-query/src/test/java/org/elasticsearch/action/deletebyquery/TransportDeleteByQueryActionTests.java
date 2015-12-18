@@ -28,7 +28,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -339,7 +339,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         final int nbDocs = randomIntBetween(0, 20);
         SearchHit[] docs = new SearchHit[nbDocs];
         for (int i = 0; i < nbDocs; i++) {
-            InternalSearchHit doc = new InternalSearchHit(randomInt(), String.valueOf(i), new StringText("type"), null);
+            InternalSearchHit doc = new InternalSearchHit(randomInt(), String.valueOf(i), new Text("type"), null);
             doc.shard(new SearchShardTarget("node", "test", randomInt()));
             docs[i] = doc;
         }

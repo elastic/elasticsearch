@@ -55,7 +55,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, SeqNoFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         @Override

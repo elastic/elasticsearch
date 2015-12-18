@@ -82,9 +82,9 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")).execute().actionGet();
         backwardsCluster().upgradeAllNodes();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")).execute().actionGet();
         ensureGreen();
 
         countResponse = client().prepareSearch().setSize(0).get();

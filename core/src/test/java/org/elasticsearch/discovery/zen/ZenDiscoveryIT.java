@@ -24,10 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -45,6 +43,7 @@ import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -57,9 +56,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -84,7 +81,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
+                .setTransientSettings(Settings.builder().put(ZenDiscovery.REJOIN_ON_MASTER_GONE_SETTING.getKey(), false))
                 .get();
 
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
@@ -228,16 +225,69 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
     }
 
+    public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
+        Settings nodeSettings = Settings.settingsBuilder()
+            .put("discovery.type", "zen") // <-- To override the local setting if set externally
+            .build();
+        String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
+        String node1 = internalCluster().startNode(nodeSettings);
+        ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, masterOnlyNode);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
+        final ClusterState state = clusterService.state();
+        MetaData.Builder mdBuilder = MetaData.builder(state.metaData());
+        mdBuilder.putCustom(CustomMetaData.TYPE, new CustomMetaData("data"));
+        ClusterState stateWithCustomMetaData = ClusterState.builder(state).metaData(mdBuilder).build();
+
+        final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
+        DiscoveryNode node = state.nodes().localNode();
+        zenDiscovery.handleJoinRequest(node, stateWithCustomMetaData, new MembershipAction.JoinCallback() {
+            @Override
+            public void onSuccess() {
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                holder.set((IllegalStateException) t);
+            }
+        });
+
+        assertThat(holder.get(), notNullValue());
+        assertThat(holder.get().getMessage(), equalTo("failure when sending a validation request to node"));
+    }
+
+    public static class CustomMetaData extends TestCustomMetaData {
+        public static final String TYPE = "custom_md";
+
+        CustomMetaData(String data) {
+            super(data);
+        }
+
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new CustomMetaData(data);
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
+        }
+    }
+
     public void testHandleNodeJoin_incompatibleMinVersion() throws UnknownHostException {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
         String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0_beta1);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
-
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0), Version.V_1_6_0);
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
-        zenDiscovery.handleJoinRequest(node, new MembershipAction.JoinCallback() {
+        zenDiscovery.handleJoinRequest(node, clusterService.state(), new MembershipAction.JoinCallback() {
             @Override
             public void onSuccess() {
             }

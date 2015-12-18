@@ -132,7 +132,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .build();
@@ -150,7 +150,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = Settings.builder()
                 .put(DEFAULT_SETTINGS)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
                 .build();
 
         if (discoveryConfig == null) {
@@ -217,7 +217,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         logger.info("--> reducing min master nodes to 2");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)).get());
+                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)).get());
 
         String master = internalCluster().getMasterName();
         String nonMaster = null;
@@ -293,9 +293,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK, "all");
+        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK, "all"))
+                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkPartition.startDisrupting();
@@ -863,7 +863,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(3,
                 Settings.builder()
                         .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
-                        .put(DiscoverySettings.PUBLISH_TIMEOUT, "3s")
+                        .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 
         logger.info("applying disruption while cluster is forming ...");

@@ -78,7 +78,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
-            super(Defaults.NAME, Defaults.TTL_FIELD_TYPE);
+            super(Defaults.NAME, Defaults.TTL_FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         public Builder enabled(EnabledAttributeMapper enabled) {

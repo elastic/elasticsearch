@@ -149,6 +149,10 @@ public final class AllTermQuery extends Query {
                     return null;
                 }
                 final TermState state = termStates.get(context.ord);
+                if (state == null) {
+                    // Term does not exist in this segment
+                    return null;
+                }
                 termsEnum.seekExact(term.bytes(), state);
                 PostingsEnum docs = termsEnum.postings(null, PostingsEnum.PAYLOADS);
                 assert docs != null;

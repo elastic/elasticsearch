@@ -77,7 +77,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         private String path = Defaults.PATH;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
         public Builder required(boolean required) {

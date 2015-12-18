@@ -90,7 +90,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     public void testClusterLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE, 1)
+                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                 .build());
 
         logger.info("Building initial routing table");
@@ -126,7 +126,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         // Bump the cluster total shards to 2
         strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE, 2)
+                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
                 .build());
 
         logger.info("Do another reroute, make sure shards are now allocated");

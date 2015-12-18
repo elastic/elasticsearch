@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1633,8 +1633,7 @@ public class SimpleSortTests extends ESIntegTestCase {
             assertThat(hits[i].getSortValues().length, is(1));
             Object o = hits[i].getSortValues()[0];
             assertThat(o, notNullValue());
-            assertThat(o instanceof StringAndBytesText, is(true));
-            StringAndBytesText text = (StringAndBytesText) o;
+            Text text = (Text) o;
             assertThat(text.string(), is("bar"));
         }
 
@@ -1650,8 +1649,7 @@ public class SimpleSortTests extends ESIntegTestCase {
             assertThat(hits[i].getSortValues().length, is(1));
             Object o = hits[i].getSortValues()[0];
             assertThat(o, notNullValue());
-            assertThat(o instanceof StringAndBytesText, is(true));
-            StringAndBytesText text = (StringAndBytesText) o;
+            Text text = (Text) o;
             assertThat(text.string(), is("bar bar"));
         }
     }
@@ -1925,7 +1923,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
 
         assertSortValues(resp,
-                new Object[] {new StringAndBytesText("bcd"), null},
+                new Object[] {new Text("bcd"), null},
                 new Object[] {null, null});
 
         resp = client().prepareSearch("test1", "test2")

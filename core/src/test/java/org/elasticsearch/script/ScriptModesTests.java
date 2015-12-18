@@ -252,7 +252,7 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return null;
         }
 

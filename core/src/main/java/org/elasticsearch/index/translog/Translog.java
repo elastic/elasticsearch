@@ -424,6 +424,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             closeOnTragicEvent(ex);
             throw ex;
         } catch (Throwable e) {
+            closeOnTragicEvent(e);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
@@ -500,7 +501,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (Throwable ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }
@@ -533,7 +534,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (Throwable ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }

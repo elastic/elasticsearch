@@ -35,3 +35,12 @@ integTest {
     systemProperty 'es.script.indexed', 'on'
   }
 }
+
+// classes are missing, e.g. jline.console.completer.Completer
+thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+    // uses internal java api: sun.misc.Unsafe
+    'groovy.json.internal.FastStringUtils',
+    'groovy.json.internal.FastStringUtils$StringImplementation$1',
+    'groovy.json.internal.FastStringUtils$StringImplementation$2',
+]

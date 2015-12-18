@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.*;
@@ -64,9 +65,6 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    // This needs to be a Set to avoid duplicate reader context entries via (#setNextReader(...), it can get invoked multiple times with the same reader context)
-    private Set<LeafReaderContext> replay = new LinkedHashSet<>();
-
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Query childFilter, Query parentFilter,
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
@@ -99,17 +97,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        if (replay == null) {
-            throw new IllegalStateException();
-        }
 
         final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
         assert globalOrdinals != null;
         Scorer parentScorer = parentFilter.scorer(ctx);
         final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
-        if (childFilter.scorer(ctx) != null) {
-            replay.add(ctx);
-        }
         return new LeafBucketCollector() {
 
             @Override
@@ -138,10 +130,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
-        final Set<LeafReaderContext> replay = this.replay;
-        this.replay = null;
-
-        for (LeafReaderContext ctx : replay) {
+        IndexReader indexReader = context().searchContext().searcher().getIndexReader();
+        for (LeafReaderContext ctx : indexReader.leaves()) {
             DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
             if (childDocsIter == null) {
                 continue;

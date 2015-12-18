@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import java.util.Map;
-
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
@@ -74,11 +72,12 @@ public class ScoreFunctionParserMapper {
         return functionParsers.get(parserName);
     }
 
-    private static void addParser(ScoreFunctionParser<?> scoreFunctionParser, Map<String, ScoreFunctionParser<?>> map, NamedWriteableRegistry namedWriteableRegistry) {
+    private static void addParser(ScoreFunctionParser<? extends ScoreFunctionBuilder> scoreFunctionParser, Map<String, ScoreFunctionParser<?>> map, NamedWriteableRegistry namedWriteableRegistry) {
         for (String name : scoreFunctionParser.getNames()) {
             map.put(name, scoreFunctionParser);
 
         }
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, scoreFunctionParser.getBuilderPrototype());
+        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = scoreFunctionParser.getBuilderPrototype();
+        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
     }
 }

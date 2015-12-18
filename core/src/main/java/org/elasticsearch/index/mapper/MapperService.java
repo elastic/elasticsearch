@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -92,7 +91,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final ReleasableLock mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile ImmutableOpenMap<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.of();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
@@ -199,6 +198,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
+            // NOTE: never apply the default here
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
@@ -212,74 +212,69 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return mapper;
         } else {
-            return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+            try (ReleasableLock lock = mappingWriteLock.acquire()) {
+                // only apply the default mapping if we don't have the type yet
+                applyDefault &= mappers.containsKey(type) == false;
+                return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+            }
         }
     }
 
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            if (mapper.type().length() == 0) {
-                throw new InvalidTypeNameException("mapping type name is empty");
-            }
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-            }
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-            }
-            if (mapper.type().contains("#")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-            }
-            if (mapper.type().contains(",")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-            }
-            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
-                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
-            if (typeNameStartsWithIllegalDot(mapper)) {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                    throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
-                } else {
-                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
-                }
-            }
-            // we can add new field/object mappers while the old ones are there
-            // since we get new instances of those, and when we remove, we remove
-            // by instance equality
-            DocumentMapper oldMapper = mappers.get(mapper.type());
-
-            if (oldMapper != null) {
-                // simulate first
-                MergeResult result = oldMapper.merge(mapper.mapping(), true, updateAllTypes);
-                if (result.hasConflicts()) {
-                    throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(result.buildConflicts()) + "}");
-                }
-                // then apply for real
-                result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
-                assert result.hasConflicts() == false; // we already simulated
-                return oldMapper;
+        if (mapper.type().length() == 0) {
+            throw new InvalidTypeNameException("mapping type name is empty");
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
+        }
+        if (mapper.type().charAt(0) == '_') {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
+        }
+        if (mapper.type().contains("#")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
+        }
+        if (mapper.type().contains(",")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
+        }
+        if (mapper.type().equals(mapper.parentFieldMapper().type())) {
+            throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
+        }
+        if (typeNameStartsWithIllegalDot(mapper)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
             } else {
-                Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
-                        mapper.type(), mapper.mapping(), updateAllTypes);
-                Collection<ObjectMapper> newObjectMappers = newMappers.v1();
-                Collection<FieldMapper> newFieldMappers = newMappers.v2();
-                addMappers(mapper.type(), newObjectMappers, newFieldMappers);
-
-                for (DocumentTypeListener typeListener : typeListeners) {
-                    typeListener.beforeCreate(mapper);
-                }
-                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
-                if (mapper.parentFieldMapper().active()) {
-                    Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
-                    newParentTypes.addAll(parentTypes);
-                    newParentTypes.add(mapper.parentFieldMapper().type());
-                    parentTypes = unmodifiableSet(newParentTypes);
-                }
-                assert assertSerialization(mapper);
-                return mapper;
+                logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
             }
+        }
+        // we can add new field/object mappers while the old ones are there
+        // since we get new instances of those, and when we remove, we remove
+        // by instance equality
+        DocumentMapper oldMapper = mappers.get(mapper.type());
+
+        if (oldMapper != null) {
+            oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+            return oldMapper;
+        } else {
+            Tuple<Collection<ObjectMapper>, Collection<FieldMapper>> newMappers = checkMappersCompatibility(
+                    mapper.type(), mapper.mapping(), updateAllTypes);
+            Collection<ObjectMapper> newObjectMappers = newMappers.v1();
+            Collection<FieldMapper> newFieldMappers = newMappers.v2();
+            addMappers(mapper.type(), newObjectMappers, newFieldMappers);
+
+            for (DocumentTypeListener typeListener : typeListeners) {
+                typeListener.beforeCreate(mapper);
+            }
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+            if (mapper.parentFieldMapper().active()) {
+                Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
+                newParentTypes.addAll(parentTypes);
+                newParentTypes.add(mapper.parentFieldMapper().type());
+                parentTypes = unmodifiableSet(newParentTypes);
+            }
+            assert assertSerialization(mapper);
+            return mapper;
         }
     }
 
@@ -300,19 +295,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
+    private void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+        final Set<String> objectFullNames = new HashSet<>();
+        for (ObjectMapper objectMapper : objectMappers) {
+            final String fullPath = objectMapper.fullPath();
+            if (objectFullNames.add(fullPath) == false) {
+                throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
+            }
+        }
+
+        if (indexSettings.getIndexVersionCreated().before(Version.V_3_0_0)) {
+            // Before 3.0 some metadata mappers are also registered under the root object mapper
+            // So we avoid false positives by deduplicating mappers
+            // given that we check exact equality, this would still catch the case that a mapper
+            // is defined under the root object 
+            Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<>());
+            uniqueFieldMappers.addAll(fieldMappers);
+            fieldMappers = uniqueFieldMappers;
+        }
+
+        final Set<String> fieldNames = new HashSet<>();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            final String name = fieldMapper.name();
+            if (objectFullNames.contains(name)) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
+            } else if (fieldNames.add(name) == false) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
+            }
+        }
+    }
+
     protected void checkMappersCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
+
+        checkFieldUniqueness(type, objectMappers, fieldMappers);
+
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
-                MergeResult result = new MergeResult(true, updateAllTypes);
-                existingObjectMapper.merge(newObjectMapper, result);
-                if (result.hasConflicts()) {
-                    throw new IllegalArgumentException("Mapper for [" + newObjectMapper.fullPath() + "] conflicts with existing mapping in other types" +
-                        Arrays.toString(result.buildConflicts()));
-                }
+                // simulate a merge and ignore the result, we are just interested
+                // in exceptions here
+                existingObjectMapper.merge(newObjectMapper, updateAllTypes);
             }
         }
+
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
+                throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
+            }
+        }
+
         fieldTypes.checkCompatibility(type, fieldMappers, updateAllTypes);
     }
 
@@ -320,9 +352,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             String type, Mapping mapping, boolean updateAllTypes) {
         List<ObjectMapper> objectMappers = new ArrayList<>();
         List<FieldMapper> fieldMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-            fieldMappers.add(metadataMapper);
-        }
+        Collections.addAll(fieldMappers, mapping.metadataMappers);
         MapperUtils.collect(mapping.root, objectMappers, fieldMappers);
         checkMappersCompatibility(type, objectMappers, fieldMappers, updateAllTypes);
         return new Tuple<>(objectMappers, fieldMappers);
@@ -330,14 +360,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        ImmutableOpenMap.Builder<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
+        Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
         for (ObjectMapper objectMapper : objectMappers) {
             fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
             if (objectMapper.nested().isNested()) {
                 hasNested = true;
             }
         }
-        this.fullPathObjectMappers = fullPathObjectMappers.build();
+        this.fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
         this.fieldTypes = this.fieldTypes.copyAndAddAll(type, fieldMappers);
     }
 

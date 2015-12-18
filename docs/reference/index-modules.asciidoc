@@ -129,19 +129,6 @@ specific index module:
     experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
     the current index.
 
-[[index.recovery.initial_shards]]`index.recovery.initial_shards`::
-+
---
-A primary shard is only recovered only if there are enough nodes available to
-allocate sufficient replicas to form a quorum. It can be set to:
-
-    * `quorum` (default)
-    * `quorum-1` (or `half`)
-    * `full`
-    * `full-1`.
-    * Number values are also supported, e.g. `1`.
---
-
 
 [float]
 === Settings in other index modules

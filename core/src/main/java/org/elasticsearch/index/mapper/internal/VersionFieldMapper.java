@@ -30,7 +30,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -62,7 +61,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, VersionFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         @Override
@@ -166,7 +165,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // nothing to do
     }
 }

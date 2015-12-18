@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -83,12 +84,16 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -549,7 +554,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
+        DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
 
         try {
@@ -558,7 +563,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.scrollContext().scroll = request.scroll();
             }
             if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context, Collections.emptyMap());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
@@ -656,7 +661,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchParseException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchContextException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -711,6 +716,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         context.trackScores(source.trackScores());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
+        }
+        if (source.profile()) {
+            context.setProfilers(new Profilers(context.searcher()));
         }
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());
@@ -807,19 +815,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             fieldDataFieldsContext.setHitExecutionNeeded(true);
         }
         if (source.highlighter() != null) {
-            XContentParser highlighterParser = null;
+            HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                highlighterParser = XContentFactory.xContent(source.highlighter()).createParser(source.highlighter());
-                this.elementParsers.get("highlight").parse(highlighterParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                context.highlight(highlightBuilder.build(context.indexShard().getQueryShardContext()));
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
         }
         if (source.innerHits() != null) {
@@ -841,7 +841,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

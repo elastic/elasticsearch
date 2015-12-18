@@ -97,7 +97,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
     }
 
-    public void testFastCloseAfterCreateDoesNotClose() {
+    public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
         logger.info("--> creating test index that cannot be allocated");
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder()
                 .put("index.routing.allocation.include.tag", "no_such_node").build()).get();
@@ -106,16 +106,13 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        try {
-            client().admin().indices().prepareClose("test").get();
-            fail("Exception should have been thrown");
-        } catch(IndexPrimaryShardNotAllocatedException e) {
-            // expected
-        }
+        client().admin().indices().prepareClose("test").get();
 
         logger.info("--> updating test index settings to allow allocation");
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.settingsBuilder()
                 .put("index.routing.allocation.include.tag", "").build()).get();
+
+        client().admin().indices().prepareOpen("test").get();
 
         logger.info("--> waiting for green status");
         ensureGreen();

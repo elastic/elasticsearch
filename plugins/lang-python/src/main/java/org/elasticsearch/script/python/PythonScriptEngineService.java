@@ -60,7 +60,7 @@ import org.python.util.PythonInterpreter;
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     private final PythonInterpreter interp;
-    
+
     @Inject
     public PythonScriptEngineService(Settings settings) {
         super(settings);
@@ -110,7 +110,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -293,7 +293,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         if (value == null) {
             return null;
         } else if (value instanceof PyObject) {
-            // seems like this is enough, inner PyDictionary will do the conversion for us for example, so expose it directly 
+            // seems like this is enough, inner PyDictionary will do the conversion for us for example, so expose it directly
             return ((PyObject) value).__tojava__(Object.class);
         }
         return value;

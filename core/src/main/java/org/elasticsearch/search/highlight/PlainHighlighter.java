@@ -33,9 +33,7 @@ import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -158,7 +156,7 @@ public class PlainHighlighter implements Highlighter {
         }
 
         if (fragments.length > 0) {
-            return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+            return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
         }
 
         int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
@@ -172,7 +170,7 @@ public class PlainHighlighter implements Highlighter {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
             if (end > 0) {
-                return new HighlightField(highlighterContext.fieldName, new Text[] { new StringText(fieldContents.substring(0, end)) });
+                return new HighlightField(highlighterContext.fieldName, new Text[] { new Text(fieldContents.substring(0, end)) });
             }
         }
         return null;

@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,11 +59,11 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         this.params = params;
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS, context.searchContext()).run();
+            scriptService.executable(initScript, ScriptContext.Standard.AGGS, context.searchContext(), Collections.emptyMap()).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, context.searchContext());
+            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, context.searchContext(), Collections.emptyMap());
         } else {
             this.combineScript = null;
         }

@@ -473,6 +473,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Should the query be profiled. Defaults to <code>false</code>
+     */
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
+        return this;
+    }
+
     @Override
     public String toString() {
         if (request.source() != null) {

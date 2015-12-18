@@ -19,11 +19,12 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.transport.TransportModule;
 
 import java.net.InetAddress;
 import java.util.Locale;
@@ -60,7 +60,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         Settings.Builder builder = settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
@@ -72,7 +72,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {

@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -515,8 +514,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), false, false);
-        assertThat(mergeResult.buildConflicts().length, equalTo(0));
+        docMapper.merge(parser.parse(mapping).mapping(), false, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
@@ -618,9 +616,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .field("index", indexValues.remove(randomInt(2)))
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test", BWC_SETTINGS).mapperService();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        mapperService.merge("type", new CompressedXContent(mapping), true, false);
         mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp")
@@ -628,18 +626,11 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
-        List<String> expectedConflicts = new ArrayList<>();
-        expectedConflicts.add("mapper [_timestamp] has different [index] values");
-        expectedConflicts.add("mapper [_timestamp] has different [tokenize] values");
-        if (indexValues.get(0).equals("not_analyzed") == false) {
-            // if the only index value left is not_analyzed, then the doc values setting will be the same, but in the
-            // other two cases, it will change
-            expectedConflicts.add("mapper [_timestamp] has different [doc_values] values");
-        }
-
-        for (String conflict : mergeResult.buildConflicts()) {
-            assertThat(conflict, isIn(expectedConflicts));
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [index] values"));
         }
     }
 
@@ -686,10 +677,15 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     void assertConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
-        assertThat(mergeResult.buildConflicts().length, equalTo(conflict == null ? 0 : 1));
-        if (conflict != null) {
-            assertThat(mergeResult.buildConflicts()[0], containsString(conflict));
+        if (conflict == null) {
+            docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+        } else {
+            try {
+                docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+                fail();
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage(), containsString(conflict));
+            }
         }
     }
 

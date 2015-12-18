@@ -19,17 +19,16 @@
 
 package org.elasticsearch.plan.a;
 
-import org.elasticsearch.common.settings.Settings;
+import java.util.Collections;
+import java.util.Map;
 
 /** Tests floating point overflow with numeric overflow disabled */
 public class FloatOverflowDisabledTests extends ScriptTestCase {
     
+    /** wire overflow to false for all tests */
     @Override
-    protected Settings getSettings() {
-        Settings.Builder builder = Settings.builder();
-        builder.put(super.getSettings());
-        builder.put(PlanAScriptEngineService.NUMERIC_OVERFLOW, false);
-        return builder.build();
+    public Object exec(String script, Map<String, Object> vars) {
+        return exec(script, vars, Collections.singletonMap(PlanAScriptEngineService.NUMERIC_OVERFLOW, "false"));
     }
 
     public void testAssignmentAdditionOverflow() {        

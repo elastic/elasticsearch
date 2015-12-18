@@ -188,6 +188,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -1313,6 +1317,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public FlushRequestBuilder prepareFlush(String... indices) {
             return new FlushRequestBuilder(this, FlushAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
+        public ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request) {
+            return execute(SyncedFlushAction.INSTANCE, request);
+        }
+
+        @Override
+        public void syncedFlush(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
+            execute(SyncedFlushAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public SyncedFlushRequestBuilder prepareSyncedFlush(String... indices) {
+            return new SyncedFlushRequestBuilder(this, SyncedFlushAction.INSTANCE).setIndices(indices);
         }
 
         @Override

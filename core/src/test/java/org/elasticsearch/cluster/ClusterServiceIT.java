@@ -43,17 +43,29 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -751,23 +763,40 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
         }
 
+        int numberOfThreads = randomIntBetween(2, 8);
+        int tasksSubmittedPerThread = randomIntBetween(1, 1024);
+        int numberOfExecutors = Math.max(1, numberOfThreads / 4);
+        final Semaphore semaphore = new Semaphore(numberOfExecutors);
+
         class TaskExecutor implements ClusterStateTaskExecutor<Task> {
             private AtomicInteger counter = new AtomicInteger();
+            private AtomicInteger batches = new AtomicInteger();
+            private AtomicInteger published = new AtomicInteger();
 
             @Override
             public BatchResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
                 tasks.forEach(task -> task.execute());
                 counter.addAndGet(tasks.size());
-                return BatchResult.<Task>builder().successes(tasks).build(currentState);
+                ClusterState maybeUpdatedClusterState = currentState;
+                if (randomBoolean()) {
+                    maybeUpdatedClusterState = ClusterState.builder(currentState).build();
+                    batches.incrementAndGet();
+                    semaphore.acquire();
+                }
+                return BatchResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
             }
 
             @Override
             public boolean runOnlyOnMaster() {
                 return false;
             }
+
+            @Override
+            public void clusterStatePublished(ClusterState newClusterState) {
+                published.incrementAndGet();
+                semaphore.release();
+            }
         }
-        int numberOfThreads = randomIntBetween(2, 8);
-        int tasksSubmittedPerThread = randomIntBetween(1, 1024);
 
         ConcurrentMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
         CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
@@ -784,7 +813,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
         };
 
-        int numberOfExecutors = Math.max(1, numberOfThreads / 4);
         List<TaskExecutor> executors = new ArrayList<>();
         for (int i = 0; i < numberOfExecutors; i++) {
             executors.add(new TaskExecutor());
@@ -830,6 +858,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // wait until all the cluster state updates have been processed
         updateLatch.await();
+        // and until all of the publication callbacks have completed
+        semaphore.acquire(numberOfExecutors);
 
         // assert the number of executed tasks is correct
         assertEquals(numberOfThreads * tasksSubmittedPerThread, counter.get());
@@ -838,6 +868,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         for (TaskExecutor executor : executors) {
             if (counts.containsKey(executor)) {
                 assertEquals((int) counts.get(executor), executor.counter.get());
+                assertEquals(executor.batches.get(), executor.published.get());
             }
         }
 

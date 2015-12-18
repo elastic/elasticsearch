@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,6 +55,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -304,6 +304,11 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
     public abstract FetchSearchResult fetchResult();
 
     /**
+     * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
+     */
+    public abstract Profilers getProfilers();
+
+    /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
      * is function of the provided {@link Lifetime}.
      */
@@ -367,5 +372,4 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         CONTEXT
     }
 
-    public abstract QueryCache getQueryCache();
 }

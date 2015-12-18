@@ -82,7 +82,7 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof FiltersFunctionScoreQuery) {
                 query = ((FiltersFunctionScoreQuery) query).getSubQuery();
                 extract(query, query.getBoost(), terms);
-            } else {
+            } else if (terms.isEmpty()) {
                 extractWeightedTerms(terms, query, query.getBoost());
             }
         }

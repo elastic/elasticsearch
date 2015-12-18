@@ -66,8 +66,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (Murmur3FieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

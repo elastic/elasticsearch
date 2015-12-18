@@ -78,7 +78,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 

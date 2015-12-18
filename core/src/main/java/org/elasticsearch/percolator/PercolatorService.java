@@ -52,8 +52,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -533,10 +531,10 @@ public class PercolatorService extends AbstractComponent {
             List<PercolateResponse.Match> finalMatches = new ArrayList<>(requestedSize == 0 ? numMatches : requestedSize);
             outer:
             for (PercolateShardResponse response : shardResults) {
-                Text index = new StringText(response.getIndex());
+                Text index = new Text(response.getIndex());
                 for (int i = 0; i < response.matches().length; i++) {
                     float score = response.scores().length == 0 ? NO_SCORE : response.scores()[i];
-                    Text match = new BytesText(new BytesArray(response.matches()[i]));
+                    Text match = new Text(new BytesArray(response.matches()[i]));
                     Map<String, HighlightField> hl = response.hls().isEmpty() ? null : response.hls().get(i);
                     finalMatches.add(new PercolateResponse.Match(index, match, score, hl));
                     if (requestedSize != 0 && finalMatches.size() == requestedSize) {
@@ -686,10 +684,10 @@ public class PercolatorService extends AbstractComponent {
             List<PercolateResponse.Match> finalMatches = new ArrayList<>(requestedSize);
             if (nonEmptyResponses == 1) {
                 PercolateShardResponse response = shardResults.get(firstNonEmptyIndex);
-                Text index = new StringText(response.getIndex());
+                Text index = new Text(response.getIndex());
                 for (int i = 0; i < response.matches().length; i++) {
                     float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
-                    Text match = new BytesText(new BytesArray(response.matches()[i]));
+                    Text match = new Text(new BytesArray(response.matches()[i]));
                     if (!response.hls().isEmpty()) {
                         Map<String, HighlightField> hl = response.hls().get(i);
                         finalMatches.add(new PercolateResponse.Match(index, match, score, hl));
@@ -728,8 +726,8 @@ public class PercolatorService extends AbstractComponent {
                     slots[requestIndex]++;
 
                     PercolateShardResponse shardResponse = shardResults.get(requestIndex);
-                    Text index = new StringText(shardResponse.getIndex());
-                    Text match = new BytesText(new BytesArray(shardResponse.matches()[itemIndex]));
+                    Text index = new Text(shardResponse.getIndex());
+                    Text match = new Text(new BytesArray(shardResponse.matches()[itemIndex]));
                     float score = shardResponse.scores()[itemIndex];
                     if (!shardResponse.hls().isEmpty()) {
                         Map<String, HighlightField> hl = shardResponse.hls().get(itemIndex);

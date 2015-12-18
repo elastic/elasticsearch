@@ -45,8 +45,8 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
                 .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
                 .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .build();
 
         internalCluster().startMasterOnlyNodesAsync(3, sharedSettings).get();

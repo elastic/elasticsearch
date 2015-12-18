@@ -49,6 +49,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -63,7 +65,6 @@ import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -91,8 +92,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
-    public static final String SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD = "cluster.service.slow_task_logging_threshold";
-    public static final String SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL = "cluster.service.reconnect_interval";
+    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING = Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), false, Setting.Scope.CLUSTER);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
@@ -103,7 +104,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
-    private final NodeSettingsService nodeSettingsService;
+    private final ClusterSettings clusterSettings;
     private final DiscoveryNodeService discoveryNodeService;
     private final Version version;
 
@@ -136,33 +137,32 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
+                                  ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-        this.nodeSettingsService = nodeSettingsService;
+        this.clusterSettings = clusterSettings;
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
 
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
-        this.nodeSettingsService.setClusterService(this);
-        this.nodeSettingsService.addListener(new ApplySettings());
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
 
-        this.reconnectInterval = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL, TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING.get(settings);
 
-        this.slowTaskLoggingThreshold = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, TimeValue.timeValueSeconds(30));
+        this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
         initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
     }
 
-    public NodeSettingsService settingsService() {
-        return this.nodeSettingsService;
+    private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
+        this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
     }
 
     @Override
@@ -566,6 +566,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             // update the current cluster state
             clusterState = newClusterState;
             logger.debug("set local cluster state to version {}", newClusterState.version());
+            try {
+                // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+                if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+                    final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
+                    clusterSettings.applySettings(incomingSettings);
+                }
+            } catch (Exception ex) {
+                logger.warn("failed to apply cluster settings", ex);
+            }
             for (ClusterStateListener listener : preAppliedListeners) {
                 try {
                     listener.clusterChanged(clusterChangedEvent);
@@ -891,14 +900,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);
                 ackedTaskListener.onAckTimeout();
             }
-        }
-    }
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final TimeValue slowTaskLoggingThreshold = settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, InternalClusterService.this.slowTaskLoggingThreshold);
-            InternalClusterService.this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
         }
     }
 }

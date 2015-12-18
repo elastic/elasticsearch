@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -39,7 +40,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -138,7 +138,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public MockNode createMockNode(String name, Settings settings, Version version, @Nullable ClusterStateListener listener) throws Exception {
         settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING")
+                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(settings)
                 .build();
 
@@ -219,7 +219,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     protected MockPublishAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, DiscoveryNodesProvider nodesProvider,
                                                                PublishClusterStateAction.NewPendingClusterStateListener listener) {
-        DiscoverySettings discoverySettings = new DiscoverySettings(settings, new NodeSettingsService(settings));
+        DiscoverySettings discoverySettings = new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 
@@ -327,7 +327,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public void testDisablingDiffPublishing() throws Exception {
-        Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, false).build();
+        Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), false).build();
 
         MockNode nodeA = createMockNode("nodeA", noDiffPublishingSettings, Version.CURRENT, new ClusterStateListener() {
             @Override
@@ -366,7 +366,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = scaledRandomIntBetween(5, 50);
-        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, randomBoolean()).build();
+        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), randomBoolean()).build();
         MockNode master = createMockNode("node0", settings, Version.CURRENT, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -492,8 +492,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         final boolean expectingToCommit = randomBoolean();
         Settings.Builder settings = Settings.builder();
         // make sure we have a reasonable timeout if we expect to timeout, o.w. one that will make the test "hang"
-        settings.put(DiscoverySettings.COMMIT_TIMEOUT, expectingToCommit == false && timeOutNodes > 0 ? "100ms" : "1h")
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, "5ms"); // test is about committing
+        settings.put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), expectingToCommit == false && timeOutNodes > 0 ? "100ms" : "1h")
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "5ms"); // test is about committing
 
         MockNode master = createMockNode("master", settings.build());
 
@@ -677,7 +677,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
      */
     public void testTimeoutOrCommit() throws Exception {
         Settings settings = Settings.builder()
-                .put(DiscoverySettings.COMMIT_TIMEOUT, "1ms").build(); // short but so we will sometime commit sometime timeout
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "1ms").build(); // short but so we will sometime commit sometime timeout
 
         MockNode master = createMockNode("master", settings);
         MockNode node = createMockNode("node", settings);

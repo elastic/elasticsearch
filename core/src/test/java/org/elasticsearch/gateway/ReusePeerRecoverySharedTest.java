@@ -90,7 +90,7 @@ public class ReusePeerRecoverySharedTest {
 
             // Disable allocations while we are closing nodes
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE)).get();
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)).get();
             logger.info("--> full cluster restart");
             restartCluster.run();
 
@@ -105,7 +105,7 @@ public class ReusePeerRecoverySharedTest {
         logger.info("--> disabling allocation while the cluster is shut down", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
         logger.info("--> full cluster restart");
         restartCluster.run();

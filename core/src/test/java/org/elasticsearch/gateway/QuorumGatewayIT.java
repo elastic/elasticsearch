@@ -51,7 +51,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         internalCluster().startNodesAsync(3,
-                Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2).build()).get();
+                Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build()).get();
 
 
         createIndex("test");

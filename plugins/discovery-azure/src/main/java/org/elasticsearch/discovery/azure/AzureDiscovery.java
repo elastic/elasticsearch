@@ -22,12 +22,12 @@ package org.elasticsearch.discovery.azure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,9 +40,9 @@ public class AzureDiscovery extends ZenDiscovery {
 
     @Inject
     public AzureDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
-                          ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
+                          ClusterService clusterService, ClusterSettings clusterSettings, ZenPingService pingService,
                           DiscoverySettings discoverySettings, ElectMasterService electMasterService) {
-        super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
+        super(settings, clusterName, threadPool, transportService, clusterService, clusterSettings,
                 pingService, electMasterService, discoverySettings);
     }
 }

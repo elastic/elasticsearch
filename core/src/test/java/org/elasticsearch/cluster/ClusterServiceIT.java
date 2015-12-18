@@ -971,7 +971,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     public void testLongClusterStateUpdateLogging() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
-                .put(InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, "10s")
+                .put(InternalClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey(), "10s")
                 .build();
         internalCluster().startNode(settings);
         ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class);
@@ -1007,7 +1007,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             processedFirstTask.await(1, TimeUnit.SECONDS);
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                    .put(InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, "10ms")));
+                    .put(InternalClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey(), "10ms")));
 
             clusterService1.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                 @Override

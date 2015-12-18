@@ -30,8 +30,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
 
@@ -255,7 +259,7 @@ public class PluginInfoTests extends ESTestCase {
     }
 
     public void testPluginListSorted() {
-        PluginsInfo pluginsInfo = new PluginsInfo(5);
+        PluginsInfo pluginsInfo = new PluginsInfo();
         pluginsInfo.add(new PluginInfo("c", "foo", true, "dummy", true, "dummyclass", true));
         pluginsInfo.add(new PluginInfo("b", "foo", true, "dummy", true, "dummyclass", true));
         pluginsInfo.add(new PluginInfo("e", "foo", true, "dummy", true, "dummyclass", true));
@@ -270,5 +274,43 @@ public class PluginInfoTests extends ESTestCase {
             }
         });
         assertThat(names, contains("a", "b", "c", "d", "e"));
+    }
+
+    public void testConcurrentModificationsAreAvoided() throws InterruptedException {
+        final PluginsInfo pluginsInfo = new PluginsInfo();
+        int numberOfPlugins = randomIntBetween(128, 256);
+        for (int i = 0; i < numberOfPlugins; i++) {
+            pluginsInfo.add(new PluginInfo("name", "description", false, "version", true, "classname", true));
+        }
+
+        int randomNumberOfThreads = randomIntBetween(2, 8);
+        final int numberOfAttempts = randomIntBetween(2048, 4096);
+        final CountDownLatch latch = new CountDownLatch(1 + randomNumberOfThreads);
+        List<Thread> threads = new ArrayList<>(randomNumberOfThreads);
+        final AtomicBoolean cme = new AtomicBoolean();
+        for (int i = 0; i < randomNumberOfThreads; i++) {
+            Thread thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    latch.countDown();
+                    for (int j = 0; j < numberOfAttempts; j++) {
+                        try {
+                            pluginsInfo.getInfos();
+                        } catch (ConcurrentModificationException e) {
+                            cme.set(true);
+                        }
+                    }
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertFalse(cme.get());
     }
 }

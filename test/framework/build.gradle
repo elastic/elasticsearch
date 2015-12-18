@@ -19,7 +19,6 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.bmuschko.nexus'
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"

@@ -58,7 +58,10 @@ public class LicenseHeadersTask extends DefaultTask {
                // checks all the java sources (allJava)
                for (SourceSet set : project.sourceSets) {
                    for (File dir : set.allJava.srcDirs) {
-                       ant.fileset(dir: dir)
+                       // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
+                       if (dir.exists()) {
+                           ant.fileset(dir: dir)
+                       }
                    }
                }
 

@@ -35,7 +35,7 @@ import java.nio.charset.Charset
  *
  * Logging for the task is customizable for subclasses by overriding makeLogger.
  */
-public class AntTask extends DefaultTask {
+public abstract class AntTask extends DefaultTask {
 
     /**
      * A buffer that will contain the output of the ant code run,
@@ -76,12 +76,7 @@ public class AntTask extends DefaultTask {
     }
 
     /** Runs the doAnt closure. This can be overridden by subclasses instead of having to set a closure. */
-    protected void runAnt(AntBuilder ant) {
-        if (doAnt == null) {
-            throw new GradleException("Missing doAnt for ${name}")
-        }
-        doAnt(ant)
-    }
+    protected abstract void runAnt(AntBuilder ant);
 
     /** Create the logger the ant runner will use, with the given stream for error/output. */
     protected BuildLogger makeLogger(PrintStream stream, int outputLevel) {

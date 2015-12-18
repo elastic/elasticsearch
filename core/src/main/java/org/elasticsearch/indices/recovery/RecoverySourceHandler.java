@@ -396,11 +396,10 @@ public class RecoverySourceHandler {
             }
         });
 
-
-        if (request.markAsRelocated()) {
-            // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
+        if (isPrimaryRelocation()) {
+            // if the recovery process fails afterwards, relocated shard is marked back to started
             try {
-                shard.relocated("to " + request.targetNode());
+                cancellableThreads.execute(() -> shard.relocated("to" + request.targetNode()));
             } catch (IllegalIndexShardStateException e) {
                 // we can ignore this exception since, on the other node, when it moved to phase3
                 // it will also send shard started, which might cause the index shard we work against
@@ -409,7 +408,11 @@ public class RecoverySourceHandler {
         }
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
-                indexName, shardId, request.targetNode(), stopWatch.totalTime());
+            indexName, shardId, request.targetNode(), stopWatch.totalTime());
+    }
+
+    protected boolean isPrimaryRelocation() {
+        return request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary();
     }
 
     /**

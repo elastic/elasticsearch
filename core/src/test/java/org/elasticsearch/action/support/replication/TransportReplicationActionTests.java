@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -293,7 +295,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         // start with a replica
-        clusterService.setState(state(index, true, ShardRoutingState.STARTED,  randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.STARTED));
+        clusterService.setState(state(index, true, ShardRoutingState.STARTED, randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         final ClusterState stateWithRelocatingReplica = state(index, true, ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
 
@@ -346,6 +348,25 @@ public class TransportReplicationActionTests extends ESTestCase {
         primaryPhase.run();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat("replication phase should be skipped if index gets deleted after primary operation", transport.capturedRequestsByTargetNode().size(), equalTo(0));
+    }
+
+    public void testRelocatedStateBlocksIndexing() throws InterruptedException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        clusterService.setState(state(index, true, ShardRoutingState.RELOCATING));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        final Action actionOnRelocatedPrimary = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+                throw new IllegalIndexShardStateException(shardId, IndexShardState.RELOCATED, "primary has relocated");
+            }
+        };
+        Request request = new Request(shardId);
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = actionOnRelocatedPrimary.new PrimaryPhase(request, createTransportChannel(listener));
+        primaryPhase.run();
+        assertListenerThrows("relocated shard must throw retryable exception", listener, IllegalIndexShardStateException.class);
+        assertThat(action.retryPrimaryException(new IllegalIndexShardStateException(shardId, IndexShardState.RELOCATED, "relocated exception")), equalTo(true));
     }
 
     public void testWriteConsistency() throws ExecutionException, InterruptedException {
@@ -477,9 +498,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(2);
         // TODO: set a default timeout
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
-                action.new ReplicationPhase(request,
-                        new Response(),
-                        request.shardId(), createTransportChannel(listener), reference, null);
+                action.new ReplicationPhase(request, new Response(), request.shardId(),
+                    createTransportChannel(listener), reference, null);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));

@@ -130,6 +130,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -205,6 +207,9 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexSearcherWrapper searcherWrapper;
     private final TimeValue inactiveTime;
+
+    private volatile boolean blockOperations = false;
+    private AtomicReference<CountDownLatch> pendingOps = new AtomicReference<>();
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -393,6 +398,16 @@ public class IndexShard extends AbstractIndexShardComponent {
                     }
                 }
             }
+            if (state == IndexShardState.RELOCATED && newRouting.relocating() == false) {
+                // if the shard is marked RELOCATED but the shard is not in relocating state (due to recovery failure)
+                // we move to STARTED
+                synchronized (mutex) {
+                    if (state == IndexShardState.RELOCATED) {
+                        changeState(IndexShardState.STARTED, "primary relocation failed");
+                        blockOperations = false;
+                    }
+                }
+            }
             this.shardRouting = newRouting;
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         } finally {
@@ -428,13 +443,14 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public IndexShard relocated(String reason) throws IndexShardNotStartedException {
+    public IndexShard relocated(String reason) throws InterruptedException {
         synchronized (mutex) {
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
             changeState(IndexShardState.RELOCATED, reason);
         }
+        blockOperations();
         return this;
     }
 
@@ -795,7 +811,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             refresh("percolator_load_queries");
@@ -952,9 +967,13 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
             // for primaries, we only allow to write when actually started (so the cluster has decided we started)
-            // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            // otherwise, we need to retry
+            if (state != IndexShardState.STARTED) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started, origin [" + origin + "]");
+            }
+            // we can miss blocking for operation when we increment the operation counter after we check for pending ops
+            if (blockOperations) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation blocked, origin [" + origin + "]");
             }
         } else {
             // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
@@ -1495,12 +1514,40 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * blocks indefinitely until pending operations complete
+     */
+    public void blockOperations() throws InterruptedException {
+        boolean success = false;
+        try {
+            blockOperations = true;
+            pendingOps.compareAndSet(null, new CountDownLatch(1));
+            if (indexShardOperationCounter.refCount() - 1 > 0) {
+                pendingOps.get().await();
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                blockOperations = false;
+            }
+            pendingOps.set(null);
+        }
+    }
+
     public void incrementOperationCounter() {
+        if (blockOperations && shardRouting.primary()) {
+            throw new IllegalIndexShardStateException(shardId, state, "primary has relocated");
+        }
         indexShardOperationCounter.incRef();
     }
 
     public void decrementOperationCounter() {
         indexShardOperationCounter.decRef();
+        if (blockOperations && indexShardOperationCounter.refCount() - 1 == 0) {
+            if (pendingOps.get() != null) {
+                pendingOps.get().countDown();
+            }
+        }
     }
 
     public int getOperationsCount() {

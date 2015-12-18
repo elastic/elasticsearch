@@ -119,6 +119,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -768,6 +769,82 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(total + 1, shard.flushStats().getTotal());
     }
 
+    public void testIndexBlockAfterRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        shard.relocated("simulated recovery");
+        try {
+            shard.incrementOperationCounter();
+            fail("indexing must be blocked after shard relocated");
+        } catch (IllegalIndexShardStateException expected) {
+            assertThat(expected.currentState(), equalTo(IndexShardState.RELOCATED));
+        }
+    }
+
+    public void testStressRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        final int numThreads = randomIntBetween(2, 4);
+        Thread[] indexThreads = new Thread[numThreads];
+        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        for (int i = 0; i < indexThreads.length; i++) {
+            indexThreads[i] = new Thread() {
+                @Override
+                public void run() {
+                    shard.incrementOperationCounter();
+                    try {
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                    shard.decrementOperationCounter();
+                }
+            };
+            indexThreads[i].start();
+        }
+        AtomicBoolean success = new AtomicBoolean();
+        final Thread recoveryThread = new Thread(() -> {
+            try {
+                shard.relocated("simulated recovery");
+                success.set(true);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        recoveryThread.start();
+        // ensure we mark the shard as relocated first
+        assertBusy(() -> {
+            assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        });
+        // ensure we block for pending operations to complete
+        assertBusy(() -> {
+            assertThat(success.get(), equalTo(false));
+            assertThat(shard.getOperationsCount(), greaterThan(0));
+        });
+        // complete pending operations
+        barrier.await();
+        // ensure relocated successfully once pending operations are done
+        assertBusy(() -> {
+            assertThat(success.get(), equalTo(true));
+            assertThat(shard.getOperationsCount(), equalTo(0));
+        });
+
+        recoveryThread.join();
+        for (Thread indexThread : indexThreads) {
+            indexThread.join();
+        }
+    }
+
     public void testRecoverFromStore() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -846,6 +923,23 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(response, 0);
         client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
         assertHitCount(client().prepareSearch().get(), 1);
+    }
+
+    public void testStateAfterRecoveryFails() throws InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        ShardRouting origRouting = shard.routingEntry();
+        ShardRouting inRecoveryRouting = new ShardRouting(origRouting);
+        ShardRoutingHelper.relocate(inRecoveryRouting, "some_node");
+        shard.updateRoutingEntry(inRecoveryRouting, true);
+        shard.relocated("simulate mark as relocated");
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        ShardRouting failedRecoveryRouting = new ShardRouting(origRouting);
+        shard.updateRoutingEntry(failedRecoveryRouting, true);
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
     }
 
     public void testRestoreShard() throws IOException {

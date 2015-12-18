@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -32,13 +33,21 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -50,9 +59,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -65,8 +76,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -97,7 +110,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, Type type,
@@ -200,6 +213,59 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
         assertThat(recoveryStates.size(), equalTo(0));  // Should not expect any responses back
+    }
+
+    public void testPrimaryRecoveryRelocated() throws Exception {
+        logger.info("--> start node A");
+        String nodeA = internalCluster().startNode();
+
+        CountDownLatch blockClose = new CountDownLatch(1);
+        IndexEventListener listener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+                try {
+                    blockClose.await();
+                } catch (InterruptedException e) {
+                }
+            }
+        };
+
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, nodeA).setNewDelegate(listener);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+
+        logger.info("--> start node B");
+        String nodeB = internalCluster().startNode();
+        ensureGreen();
+
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
+        final IndexService indexService = indicesService.indexServiceSafe(INDEX_NAME);
+        final IndexShard sourceShard = indexService.getShard(0);
+        logger.info("--> simulate pending operation");
+        sourceShard.incrementOperationCounter();
+        CountDownLatch startingGun = new CountDownLatch(1);
+        final Thread finishPendingOps = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    startingGun.await();
+                    sourceShard.decrementOperationCounter();
+                } catch (InterruptedException e) {
+                }
+            }
+        };
+        finishPendingOps.start();
+        logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
+        client().admin().cluster().prepareReroute()
+            .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeB))
+            .get();
+        logger.info("--> recovery should be stuck in relocated state");
+        startingGun.countDown();
+        assertBusy(() -> assertThat(sourceShard.state(), equalTo(IndexShardState.RELOCATED)));
+        logger.info("--> finish pending operation");
+        finishPendingOps.join();
+        blockClose.countDown();
+        logger.info("--> source shard should be closed after recovery");
+        assertBusy(() -> assertThat(sourceShard.state(), equalTo(IndexShardState.CLOSED)));
     }
 
     public void testReplicaRecovery() throws Exception {

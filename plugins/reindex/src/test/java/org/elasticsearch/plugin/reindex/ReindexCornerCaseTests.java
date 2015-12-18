@@ -19,12 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.index.get.GetField;
+
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-
-import org.elasticsearch.index.get.GetField;
-import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -53,6 +52,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
     public void testTimestamp() throws Exception {
         copyDoc("{\"_timestamp\": {\"enabled\": true}}");
         assertSearchHits(client().prepareSearch("dest").setQuery(existsQuery("_timestamp")).get(), "test");
+        assertEquals(fetchTimestamp("source"), fetchTimestamp("dest"));
     }
 
     public void testTTL() throws Exception {
@@ -90,7 +90,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
      *            should the index-by-search request result in the routing being
      *            copied (true) or stripped (false)
      */
-    public void routingTestCase(String specification, String expectedRoutingAfterCopy) throws Exception {
+    private void routingTestCase(String specification, String expectedRoutingAfterCopy) throws Exception {
         indexRandom(true,
                 client().prepareIndex("source", "test", "has_routing").setRouting("bar").setSource("foo", "bar"));
 
@@ -114,5 +114,10 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
 
         // Find by rounting
         assertSearchHits(client().prepareSearch("dest").setRouting(expectedRoutingAfterCopy).get(), "has_routing");
+    }
+
+    public static Long fetchTimestamp(String indexName) {
+        GetField field = client().prepareGet(indexName, "test", "test").get().getField("_timestamp");
+        return field == null ? null : (Long) field.getValue();
     }
 }

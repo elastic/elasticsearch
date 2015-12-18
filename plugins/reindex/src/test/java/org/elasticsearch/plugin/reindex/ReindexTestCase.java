@@ -19,20 +19,16 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.Collection;
-
-import org.elasticsearch.plugin.reindex.ReindexAction;
-import org.elasticsearch.plugin.reindex.ReindexPlugin;
-import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+
+import java.util.Collection;
+
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class ReindexTestCase extends ESIntegTestCase {
@@ -41,7 +37,7 @@ public class ReindexTestCase extends ESIntegTestCase {
         return pluginList(ReindexPlugin.class);
     }
 
-    protected ReindexRequestBuilder newIndexBySearch() {
+    protected ReindexRequestBuilder newIndexBySearch() { // NOCOMMIT rename
         return ReindexAction.INSTANCE.newRequestBuilder(client());
     }
 

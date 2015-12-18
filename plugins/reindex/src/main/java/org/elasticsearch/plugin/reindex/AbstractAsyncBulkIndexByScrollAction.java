@@ -1,10 +1,5 @@
 package org.elasticsearch.plugin.reindex;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -17,6 +12,11 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Abstract base for scrolling across a search and executing bulk indexes on all
@@ -151,38 +151,41 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          */
         index.source((Map<String, Object>) resultCtx.remove("_source"));
 
-        if (false == doc.index().equals(ctx.remove("_index"))) {
-            throw new IllegalArgumentException("Modifying [_index] not allowed");
+        Object newValue = ctx.remove("_index");
+        if (false == doc.index().equals(newValue)) {
+            scriptChangedIndex(index, newValue);
         }
-        if (false == doc.type().equals(ctx.remove("_type"))) {
-            throw new IllegalArgumentException("Modifying [_type] not allowed");
+        newValue = ctx.remove("_type");
+        if (false == doc.type().equals(newValue)) {
+            scriptChangedType(index, newValue);
         }
-        if (false == doc.id().equals(ctx.remove("_id"))) {
-            throw new IllegalArgumentException("Modifying [_id] not allowed");
+        newValue = ctx.remove("_id");
+        if (false == doc.id().equals(newValue)) {
+            scriptChangedId(index, newValue);
         }
-        Object newVersion = ctx.remove("_version");
-        if (false == Objects.equals(oldVersion, newVersion)) {
-            scriptChangedVersion(index, oldVersion, newVersion);
+        newValue = ctx.remove("_version");
+        if (false == Objects.equals(oldVersion, newValue)) {
+            scriptChangedVersion(index, newValue);
         }
-        Object newParent = ctx.remove("_parent");
-        if (false == Objects.equals(oldParent, newParent)) {
-            scriptChangedParent(index, oldParent, newParent);
+        newValue = ctx.remove("_parent");
+        if (false == Objects.equals(oldParent, newValue)) {
+            scriptChangedParent(index, newValue);
         }
         /*
          * Its important that routing comes after parent in case you want to
          * change them both.
          */
-        Object newRouting = ctx.remove("_routing");
-        if (false == Objects.equals(oldRouting, newRouting)) {
-            scriptChangedRouting(index, oldRouting, newRouting);
+        newValue = ctx.remove("_routing");
+        if (false == Objects.equals(oldRouting, newValue)) {
+            scriptChangedRouting(index, newValue);
         }
-        Object newTimestamp = ctx.remove("_timestamp");
-        if (false == Objects.equals(oldTimestamp, newTimestamp)) {
-            throw new IllegalArgumentException("Modifying [_timestamp] not allowed");
+        newValue = ctx.remove("_timestamp");
+        if (false == Objects.equals(oldTimestamp, newValue)) {
+            scriptChangedTimestamp(index, newValue);
         }
-        Object newTtl = ctx.remove("_ttl");
-        if (false == Objects.equals(oldTtl, newTtl)) {
-            throw new IllegalArgumentException("Modifying [_ttl] not allowed");
+        newValue = ctx.remove("_ttl");
+        if (false == Objects.equals(oldTtl, newValue)) {
+            scriptChangedTtl(index, newValue);
         }
         if (false == ctx.isEmpty()) {
             throw new IllegalArgumentException("Invalid fields added to ctx [" + String.join(",", ctx.keySet()) + ']');
@@ -190,15 +193,35 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         return true;
     }
 
-    protected void scriptChangedVersion(IndexRequest index, Long from, Object to) {
+    protected void scriptChangedIndex(IndexRequest index, Object to) {
+        throw new IllegalArgumentException("Modifying [_index] not allowed");
+    }
+
+    protected void scriptChangedType(IndexRequest index, Object to) {
+        throw new IllegalArgumentException("Modifying [_type] not allowed");
+    }
+
+    protected void scriptChangedId(IndexRequest index, Object to) {
+        throw new IllegalArgumentException("Modifying [_id] not allowed");
+    }
+
+    protected void scriptChangedVersion(IndexRequest index, Object to) {
         throw new IllegalArgumentException("Modifying [_version] not allowed");
     }
 
-    protected void scriptChangedRouting(IndexRequest index, String from, Object to) {
+    protected void scriptChangedRouting(IndexRequest index, Object to) {
         throw new IllegalArgumentException("Modifying [_routing] not allowed");
     }
 
-    protected void scriptChangedParent(IndexRequest index, String from, Object to) {
+    protected void scriptChangedParent(IndexRequest index, Object to) {
         throw new IllegalArgumentException("Modifying [_parent] not allowed");
+    }
+
+    protected void scriptChangedTimestamp(IndexRequest index, Object to) {
+        throw new IllegalArgumentException("Modifying [_timestamp] not allowed");
+    }
+
+    protected void scriptChangedTtl(IndexRequest index, Object to) {
+        throw new IllegalArgumentException("Modifying [_ttl] not allowed");
     }
 }

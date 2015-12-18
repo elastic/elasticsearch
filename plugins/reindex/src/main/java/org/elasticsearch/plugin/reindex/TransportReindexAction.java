@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -38,6 +36,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
@@ -149,21 +151,84 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             }
         }
 
+        /*
+         * Methods below here handle script updating the index request. They try
+         * to be pretty liberal with regards to types because script are often
+         * dynamically typed.
+         */
         @Override
         protected ReindexResponse buildResponse(long took) {
             return new ReindexResponse(took, created(), updated(), batches(), versionConflicts(), noops(), failures());
         }
 
         @Override
-        protected void scriptChangedParent(IndexRequest index, String from, Object to) {
-            // Have to override routing with parent just in case it wasn't changed
+        protected void scriptChangedIndex(IndexRequest index, Object to) {
+            requireNonNull(to, "Can't reindex without a destination index!");
+            index.index(to.toString());
+        }
+
+        @Override
+        protected void scriptChangedType(IndexRequest index, Object to) {
+            requireNonNull(to, "Can't reindex without a destination type!");
+            index.type(to.toString());
+        }
+
+        @Override
+        protected void scriptChangedId(IndexRequest index, Object to) {
+            index.id(Objects.toString(to, null));
+        }
+
+        @Override
+        protected void scriptChangedVersion(IndexRequest index, Object to) {
+            if (to == null) {
+                index.version(Versions.MATCH_ANY).versionType(VersionType.INTERNAL);
+                return;
+            }
+            index.version(asLong(to, "_version"));
+        }
+
+        @Override
+        protected void scriptChangedParent(IndexRequest index, Object to) {
+            // Have to override routing with parent just in case its changed
             String routing = Objects.toString(to, null);
             index.parent(routing).routing(routing);
         }
 
         @Override
-        protected void scriptChangedRouting(IndexRequest index, String from, Object to) {
+        protected void scriptChangedRouting(IndexRequest index, Object to) {
             index.routing(Objects.toString(to, null));
+        }
+
+        @Override
+        protected void scriptChangedTimestamp(IndexRequest index, Object to) {
+            index.timestamp(Objects.toString(to, null));
+        }
+
+        @Override
+        protected void scriptChangedTtl(IndexRequest index, Object to) {
+            if (to == null) {
+                index.ttl(null);
+                return;
+            }
+            index.ttl(asLong(to, "_ttl"));
+        }
+
+        private long asLong(Object from, String name) {
+            try {
+                /*
+                 * Stuffing a number into the map will have converted it to
+                 * some Number.
+                 */
+                Number fromNumber = (Number) from;
+                long l = fromNumber.longValue();
+                // Check that we didn't round when we fetched the value.
+                if (fromNumber.doubleValue() != l) {
+                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
+                }
+                return l;
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]", e);
+            }
         }
     }
 }

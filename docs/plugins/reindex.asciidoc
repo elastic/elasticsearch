@@ -378,6 +378,11 @@ Think of the posibilities! Just be careful! With great power.... Anyway! You
 can also change the "_type" and "_id" and even "_index" to change the
 destination as much as you need.
 
+Another thing about `version`, setting it to `null` or clearing it from the
+`ctx` map is just like not sending the version in an indexing request: it will
+cause that document to be overwritten in the target index regardless of the
+versioning there.
+
 By default if `_reindex` sees a document with routing then the routing is
 preserved unless its changed by scripting. You can set `routing` on the `dest`
 request to changes this:

@@ -25,7 +25,7 @@ public class UpdateByQueryWithScriptTests extends UpdateByQueryTestCase {
     }
 
     @Before
-    public void createTestIndex() throws Exception {
+    public void createTestData() throws Exception {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"));
     }
 

@@ -50,7 +50,7 @@ public class AntTask extends DefaultTask {
         // remove existing loggers, we add our own
         List<BuildLogger> toRemove = new ArrayList<>();
         for (BuildListener listener : ant.project.getBuildListeners()) {
-            if (l instanceof BuildLogger) {
+            if (listener instanceof BuildLogger) {
                 toRemove.add(listener);
             }
         }

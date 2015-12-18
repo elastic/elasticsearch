@@ -22,17 +22,21 @@ package org.elasticsearch.common.geo.builders;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
-import org.elasticsearch.common.geo.XShapeCollection;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
-
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
+
+    public final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder();
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -52,7 +56,7 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
         for (Coordinate coord : points) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
         }
-        XShapeCollection multiPoints = new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        XShapeCollection<Point> multiPoints = new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         multiPoints.setPointsOnly(true);
         return multiPoints;
     }
@@ -60,5 +64,40 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(points);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        MultiPointBuilder other = (MultiPointBuilder) obj;
+        return Objects.equals(points, other.points);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(points.size());
+        for (Coordinate point : points) {
+            writeCoordinateTo(point, out);
+        }
+    }
+
+    @Override
+    public MultiPointBuilder readFrom(StreamInput in) throws IOException {
+        MultiPointBuilder multiPointBuilder = new MultiPointBuilder();
+        int size = in.readVInt();
+        for (int i=0; i < size; i++) {
+            multiPointBuilder.point(readCoordinateFrom(in));
+        }
+        return multiPointBuilder;
     }
 }

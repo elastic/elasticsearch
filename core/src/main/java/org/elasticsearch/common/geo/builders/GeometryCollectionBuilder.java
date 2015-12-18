@@ -20,27 +20,25 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
+
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
+    public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
+
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
-
-    public GeometryCollectionBuilder() {
-        this(Orientation.RIGHT);
-    }
-
-    public GeometryCollectionBuilder(Orientation orientation) {
-        super(orientation);
-    }
 
     public GeometryCollectionBuilder shape(ShapeBuilder shape) {
         this.shapes.add(shape);
@@ -130,6 +128,41 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shapes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
+        return Objects.equals(shapes, other.shapes);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shapes.size());
+        for (ShapeBuilder shape : shapes) {
+            out.writeShape(shape);
+        }
+    }
+
+    @Override
+    public GeometryCollectionBuilder readFrom(StreamInput in) throws IOException {
+        GeometryCollectionBuilder geometryCollectionBuilder = new GeometryCollectionBuilder();
+        int shapes = in.readVInt();
+        for (int i = 0; i < shapes; i++) {
+            geometryCollectionBuilder.shape(in.readShape());
+        }
+        return geometryCollectionBuilder;
     }
 
 }

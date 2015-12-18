@@ -111,15 +111,6 @@ public class ShapeBuilders {
     }
 
     /**
-     * Create a new GeometryCollection
-     *
-     * @return a new {@link GeometryCollectionBuilder}
-     */
-    public static GeometryCollectionBuilder newGeometryCollection(ShapeBuilder.Orientation orientation) {
-        return new GeometryCollectionBuilder(orientation);
-    }
-
-    /**
      * create a new Circle
      *
      * @return a new {@link CircleBuilder}
@@ -135,14 +126,5 @@ public class ShapeBuilders {
      */
     public static EnvelopeBuilder newEnvelope() {
         return new EnvelopeBuilder();
-    }
-
-    /**
-     * create a new rectangle
-     *
-     * @return a new {@link EnvelopeBuilder}
-     */
-    public static EnvelopeBuilder newEnvelope(ShapeBuilder.Orientation orientation) {
-        return new EnvelopeBuilder(orientation);
     }
 }

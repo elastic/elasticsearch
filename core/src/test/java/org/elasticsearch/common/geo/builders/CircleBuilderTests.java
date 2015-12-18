@@ -25,20 +25,20 @@ import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.io.IOException;
 
-public class CirlceBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
+public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
 
     @Override
     protected CircleBuilder createTestShapeBuilder() {
-        double centerX = randomDoubleBetween(-180, 180, false);
-        double centerY = randomDoubleBetween(-90, 90, false);
-        return new CircleBuilder()
-                .center(new Coordinate(centerX, centerY))
-                .radius(randomDoubleBetween(0.1, 10.0, false), randomFrom(DistanceUnit.values()));
+        return createRandomShape();
     }
 
     @Override
-    protected CircleBuilder mutate(CircleBuilder original) throws IOException {
-        CircleBuilder mutation = copyShape(original);
+    protected CircleBuilder createMutation(CircleBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static CircleBuilder mutate(CircleBuilder original) throws IOException {
+        CircleBuilder mutation = (CircleBuilder) copyShape(original);
         double radius = original.radius();
         DistanceUnit unit = original.unit();
 
@@ -54,5 +54,13 @@ public class CirlceBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
             unit = newRandom;
         }
         return mutation.radius(radius, unit);
+    }
+
+    static CircleBuilder createRandomShape() {
+        double centerX = randomDoubleBetween(-180, 180, false);
+        double centerY = randomDoubleBetween(-90, 90, false);
+        return new CircleBuilder()
+                .center(new Coordinate(centerX, centerY))
+                .radius(randomDoubleBetween(0.1, 10.0, false), randomFrom(DistanceUnit.values()));
     }
 }

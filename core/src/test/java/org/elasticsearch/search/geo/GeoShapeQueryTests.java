@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import com.spatial4j.core.shape.Rectangle;
+
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -47,7 +48,10 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testNullShape() throws Exception {
@@ -396,6 +400,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
+        // no shape
+        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilders.newGeometryCollection());
+        result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 0);
     }
 
     public void testPointsOnly() throws Exception {

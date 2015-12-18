@@ -22,8 +22,12 @@ package org.elasticsearch.common.geo.builders;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
@@ -33,6 +37,8 @@ import com.vividsolutions.jts.geom.LineString;
 public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
+
+    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder();
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -138,5 +144,40 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
             }
         }
         return coordinates;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(points);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        LineStringBuilder other = (LineStringBuilder) obj;
+        return Objects.equals(points, other.points);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(points.size());
+        for (Coordinate point : points) {
+            writeCoordinateTo(point, out);
+        }
+    }
+
+    @Override
+    public LineStringBuilder readFrom(StreamInput in) throws IOException {
+        LineStringBuilder lineStringBuilder = new LineStringBuilder();
+        int size = in.readVInt();
+        for (int i=0; i < size; i++) {
+            lineStringBuilder.point(readCoordinateFrom(in));
+        }
+        return lineStringBuilder;
     }
 }

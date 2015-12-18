@@ -30,7 +30,7 @@ public class DynamicMappingDisabledIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(MapperService.DYNAMIC_MAPPING_ENABLED_SETTING, "false")
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, "false")
             .build();
     }
 

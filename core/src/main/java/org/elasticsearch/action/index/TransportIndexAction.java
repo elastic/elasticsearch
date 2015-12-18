@@ -91,7 +91,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            if (!settings.getAsBoolean(MapperService.DYNAMIC_MAPPING_ENABLED_SETTING, MapperService.DYNAMIC_MAPPING_ENABLED_DEFAULT)) {
+            if (!settings.getAsBoolean(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, MapperService.INDEX_MAPPER_DYNAMIC_DEFAULT)) {
                 String message = String.format("trying to auto create mapping for [%s] in index [%s], but dynamic mapping is disabled", request.type(), request.index());
                 throw new TypeMissingException(null, request.type(), message);
             }

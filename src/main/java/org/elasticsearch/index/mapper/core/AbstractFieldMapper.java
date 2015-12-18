@@ -481,11 +481,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             // bit set
             return termFilter(values.get(0), context);
         default:
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
-                bytesRefs[i] = indexedValueForSearch(values.get(i));
-            }
-            return new DeferredTermsFilter(names.indexName(), bytesRefs);
+            return new DeferredTermsFilter(names.indexName(), values, this);
             
         }
     }

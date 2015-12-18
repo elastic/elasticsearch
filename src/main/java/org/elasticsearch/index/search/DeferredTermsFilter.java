@@ -24,8 +24,10 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Avoid the expense of the TermsFilter constructor unless absolutely necessary.
@@ -36,19 +38,31 @@ import java.io.IOException;
  */
 public class DeferredTermsFilter extends Filter {
     private final String field;
-    private final BytesRef[] bytesRefs;
+    // TODO: is it OK to keep a reference to AbstractFieldMapper in this class?
+    private final AbstractFieldMapper mapper;
+    private List values;
 
-    // TODO: consider setting this to null to allow GC if we end up using the cached (through a public method)
+    // TODO: consider setting this to null to allow GC if it turns out the filter was not needed (through a public method)
     private TermsFilter filter;
 
-    public DeferredTermsFilter(String field, BytesRef[] bytesRefs) {
+    /**
+     * @param mapper we need this to dynamically dispatch to AbstractFieldMapper.indexedValueForSearch()
+     *               which has different implementations depending on the data type
+     */
+    public DeferredTermsFilter(String field, List values, AbstractFieldMapper mapper) {
         this.field = field;
-        this.bytesRefs = bytesRefs;
+        this.values = values;
+        this.mapper = mapper;
     }
 
     private synchronized void ensureFilter() {
         if (this.filter == null) {
+            BytesRef[] bytesRefs = new BytesRef[values.size()];
+            for (int i = 0; i < bytesRefs.length; i++) {
+                bytesRefs[i] = mapper.indexedValueForSearch(values.get(i));
+            }
             this.filter = new TermsFilter(field, bytesRefs);
+            this.values = null; // allow GC: this might not really be necessary
         }
     }
 

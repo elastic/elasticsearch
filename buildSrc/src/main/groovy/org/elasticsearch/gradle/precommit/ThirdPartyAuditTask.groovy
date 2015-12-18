@@ -18,23 +18,18 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import org.apache.tools.ant.BuildLogger
 import org.apache.tools.ant.DefaultLogger
+import org.apache.tools.ant.Project
 import org.elasticsearch.gradle.AntTask
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 
-import java.nio.file.Files
 import java.nio.file.FileVisitResult
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
-
-import org.gradle.api.DefaultTask
-import org.gradle.api.artifacts.UnknownConfigurationException
-import org.gradle.api.file.FileCollection
-import org.gradle.api.tasks.TaskAction
-
-import org.apache.tools.ant.BuildLogger
-import org.apache.tools.ant.Project
 
 /**
  * Basic static checking to keep tabs on third party JARs
@@ -50,10 +45,6 @@ public class ThirdPartyAuditTask extends AntTask {
     ThirdPartyAuditTask() {
         dependsOn(project.configurations.testCompile)
         description = "Checks third party JAR bytecode for missing classes, use of internal APIs, and other horrors'"
-
-        if (ant.project.taskDefinitions.contains('thirdPartyAudit') == false) {
-            ant.project.addTaskDefinition('thirdPartyAudit', de.thetaphi.forbiddenapis.ant.AntTask)
-        }
     }
 
     /** 
@@ -103,6 +94,8 @@ public class ThirdPartyAuditTask extends AntTask {
 
     @Override
     protected void runAnt(AntBuilder ant) {
+        ant.project.addTaskDefinition('thirdPartyAudit', de.thetaphi.forbiddenapis.ant.AntTask)
+
         // we only want third party dependencies.
         FileCollection jars = project.configurations.testCompile.fileCollection({ dependency ->
             dependency.group.startsWith("org.elasticsearch") == false

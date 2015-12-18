@@ -47,26 +47,26 @@ public class AntTask extends DefaultTask {
 
     @TaskAction
     final void executeTask() {
-        // capture the current loggers
-        List<BuildLogger> savedLoggers = new ArrayList<>();
-        for (BuildListener l : project.ant.project.getBuildListeners()) {
+        AntBuilder ant = new AntBuilder()
+
+        // remove existing loggers, we add our own
+        List<BuildLogger> toRemove = new ArrayList<>();
+        for (BuildListener l : ant.project.getBuildListeners()) {
             if (l instanceof BuildLogger) {
-                savedLoggers.add(l);
+                toRemove.add(l);
             }
         }
-        // remove them
-        for (BuildLogger l : savedLoggers) {
-            project.ant.project.removeBuildListener(l)
+        for (BuildLogger l : toRemove) {
+            ant.project.removeBuildListener(l)
         }
 
-        final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : Project.MSG_INFO
+        final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : (logger.isInfoEnabled() ? Project.MSG_INFO : Project.MSG_WARN)
         final PrintStream stream = useStdout() ? System.out : new PrintStream(outputBuffer, true, Charset.defaultCharset().name())
         BuildLogger antLogger = makeLogger(stream, outputLevel)
 
-        // now run the command with just our logger
-        project.ant.project.addBuildListener(antLogger)
+        ant.project.addBuildListener(antLogger)
         try {
-            runAnt(project.ant)
+            runAnt(ant)
         } catch (BuildException e) {
             // ant failed, so see if we have buffered output to emit, then rethrow the failure
             String buffer = outputBuffer.toString()
@@ -74,12 +74,6 @@ public class AntTask extends DefaultTask {
                 logger.error("=== Ant output ===\n${buffer}")
             }
             throw e
-        } finally {
-            project.ant.project.removeBuildListener(antLogger)
-            // add back the old loggers before returning
-            for (BuildLogger l : savedLoggers) {
-                project.ant.project.addBuildListener(l)
-            }
         }
     }
 

@@ -35,16 +35,13 @@ public class LicenseHeadersTask extends AntTask {
 
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"
-
-        if (ant.project.taskDefinitions.contains('ratReport') == false) {
-            ant.project.addTaskDefinition('ratReport', Report)
-            ant.project.addDataTypeDefinition('substringMatcher', SubstringLicenseMatcher)
-            ant.project.addDataTypeDefinition('approvedLicense', SimpleLicenseFamily)
-        }
     }
 
     @Override
     protected void runAnt(AntBuilder ant) {
+        ant.project.addTaskDefinition('ratReport', Report)
+        ant.project.addDataTypeDefinition('substringMatcher', SubstringLicenseMatcher)
+        ant.project.addDataTypeDefinition('approvedLicense', SimpleLicenseFamily)
 
         // create a file for the log to go to under reports/
         File reportDir = new File(project.buildDir, "reports/licenseHeaders")

@@ -27,10 +27,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.SearchHit;
@@ -51,10 +49,12 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Matchers.any;
 
 public class PipelineStoreTests extends ESTestCase {
 
@@ -80,7 +80,7 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testUpdatePipeline() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
-        hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
+        hits.add(new InternalSearchHit(0, "1", new Text("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
         );
 
@@ -93,7 +93,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(store.get("1").getDescription(), equalTo("_description1"));
 
         when(client.get(any())).thenReturn(expectedGetResponse(true));
-        hits.add(new InternalSearchHit(0, "2", new StringText("type"), Collections.emptyMap())
+        hits.add(new InternalSearchHit(0, "2", new Text("type"), Collections.emptyMap())
                         .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
         );
         store.updatePipelines();
@@ -112,7 +112,7 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testPipelineUpdater() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
-        hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
+        hits.add(new InternalSearchHit(0, "1", new Text("type"), Collections.emptyMap())
                         .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
         );
         when(client.search(any())).thenReturn(expectedSearchReponse(hits));
@@ -126,7 +126,7 @@ public class PipelineStoreTests extends ESTestCase {
             assertThat(store.get("1").getDescription(), equalTo("_description1"));
         });
 
-        hits.add(new InternalSearchHit(0, "2", new StringText("type"), Collections.emptyMap())
+        hits.add(new InternalSearchHit(0, "2", new Text("type"), Collections.emptyMap())
                         .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
         );
         assertBusy(() -> {
@@ -142,9 +142,9 @@ public class PipelineStoreTests extends ESTestCase {
     public void testGetReference() throws Exception {
         // fill the store up for the test:
         List<SearchHit> hits = new ArrayList<>();
-        hits.add(new InternalSearchHit(0, "foo", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
-        hits.add(new InternalSearchHit(0, "bar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
-        hits.add(new InternalSearchHit(0, "foobar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
+        hits.add(new InternalSearchHit(0, "foo", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
+        hits.add(new InternalSearchHit(0, "bar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
+        hits.add(new InternalSearchHit(0, "foobar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
         when(client.search(any())).thenReturn(expectedSearchReponse(hits));
         store.updatePipelines();
 
@@ -187,7 +187,7 @@ public class PipelineStoreTests extends ESTestCase {
             @Override
             public SearchResponse get(long timeout, TimeUnit unit) {
                 InternalSearchHits hits1 = new InternalSearchHits(hits.toArray(new InternalSearchHit[0]), hits.size(), 1f);
-                return new SearchResponse(new InternalSearchResponse(hits1, null, null, false, null), "_scrollId", 1, 1, 1, null);
+                return new SearchResponse(new InternalSearchResponse(hits1, null, null, null, false, null), "_scrollId", 1, 1, 1, null);
             }
         };
     }

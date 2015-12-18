@@ -43,7 +43,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         indexRandom(true, client().prepareIndex("source", "test", "test").setSource("foo", "bar"));
 
         // Copy the doc with the timestamp
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -97,7 +97,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
 
         // Copy the child to a new type
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
         if (specification != null) {
             copy.destination().setRouting(specification);
         }

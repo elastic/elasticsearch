@@ -198,7 +198,7 @@ public class ReindexScriptTests extends ReindexTestCase {
     }
 
     private void reindex(String script, String paramKey, Object paramValue) throws Exception {
-        ReindexResponse response = newIndexBySearch().source("src").destination("dest").opType(OpType.REFRESH)
+        ReindexResponse response = reindex().source("src").destination("dest").opType(OpType.REFRESH)
                 .script(new Script(script, ScriptType.INLINE, "native", singletonMap(paramKey, paramValue))).get();
         assertThat(response, responseMatcher().created(1));
         refresh();

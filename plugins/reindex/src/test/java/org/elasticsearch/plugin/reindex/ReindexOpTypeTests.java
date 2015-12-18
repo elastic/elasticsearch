@@ -92,7 +92,7 @@ public class ReindexOpTypeTests extends ReindexTestCase {
      * request so its convenient to pull it here.
      */
     private ReindexResponse copy(OpType opType) {
-        return newIndexBySearch().source("source").destination("dest").opType(opType).get();
+        return reindex().source("source").destination("dest").opType(opType).get();
     }
 
     private void setupSourceAbsent() throws Exception {

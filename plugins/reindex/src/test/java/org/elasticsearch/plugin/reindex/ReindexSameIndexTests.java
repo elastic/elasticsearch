@@ -48,7 +48,7 @@ public class ReindexSameIndexTests extends ReindexTestCase {
                 .addAlias(new String[] {"target", "target2"}, "target_multi"));
 
         try {
-            newIndexBySearch().source("foo").destination("target_multi").get();
+            reindex().source("foo").destination("target_multi").get();
             fail("Expected failure");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
@@ -60,7 +60,7 @@ public class ReindexSameIndexTests extends ReindexTestCase {
 
     private void fails(String target, String... sources) throws Exception {
         try {
-            newIndexBySearch().source(sources).destination(target).get();
+            reindex().source(sources).destination(target).get();
             fail("Expected an exception");
         } catch (ActionRequestValidationException e) {
             assertThat(e.getMessage(),
@@ -69,6 +69,6 @@ public class ReindexSameIndexTests extends ReindexTestCase {
     }
 
     private void succeeds(String target, String... sources) throws Exception {
-        newIndexBySearch().source(sources).destination(target).get();
+        reindex().source(sources).destination(target).get();
     }
 }

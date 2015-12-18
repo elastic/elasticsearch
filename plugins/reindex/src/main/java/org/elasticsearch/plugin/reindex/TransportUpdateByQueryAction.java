@@ -33,13 +33,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportReindexInPlaceAction // NOCOMMIT rename me
-        extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     private final Client client;
     private final ScriptService scriptService;
 
     @Inject
-    public TransportReindexInPlaceAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
             ScriptService scriptService) {
         super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,

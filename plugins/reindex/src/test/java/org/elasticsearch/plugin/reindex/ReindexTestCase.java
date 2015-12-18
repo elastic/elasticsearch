@@ -37,7 +37,7 @@ public class ReindexTestCase extends ESIntegTestCase {
         return pluginList(ReindexPlugin.class);
     }
 
-    protected ReindexRequestBuilder newIndexBySearch() { // NOCOMMIT rename
+    protected ReindexRequestBuilder reindex() {
         return ReindexAction.INSTANCE.newRequestBuilder(client());
     }
 

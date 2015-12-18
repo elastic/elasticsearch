@@ -43,12 +43,12 @@ public class ReindexParentChildTests extends ReindexTestCase {
         createParentChildDocs("source");
 
         // Copy parent to the new index
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCountry);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCountry);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Copy the child to a new index
-        copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
+        copy = reindex().source("source").destination("dest").filter(findsCity);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -56,7 +56,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
         assertSearchHits(client().prepareSearch("dest").setQuery(findsCity).get(), "pittsburgh");
 
         // Copy the grandchild to a new index
-        copy = newIndexBySearch().source("source").destination("dest").filter(findsNeighborhood);
+        copy = reindex().source("source").destination("dest").filter(findsNeighborhood);
         assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
@@ -66,7 +66,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
 
         // Copy the parent/child/grandchild structure all at once to a third index
         createParentChildIndex("dest_all_at_once");
-        copy = newIndexBySearch().source("source").destination("dest_all_at_once");
+        copy = reindex().source("source").destination("dest_all_at_once");
         assertThat(copy.get(), responseMatcher().created(3));
         refresh();
 
@@ -80,7 +80,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
         createParentChildIndex("source");
         createParentChildDocs("source");
 
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").filter(findsCity);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCity);
         try {
             copy.get();
             fail("Expected exception");

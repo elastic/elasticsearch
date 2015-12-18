@@ -47,7 +47,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
         indexDocs(100);
 
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest");
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
         /*
          * Set the search size to something very small to cause there to be
          * multiple batches for this request so we can assert that we abort on
@@ -71,7 +71,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
         indexDocs(100);
 
-        ReindexRequestBuilder copy = newIndexBySearch().source("source").destination("dest").abortOnVersionConflict(true);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").abortOnVersionConflict(true);
         // Refresh will cause the conflict to prevent the write.
         copy.opType(OpType.REFRESH);
 

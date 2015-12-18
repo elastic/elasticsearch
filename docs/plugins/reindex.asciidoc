@@ -1,12 +1,16 @@
-[[plugins-index-by-search]]
-=== Index by Search Plugin
+[[plugins-reindex]]
+=== Reindex Plugin
 
-The index-by-search plugin adds support for indexing all documents that match
-a query. Internally it uses {ref}/search-request-scroll.html[Scroll] and
-{ref}/docs-bulk.html[Bulk] APIs much like
-{ref}/plugin-delete-by-query[Delete by Query] though it might not use that
-implementation in the future. Regardless of how it does its work its safe to
-think of it as doing a scroll and then building bulk requests from each batch.
+The reindex plugin adds two APIs:
+
+* `_update_by_query` updates all documents matching a query in place.
+* `_reindex` copies documents from one index to another.
+
+These APIs are brothers so they live the same plugin. Both use
+{ref}/search-request-scroll.html[Scroll] and {ref}/docs-bulk.html[Bulk] APIs
+to send an index request per document though they may not work that way in the
+future. Regardless of how they work internally they will always work **as**
+**though** they send an index request per document that matches a scroll.
 
 [float]
 ==== Installation
@@ -15,7 +19,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install index-by-search
+sudo bin/plugin install reindex
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -28,108 +32,271 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove index-by-search
+sudo bin/plugin remove reindex
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
 
-[[index-by-search-usage]]
-==== Using Index-by-Search
+[[update-by-query-usage]]
+==== Using `_update_by_query`
 
-The simplest way to use index-by-search is to copy an entire index into another
-index. This will copy all documents in the `twitter` index into the
-`new_twitter` index:
+The simplest usage of `_update_by_query` just `touch`es every document in an
+index:
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
-{
-  "source": {
-    "index": "twitter"
-  },
-  "index": {
-    "index": "new_twitter"
-  }
-}
+POST /twitter/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-WARNING: All operations this plugin performs work with a snapshot of the source
-data but they are not atomic. Their results become visible as the operation
-completes and if the operation fails halfway through are not rolled back.
-
-You can limit the copy to a single type. This will only copy `tweet`s
-from the `twitter` index:
+That will return something like this:
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
 {
-  "source": {
-    "index": "twitter",
-    "type": "tweet"
-  },
-  "index": {
-    "index": "new_twitter"
-  }
+  "took" : 639,
+  "updated": 1235,
+  "batches": 13,
+  "version_conflicts": 2,
+  "failures" : [ ]
 }
+--------------------------------------------------
+
+`_update_by_query` gets a snapshot of the index when it starts and indexes what
+it finds using `internal` versioning. That means that if the document changes
+between the time when the snapshot was taken and when the index request is
+processed then you'll get a version conflict. When the versions match the
+document is changed and the version number is incremented.
+
+Version conflicts are just counted and not returned by default. To count them
+you must set `conflicts=abort` on the url or `"conflicts": "abort"` in the
+request body. If you do then the `failures` element will contain version
+conflict information. There is no `conflicts=record` because we the number of
+conflicts could grow without bounds so its either `abort` or nothing.
+
+Speaking of the `failures` element, it will contain an list of failures if
+there are any. The only "optional" sort of failures are version conflicts. All
+other failures always cause the operation to abort. While the first failure
+causes the abort, its possible to encounter lots of subsequent failures due to
+batching so all failures are reported. Just in case you want them.
+
+Its important to remember that "abort" here doesn't mean "rollback". This
+operation isn't atomic. If it fails part way through then its changes have been
+made.
+
+Back to the API format, you can limit the copy to a single type. This will only
+update `tweet`s from the `twitter` index:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/tweet/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-You can limit using the {ref}/query-dsl.html[Query DSL]. This will copy
-all documents from the `twitter` index for the user `kimchy` into the
-new_twitter index:
+You can limit using the {ref}/query-dsl.html[Query DSL]. This will update
+all documents from the `twitter` index for the user `kimchy`:
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /twitter/_update_by_query
 {
-  "source": {
-    "index": "twitter",
-    "search": {
-      "query": { <1>
-        "term": {
-          "user": "kimchy"
-        }
-      }
+  "query": { <1>
+    "term": {
+      "user": "kimchy"
     }
-  },
-  "index": {
-    "index": "new_twitter"
   }
 }
 --------------------------------------------------
 // AUTOSENSE
 
 <1> The query must be passed as a value to the `query` key, in the same
-way as the {ref}/search-search.html[search api].
+way as the {ref}/search-search.html[search api]. You can also use the `q`
+parameter in the same way as the search api.
 
-By default the newly indexed documents will have the same type as the
-original documents but you can override the type. This will copy all
-`tweet`s in the `twitter` index back into the `twitter` index with the
-type `chirp`:
-
+So far we've only been touching documents. This is useful for picking up new
+properties if the mapping has `"dynamic": "false"` but its only half the fun.
+`_update_by_query` supports the `script` object to define how to actually
+update the document. This will prefix the `user` field with `other` on all of
+kimchy's tweets:
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /twitter/_update_by_query
 {
-  "source": {
-    "index": "twitter",
-    "type": "tweet"
+  "script": {
+    "inline": "ctx._source.user = \"other\" + ctx._source.user"
   },
-  "index": {
-    "index": "twitter",
-    "type": "chirp"
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
   }
 }
 --------------------------------------------------
 // AUTOSENSE
 
-`index` and `type` in `source` can be multiple values, allowing you to
-copy from lots of sources in one request. This will copy documents from
-the `tweet` and `post` types in the `twitter` and `blog` index. Note that
-this includes the `post` type in the `twitter` index. If you want to be
-more specific you'll need to use the `query`.
+Just as in update API you can set `ctx.op = "noop"` if your script decides that
+it doesn't have to make any changes. That will cause `_update_by_query` to omit
+that document from its updates. Setting `ctx.op` to anything else is an error.
+Setting any other field in `ctx` is an error.
+
+This API doesn't allow you to move the documents it touches, just modify their
+source. This is intentional! We've made no provisions for removing the document
+from its original location.
+
+Its also possible to do this whole thing on multiple indexes and multiple types
+at once, just like the search API:
+
+[source,js]
+--------------------------------------------------
+POST /twitter,blog/tweet,post/_update_by_query
+--------------------------------------------------
+// AUTOSENSE
+
+
+[[reindex-usage]]
+==== Using `_reindex`
+
+`_reindex`'s most basic form just copies documents from one index to another.
+This will copy documents from `twitter` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "src": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+That will return something like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "updated": 112,
+  "batches": 130,
+  "version_conflicts": 0,
+  "failures" : [ ],
+  "created": 12344
+}
+--------------------------------------------------
+
+Just like `_update_by_query`, `_reindex` gets a snapshot of the source index
+but its target must be a **different** index so version conflicts are unlikely.
+The `dest` element can be configured like the index API to control optimistic
+concurrency control. Just leaving out `version_type` (as above) or setting it
+to `internal` will cause Elasticsearch to blindly dump documents into the
+target, overwriting any that happen to have the same type and id:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "src": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "internal"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Setting `version_type` to `external` will cause Elasticsearch to preserve the
+`version` from the source, create any documents that are missing, and update
+any documents that have an older version in the destination index then they do
+in the source index:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "src": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "external"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Settings `op_type` to `create` will cause `_reindex` to only create missing
+documents in the target index. All existing documents will cause a version
+conflict:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "src": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+You can cause aborts on version conflicts with:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "conflicts": "abort",
+  "src": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+You can limit the documents by adding a type to the `src` or by adding a query.
+This will only copy `tweet`s made by `kimchy` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "src": {
+    "index": "twitter",
+    "type": "tweet",
+    "query": {
+      "term": {
+        "user": "kimchy"
+      }
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+`index` and `type` in `src` can both be lists, allowing you to copy from lots
+of sources in one request. This will copy documents from the `tweet` and `post`
+types in the `twitter` and `blog` index. It'd included the `post` type in the
+`twitter` index and the `tweet` type in the `blog` index. If you want to be
+more specific you'll need to use the `query`. It also makes no effort to handle
+id collisions. The target index will remain valid but its not easy to predict
+which document will survive because the iteration order isn't well defined.
+Just avoid that situation, ok?
 [source,js]
 --------------------------------------------------
 POST /twitter,blog/_index_by_search
@@ -145,9 +312,6 @@ POST /twitter,blog/_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-NOTE: This request makes no effort to prevent writing duplicates so if it
-sees two documents with the same type and id then only one will make it.
-
 Its also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
 `new_twitter`:
@@ -157,10 +321,10 @@ Its also possible to limit the number of processed documents by setting
 POST /_index_by_search
 {
   "size": 1,
-  "source": {
+  "src": {
     "index": "twitter"
   },
-  "index": {
+  "dest": {
     "index": "new_twitter"
   }
 }
@@ -169,187 +333,54 @@ POST /_index_by_search
 
 If you want a particular set of documents from the twitter index you'll
 need to sort. Sorting makes the scroll less efficient but in some contexts
-its worth it. This will copy 10000 documents from `twitter` into
-`new_twitter`:
+its worth it. If possible, prefer a more selective query to `size` and `sort`.
+This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST /_index_by_search
 {
   "size": 10000,
-  "source": {
-    "index": "twitter"
-    "search": {
-      "sort": { "date": "desc" }
-    }
+  "src": {
+    "index": "twitter",
+    "sort": { "date": "desc" }
   },
-  "index": {
+  "dest": {
     "index": "new_twitter"
   }
 }
 --------------------------------------------------
 // AUTOSENSE
 
-By default the request is terminated the first time it hits an indexing error
-that isn't a version conflict. To make it more tolerant of errors set
-`failures_cause_abort` to something greater than 0. Note that aborting is done
-per bulk batch so the response might contain more than the number of failures
-you asked for. Below is an example of setting it. See the bottom of this page
-for the response format.
+Like `_update_by_query`, `_reindex` supports a script that modifies the
+document. Unlike `_update_by_query`, the script is allowed to modify the
+document's metadata. This example bumps the version of the source document:
 
 [source,js]
 --------------------------------------------------
 POST /_index_by_search
 {
-  "failures_cause_abort": 100,
-  "source": {
-    "index": "twitter"
+  "src": {
+    "index": "twitter",
   },
-  "index": {
-    "index": "new_twitter"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
-
-If you want version conflicts to count against `failures_cause_abort` then set
-`"save_version_conflicts": true` and they will be sent in the `failures`
-portion of the response. Here is an example that will abort after it sees ten
-failures, including version conflicts:
-
-[source,js]
---------------------------------------------------
-POST /_index_by_search
-{
-  "failures_cause_abort": 100,
-  "save_version_conflicts": true,
-  "source": {
-    "index": "twitter"
-  },
-  "index": {
-    "index": "new_twitter"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
-
-
-[float]
-=== Query-string parameters
-
-This request supports no query string parameters beyond the standard
-parameters like `pretty`.
-
-[float]
-=== Versioning
-
-Just as the {ref}/docs-index.html[Index API] supports optimistic concurrency
-control, so does index-by-search. Its has two default behaviors, depending on
-how you use it.
-
-"Reindexing" defaults to `"version_type": "external_exact"` meaning that
-documents are only touched if their version number matches the version number
-the document has when the scan snapshots it. Index-by-search thinks you are
-"reindexing" when you set the source and destination to the same things. Like
-this:
-
-[source,js]
---------------------------------------------------
-POST /_index_by_search
-{
-  "source": {
-    "index": "test"
-  }
-  "index": {
-    "index": "test"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
-
-or this:
-
-[source,js]
---------------------------------------------------
-POST /_index_by_search
-{
-  "source": {
-    "index": "test_index",
-    "type": "test_type"
-  }
-  "index": {
-    "index": "test_index",
-    "type": "test_type"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
-
-All other index-by-search operations default to `"op_type": "create"` meaning
-that existing documents aren't modified but documents not found in the
-destination are created.
-
-These defaults were chosen because they cover common use cases and are simple
-to think about. "Reindexing" was designed to `touch` documents so they pick up
-mapping changes like new fields. The other default was chosen because its
-simple to explain. There are many other configurations though.
-
-[float]
-==== Always write the document
-
-You cause index-by-search to always write the documents it sees by setting
-`"version": "not_set"` like so:
-
-[source,js]
---------------------------------------------------
-POST /_index_by_search
-{
-  "source": {
-    "index": "source"
-  }
-  "index": {
-    "index": "dest",
-    "version": "not_set"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
-
-This will cause Elasticsearch to totally ignore optimistic concurrency control
-by sending all the index requests without a version.
-
-[float]
-==== Preserve external versions on copy
-
-You cause index-by-search to preserve external versions on copy style
-operations by setting `"version_type": "external"` like so:
-
-[source,js]
---------------------------------------------------
-POST /_index_by_search
-{
-  "source": {
-    "index": "source"
-  }
-  "index": {
-    "index": "dest",
+  "dest": {
+    "index": "new_twitter",
     "version_type": "external"
   }
+  "script": {
+    "internal": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+  }
 }
 --------------------------------------------------
 // AUTOSENSE
 
-This will cause Elasticsearch to send all the index requests as though they
-were index operations received with `version_type=external` on the url. This
-also has the side effect of overwriting documents that have version numbers
-less than the version number in the source index.
+Think of the posibilities! Just be careful! With great power.... Anyway! You
+can also change the "_type" and "_id" and even "_index" to change the
+destination as much as you need.
 
-[float]
-=== Routing
-
-By default if the documents returned by the search have a routing then the
-routing is preserved. You can set `routing` on the `index` request to
-changes this:
+By default if `_reindex` sees a document with routing then the routing is
+preserved unless its changed by scripting. You can set `routing` on the `dest`
+request to changes this:
 
 `keep`::
 
@@ -370,15 +401,13 @@ the `src` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /_reindex
 {
-  "source": {
+  "src": {
     "index": "src"
-    "search": {
-      "query": {
-        "match": {
-          "company": "cat"
-        }
+    "query": {
+      "match": {
+        "company": "cat"
       }
     }
   }
@@ -390,25 +419,6 @@ POST /_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-[float]
-=== Search
-
-You may have noticed the `search` component of the `source` in the
-request body and thought "why am I typing this?" The truth is that that
-`search` is actually the search that initiates scroll. You can add all
-kinds of things to it just like you'd set up a scroll request:
-
-`size`::
-
-The number of hits returned by the
-{ref}/search-request-scroll.html[scroll] request. Defaults to 100.
-
-`sort`::
-
-The order in which documents are processed. Defaults to `_doc` for most
-efficient scrolling.
-
-Note: `from` is not supported by scroll so its not supported here.
 
 [float]
 === Response body
@@ -419,21 +429,17 @@ The JSON response looks like this:
 --------------------------------------------------
 {
   "took" : 639,
-  "created": 123,
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
-  "failures" : [ ]  // NOCOMMIT add this
+  "failures" : [ ]
+  "created": 123,
 }
 --------------------------------------------------
 
 `took`::
 
 The number of milliseconds from start to end of the whole operation.
-
-`created`::
-
-The number of documents that were successfully created.
 
 `updated`::
 
@@ -449,6 +455,10 @@ The number of version conflicts that the process hit.
 
 `failures`::
 
-Array of description of all indexing failures. By default version conflicts are
-not included in this list, only the counter is incremented. Set
-`"save_version_conflicts": true` to keep them.
+Array of all indexing failures. By default version conflicts are not included
+in this list. See above for how to get them included.
+
+`created`::
+
+The number of documents that were successfully created. This is not returned by
+`_update_by_query`. It isn't allowed to create documents!

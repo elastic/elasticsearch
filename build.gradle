@@ -128,10 +128,11 @@ subprojects {
   // Only if your buildscript and Ant's optional task need the same library would you have to define it twice.
   // https://docs.gradle.org/current/userguide/organizing_build_logic.html
   configurations {
-    forbiddenApis
+    buildTools
   }
   dependencies {
-    forbiddenApis 'de.thetaphi:forbiddenapis:2.0'
+    buildTools 'de.thetaphi:forbiddenapis:2.0'
+    buildTools 'org.apache.rat:apache-rat:0.11'
   }
 }
 

@@ -86,7 +86,7 @@ REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 
 REM Ensure UTF-8 encoding by default (e.g. filenames)
-set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
+set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
 
 REM Use our provided JNA always versus the system one
 set JAVA_OPTS=%JAVA_OPTS% -Djna.nosys=true

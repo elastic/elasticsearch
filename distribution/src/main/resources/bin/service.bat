@@ -1,5 +1,5 @@
 @echo off
-SETLOCAL
+SETLOCAL enabledelayedexpansion
 
 TITLE Elasticsearch Service ${project.version}
 

@@ -372,7 +372,7 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = Settings.settingsBuilder()
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (isLocalTransportConfigured() == false) {
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
+            builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
         }
         if (random.nextBoolean()) {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));

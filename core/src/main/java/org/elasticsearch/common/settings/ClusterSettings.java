@@ -136,5 +136,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         InternalClusterService.CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
-        Transport.TRANSPORT_PROFILES_SETTING)));
+        Transport.TRANSPORT_PROFILES_SETTING,
+        Transport.TRANSPORT_TCP_COMPRESS)));
 }

@@ -62,11 +62,14 @@ public class ForbiddenPatternsTask extends DefaultTask {
         patterns.put('nocommit', /nocommit/)
         patterns.put('tab', /\t/)
         patterns.put('wildcard imports', /^\s*import.*\.\*/)
+
+        inputs.property("excludes", filesFilter.excludes)
+        inputs.property("rules", patterns)
     }
 
     /** Adds a file glob pattern to be excluded */
     public void exclude(String... excludes) {
-        this.filesFilter.exclude(excludes)
+        filesFilter.exclude(excludes)
     }
 
     /** Adds a pattern to forbid. T */

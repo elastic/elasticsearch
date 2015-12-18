@@ -229,6 +229,30 @@ public class TimeValue implements Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
+    public String getStringRep() {
+        if (duration < 0) {
+            return Long.toString(duration);
+        }
+        switch (timeUnit) {
+            case NANOSECONDS:
+                return Strings.format1Decimals(duration, "nanos");
+            case MICROSECONDS:
+                return Strings.format1Decimals(duration, "micros");
+            case MILLISECONDS:
+                return Strings.format1Decimals(duration, "ms");
+            case SECONDS:
+                return Strings.format1Decimals(duration, "s");
+            case MINUTES:
+                return Strings.format1Decimals(duration, "m");
+            case HOURS:
+                return Strings.format1Decimals(duration, "h");
+            case DAYS:
+                return Strings.format1Decimals(duration, "d");
+            default:
+                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
+        }
+    }
+
     public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         assert settingName.startsWith("index.") == false || MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS.contains(settingName) : settingName;

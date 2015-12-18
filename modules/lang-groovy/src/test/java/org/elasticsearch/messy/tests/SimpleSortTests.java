@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,58 +48,24 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.*;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
+import static org.apache.lucene.util.GeoUtils.TOLERANCE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
-import static org.apache.lucene.util.GeoUtils.TOLERANCE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -503,7 +469,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     }
 
     public void testSimpleSorts() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -1667,8 +1633,7 @@ public class SimpleSortTests extends ESIntegTestCase {
             assertThat(hits[i].getSortValues().length, is(1));
             Object o = hits[i].getSortValues()[0];
             assertThat(o, notNullValue());
-            assertThat(o instanceof StringAndBytesText, is(true));
-            StringAndBytesText text = (StringAndBytesText) o;
+            Text text = (Text) o;
             assertThat(text.string(), is("bar"));
         }
 
@@ -1684,8 +1649,7 @@ public class SimpleSortTests extends ESIntegTestCase {
             assertThat(hits[i].getSortValues().length, is(1));
             Object o = hits[i].getSortValues()[0];
             assertThat(o, notNullValue());
-            assertThat(o instanceof StringAndBytesText, is(true));
-            StringAndBytesText text = (StringAndBytesText) o;
+            Text text = (Text) o;
             assertThat(text.string(), is("bar bar"));
         }
     }
@@ -1959,7 +1923,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
 
         assertSortValues(resp,
-                new Object[] {new StringAndBytesText("bcd"), null},
+                new Object[] {new Text("bcd"), null},
                 new Object[] {null, null});
 
         resp = client().prepareSearch("test1", "test2")

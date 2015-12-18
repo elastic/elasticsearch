@@ -70,7 +70,6 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -805,32 +804,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(existsQuery("obj1")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
-
-        searchResponse = client().prepareSearch().setQuery(missingQuery("field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(missingQuery("field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(missingQuery("field1"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("_missing_:field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        // wildcard check
-        searchResponse = client().prepareSearch().setQuery(missingQuery("x*")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        // object check
-        searchResponse = client().prepareSearch().setQuery(missingQuery("obj1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
     }
 
     public void testPassQueryOrFilterAsJSONString() throws Exception {

@@ -21,12 +21,12 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +84,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         Map<String, List<ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
-            nodesToShards.put(cursor.value.id(), new ArrayList<ShardRouting>());
+            nodesToShards.put(cursor.value.id(), new ArrayList<>());
         }
 
         // fill in the inverse of node -> shards allocated
@@ -98,21 +97,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        List<ShardRouting> entries = nodesToShards.get(shard.currentNodeId());
-                        if (entries == null) {
-                            entries = new ArrayList<>();
-                            nodesToShards.put(shard.currentNodeId(), entries);
-                        }
+                        List<ShardRouting> entries = nodesToShards.computeIfAbsent(shard.currentNodeId(), k -> new ArrayList<>());
                         final ShardRouting sr = getRouting(shard, readOnly);
                         entries.add(sr);
                         assignedShardsAdd(sr);
                         if (shard.relocating()) {
-                            entries = nodesToShards.get(shard.relocatingNodeId());
                             relocatingShards++;
-                            if (entries == null) {
-                                entries = new ArrayList<>();
-                                nodesToShards.put(shard.relocatingNodeId(), entries);
-                            }
+                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new ArrayList<>());
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
                             ShardRouting targetShardRouting = shard.buildTargetRelocatingShard();
@@ -128,7 +119,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             inactiveShardCount++;
                         }
                     } else {
-                        final ShardRouting sr =  getRouting(shard, readOnly);
+                        final ShardRouting sr = getRouting(shard, readOnly);
                         assignedShardsAdd(sr);
                         unassignedShards.add(sr);
                     }
@@ -456,12 +447,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             // no unassigned
             return;
         }
-        List<ShardRouting> shards = assignedShards.get(shard.shardId());
-        if (shards == null) {
-            shards = new ArrayList<>();
-            assignedShards.put(shard.shardId(), shards);
-        }
-        assert  assertInstanceNotInList(shard, shards);
+        List<ShardRouting> shards = assignedShards.computeIfAbsent(shard.shardId(), k -> new ArrayList<>());
+        assert assertInstanceNotInList(shard, shards);
         shards.add(shard);
     }
 
@@ -671,7 +658,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
 
         public void shuffle() {
-            Collections.shuffle(unassigned);
+            Randomness.shuffle(unassigned);
         }
 
         /**

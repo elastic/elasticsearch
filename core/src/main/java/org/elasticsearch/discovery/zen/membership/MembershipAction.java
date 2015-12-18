@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.membership;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,10 +89,6 @@ public class MembershipAction extends AbstractComponent {
         transportService.submitRequest(masterNode, DISCOVERY_LEAVE_ACTION_NAME, new LeaveRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    public void sendJoinRequest(DiscoveryNode masterNode, DiscoveryNode node) {
-        transportService.sendRequest(masterNode, DISCOVERY_JOIN_ACTION_NAME, new JoinRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME);
-    }
-
     public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) {
         transportService.submitRequest(masterNode, DISCOVERY_JOIN_ACTION_NAME, new JoinRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME)
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
@@ -100,8 +97,8 @@ public class MembershipAction extends AbstractComponent {
     /**
      * Validates the join request, throwing a failure if it failed.
      */
-    public void sendValidateJoinRequestBlocking(DiscoveryNode node, TimeValue timeout) {
-        transportService.submitRequest(node, DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequest(), EmptyTransportResponseHandler.INSTANCE_SAME)
+    public void sendValidateJoinRequestBlocking(DiscoveryNode node, ClusterState state, TimeValue timeout) {
+        transportService.submitRequest(node, DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequest(state), EmptyTransportResponseHandler.INSTANCE_SAME)
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
@@ -156,9 +153,26 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    public static class ValidateJoinRequest extends TransportRequest {
+    class ValidateJoinRequest extends TransportRequest {
+        private ClusterState state;
 
-        public ValidateJoinRequest() {
+        ValidateJoinRequest() {
+        }
+
+        ValidateJoinRequest(ClusterState state) {
+            this.state = state;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            this.state = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            this.state.writeTo(out);
         }
     }
 

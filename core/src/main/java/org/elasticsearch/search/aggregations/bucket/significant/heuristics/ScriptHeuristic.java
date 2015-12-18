@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -82,7 +83,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, context);
+        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -170,7 +171,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, context);
+                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
             } catch (Exception e) {
                 throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. the script [{}] could not be loaded", e, script, heuristicName);
             }

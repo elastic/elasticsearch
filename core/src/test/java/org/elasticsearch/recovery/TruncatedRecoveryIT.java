@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.IndexRecoveryIT;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
@@ -84,7 +83,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             }
         }
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         // we use 2 nodes a lucky and unlucky one
         // the lucky one holds the primary
         // the unlucky one gets the replica and the truncated leftovers

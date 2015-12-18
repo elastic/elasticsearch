@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
@@ -82,7 +81,7 @@ public class ExternalMapper extends FieldMapper {
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
-            super(name, new ExternalFieldType());
+            super(name, new ExternalFieldType(), new ExternalFieldType());
             this.builder = this;
             this.stringBuilder = stringField(name).store(false);
             this.generatedValue = generatedValue;
@@ -96,9 +95,6 @@ public class ExternalMapper extends FieldMapper {
 
         @Override
         public ExternalMapper build(BuilderContext context) {
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(ContentPath.Type.FULL);
-
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
@@ -108,7 +104,6 @@ public class ExternalMapper extends FieldMapper {
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
-            context.path().pathType(origPathType);
             setupFieldType(context);
 
             return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
@@ -219,7 +214,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // ignore this for now
     }
 

@@ -60,7 +60,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void configureDependencies(Project project) {
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch:test-framework:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"

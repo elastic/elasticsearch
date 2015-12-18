@@ -125,13 +125,13 @@ public class DynamicTemplate {
     }
 
     public boolean match(ContentPath path, String name, String dynamicType) {
-        if (pathMatch != null && !patternMatch(pathMatch, path.fullPathAsText(name))) {
+        if (pathMatch != null && !patternMatch(pathMatch, path.pathAsText(name))) {
             return false;
         }
         if (match != null && !patternMatch(match, name)) {
             return false;
         }
-        if (pathUnmatch != null && patternMatch(pathUnmatch, path.fullPathAsText(name))) {
+        if (pathUnmatch != null && patternMatch(pathUnmatch, path.pathAsText(name))) {
             return false;
         }
         if (unmatch != null && patternMatch(unmatch, name)) {

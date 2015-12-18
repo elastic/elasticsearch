@@ -29,11 +29,7 @@ import org.junit.BeforeClass;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -246,7 +242,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.settingsBuilder();
         List<String> keys = new ArrayList<>(source.getAsMap().keySet());
-        Collections.shuffle(keys, getRandom());
+        Collections.shuffle(keys, random());
         for (String o : keys) {
             settings.put(o, source.getAsMap().get(o));
         }

@@ -34,12 +34,13 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,42 +73,32 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  */
 public class BalancedShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
-    public static final String SETTING_THRESHOLD = "cluster.routing.allocation.balance.threshold";
-    public static final String SETTING_INDEX_BALANCE_FACTOR = "cluster.routing.allocation.balance.index";
-    public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";
+    public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING = Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, true, Setting.Scope.CLUSTER);
+    public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, true, Setting.Scope.CLUSTER);
+    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f, true, Setting.Scope.CLUSTER);
 
-    private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.55f;
-    private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, weightFunction.indexBalance);
-            final float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
-            float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
-            if (threshold <= 0.0f) {
-                throw new IllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
-            }
-            BalancedShardsAllocator.this.threshold = threshold;
-            BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance);
-        }
-    }
-
-    private volatile WeightFunction weightFunction = new WeightFunction(DEFAULT_INDEX_BALANCE_FACTOR, DEFAULT_SHARD_BALANCE_FACTOR);
-
-    private volatile float threshold = 1.0f;
-
+    private volatile WeightFunction weightFunction;
+    private volatile float threshold;
 
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new NodeSettingsService(settings));
+        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, NodeSettingsService nodeSettingsService) {
+    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        ApplySettings applySettings = new ApplySettings();
-        applySettings.onRefreshSettings(settings);
-        nodeSettingsService.addListener(applySettings);
+        setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
+        setThreshold(THRESHOLD_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
+        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+    }
+
+    private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
+        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
+    }
+
+    private void setThreshold(float threshold) {
+        this.threshold = threshold;
     }
 
     @Override

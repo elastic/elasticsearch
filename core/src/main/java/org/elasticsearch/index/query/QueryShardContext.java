@@ -63,6 +63,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -364,7 +365,7 @@ public class QueryShardContext {
     * Executes the given template, and returns the response.
     */
     public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
-        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext);
+        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.emptyMap());
         return (BytesReference) executable.run();
     }
 

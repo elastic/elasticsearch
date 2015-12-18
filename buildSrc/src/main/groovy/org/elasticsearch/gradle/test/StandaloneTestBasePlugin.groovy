@@ -42,7 +42,7 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
 
         // only setup tests to build
         project.sourceSets.create('test')
-        project.dependencies.add('testCompile', "org.elasticsearch:test-framework:${VersionProperties.elasticsearch}")
+        project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
 
         project.eclipse.classpath.sourceSets = [project.sourceSets.test]
         project.eclipse.classpath.plusConfigurations = [project.configurations.testRuntime]

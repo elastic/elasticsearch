@@ -48,22 +48,27 @@ public final class BufferingTranslogWriter extends TranslogWriter {
     public Translog.Location add(BytesReference data) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
-            operationCounter++;
             final long offset = totalOffset;
             if (data.length() >= buffer.length) {
                 flush();
                 // we use the channel to write, since on windows, writing to the RAF might not be reflected
                 // when reading through the channel
-                data.writeTo(channel);
+                try {
+                    data.writeTo(channel);
+                } catch (Throwable ex) {
+                    closeWithTragicEvent(ex);
+                    throw ex;
+                }
                 writtenOffset += data.length();
                 totalOffset += data.length();
-                return new Translog.Location(generation, offset, data.length());
+            } else {
+                if (data.length() > buffer.length - bufferCount) {
+                    flush();
+                }
+                data.writeTo(bufferOs);
+                totalOffset += data.length();
             }
-            if (data.length() > buffer.length - bufferCount) {
-                flush();
-            }
-            data.writeTo(bufferOs);
-            totalOffset += data.length();
+            operationCounter++;
             return new Translog.Location(generation, offset, data.length());
         }
     }
@@ -71,10 +76,17 @@ public final class BufferingTranslogWriter extends TranslogWriter {
     protected final void flush() throws IOException {
         assert writeLock.isHeldByCurrentThread();
         if (bufferCount > 0) {
+            ensureOpen();
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
-            Channels.writeToChannel(buffer, 0, bufferCount, channel);
-            writtenOffset += bufferCount;
+            final int bufferSize = bufferCount;
+            try {
+                Channels.writeToChannel(buffer, 0, bufferSize, channel);
+            } catch (Throwable ex) {
+                closeWithTragicEvent(ex);
+                throw ex;
+            }
+            writtenOffset += bufferSize;
             bufferCount = 0;
         }
     }
@@ -102,20 +114,28 @@ public final class BufferingTranslogWriter extends TranslogWriter {
     }
 
     @Override
-    public void sync() throws IOException {
-        if (!syncNeeded()) {
-            return;
-        }
-        synchronized (this) {
+    public synchronized void sync() throws IOException {
+        if (syncNeeded()) {
+            ensureOpen(); // this call gives a better exception that the incRef if we are closed by a tragic event
             channelReference.incRef();
             try {
+                final long offsetToSync;
+                final int opsCounter;
                 try (ReleasableLock lock = writeLock.acquire()) {
                     flush();
-                    lastSyncedOffset = totalOffset;
+                    offsetToSync = totalOffset;
+                    opsCounter = operationCounter;
                 }
                 // we can do this outside of the write lock but we have to protect from
                 // concurrent syncs
-                checkpoint(lastSyncedOffset, operationCounter, channelReference);
+                ensureOpen(); // just for kicks - the checkpoint happens or not either way
+                try {
+                    checkpoint(offsetToSync, opsCounter, channelReference);
+                } catch (Throwable ex) {
+                    closeWithTragicEvent(ex);
+                    throw ex;
+                }
+                lastSyncedOffset = offsetToSync;
             } finally {
                 channelReference.decRef();
             }

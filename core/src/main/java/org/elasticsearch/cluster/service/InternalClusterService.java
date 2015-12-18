@@ -20,8 +20,19 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -38,20 +49,39 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.*;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -62,8 +92,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
-    public static final String SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD = "cluster.service.slow_task_logging_threshold";
-    public static final String SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL = "cluster.service.reconnect_interval";
+    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING = Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), false, Setting.Scope.CLUSTER);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
@@ -74,7 +104,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
-    private final NodeSettingsService nodeSettingsService;
+    private final ClusterSettings clusterSettings;
     private final DiscoveryNodeService discoveryNodeService;
     private final Version version;
 
@@ -107,33 +137,32 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
+                                  ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-        this.nodeSettingsService = nodeSettingsService;
+        this.clusterSettings = clusterSettings;
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
 
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
-        this.nodeSettingsService.setClusterService(this);
-        this.nodeSettingsService.addListener(new ApplySettings());
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
 
-        this.reconnectInterval = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL, TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING.get(settings);
 
-        this.slowTaskLoggingThreshold = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, TimeValue.timeValueSeconds(30));
+        this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
         initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
     }
 
-    public NodeSettingsService settingsService() {
-        return this.nodeSettingsService;
+    private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
+        this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
     }
 
     @Override
@@ -292,6 +321,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             if (config.timeout() != null) {
                 updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
                     if (updateTask.processed.getAndSet(true) == false) {
+                        logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
                         listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
                     }}));
             } else {
@@ -327,7 +357,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 timeInQueue = 0;
             }
 
-            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue, pending.executing));
+            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(source), timeInQueue, pending.executing));
         }
         return pendingClusterTasks;
     }
@@ -413,6 +443,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
 
         assert batchResult.executionResults != null;
+        assert batchResult.executionResults.size() == toExecute.size()
+            : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", toExecute.size(), toExecute.size() == 1 ? "" : "s", batchResult.executionResults.size());
+        boolean assertsEnabled = false;
+        assert (assertsEnabled = true);
+        if (assertsEnabled) {
+            for (UpdateTask<T> updateTask : toExecute) {
+                assert batchResult.executionResults.containsKey(updateTask.task) : "missing task result for [" + updateTask.task + "]";
+            }
+        }
 
         ClusterState newClusterState = batchResult.resultingState;
         final ArrayList<UpdateTask<T>> proccessedListeners = new ArrayList<>();
@@ -421,7 +460,13 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             assert batchResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask.task.toString();
             final ClusterStateTaskExecutor.TaskResult executionResult =
                     batchResult.executionResults.get(updateTask.task);
-            executionResult.handle(() -> proccessedListeners.add(updateTask), ex -> updateTask.listener.onFailure(updateTask.source, ex));
+            executionResult.handle(
+                () -> proccessedListeners.add(updateTask),
+                ex -> {
+                    logger.debug("cluster state update task [{}] failed", ex, updateTask.source);
+                    updateTask.listener.onFailure(updateTask.source, ex);
+                }
+            );
         }
 
         if (previousClusterState == newClusterState) {
@@ -521,6 +566,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             // update the current cluster state
             clusterState = newClusterState;
             logger.debug("set local cluster state to version {}", newClusterState.version());
+            try {
+                // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+                if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+                    final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
+                    clusterSettings.applySettings(incomingSettings);
+                }
+            } catch (Exception ex) {
+                logger.warn("failed to apply cluster settings", ex);
+            }
             for (ClusterStateListener listener : preAppliedListeners) {
                 try {
                     listener.clusterChanged(clusterChangedEvent);
@@ -559,6 +613,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             for (UpdateTask<T> task : proccessedListeners) {
                 task.listener.clusterStateProcessed(task.source, previousClusterState, newClusterState);
             }
+
+            executor.clusterStatePublished(newClusterState);
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
             logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());
@@ -844,14 +900,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);
                 ackedTaskListener.onAckTimeout();
             }
-        }
-    }
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final TimeValue slowTaskLoggingThreshold = settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, InternalClusterService.this.slowTaskLoggingThreshold);
-            InternalClusterService.this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
         }
     }
 }

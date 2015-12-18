@@ -28,7 +28,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
@@ -66,9 +65,9 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    public void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (!(mergeWith instanceof ExternalMetadataMapper)) {
-            mergeResult.addConflict("Trying to merge " + mergeWith + " with " + this);
+            throw new IllegalArgumentException("Trying to merge " + mergeWith + " with " + this);
         }
     }
 
@@ -99,7 +98,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
 
         protected Builder() {
-            super(CONTENT_TYPE, FIELD_TYPE);
+            super(CONTENT_TYPE, FIELD_TYPE, FIELD_TYPE);
         }
 
         @Override

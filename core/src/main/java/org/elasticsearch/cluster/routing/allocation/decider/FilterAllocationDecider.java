@@ -25,10 +25,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
-
-import java.util.Map;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -65,36 +64,23 @@ public class FilterAllocationDecider extends AllocationDecider {
     public static final String INDEX_ROUTING_INCLUDE_GROUP = "index.routing.allocation.include.";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP = "index.routing.allocation.exclude.";
 
-    public static final String CLUSTER_ROUTING_REQUIRE_GROUP = "cluster.routing.allocation.require.";
-    public static final String CLUSTER_ROUTING_INCLUDE_GROUP = "cluster.routing.allocation.include.";
-    public static final String CLUSTER_ROUTING_EXCLUDE_GROUP = "cluster.routing.allocation.exclude.";
+    public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.require.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.include.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.exclude.", true, Setting.Scope.CLUSTER);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     @Inject
-    public FilterAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        Map<String, String> requireMap = settings.getByPrefix(CLUSTER_ROUTING_REQUIRE_GROUP).getAsMap();
-        if (requireMap.isEmpty()) {
-            clusterRequireFilters = null;
-        } else {
-            clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
-        }
-        Map<String, String> includeMap = settings.getByPrefix(CLUSTER_ROUTING_INCLUDE_GROUP).getAsMap();
-        if (includeMap.isEmpty()) {
-            clusterIncludeFilters = null;
-        } else {
-            clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
-        }
-        Map<String, String> excludeMap = settings.getByPrefix(CLUSTER_ROUTING_EXCLUDE_GROUP).getAsMap();
-        if (excludeMap.isEmpty()) {
-            clusterExcludeFilters = null;
-        } else {
-            clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
-        }
-        nodeSettingsService.addListener(new ApplySettings());
+        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
+        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.get(settings));
+        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters);
     }
 
     @Override
@@ -144,21 +130,13 @@ public class FilterAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            Map<String, String> requireMap = settings.getByPrefix(CLUSTER_ROUTING_REQUIRE_GROUP).getAsMap();
-            if (!requireMap.isEmpty()) {
-                clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
-            }
-            Map<String, String> includeMap = settings.getByPrefix(CLUSTER_ROUTING_INCLUDE_GROUP).getAsMap();
-            if (!includeMap.isEmpty()) {
-                clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
-            }
-            Map<String, String> excludeMap = settings.getByPrefix(CLUSTER_ROUTING_EXCLUDE_GROUP).getAsMap();
-            if (!excludeMap.isEmpty()) {
-                clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
-            }
-        }
+    private void setClusterRequireFilters(Settings settings) {
+        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, settings.getAsMap());
+    }
+    private void setClusterIncludeFilters(Settings settings) {
+        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
+    }
+    private void setClusterExcludeFilters(Settings settings) {
+        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
     }
 }

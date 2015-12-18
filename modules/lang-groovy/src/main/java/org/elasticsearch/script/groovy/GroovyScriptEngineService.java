@@ -165,7 +165,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         try {
             // we reuse classloader, so do a security check just in case.
             SecurityManager sm = System.getSecurityManager();

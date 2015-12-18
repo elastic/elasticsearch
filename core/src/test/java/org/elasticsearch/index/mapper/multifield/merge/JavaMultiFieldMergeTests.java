@@ -27,15 +27,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.Arrays;
-
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -62,8 +58,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
         DocumentMapper docMapper2 = parser.parse(mapping);
 
-        MergeResult mergeResult = docMapper.merge(docMapper2.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+        docMapper.merge(docMapper2.mapping(), true, false);
 
         docMapper.merge(docMapper2.mapping(), false, false);
 
@@ -84,8 +79,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
         DocumentMapper docMapper3 = parser.parse(mapping);
 
-        mergeResult = docMapper.merge(docMapper3.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+        docMapper.merge(docMapper3.mapping(), true, false);
 
         docMapper.merge(docMapper3.mapping(), false, false);
 
@@ -100,8 +94,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         DocumentMapper docMapper4 = parser.parse(mapping);
 
-        mergeResult = docMapper.merge(docMapper4.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+        docMapper.merge(docMapper4.mapping(), true, false);
 
         docMapper.merge(docMapper4.mapping(), false, false);
 

@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -49,7 +51,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    public static final String INDICES_TTL_INTERVAL = "indices.ttl.interval";
+    public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
     public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
     private final ClusterService clusterService;
@@ -77,16 +78,15 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private PurgerThread purgerThread;
 
     @Inject
-    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeSettingsService nodeSettingsService, TransportBulkAction bulkAction) {
+    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, ClusterSettings clusterSettings, TransportBulkAction bulkAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        TimeValue interval = this.settings.getAsTime("indices.ttl.interval", TimeValue.timeValueSeconds(60));
+        TimeValue interval = INDICES_TTL_INTERVAL_SETTING.get(settings);
         this.bulkAction = bulkAction;
         this.bulkSize = this.settings.getAsInt("indices.ttl.bulk_size", 10000);
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
-
-        nodeSettingsService.addListener(new ApplySettings());
+        clusterSettings.addSettingsUpdateConsumer(INDICES_TTL_INTERVAL_SETTING, this.purgerThread::resetInterval);
     }
 
     @Override
@@ -309,20 +309,6 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
         return bulkRequest;
     }
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final TimeValue currentInterval = IndicesTTLService.this.purgerThread.getInterval();
-            final TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, currentInterval);
-            if (!interval.equals(currentInterval)) {
-                logger.info("updating indices.ttl.interval from [{}] to [{}]",currentInterval, interval);
-                IndicesTTLService.this.purgerThread.resetInterval(interval);
-
-            }
-        }
-    }
-
 
     private static final class Notifier {
 

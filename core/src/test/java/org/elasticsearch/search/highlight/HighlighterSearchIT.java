@@ -58,7 +58,6 @@ import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -67,6 +66,7 @@ import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -1557,7 +1557,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                                 .fragmenter("simple"))).get();
 
         assertHighlight(response, 0, "tags", 0, equalTo("this is a really <em>long</em> <em>tag</em> i would like to highlight"));
-        assertHighlight(response, 0, "tags", 1, 2, equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the <em>tag</em> token near the end"));
+        assertHighlight(response, 0, "tags", 1, 2, equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
         response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQuery.Type.PHRASE))
@@ -1566,7 +1566,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                                 .fragmenter("span"))).get();
 
         assertHighlight(response, 0, "tags", 0, equalTo("this is a really <em>long</em> <em>tag</em> i would like to highlight"));
-        assertHighlight(response, 0, "tags", 1, 2, equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the <em>tag</em> token near the end"));
+        assertHighlight(response, 0, "tags", 1, 2, equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
         assertFailures(client().prepareSearch("test")
                         .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQuery.Type.PHRASE))
@@ -2062,7 +2062,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy <xxx>quick</xxx> dog"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy quick dog"));
     }
 
     public void testPostingsHighlighterMultipleFields() throws Exception {
@@ -2471,7 +2471,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(boolQuery()
-                .should(constantScoreQuery(QueryBuilders.missingQuery("field1")))
+                .should(boolQuery().mustNot(QueryBuilders.existsQuery("field1")))
                 .should(matchQuery("field1", "test"))
                 .should(constantScoreQuery(queryStringQuery("field1:photo*"))))
                 .highlighter(highlight().field("field1"));
@@ -2501,7 +2501,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
 
         logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(boolQuery().must(queryStringQuery("field1:photo*")).filter(missingQuery("field_null")))
+        SearchSourceBuilder source = searchSource().query(boolQuery()
+                .must(queryStringQuery("field1:photo*"))
+                .mustNot(existsQuery("field_null")))
                 .highlighter(highlight().field("field1"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));

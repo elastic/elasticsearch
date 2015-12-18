@@ -81,8 +81,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
             ShortFieldMapper fieldMapper = new ShortFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (ShortFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override

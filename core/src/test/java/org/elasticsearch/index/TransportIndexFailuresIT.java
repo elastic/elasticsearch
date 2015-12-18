@@ -56,7 +56,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 1)
             .build();
 

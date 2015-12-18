@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.*;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -66,7 +67,7 @@ public class PluginManager {
             "plugin",
             "plugin.bat",
             "service.bat"));
-    
+
     static final Set<String> MODULES = unmodifiableSet(newHashSet(
             "lang-expression",
             "lang-groovy"));
@@ -89,6 +90,7 @@ public class PluginManager {
             "mapper-murmur3",
             "mapper-size",
             "repository-azure",
+            "repository-hdfs",
             "repository-s3",
             "store-smb"));
 
@@ -124,7 +126,7 @@ public class PluginManager {
             checkForForbiddenName(pluginHandle.name);
         } else {
             // if we have no name but url, use temporary name that will be overwritten later
-            pluginHandle = new PluginHandle("temp_name" + new Random().nextInt(), null, null);
+            pluginHandle = new PluginHandle("temp_name" + Randomness.get().nextInt(), null, null);
         }
 
         Path pluginFile = download(pluginHandle, terminal);
@@ -224,7 +226,7 @@ public class PluginManager {
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
 
-        // don't let luser install plugin as a module... 
+        // don't let luser install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
             throw new IOException("plugin '" + info.getName() + "' cannot be installed like this, it is a system module");

@@ -47,6 +47,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -191,6 +192,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         // skip services
                         bindQueryParsersExtension();
                         bindMapperExtension();
+                        bind(ShapeBuilderRegistry.class).asEagerSingleton();
                     }
                 },
                 new ScriptModule(settings) {

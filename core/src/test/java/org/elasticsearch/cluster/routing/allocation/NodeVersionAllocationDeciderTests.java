@@ -39,15 +39,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -58,7 +53,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 
@@ -172,7 +167,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRandom() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 
@@ -199,7 +194,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
             int numNodes = between(1, 20);
             if (nodes.size() > numNodes) {
-                Collections.shuffle(nodes, getRandom());
+                Collections.shuffle(nodes, random());
                 nodes = nodes.subList(0, numNodes);
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
@@ -221,7 +216,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRollingRestart() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 

@@ -204,7 +204,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
             @Override
             public Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-                return new MetadataFieldMapper.Builder<Builder, DummyMetadataFieldMapper>("_dummy", FIELD_TYPE) {
+                return new MetadataFieldMapper.Builder<Builder, DummyMetadataFieldMapper>("_dummy", FIELD_TYPE, FIELD_TYPE) {
                     @Override
                     public DummyMetadataFieldMapper build(BuilderContext context) {
                         return new DummyMetadataFieldMapper(context.indexSettings());

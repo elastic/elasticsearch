@@ -8,7 +8,7 @@ import org.gradle.util.ConfigureUtil
 
 public class RunTask extends DefaultTask {
 
-    ClusterConfiguration clusterConfig = new ClusterConfiguration(baseHttpPort: 9200, baseTransportPort: 9300, daemonize: false)
+    ClusterConfiguration clusterConfig = new ClusterConfiguration(httpPort: 9200, transportPort: 9300, daemonize: false)
 
     public RunTask() {
         description = "Runs elasticsearch with '${project.path}'"

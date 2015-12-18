@@ -19,26 +19,21 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
@@ -48,7 +43,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
@@ -75,14 +69,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -91,16 +78,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class CorruptedFileIT extends ESIntegTestCase {
@@ -111,9 +90,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
                         // speed up recoveries
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING.getKey(), 10)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING.getKey(), 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 5)
                 .build();
     }
 
@@ -320,7 +299,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -380,7 +359,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
 

@@ -33,6 +33,7 @@ import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
@@ -80,7 +81,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH);
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         }
 
         @Override

@@ -129,7 +129,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         @SuppressWarnings("unchecked")
         T proto = (T)customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }

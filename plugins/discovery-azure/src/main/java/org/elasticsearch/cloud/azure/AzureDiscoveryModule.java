@@ -55,9 +55,6 @@ public class AzureDiscoveryModule extends AbstractModule {
         bind(AzureComputeService.class).toInstance(computeService);
 
         logger.debug("starting azure client service");
-        // We need to explicitly call start() because this is never implicitly called in plugins
-        if (computeService instanceof AzureComputeServiceImpl) {
-            ((AzureComputeServiceImpl) computeService).start();
-        }
+        computeService.configure();
     }
 }

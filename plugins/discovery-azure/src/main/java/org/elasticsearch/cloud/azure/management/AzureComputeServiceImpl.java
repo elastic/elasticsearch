@@ -30,7 +30,8 @@ import com.microsoft.windowsazure.management.configuration.ManagementConfigurati
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.xml.sax.SAXException;
 
@@ -44,13 +45,13 @@ import static org.elasticsearch.cloud.azure.management.AzureComputeService.Manag
 /**
  *
  */
-public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureComputeServiceImpl>
-    implements AzureComputeService {
+public class AzureComputeServiceImpl implements AzureComputeService {
 
     static final class Azure {
         private static final String ENDPOINT = "https://management.core.windows.net/";
     }
 
+    private final ESLogger logger;
     private ComputeManagementClient computeManagementClient = null;
     private final String serviceName;
     private final String subscriptionId;
@@ -59,7 +60,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     private final KeyStoreType keystoreType;
 
     public AzureComputeServiceImpl(Settings settings) {
-        super(settings);
+        this.logger = Loggers.getLogger(getClass(), settings);
         subscriptionId = settings.get(SUBSCRIPTION_ID);
         serviceName = settings.get(Management.SERVICE_NAME);
         keystorePath = settings.get(KEYSTORE_PATH);
@@ -89,9 +90,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         }
     }
 
-    // This method is never called implicitly!
-    @Override
-    protected void doStart() {
+    public void configure() {
         logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
 
         try {
@@ -136,15 +135,8 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         }
     }
 
-    // This method is never called implicitly!
     @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    // This method is never called implicitly!
-    @Override
-    protected void doClose() throws ElasticsearchException {
-        // This code is never executed!
+    public void stop() {
         if (computeManagementClient != null) {
             try {
                 computeManagementClient.close();

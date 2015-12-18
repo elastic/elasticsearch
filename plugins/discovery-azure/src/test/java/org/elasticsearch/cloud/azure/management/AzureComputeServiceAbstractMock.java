@@ -20,31 +20,27 @@
 package org.elasticsearch.cloud.azure.management;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  *
  */
-public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleComponent<AzureComputeServiceAbstractMock>
-    implements AzureComputeService {
+public abstract class AzureComputeServiceAbstractMock implements AzureComputeService {
+
+    private final ESLogger logger;
 
     protected AzureComputeServiceAbstractMock(Settings settings) {
-        super(settings);
+        this.logger = Loggers.getLogger(getClass(), settings);
         logger.debug("starting Azure Mock [{}]", this.getClass().getSimpleName());
     }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
+    public void configure() throws ElasticsearchException {
         logger.debug("starting Azure Api Mock");
     }
 
-    @Override
-    protected void doStop() throws ElasticsearchException {
+    public void stop() throws ElasticsearchException {
         logger.debug("stopping Azure Api Mock");
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

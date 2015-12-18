@@ -45,5 +45,20 @@ public interface AzureComputeService {
         public static final String DEPLOYMENT_SLOT = "discovery.azure.deployment.slot";
     }
 
+    /**
+     * Configure and start azure client
+     */
+    void configure();
+
+    /**
+     * Stops azure client
+     */
+    void stop();
+
+    /**
+     * Get information about azure running services
+     * @return azure running services details
+     */
     HostedServiceGetDetailedResponse getServiceDetails();
+
 }

@@ -151,7 +151,7 @@ public class AzureSettingsTests extends ESTestCase {
     private void launchAzureComputeService(Settings settings, String expectedError) {
         try {
             AzureComputeServiceImpl service = new AzureComputeServiceImpl(settings);
-            service.start();
+            service.configure();
             if (expectedError != null) {
                 fail("plugin should not start with wrong settings.");
             }

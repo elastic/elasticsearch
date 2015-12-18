@@ -92,7 +92,7 @@ public class AzureDiscoveryPlugin extends Plugin {
             logger.debug("starting azure client service");
             return Collections.singletonList((Module) new AzureDiscoveryModule(settings));
         }
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
     public void onModule(DiscoveryModule discoveryModule) {

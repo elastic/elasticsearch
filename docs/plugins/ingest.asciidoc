@@ -16,6 +16,21 @@ its value will be replaced with the provided one.
 }
 --------------------------------------------------
 
+==== Append processor
+Appends one or more values to an existing array if the field already exists and it is an array.
+Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
+Creates an array containing the provided values if the fields doesn't exist.
+Accepts a single value or an array of values.
+
+[source,js]
+--------------------------------------------------
+{
+  "append": {
+    "field1": ["item2", "item3", "item4"]
+  }
+}
+--------------------------------------------------
+
 ==== Remove processor
 Removes an existing field. If the field doesn't exist, an exception will be thrown
 

@@ -56,14 +56,6 @@
           }
   - match: { _id: "my_pipeline" }
 
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
-
   - do:
       ingest.index:
         index: test
@@ -100,14 +92,6 @@
             ]
           }
   - match: { _id: "my_pipeline" }
-
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
 
   - do:
       ingest.index:

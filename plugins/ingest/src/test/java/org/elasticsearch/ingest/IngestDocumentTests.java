@@ -22,18 +22,27 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
@@ -51,12 +60,18 @@ public class IngestDocumentTests extends ESTestCase {
         innerObject.put("buzz", "hello world");
         innerObject.put("foo_null", null);
         innerObject.put("1", "bar");
+        List<String> innerInnerList = new ArrayList<>();
+        innerInnerList.add("item1");
+        List<Object> innerList = new ArrayList<>();
+        innerList.add(innerInnerList);
+        innerObject.put("list", innerList);
         document.put("fizz", innerObject);
         List<Map<String, Object>> list = new ArrayList<>();
         Map<String, Object> value = new HashMap<>();
         value.put("field", "value");
         list.add(value);
         list.add(null);
+
         document.put("list", list);
         ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
     }
@@ -414,6 +429,254 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(2), equalTo("new_value"));
     }
 
+    public void testListAppendFieldValues() {
+        ingestDocument.appendFieldValue("list", Arrays.asList("item1", "item2", "item3"));
+        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(5));
+        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(1), nullValue());
+        assertThat(list.get(2), equalTo("item1"));
+        assertThat(list.get(3), equalTo("item2"));
+        assertThat(list.get(4), equalTo("item3"));
+    }
+
+    public void testAppendFieldValueToNonExistingList() {
+        ingestDocument.appendFieldValue("non_existing_list", "new_value");
+        Object object = ingestDocument.getSourceAndMetadata().get("non_existing_list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(1));
+        assertThat(list.get(0), equalTo("new_value"));
+    }
+
+    public void testAppendFieldValuesToNonExistingList() {
+        ingestDocument.appendFieldValue("non_existing_list", Arrays.asList("item1", "item2", "item3"));
+        Object object = ingestDocument.getSourceAndMetadata().get("non_existing_list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(3));
+        assertThat(list.get(0), equalTo("item1"));
+        assertThat(list.get(1), equalTo("item2"));
+        assertThat(list.get(2), equalTo("item3"));
+    }
+
+    public void testAppendFieldValueConvertStringToList() {
+        ingestDocument.appendFieldValue("fizz.buzz", "new_value");
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("buzz");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), equalTo("hello world"));
+        assertThat(list.get(1), equalTo("new_value"));
+    }
+
+    public void testAppendFieldValuesConvertStringToList() {
+        ingestDocument.appendFieldValue("fizz.buzz", Arrays.asList("item1", "item2", "item3"));
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("buzz");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(4));
+        assertThat(list.get(0), equalTo("hello world"));
+        assertThat(list.get(1), equalTo("item1"));
+        assertThat(list.get(2), equalTo("item2"));
+        assertThat(list.get(3), equalTo("item3"));
+    }
+
+    public void testAppendFieldValueConvertIntegerToList() {
+        ingestDocument.appendFieldValue("int", 456);
+        Object object = ingestDocument.getSourceAndMetadata().get("int");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), equalTo(123));
+        assertThat(list.get(1), equalTo(456));
+    }
+
+    public void testAppendFieldValuesConvertIntegerToList() {
+        ingestDocument.appendFieldValue("int", Arrays.asList(456, 789));
+        Object object = ingestDocument.getSourceAndMetadata().get("int");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(3));
+        assertThat(list.get(0), equalTo(123));
+        assertThat(list.get(1), equalTo(456));
+        assertThat(list.get(2), equalTo(789));
+    }
+
+    public void testAppendFieldValueConvertMapToList() {
+        ingestDocument.appendFieldValue("fizz", Collections.singletonMap("field", "value"));
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(List.class));
+        List<?> list = (List<?>) object;
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) list.get(0);
+        assertThat(map.size(), equalTo(4));
+        assertThat(list.get(1), equalTo(Collections.singletonMap("field", "value")));
+    }
+
+    public void testAppendFieldValueToNull() {
+        ingestDocument.appendFieldValue("fizz.foo_null", "new_value");
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("foo_null");
+        assertThat(object, instanceOf(List.class));
+        List<?> list = (List<?>) object;
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), nullValue());
+        assertThat(list.get(1), equalTo("new_value"));
+    }
+
+    public void testAppendFieldValueToListElement() {
+        ingestDocument.appendFieldValue("fizz.list.0", "item2");
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(1));
+        object = list.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> innerList = (List<String>) object;
+        assertThat(innerList.size(), equalTo(2));
+        assertThat(innerList.get(0), equalTo("item1"));
+        assertThat(innerList.get(1), equalTo("item2"));
+    }
+
+    public void testAppendFieldValuesToListElement() {
+        ingestDocument.appendFieldValue("fizz.list.0", Arrays.asList("item2", "item3", "item4"));
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(1));
+        object = list.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> innerList = (List<String>) object;
+        assertThat(innerList.size(), equalTo(4));
+        assertThat(innerList.get(0), equalTo("item1"));
+        assertThat(innerList.get(1), equalTo("item2"));
+        assertThat(innerList.get(2), equalTo("item3"));
+        assertThat(innerList.get(3), equalTo("item4"));
+    }
+
+    public void testAppendFieldValueConvertStringListElementToList() {
+        ingestDocument.appendFieldValue("fizz.list.0.0", "new_value");
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(1));
+        object = list.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> innerList = (List<Object>) object;
+        object = innerList.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> innerInnerList = (List<String>) object;
+        assertThat(innerInnerList.size(), equalTo(2));
+        assertThat(innerInnerList.get(0), equalTo("item1"));
+        assertThat(innerInnerList.get(1), equalTo("new_value"));
+    }
+
+    public void testAppendFieldValuesConvertStringListElementToList() {
+        ingestDocument.appendFieldValue("fizz.list.0.0", Arrays.asList("item2", "item3", "item4"));
+        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        assertThat(object, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) object;
+        object = map.get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(1));
+        object = list.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> innerList = (List<Object>) object;
+        object = innerList.get(0);
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> innerInnerList = (List<String>) object;
+        assertThat(innerInnerList.size(), equalTo(4));
+        assertThat(innerInnerList.get(0), equalTo("item1"));
+        assertThat(innerInnerList.get(1), equalTo("item2"));
+        assertThat(innerInnerList.get(2), equalTo("item3"));
+        assertThat(innerInnerList.get(3), equalTo("item4"));
+    }
+
+    public void testAppendFieldValueListElementConvertMapToList() {
+        ingestDocument.appendFieldValue("list.0", Collections.singletonMap("item2", "value2"));
+        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        assertThat(object, instanceOf(List.class));
+        List<?> list = (List<?>) object;
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), instanceOf(List.class));
+        assertThat(list.get(1), nullValue());
+        list = (List<?>) list.get(0);
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(1), equalTo(Collections.singletonMap("item2", "value2")));
+    }
+
+    public void testAppendFieldValueToNullListElement() {
+        ingestDocument.appendFieldValue("list.1", "new_value");
+        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        assertThat(object, instanceOf(List.class));
+        List<?> list = (List<?>) object;
+        assertThat(list.get(1), instanceOf(List.class));
+        list = (List<?>) list.get(1);
+        assertThat(list.size(), equalTo(2));
+        assertThat(list.get(0), nullValue());
+        assertThat(list.get(1), equalTo("new_value"));
+    }
+
+    public void testAppendFieldValueToListOfMaps() {
+        ingestDocument.appendFieldValue("list", Collections.singletonMap("item2", "value2"));
+        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(3));
+        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(1), nullValue());
+        assertThat(list.get(2), equalTo(Collections.singletonMap("item2", "value2")));
+    }
+
     public void testListSetFieldValueIndexProvided() {
         ingestDocument.setFieldValue("list.1", "value");
         Object object = ingestDocument.getSourceAndMetadata().get("list");
@@ -495,15 +758,20 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
-        assertThat(map.size(), equalTo(2));
+        assertThat(map.size(), equalTo(3));
         assertThat(map.containsKey("buzz"), equalTo(false));
 
         ingestDocument.removeField("fizz.foo_null");
-        assertThat(map.size(), equalTo(1));
+        assertThat(map.size(), equalTo(2));
         assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
+        assertThat(map.size(), equalTo(1));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+
+        ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
         assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
@@ -684,4 +952,23 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
+    public void testIngestMetadataTimestamp() throws Exception {
+        long before = System.currentTimeMillis();
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        long after = System.currentTimeMillis();
+        String timestampString = ingestDocument.getIngestMetadata().get("timestamp");
+        assertThat(timestampString, notNullValue());
+        assertThat(timestampString, endsWith("+0000"));
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
+        Date timestamp = df.parse(timestampString);
+        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
+        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
+    }
+
+    public void testCopyConstructor() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(copy.getSourceAndMetadata()));
+    }
 }

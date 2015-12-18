@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.ingest.processor.append.AppendProcessor;
 import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
@@ -52,6 +53,7 @@ public class IngestModule extends AbstractModule {
         addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
         addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
         addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
+        addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
         addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
         addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
         addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());

@@ -16,18 +16,16 @@
                   "field" : "index_type_id",
                   "value": "{{_index}}/{{_type}}/{{_id}}"
                 }
+              },
+              {
+                "append" : {
+                  "field" : "metadata",
+                  "value": ["{{_index}}", "{{_type}}", "{{_id}}"]
+                }
               }
             ]
           }
   - match: { _id: "my_pipeline_1" }
-
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
 
   - do:
       ingest.index:
@@ -42,8 +40,9 @@
         index: test
         type: test
         id: 1
-  - length: { _source: 1 }
+  - length: { _source: 2 }
   - match: { _source.index_type_id: "test/test/1" }
+  - match: { _source.metadata: ["test", "test", "1"] }
 
 ---
 "Test templateing":
@@ -63,7 +62,14 @@
                   "field" : "field4",
                   "value": "{{field1}}/{{field2}}/{{field3}}"
                 }
+              },
+              {
+                "append" : {
+                  "field" : "metadata",
+                  "value": ["{{field1}}", "{{field2}}", "{{field3}}"]
+                }
               }
+
             ]
           }
   - match: { _id: "my_pipeline_1" }
@@ -101,14 +107,6 @@
           }
   - match: { _id: "my_pipeline_3" }
 
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
-
   - do:
       ingest.index:
         index: test
@@ -116,6 +114,7 @@
         id: 1
         pipeline_id: "my_pipeline_1"
         body: {
+          metadata: "0",
           field1: "1",
           field2: "2",
           field3: "3"
@@ -126,11 +125,12 @@
         index: test
         type: test
         id: 1
-  - length: { _source: 4 }
+  - length: { _source: 5 }
   - match: { _source.field1: "1" }
   - match: { _source.field2: "2" }
   - match: { _source.field3: "3" }
   - match: { _source.field4: "1/2/3" }
+  - match: { _source.metadata: ["0","1","2","3"] }
 
   - do:
       ingest.index:

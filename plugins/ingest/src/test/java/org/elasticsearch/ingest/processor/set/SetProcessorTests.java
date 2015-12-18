@@ -76,9 +76,8 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
     }
 
-    private Processor createSetProcessor(String fieldName, Object fieldValue) {
+    private static Processor createSetProcessor(String fieldName, Object fieldValue) {
         TemplateService templateService = TestTemplateService.instance();
         return new SetProcessor(templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService));
     }
-
 }

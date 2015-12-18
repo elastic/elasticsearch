@@ -14,6 +14,12 @@
                 }
               },
               {
+                "append" : {
+                  "field" : "new_field",
+                  "value": ["item2", "item3", "item4"]
+                }
+              },
+              {
                 "rename" : {
                   "field" : "field_to_rename",
                   "to": "renamed_field"
@@ -93,6 +99,7 @@
         id: 1
   - is_false: _source.field_to_rename
   - is_false: _source.field_to_remove
+  - match: { _source.new_field: ["new_value", "item2", "item3", "item4"] }
   - match: { _source.renamed_field: "value" }
   - match: { _source.field_to_lowercase: "lowercase" }
   - match: { _source.field_to_uppercase: "UPPERCASE" }
@@ -124,14 +131,6 @@
             ]
           }
   - match: { _id: "my_pipeline" }
-
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
 
   - do:
       ingest.index:

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -243,23 +244,46 @@ public final class IngestDocument {
 
     /**
      * Appends the provided value to the provided path in the document.
-     * Any non existing path element will be created. Same as {@link #setFieldValue(String, Object)}
-     * but if the last element is a list, the value will be appended to the existing list.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appeneded to the
+     * existing (or newly created) list.
      * @param path The path within the document in dot-notation
-     * @param value The value to put in for the path key
-     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     * @param value The value or values to append to the existing ones
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value) {
         setFieldValue(path, value, true);
     }
 
     /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appeneded to the
+     * existing (or newly created) list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value or values to append to the existing ones
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+        Map<String, Object> model = createTemplateModel();
+        appendFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model));
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
-     * Any non existing path element will be created. If the last element is a list,
-     * the value will replace the existing list.
+     * Any non existing path element will be created.
+     * If the last item in the path is a list, the value will replace the existing list as a whole.
+     * Use {@link #appendFieldValue(String, Object)} to append values to lists instead.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
-     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
         setFieldValue(path, value, false);
@@ -271,7 +295,8 @@ public final class IngestDocument {
      * the value will replace the existing list.
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @param valueSource The value source that will produce the value to put in for the path key
-     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
      */
     public void setFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
@@ -324,13 +349,16 @@ public final class IngestDocument {
             if (append) {
                 if (map.containsKey(leafKey)) {
                     Object object = map.get(leafKey);
-                    if (object instanceof List) {
-                        @SuppressWarnings("unchecked")
-                        List<Object> list = (List<Object>) object;
-                        list.add(value);
-                        return;
+                    List<Object> list = appendValues(path, object, value);
+                    if (list != object) {
+                        map.put(leafKey, list);
                     }
+                } else {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
                 }
+                return;
             }
             map.put(leafKey, value);
         } else if (context instanceof List) {
@@ -345,9 +373,42 @@ public final class IngestDocument {
             if (index < 0 || index >= list.size()) {
                 throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
             }
+            if (append) {
+                Object object = list.get(index);
+                List<Object> newList = appendValues(path, object, value);
+                if (newList != object) {
+                    list.set(index, newList);
+                }
+                return;
+            }
             list.set(index, value);
         } else {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with parent object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> appendValues(String path, Object maybeList, Object value) {
+        List<Object> list;
+        if (maybeList instanceof List) {
+            //maybeList is already a list, we append the provided values to it
+            list = (List<Object>) maybeList;
+        } else {
+            //maybeList is a scalar, we convert it to a list and append the provided values to it
+            list = new ArrayList<>();
+            list.add(maybeList);
+        }
+        appendValues(list, value);
+        return list;
+    }
+
+    private static void appendValues(List<Object> list, Object value) {
+        if (value instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<?> valueList = (List<?>) value;
+            valueList.stream().forEach(list::add);
+        } else {
+            list.add(value);
         }
     }
 

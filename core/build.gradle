@@ -82,7 +82,7 @@ dependencies {
   compile "net.java.dev.jna:jna:${versions.jna}", optional
 
   if (isEclipse == false || project.path == ":core-tests") {
-    testCompile("org.elasticsearch:test-framework:${version}") {
+    testCompile("org.elasticsearch.test:framework:${version}") {
       // tests use the locally compiled version of core
       exclude group: 'org.elasticsearch', module: 'elasticsearch'
     }

@@ -23,7 +23,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -151,7 +150,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (formatter != ValueFormatter.RAW) {
-                Text keyTxt = new StringText(formatter.format(key));
+                Text keyTxt = new Text(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());
                 } else {

@@ -30,7 +30,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -104,14 +104,14 @@ public class InternalSearchHit implements SearchHit {
 
     public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = new StringAndBytesText(id);
+        this.id = new Text(id);
         this.type = type;
         this.fields = fields;
     }
 
     public InternalSearchHit(int nestedTopDocId, String id, Text type, InternalNestedIdentity nestedIdentity, Map<String, SearchHitField> fields) {
         this.docId = nestedTopDocId;
-        this.id = new StringAndBytesText(id);
+        this.id = new Text(id);
         this.type = type;
         this.nestedIdentity = nestedIdentity;
         this.fields = fields;
@@ -339,7 +339,7 @@ public class InternalSearchHit implements SearchHit {
         if (sortValues != null) {
             for (int i = 0; i < sortValues.length; i++) {
                 if (sortValues[i] instanceof BytesRef) {
-                    sortValuesCopy[i] = new StringAndBytesText(new BytesArray((BytesRef) sortValues[i]));
+                    sortValuesCopy[i] = new Text(new BytesArray((BytesRef) sortValues[i]));
                 }
             }
         }
@@ -783,7 +783,7 @@ public class InternalSearchHit implements SearchHit {
         private InternalNestedIdentity child;
 
         public InternalNestedIdentity(String field, int offset, InternalNestedIdentity child) {
-            this.field = new StringAndBytesText(field);
+            this.field = new Text(field);
             this.offset = offset;
             this.child = child;
         }

@@ -26,6 +26,9 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.profile.ProfileBreakdown;
+import org.elasticsearch.search.profile.ProfileWeight;
+import org.elasticsearch.search.profile.Profiler;
 
 import java.io.IOException;
 
@@ -43,17 +46,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final Engine.Searcher engineSearcher;
 
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
+    // TODO revisit moving the profiler to inheritance or wrapping model in the future
+    private Profiler profiler;
+
+    public ContextIndexSearcher(Engine.Searcher searcher,
+            QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(searcher.reader());
         in = searcher.searcher();
         engineSearcher = searcher;
         setSimilarity(searcher.searcher().getSimilarity(true));
-        setQueryCache(searchContext.getQueryCache());
-        setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
+        setQueryCache(queryCache);
+        setQueryCachingPolicy(queryCachingPolicy);
     }
 
     @Override
     public void close() {
+    }
+
+    public void setProfiler(Profiler profiler) {
+        this.profiler = profiler;
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -62,7 +73,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        return in.rewrite(original);
+        if (profiler != null) {
+            profiler.startRewriteTime();
+        }
+
+        try {
+            return in.rewrite(original);
+        } finally {
+            if (profiler != null) {
+                profiler.stopAndAddRewriteTime();
+            }
+        }
     }
 
     @Override
@@ -72,8 +93,34 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (aggregatedDfs != null && needsScores) {
             // if scores are needed and we have dfs data then use it
             return super.createNormalizedWeight(query, needsScores);
+        } else if (profiler != null) {
+            // we need to use the createWeight method to insert the wrappers
+            return super.createNormalizedWeight(query, needsScores);
+        } else {
+            return in.createNormalizedWeight(query, needsScores);
         }
-        return in.createNormalizedWeight(query, needsScores);
+    }
+
+    @Override
+    public Weight createWeight(Query query, boolean needsScores) throws IOException {
+        if (profiler != null) {
+            // createWeight() is called for each query in the tree, so we tell the queryProfiler
+            // each invocation so that it can build an internal representation of the query
+            // tree
+            ProfileBreakdown profile = profiler.getQueryBreakdown(query);
+            profile.startTime(ProfileBreakdown.TimingType.CREATE_WEIGHT);
+            final Weight weight;
+            try {
+                weight = super.createWeight(query, needsScores);
+            } finally {
+                profile.stopAndRecordTime();
+                profiler.pollLastQuery();
+            }
+            return new ProfileWeight(query, weight, profile);
+        } else {
+            // needs to be 'super', not 'in' in order to use aggregated DFS
+            return super.createWeight(query, needsScores);
+        }
     }
 
     @Override

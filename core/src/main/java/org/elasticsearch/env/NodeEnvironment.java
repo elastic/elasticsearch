@@ -296,10 +296,10 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     private void maybeLogHeapDetails() {
-        ByteSizeValue maxHeapSize = JvmInfo.jvmInfo().getMem().getHeapMax();
-        Boolean usingCompressedOops = JvmInfo.jvmInfo().usingCompressedOops();
-        String usingCompressedOopsStatus = usingCompressedOops == null ? "unknown" : Boolean.toString(usingCompressedOops);
-        logger.info("heap size [{}], compressed ordinary object pointers [{}]", maxHeapSize, usingCompressedOopsStatus);
+        JvmInfo jvmInfo = JvmInfo.jvmInfo();
+        ByteSizeValue maxHeapSize = jvmInfo.getMem().getHeapMax();
+        String useCompressedOops = jvmInfo.useCompressedOops();
+        logger.info("heap size [{}], compressed ordinary object pointers [{}]", maxHeapSize, useCompressedOops);
     }
 
     private static String toString(Collection<String> items) {

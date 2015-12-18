@@ -24,6 +24,8 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -56,6 +58,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      */
     public boolean processExistingRecoveries(RoutingAllocation allocation) {
         boolean changed = false;
+        MetaData metaData = allocation.metaData();
         for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
             nodes.next();
             for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
@@ -69,8 +72,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (shard.relocatingNodeId() != null) {
                     continue;
                 }
+
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                if (shard.allocatedPostIndexCreate() == false) {
+                IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+                if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
 
@@ -114,6 +119,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         boolean changed = false;
         final RoutingNodes routingNodes = allocation.routingNodes();
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+        MetaData metaData = allocation.metaData();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
@@ -121,7 +127,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            if (shard.allocatedPostIndexCreate() == false) {
+            IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+            if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 continue;
             }
 

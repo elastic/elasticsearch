@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
 
@@ -126,9 +127,9 @@ public class RetryTests extends ESTestCase {
 
     private static class AssertingListener implements ActionListener<BulkResponse> {
         private final CountDownLatch latch;
-        private int countOnResponseCalled = 0;
-        private Throwable lastFailure;
-        private BulkResponse response;
+        private final AtomicInteger countOnResponseCalled = new AtomicInteger();
+        private volatile Throwable lastFailure;
+        private volatile BulkResponse response;
 
         private AssertingListener() {
             latch = new CountDownLatch(1);
@@ -140,19 +141,19 @@ public class RetryTests extends ESTestCase {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            latch.countDown();
             this.response = bulkItemResponses;
-            countOnResponseCalled++;
+            countOnResponseCalled.incrementAndGet();
+            latch.countDown();
         }
 
         @Override
         public void onFailure(Throwable e) {
-            latch.countDown();
             this.lastFailure = e;
+            latch.countDown();
         }
 
         public void assertOnResponseCalled() {
-            assertThat(countOnResponseCalled, equalTo(1));
+            assertThat(countOnResponseCalled.get(), equalTo(1));
         }
 
         public void assertResponseWithNumberOfItems(int numItems) {

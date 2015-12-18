@@ -98,7 +98,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         
         // we only want third party dependencies.
         FileCollection jars = project.configurations.testCompile.fileCollection({ dependency -> 
-            dependency.group != "org.elasticsearch"
+            dependency.group.startsWith("org.elasticsearch") == false
         })
         
         // we don't want provided dependencies, which we have already scanned. e.g. don't

@@ -30,7 +30,7 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -57,7 +57,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
+        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
         TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
         suggest(searcher, suggestionContext.toQuery(), collector);
@@ -91,7 +91,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
             if (numResult++ < suggestionContext.getSize()) {
                 CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
-                        new StringText(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
+                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
                 completionSuggestEntry.addOption(option);
             } else {
                 break;

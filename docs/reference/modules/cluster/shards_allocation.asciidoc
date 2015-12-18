@@ -22,9 +22,8 @@ Enable or disable allocation for specific kinds of shards:
 
 This setting does not affect the recovery of local primary shards when
 restarting a node.  A restarted node that has a copy of an unassigned primary
-shard will recover that primary immediately, assuming that the
-<<index.recovery.initial_shards,`index.recovery.initial_shards`>> setting is
-satisfied.
+shard will recover that primary immediately, assuming that its allocation id matches
+one of the active allocation ids in the cluster state.
 
 --
 

@@ -45,6 +45,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -255,7 +256,7 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean enableMockModules() {
-        return false;
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        return Collections.emptyList();
     }
 }

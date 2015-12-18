@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
@@ -40,9 +41,7 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -108,10 +107,10 @@ public class IngestPlugin extends Plugin {
         module.registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
     }
 
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(RestPutPipelineAction.class);
-        restModule.addRestAction(RestGetPipelineAction.class);
-        restModule.addRestAction(RestDeletePipelineAction.class);
-        restModule.addRestAction(RestSimulatePipelineAction.class);
+    public void onModule(NetworkModule networkModule) {
+        networkModule.registerRestHandler(RestPutPipelineAction.class);
+        networkModule.registerRestHandler(RestGetPipelineAction.class);
+        networkModule.registerRestHandler(RestDeletePipelineAction.class);
+        networkModule.registerRestHandler(RestSimulatePipelineAction.class);
     }
 }

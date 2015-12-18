@@ -18,34 +18,33 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import java.nio.file.Files
-
-import org.gradle.api.DefaultTask
+import org.apache.rat.anttasks.Report
+import org.apache.rat.anttasks.SubstringLicenseMatcher
+import org.apache.rat.license.SimpleLicenseFamily
+import org.elasticsearch.gradle.AntTask
 import org.gradle.api.tasks.SourceSet
-import org.gradle.api.tasks.TaskAction
 
-import groovy.xml.NamespaceBuilder
-import groovy.xml.NamespaceBuilderSupport
+import java.nio.file.Files
 
 /**
  * Checks files for license headers.
  * <p>
  * This is a port of the apache lucene check
  */
-public class LicenseHeadersTask extends DefaultTask {
+public class LicenseHeadersTask extends AntTask {
 
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"
+
+        if (ant.project.taskDefinitions.contains('ratReport') == false) {
+            ant.project.addTaskDefinition('ratReport', Report)
+            ant.project.addDataTypeDefinition('substringMatcher', SubstringLicenseMatcher)
+            ant.project.addDataTypeDefinition('approvedLicense', SimpleLicenseFamily)
+        }
     }
 
-    @TaskAction
-    public void check() {
-        // load rat tasks
-        AntBuilder ant = new AntBuilder()
-        ant.typedef(resource:  "org/apache/rat/anttasks/antlib.xml",
-                    uri:       "antlib:org.apache.rat.anttasks",
-                    classpath: project.configurations.buildTools.asPath)
-        NamespaceBuilderSupport rat = NamespaceBuilder.newInstance(ant, "antlib:org.apache.rat.anttasks")
+    @Override
+    protected void runAnt(AntBuilder ant) {
 
         // create a file for the log to go to under reports/
         File reportDir = new File(project.buildDir, "reports/licenseHeaders")
@@ -54,7 +53,7 @@ public class LicenseHeadersTask extends DefaultTask {
         Files.deleteIfExists(reportFile.toPath())
                      
         // run rat, going to the file
-        rat.report(reportFile: reportFile.absolutePath, addDefaultLicenseMatchers: true) {
+        ant.ratReport(reportFile: reportFile.absolutePath, addDefaultLicenseMatchers: true) {
                // checks all the java sources (allJava)
                for (SourceSet set : project.sourceSets) {
                    for (File dir : set.allJava.srcDirs) {

@@ -155,5 +155,5 @@ public class LicenseHeadersTask extends DefaultTask {
             }
             throw new IllegalStateException("License header problems were found! Full details: " + reportFile.absolutePath)
         }
-	}
+    }
 }

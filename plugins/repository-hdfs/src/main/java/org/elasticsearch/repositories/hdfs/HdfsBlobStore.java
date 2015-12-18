@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -35,14 +35,14 @@ import java.util.concurrent.Executor;
 
 public class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final FileSystemFactory ffs;
+    private final FileContextFactory fcf;
     private final Path rootHdfsPath;
     private final ThreadPool threadPool;
     private final int bufferSizeInBytes;
 
-    public HdfsBlobStore(Settings settings, FileSystemFactory ffs, Path path, ThreadPool threadPool) throws IOException {
+    public HdfsBlobStore(Settings settings, FileContextFactory ffs, Path path, ThreadPool threadPool) throws IOException {
         super(settings);
-        this.ffs = ffs;
+        this.fcf = ffs;
         this.rootHdfsPath = path;
         this.threadPool = threadPool;
 
@@ -52,11 +52,11 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     private void mkdirs(Path path) throws IOException {
-        SecurityUtils.execute(ffs, new FsCallback<Void>() {
+        SecurityUtils.execute(fcf, new FcCallback<Void>() {
             @Override
-            public Void doInHdfs(FileSystem fs) throws IOException {
-                if (!fs.exists(path)) {
-                    fs.mkdirs(path);
+            public Void doInHdfs(FileContext fc) throws IOException {
+                if (fc.util().exists(path)) {
+                    fc.mkdir(path, null, true);
                 }
                 return null;
             }
@@ -68,8 +68,8 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
         return rootHdfsPath.toUri().toString();
     }
 
-    public FileSystemFactory fileSystemFactory() {
-        return ffs;
+    public FileContextFactory fileContextFactory() {
+        return fcf;
     }
 
     public Path path() {
@@ -91,10 +91,10 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        SecurityUtils.execute(ffs, new FsCallback<Void>() {
+        SecurityUtils.execute(fcf, new FcCallback<Void>() {
             @Override
-            public Void doInHdfs(FileSystem fs) throws IOException {
-                fs.delete(translateToHdfsPath(path), true);
+            public Void doInHdfs(FileContext fc) throws IOException {
+                fc.delete(translateToHdfsPath(path), true);
                 return null;
             }
         });

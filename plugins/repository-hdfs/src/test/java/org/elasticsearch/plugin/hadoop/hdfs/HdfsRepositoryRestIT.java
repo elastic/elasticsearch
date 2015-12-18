@@ -1,5 +1,3 @@
-package org.elasticsearch.plugin.hadoop.hdfs;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,16 +16,19 @@ package org.elasticsearch.plugin.hadoop.hdfs;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.plugin.hadoop.hdfs;
+
+import java.io.IOException;
+import java.util.Collection;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-
-import java.io.IOException;
-import java.util.Collection;
 
 public class HdfsRepositoryRestIT extends ESRestTestCase {
 

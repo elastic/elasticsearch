@@ -24,51 +24,23 @@ esplugin {
   classname 'org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin'
 }
 
-configurations {
-    hadoop1
-    hadoop2
-}
-
 versions << [
-  'hadoop1': '1.2.1',
   'hadoop2': '2.7.1'
 ]
 
+configurations {
+    hadoop2
+}
+
 dependencies {
-  provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
-  provided "org.apache.hadoop:hadoop-core:${versions.hadoop1}"
-
-  // use Hadoop1 to compile and test things (a subset of Hadoop2)
-  testCompile "org.apache.hadoop:hadoop-core:${versions.hadoop1}"
-  testCompile "org.apache.hadoop:hadoop-test:${versions.hadoop1}"
-  // Hadoop dependencies
-  testCompile "commons-configuration:commons-configuration:1.6"
-  testCompile "commons-lang:commons-lang:${versions.commonslang}"
-  testCompile "commons-collections:commons-collections:3.2.2"
-  testCompile "commons-net:commons-net:1.4.1"
-  testCompile "org.mortbay.jetty:jetty:6.1.26"
-  testCompile "org.mortbay.jetty:jetty-util:6.1.26"
-  testCompile "org.mortbay.jetty:servlet-api:2.5-20081211"
-  testCompile "com.sun.jersey:jersey-core:1.8"
-  
-
-  hadoop1("org.apache.hadoop:hadoop-core:${versions.hadoop1}") {
-    exclude module: "commons-cli"
-    exclude group: "com.sun.jersey"
-    exclude group: "org.mortbay.jetty"
-    exclude group: "tomcat"
-    exclude module: "commons-el"
-    exclude module: "hsqldb"
-    exclude group: "org.eclipse.jdt"
-    exclude module: "commons-beanutils"
-    exclude module: "commons-beanutils-core"
-    exclude module: "junit"
-    // provided by ES itself
-    exclude group: "log4j"
-  }
-
-  hadoop2("org.apache.hadoop:hadoop-client:${versions.hadoop2}") {
-    exclude module: "commons-cli"
+  hadoop2 ("org.apache.hadoop:hadoop-client:${versions.hadoop2}") {
+    exclude module: "hadoop-yarn-common"
+    exclude module: "hadoop-mapreduce-client-app"
+    exclude module: "hadoop-mapreduce-client-core"
+    exclude module: "hadoop-mapreduce-client-jobclient"
+    exclude module: "hadoop-yarn-api"
+    
+    exclude group: "commons-cli"
     exclude group: "com.sun.jersey"
     exclude group: "com.sun.jersey.contribs"
     exclude group: "com.sun.jersey.jersey-test-framework"
@@ -82,37 +54,57 @@ dependencies {
     exclude module: "commons-beanutils-core"
     exclude module: "javax.servlet"
     exclude module: "junit"
+    exclude module: "netty"
     // provided by ES itself
     exclude group: "log4j"
   }
 
-  hadoop2("org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}") {
+  hadoop2 ("org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}") {
+    // prevent jar hell
+    exclude module: "hadoop-yarn-common"
+    exclude module: "commons-cli"
+    exclude module: "netty"
     exclude module: "guava"
     exclude module: "junit"
     // provided by ES itself
     exclude group: "log4j"
   }
-} 
+
+  provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
+  provided configurations.hadoop2
+  
+  testCompile ("org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}:tests") {
+    exclude module: "commons-cli"
+    exclude module: "netty"
+  }
+  
+  testCompile ("org.apache.hadoop:hadoop-common:${versions.hadoop2}:tests") {
+    exclude module: "commons-cli"
+  }
+}
 
 configurations.all {
+    // used due to _transitive_ configuration
     resolutionStrategy {
+        force "commons-cli:commons-cli:1.3.1"
+        force "io.netty:netty:3.10.5.Final"
         force "commons-codec:commons-codec:${versions.commonscodec}"
         force "commons-logging:commons-logging:${versions.commonslogging}"
         force "commons-lang:commons-lang:2.6"
         force "commons-httpclient:commons-httpclient:3.0.1"
-        force "org.codehaus.jackson:jackson-core-asl:1.8.8"
-        force "org.codehaus.jackson:jackson-mapper-asl:1.8.8"
+        force "org.codehaus.jackson:jackson-core-asl:1.9.13"
+        force "org.codehaus.jackson:jackson-mapper-asl:1.9.13"
         force "com.google.code.findbugs:jsr305:3.0.0"
         force "com.google.guava:guava:16.0.1"
-        force "org.slf4j:slf4j-api:1.7.10"
-        force "org.slf4j:slf4j-log4j12:1.7.10"
+        force "org.slf4j:slf4j-api:${versions.slf4j}"
+        force "org.slf4j:slf4j-log4j12:${versions.slf4j}"
+        force "junit:junit:${versions.junit}"
+        force "org.apache.httpcomponents:httpclient:4.3.6"
+        force "log4j:log4j:${versions.log4j}"
     }
 }
-
-
 dependencyLicenses {
-  mapping from: /hadoop-core.*/, to: 'hadoop-1'
-  mapping from: /hadoop-.*/, to: 'hadoop-2'
+  mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
@@ -145,62 +137,31 @@ bundlePlugin {
     }
 }
 
-
-task distZipHadoop1(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        include "*"
-        include "internal-libs/**"
-    }
-    
-    description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
-    classifier = "hadoop1"
-
-    into ("hadoop-libs") {
-        from configurations.hadoop1.allArtifacts.files
-        from configurations.hadoop1
-    }
+task miniHdfsStart(type: JavaExec) {
+    classpath = sourceSets.test.compileClasspath + sourceSets.test.output
+    main = "org.elasticsearch.plugin.hadoop.hdfs.MiniHDFS"
+    errorOutput = new FileOutputStream("build/minihdfs.err")
+    standardOutput = new FileOutputStream("build/minihdfs.out")
+    //ext.hdfsPid = (main as Class).getPid
 }
 
-task distZipHadoop2(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        include "*"
-        include "internal-libs/**"
-    }
-        
-    description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
-    classifier = "hadoop2"
+//task miniHdfsStop(type: org.elasticsearch.gradle.LoggedExec) {
+//    onlyIf { hdfsPid > -1 }
+//    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+//       executable 'Taskkill'
+//        args '/PID', hdfsCluster.pid, '/F'
+//    } else {
+//        executable 'kill'
+//       args '-9', hdfsCluster.pid
+//    }
+//}
 
-    into ("hadoop-libs") {
-        from configurations.hadoop2.allArtifacts.files
-        from configurations.hadoop2
-    }
-}
+//integTest.dependsOn(miniHdfsStart)
+//integTest.finalizedBy(miniHdfsStop)
 
-task distZipNoHadoop(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        exclude "hadoop-libs/**"
-    }
-    
-    from sourceSets.main.output.resourcesDir
-
-    description = "Builds archive (without any Hadoop dependencies) suitable for download page."
-    classifier = "lite"
-}
-
+thirdPartyAudit.enabled = false
 
 artifacts {
     archives bundlePlugin
     'default' bundlePlugin
-    archives distZipHadoop1
-    archives distZipHadoop2
-    archives distZipNoHadoop
 }
-
-integTest {
-    cluster {
-        plugin(pluginProperties.extension.name, zipTree(distZipHadoop2.archivePath))
-    }
-}
-
-// classes are missing, e.g. org.mockito.Mockito
-thirdPartyAudit.missingClasses = true

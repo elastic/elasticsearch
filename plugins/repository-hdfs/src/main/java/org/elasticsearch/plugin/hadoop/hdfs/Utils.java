@@ -1,5 +1,3 @@
-package org.elasticsearch.plugin.hadoop.hdfs;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,8 +16,7 @@ package org.elasticsearch.plugin.hadoop.hdfs;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.SpecialPermission;
+package org.elasticsearch.plugin.hadoop.hdfs;
 
 import java.net.URL;
 import java.security.AccessControlContext;
@@ -27,6 +24,8 @@ import java.security.AccessController;
 import java.security.DomainCombiner;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+
+import org.elasticsearch.SpecialPermission;
 
 public abstract class Utils {
 

@@ -32,7 +32,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +44,11 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * You must specify {@code -Dtests.thirdparty=true}
  */
-@ThirdParty
+// Make sure to start MiniHDFS cluster before
+// otherwise, one will get some wierd PrivateCredentialPermission exception 
+// caused by the HDFS fallback code (which doesn't do much anyway)
+
+// @ThirdParty
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0)
 public class HdfsTests extends ESIntegTestCase {
 
@@ -75,10 +78,12 @@ public class HdfsTests extends ESIntegTestCase {
     }
 
     private String path;
+    private int port;
 
     @Before
     public final void wipeBefore() throws Exception {
         wipeRepositories();
+        port = MiniHDFS.getPort();
         path = "build/data/repo-" + randomInt();
     }
 
@@ -94,9 +99,9 @@ public class HdfsTests extends ESIntegTestCase {
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.settingsBuilder()
-                        //.put("uri", "hdfs://127.0.0.1:51227")
+                        .put("uri", "hdfs://127.0.0.1:" + port)
                         .put("conf.fs.es-hdfs.impl", TestingFs.class.getName())
-                        .put("uri", "es-hdfs://./build/")
+                        // .put("uri", "es-hdfs:///")
                         .put("path", path)
                         .put("conf", "additional-cfg.xml, conf-2.xml")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
@@ -178,9 +183,9 @@ public class HdfsTests extends ESIntegTestCase {
             PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                     .setType("hdfs")
                     .setSettings(Settings.settingsBuilder()
-                            // .put("uri", "hdfs://127.0.0.1:51227/")
-                            .put("conf.fs.es-hdfs.impl", TestingFs.class.getName())
-                        .put("uri", "es-hdfs:///")
+                        .put("uri", "hdfs://127.0.0.1:" + port)
+                            // .put("uri", "es-hdfs:///")
+                        .put("conf.fs.es-hdfs.impl", TestingFs.class.getName())
                         .put("path", path + "a@b$c#11:22")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
                         .put("compress", randomBoolean()))

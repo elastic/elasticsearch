@@ -1,5 +1,3 @@
-package org.elasticsearch.plugin.hadoop.hdfs;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +16,7 @@ package org.elasticsearch.plugin.hadoop.hdfs;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.plugin.hadoop.hdfs;
 
 import java.net.URL;
 import java.util.Collections;

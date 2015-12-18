@@ -28,40 +28,34 @@ grant {
   permission java.lang.RuntimePermission "setContextClassLoader";
 
   //
-  // Hadoop 1
+  // Hadoop 2
   //
-    
-  // UserGroupInformation (UGI)
+  
+  // UserGroupInformation (UGI) Metrics
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
+  // Shell initialization - reading system props
+  permission java.util.PropertyPermission "*", "read,write";
+  
   // UGI triggers JAAS
   permission javax.security.auth.AuthPermission "getSubject";
   
   // JAAS libraries are not loaded with the proper context in Hadoop, hence why the permission is needed here
   permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
   
-  // which triggers the use of the Kerberos library
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
-
   // plus LoginContext
   permission javax.security.auth.AuthPermission "modifyPrincipals";
   
   permission javax.security.auth.AuthPermission "modifyPublicCredentials";
   
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
-
-  //
-  // Hadoop 2
-  //
   
-  // UGI (Ugi Metrics)
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-
-  // Shell initialization - reading system props
-  permission java.util.PropertyPermission "*", "read,write";
+  //permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials \"*\"", "read";
   
-  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials   \"*\"", "read";
+  permission javax.security.auth.AuthPermission "doAs";
   
-  // HftpFileSystem (all present FS are loaded and initialized at startup ...)
-  permission java.lang.RuntimePermission "setFactory";
-};
+  // DFSClient init (metrics again)
+  permission java.lang.RuntimePermission "shutdownHooks";
+ };

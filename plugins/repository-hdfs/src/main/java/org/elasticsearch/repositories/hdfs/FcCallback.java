@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileContext;
 
 import java.io.IOException;
 
-interface FileSystemFactory {
+interface FcCallback<V> {
 
-    FileSystem getFileSystem() throws IOException;
+    V doInHdfs(FileContext fc) throws IOException;
 }

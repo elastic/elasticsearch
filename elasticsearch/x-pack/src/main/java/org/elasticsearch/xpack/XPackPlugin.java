@@ -7,13 +7,13 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
@@ -120,10 +120,10 @@ public class XPackPlugin extends Plugin {
         watcherPlugin.onModule(module);
     }
 
-    public void onModule(ClusterModule module) {
+    public void onModule(SettingsModule module) {
         shieldPlugin.onModule(module);
-        watcherPlugin.onModule(module);
         marvelPlugin.onModule(module);
+        watcherPlugin.onModule(module);
     }
 
     public void onModule(NetworkModule module) {

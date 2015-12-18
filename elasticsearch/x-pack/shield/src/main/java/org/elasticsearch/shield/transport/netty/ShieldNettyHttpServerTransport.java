@@ -74,6 +74,12 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
     }
 
     @Override
+    protected void doStart() {
+        super.doStart();
+        ipFilter.setBoundHttpTransportAddress(this.boundAddress());
+    }
+
+    @Override
     public ChannelPipelineFactory configureServerChannelPipelineFactory() {
         return new HttpSslChannelPipelineFactory(this);
     }

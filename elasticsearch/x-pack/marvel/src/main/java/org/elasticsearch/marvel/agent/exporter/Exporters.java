@@ -6,48 +6,70 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
 
 /**
  *
  */
-public class Exporters extends AbstractLifecycleComponent<Exporters> implements Iterable<Exporter>, NodeSettingsService.Listener {
+public class Exporters extends AbstractLifecycleComponent<Exporters> implements Iterable<Exporter> {
 
-    static final String EXPORTERS_SETTING = "marvel.agent.exporters";
+    public static final Setting<Settings> EXPORTERS_SETTING = Setting.groupSetting("marvel.agent.exporters.", true, Setting.Scope.CLUSTER);
 
     private final Map<String, Exporter.Factory> factories;
     private final MarvelSettingsFilter settingsFilter;
     private final ClusterService clusterService;
 
     private volatile CurrentExporters exporters = CurrentExporters.EMPTY;
+    private volatile Settings exporterSettings;
 
     @Inject
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
                      MarvelSettingsFilter settingsFilter, ClusterService clusterService,
-                     NodeSettingsService nodeSettingsService) {
+                     ClusterSettings clusterSettings) {
 
         super(settings);
         this.factories = factories;
         this.settingsFilter = settingsFilter;
         this.clusterService = clusterService;
-        nodeSettingsService.addListener(this);
+        exporterSettings = EXPORTERS_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(EXPORTERS_SETTING, this::setExportersSetting);
+
+    }
+
+    private synchronized void setExportersSetting(Settings exportersSetting) {
+        this.exporterSettings = exportersSetting;
+        if (this.lifecycleState() == Lifecycle.State.STARTED) {
+
+            CurrentExporters existing = exporters;
+            Settings updatedSettings = exportersSetting;
+            if (updatedSettings.names().isEmpty()) {
+                return;
+            }
+            this.exporters = initExporters(Settings.builder()
+                    .put(existing.settings)
+                    .put(updatedSettings)
+                    .build());
+            existing.close(logger);
+        }
     }
 
     @Override
     protected void doStart() {
-        exporters = initExporters(settings.getAsSettings(EXPORTERS_SETTING));
+        synchronized (this) {
+            exporters = initExporters(exporterSettings);
+        }
     }
 
     @Override
@@ -104,20 +126,6 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        CurrentExporters existing = exporters;
-        Settings updatedSettings = settings.getAsSettings(EXPORTERS_SETTING);
-        if (updatedSettings.names().isEmpty()) {
-            return;
-        }
-        this.exporters = initExporters(Settings.builder()
-                .put(existing.settings)
-                .put(updatedSettings)
-                .build());
-        existing.close(logger);
-    }
-
     // TODO only rebuild the exporters that need to be updated according to settings
     CurrentExporters initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
@@ -165,10 +173,6 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         }
 
         return new CurrentExporters(settings, exporters);
-    }
-
-    public static void registerDynamicSettings(ClusterModule clusterModule) {
-        clusterModule.registerClusterDynamicSetting(EXPORTERS_SETTING + "*", Validator.EMPTY);
     }
 
     static class CurrentExporters implements Iterable<Exporter> {

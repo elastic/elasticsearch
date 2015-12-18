@@ -78,7 +78,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         return Settings.builder()
                 .put(settings)
                 .put(unicastSettings)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put("discovery.type", "zen")
                 .build();
     }

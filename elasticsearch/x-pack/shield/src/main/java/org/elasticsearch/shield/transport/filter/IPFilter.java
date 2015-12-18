@@ -5,20 +5,17 @@
  */
 package org.elasticsearch.shield.transport.filter;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.transport.Transport;
@@ -30,10 +27,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
+public class IPFilter {
 
     /**
      * .http has been chosen for handling HTTP filters, which are not part of the profiles
@@ -43,8 +41,19 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
      */
     public static final String HTTP_PROFILE_NAME = ".http";
 
-    public static final String IP_FILTER_ENABLED_SETTING = "shield.transport.filter.enabled";
-    public static final String IP_FILTER_ENABLED_HTTP_SETTING = "shield.http.filter.enabled";
+    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting("shield.http.filter.enabled", true, true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = new Setting<>("shield.transport.filter.enabled", (s) -> IP_FILTER_ENABLED_HTTP_SETTING.getDefault(s), Booleans::parseBooleanExact, true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting("shield.transport.filter.allow", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting("shield.transport.filter.deny", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+
+    public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting("shield.http.filter.allow", (s) -> {
+        return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.allow", TRANSPORT_FILTER_ALLOW_SETTING.get(s).toArray(new String[0])));
+    }, Function.identity(), true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting("shield.http.filter.deny", (s) -> {
+        return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.deny", TRANSPORT_FILTER_DENY_SETTING.get(s).toArray(new String[0])));
+    }, Function.identity(), true, Setting.Scope.CLUSTER);
+
+
 
     public static final ShieldIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new ShieldIpFilterRule(true, "default:accept_all") {
         @Override
@@ -63,66 +72,81 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         }
     };
 
-    private final LifecycleListener parseSettingsListener = new LifecycleListener() {
-        @Override
-        public void afterStart() {
-            IPFilter.this.rules = IPFilter.this.parseSettings(settings);
-        }
-    };
-
-
-    private NodeSettingsService nodeSettingsService;
     private final AuditTrail auditTrail;
-    private final Transport transport;
     private final ShieldLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
-    private Map<String, ShieldIpFilterRule[]> rules = Collections.emptyMap();
-    private HttpServerTransport httpServerTransport = null;
+
+    private final ESLogger logger;
+    private volatile Map<String, ShieldIpFilterRule[]> rules = Collections.emptyMap();
+    private volatile boolean isIpFilterEnabled;
+    private volatile boolean isHttpFilterEnabled;
+    private volatile Map<String, Settings> transportGroups;
+    private volatile List<String> transportAllowFilter;
+    private volatile List<String> transportDenyFilter;
+    private volatile List<String> httpAllowFilter;
+    private volatile List<String> httpDenyFilter;
+    private final SetOnce<BoundTransportAddress> boundTransportAddress = new SetOnce<>();
+    private final SetOnce<BoundTransportAddress> boundHttpTransportAddress = new SetOnce<>();
+    private final SetOnce<Map<String, BoundTransportAddress>> profileBoundAddress = new SetOnce<>();
 
     @Inject
-    public IPFilter(final Settings settings, AuditTrail auditTrail, NodeSettingsService nodeSettingsService,
-                    Transport transport, ShieldLicenseState licenseState) {
-        super(settings);
-        this.nodeSettingsService = nodeSettingsService;
+    public IPFilter(final Settings settings, AuditTrail auditTrail, ClusterSettings clusterSettings,
+                    ShieldLicenseState licenseState) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
-        this.transport = transport;
         this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = settings.getAsBoolean("shield.filter.always_allow_bound_address", true);
+        httpDenyFilter = HTTP_FILTER_DENY_SETTING.get(settings);
+        httpAllowFilter = HTTP_FILTER_ALLOW_SETTING.get(settings);
+        transportAllowFilter = TRANSPORT_FILTER_ALLOW_SETTING.get(settings);
+        transportDenyFilter = TRANSPORT_FILTER_DENY_SETTING.get(settings);
+        isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
+        isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
+
+        this.transportGroups = Transport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(); // this is pretty crazy that we allow this to be updateable!!! - we have to fix this very soon
+        clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_HTTP_SETTING, this::setHttpFiltering);
+        clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_SETTING, this::setTransportFiltering);
+        clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_ALLOW_SETTING, this::setTransportAllowFilter);
+        clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
+        clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
+        clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
+        clusterSettings.addSettingsUpdateConsumer(Transport.TRANSPORT_PROFILES_SETTING, this::setTransportProfiles);
+        updateRules();
     }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        nodeSettingsService.addListener(new ApplySettings(settings));
-
-        if (transport.lifecycleState() == Lifecycle.State.STARTED) {
-            rules = parseSettings(settings);
-        } else {
-            transport.addLifecycleListener(parseSettingsListener);
-        }
+    private void setTransportProfiles(Settings settings) {
+        transportGroups = settings.getAsGroups();
+        updateRules();
     }
 
-    @Override
-    protected void doStop() throws ElasticsearchException {
+    private void setHttpDenyFilter(List<String> filter) {
+        this.httpDenyFilter = filter;
+        updateRules();
     }
 
-    @Override
-    protected void doClose() throws ElasticsearchException {
+    private void setHttpAllowFilter(List<String> filter) {
+        this.httpAllowFilter = filter;
+        updateRules();
     }
 
-    // this cannot be put into the constructor as HTTP might be disabled
-    @Inject(optional = true)
-    public void setHttpServerTransport(@Nullable HttpServerTransport httpServerTransport) {
-        if (httpServerTransport == null) {
-            return;
-        }
+    private void setTransportDenyFilter(List<String> filter) {
+        this.transportDenyFilter = filter;
+        updateRules();
+    }
 
-        this.httpServerTransport = httpServerTransport;
+    private void setTransportAllowFilter(List<String> filter) {
+        this.transportAllowFilter = filter;
+        updateRules();
+    }
 
-        if (httpServerTransport.lifecycleState() == Lifecycle.State.STARTED) {
-            IPFilter.this.rules = IPFilter.this.parseSettings(settings);
-        } else {
-            httpServerTransport.addLifecycleListener(parseSettingsListener);
-        }
+    private void setTransportFiltering(boolean enabled) {
+        this.isIpFilterEnabled = enabled;
+        updateRules();
+    }
+
+    private void setHttpFiltering(boolean enabled) {
+        this.isHttpFilterEnabled = enabled;
+        updateRules();
     }
 
     public boolean accept(String profile, InetAddress peerAddress) {
@@ -151,49 +175,43 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         return true;
     }
 
-    private Map<String, ShieldIpFilterRule[]> parseSettings(Settings settings) {
-        boolean isIpFilterEnabled = settings.getAsBoolean(IP_FILTER_ENABLED_SETTING, true);
-        boolean isHttpFilterEnabled = settings.getAsBoolean(IP_FILTER_ENABLED_HTTP_SETTING, isIpFilterEnabled);
+    private synchronized void updateRules() {
+        this.rules = parseSettings();
+    }
 
-        if (!isIpFilterEnabled && !isHttpFilterEnabled) {
+    private Map<String, ShieldIpFilterRule[]> parseSettings() {
+        if (isIpFilterEnabled || isHttpFilterEnabled) {
+            Map<String, ShieldIpFilterRule[]> profileRules = new HashMap<>();
+            if (isHttpFilterEnabled && boundHttpTransportAddress.get() != null) {
+                TransportAddress[] localAddresses = boundHttpTransportAddress.get().boundAddresses();
+                profileRules.put(HTTP_PROFILE_NAME, createRules(httpAllowFilter, httpDenyFilter, localAddresses));
+            }
+
+            if (isIpFilterEnabled && boundTransportAddress.get() != null) {
+                TransportAddress[] localAddresses = boundTransportAddress.get().boundAddresses();
+                profileRules.put("default", createRules(transportAllowFilter, transportDenyFilter, localAddresses));
+                for (Map.Entry<String, Settings> entry : transportGroups.entrySet()) {
+                    String profile = entry.getKey();
+                    BoundTransportAddress profileBoundTransportAddress = profileBoundAddress.get().get(profile);
+                    if (profileBoundTransportAddress == null) {
+                        // this could happen if a user updates the settings dynamically with a new profile
+                        logger.warn("skipping ip filter rules for profile [{}] since the profile is not bound to any addresses", profile);
+                        continue;
+                    }
+                    Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
+                    profileRules.put(profile, createRules(Arrays.asList(profileSettings.getAsArray("allow")), Arrays.asList(profileSettings.getAsArray("deny")), profileBoundTransportAddress.boundAddresses()));
+                }
+            }
+
+            logger.debug("loaded ip filtering profiles: {}", profileRules.keySet());
+            return unmodifiableMap(profileRules);
+        } else {
             return Collections.emptyMap();
         }
 
-        Map<String, ShieldIpFilterRule[]> profileRules = new HashMap<>();
-
-        if (isHttpFilterEnabled && httpServerTransport != null && httpServerTransport.lifecycleState() == Lifecycle.State.STARTED) {
-            TransportAddress[] localAddresses = this.httpServerTransport.boundAddress().boundAddresses();
-            String[] httpAllowed = settings.getAsArray("shield.http.filter.allow", settings.getAsArray("transport.profiles.default.shield.filter.allow", settings.getAsArray("shield.transport.filter.allow")));
-            String[] httpDenied = settings.getAsArray("shield.http.filter.deny", settings.getAsArray("transport.profiles.default.shield.filter.deny", settings.getAsArray("shield.transport.filter.deny")));
-            profileRules.put(HTTP_PROFILE_NAME, createRules(httpAllowed, httpDenied, localAddresses));
-        }
-
-        if (isIpFilterEnabled && this.transport.lifecycleState() == Lifecycle.State.STARTED) {
-            TransportAddress[] localAddresses = this.transport.boundAddress().boundAddresses();
-
-            String[] allowed = settings.getAsArray("shield.transport.filter.allow");
-            String[] denied = settings.getAsArray("shield.transport.filter.deny");
-            profileRules.put("default", createRules(allowed, denied, localAddresses));
-
-            Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
-            for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
-                String profile = entry.getKey();
-                BoundTransportAddress profileBoundTransportAddress = transport.profileBoundAddresses().get(profile);
-                if (profileBoundTransportAddress == null) {
-                    // this could happen if a user updates the settings dynamically with a new profile
-                    logger.warn("skipping ip filter rules for profile [{}] since the profile is not bound to any addresses", profile);
-                    continue;
-                }
-                Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
-                profileRules.put(profile, createRules(profileSettings.getAsArray("allow"), profileSettings.getAsArray("deny"), profileBoundTransportAddress.boundAddresses()));
-            }
-        }
-
-        logger.debug("loaded ip filtering profiles: {}", profileRules.keySet());
-        return unmodifiableMap(profileRules);
     }
 
-    private ShieldIpFilterRule[] createRules(String[] allow, String[] deny, TransportAddress[] boundAddresses) {
+    private ShieldIpFilterRule[] createRules(List<String> allow, List<String> deny, TransportAddress[] boundAddresses) {
         List<ShieldIpFilterRule> rules = new ArrayList<>();
         // if we are always going to allow the bound addresses, then the rule for them should be the first rule in the list
         if (alwaysAllowBoundAddresses) {
@@ -212,95 +230,14 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         return rules.toArray(new ShieldIpFilterRule[rules.size()]);
     }
 
-    private class ApplySettings implements NodeSettingsService.Listener {
+    public void setBoundTransportAddress(BoundTransportAddress boundTransportAddress,  Map<String, BoundTransportAddress> profileBoundAddress) {
+        this.boundTransportAddress.set(boundTransportAddress);
+        this.profileBoundAddress.set(profileBoundAddress);
+        updateRules();
+    }
 
-        String[] allowed;
-        String[] denied;
-        String[] httpAllowed;
-        String[] httpDenied;
-        ObjectObjectHashMap<String, String[]> profileAllowed;
-        ObjectObjectHashMap<String, String[]> profileDenied;
-        private boolean enabled;
-        private boolean httpEnabled;
-
-        public ApplySettings(Settings settings) {
-            loadValuesFromSettings(settings);
-        }
-
-        private void loadValuesFromSettings(Settings settings) {
-            this.enabled = settings.getAsBoolean(IP_FILTER_ENABLED_SETTING, this.enabled);
-            this.httpEnabled = settings.getAsBoolean(IP_FILTER_ENABLED_HTTP_SETTING, this.httpEnabled);
-            this.allowed = settings.getAsArray("shield.transport.filter.allow", this.allowed);
-            this.denied = settings.getAsArray("shield.transport.filter.deny", this.denied);
-            this.httpAllowed = settings.getAsArray("shield.http.filter.allow", this.httpAllowed);
-            this.httpDenied = settings.getAsArray("shield.http.filter.deny", this.httpDenied);
-
-            if (settings.getGroups("transport.profiles.").size() == 0) {
-                profileAllowed = HppcMaps.newMap(0);
-                profileDenied = HppcMaps.newMap(0);
-            }
-
-            profileAllowed = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
-            profileDenied = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
-            for (Map.Entry<String, Settings> entry : settings.getGroups("transport.profiles.").entrySet()) {
-                profileAllowed.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.allow"));
-                profileDenied.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.deny"));
-            }
-        }
-
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            if (ipFilterSettingsInvolved(settings) && settingsChanged(settings)) {
-                IPFilter.this.rules = parseSettings(settings);
-                loadValuesFromSettings(settings);
-            }
-        }
-
-        private boolean settingsChanged(Settings settings) {
-            // simple checks first
-            if (this.enabled != settings.getAsBoolean(IP_FILTER_ENABLED_SETTING, this.enabled) ||
-                this.httpEnabled != settings.getAsBoolean(IP_FILTER_ENABLED_HTTP_SETTING, this.httpEnabled) ||
-                !Arrays.equals(allowed, settings.getAsArray("shield.transport.filter.allow")) ||
-                !Arrays.equals(denied, settings.getAsArray("shield.transport.filter.deny")) ||
-                !Arrays.equals(httpAllowed, settings.getAsArray("shield.http.filter.allow")) ||
-                !Arrays.equals(httpDenied, settings.getAsArray("shield.http.filter.deny"))
-                ) {
-                return true;
-            }
-
-            // profile checks now
-            ObjectObjectHashMap<Object, Object> newProfileAllowed = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
-            ObjectObjectHashMap<Object, Object> newProfileDenied = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
-            for (Map.Entry<String, Settings> entry : settings.getGroups("transport.profiles.").entrySet()) {
-                newProfileAllowed.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.allow"));
-                newProfileDenied.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.deny"));
-            }
-
-            boolean allowedProfileChanged = !newProfileAllowed.equals(profileAllowed);
-            boolean deniedProfileChanged = !newProfileDenied.equals(profileDenied);
-            return allowedProfileChanged || deniedProfileChanged;
-        }
-
-        private boolean ipFilterSettingsInvolved(Settings settings) {
-            boolean containsStaticIpFilterSettings = settings.get("shield.transport.filter.allow") != null ||
-                    settings.get("shield.transport.filter.deny") != null ||
-                    settings.get("shield.http.filter.allow") != null ||
-                    settings.get("shield.http.filter.deny") != null ||
-                    settings.get(IP_FILTER_ENABLED_SETTING) != null ||
-                    settings.get(IP_FILTER_ENABLED_HTTP_SETTING) != null;
-
-            if (containsStaticIpFilterSettings) {
-                return true;
-            }
-
-            // now if any profile has a filter setting configured
-            for (Map.Entry<String, Settings> entry : settings.getGroups("transport.profiles.").entrySet()) {
-                if (entry.getValue().get("shield.filter.allow") != null || entry.getValue().get("shield.filter.deny") != null) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+    public void setBoundHttpTransportAddress(BoundTransportAddress boundHttpTransportAddress) {
+        this.boundHttpTransportAddress.set(boundHttpTransportAddress);
+        updateRules();
     }
 }

@@ -55,7 +55,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, false)
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .build();
     }
 

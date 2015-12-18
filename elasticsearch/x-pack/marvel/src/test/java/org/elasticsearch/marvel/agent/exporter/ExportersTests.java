@@ -7,21 +7,18 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.elasticsearch.marvel.shield.SecuredClient;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -45,7 +42,7 @@ public class ExportersTests extends ESTestCase {
     private Map<String, Exporter.Factory> factories;
     private MarvelSettingsFilter settingsFilter;
     private ClusterService clusterService;
-    private NodeSettingsService nodeSettingsService;
+    private ClusterSettings clusterSettings;
 
     @Before
     public void init() throws Exception {
@@ -57,10 +54,9 @@ public class ExportersTests extends ESTestCase {
 
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, new LocalExporter.Factory(securedClient, clusterService, mock(RendererRegistry.class)));
-
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING, MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
         settingsFilter = mock(MarvelSettingsFilter.class);
-        nodeSettingsService = mock(NodeSettingsService.class);
-        exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, nodeSettingsService);
+        exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, clusterSettings);
     }
 
     public void testInitExportersDefault() throws Exception {
@@ -170,14 +166,13 @@ public class ExportersTests extends ESTestCase {
     public void testSettingsUpdate() throws Exception {
         Exporter.Factory factory = spy(new TestFactory("_type", false));
         factories.put("_type", factory);
-        TestNodeSettingsService nodeSettingsService = new TestNodeSettingsService();
 
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         exporters = new Exporters(Settings.builder()
                 .put("marvel.agent.exporters._name0.type", "_type")
                 .put("marvel.agent.exporters._name1.type", "_type")
-                .build(), factories, settingsFilter, clusterService, nodeSettingsService) {
+                .build(), factories, settingsFilter, clusterService, clusterSettings) {
             @Override
             CurrentExporters initExporters(Settings settings) {
                 settingsHolder.set(settings);
@@ -196,8 +191,7 @@ public class ExportersTests extends ESTestCase {
                 .put("marvel.agent.exporters._name0.foo", "bar")
                 .put("marvel.agent.exporters._name1.foo", "bar")
                 .build();
-        nodeSettingsService.updateSettings(update);
-
+        clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
         settings = settingsHolder.get().getAsMap();
         assertThat(settings.size(), is(4));
@@ -215,7 +209,7 @@ public class ExportersTests extends ESTestCase {
         Exporters exporters = new Exporters(Settings.builder()
                 .put("marvel.agent.exporters._name0.type", "mock")
                 .put("marvel.agent.exporters._name1.type", "mock_master_only")
-                .build(), factories, settingsFilter, clusterService, nodeSettingsService);
+                .build(), factories, settingsFilter, clusterService, clusterSettings);
         exporters.start();
 
         DiscoveryNode localNode = mock(DiscoveryNode.class);
@@ -239,7 +233,7 @@ public class ExportersTests extends ESTestCase {
         Exporters exporters = new Exporters(Settings.builder()
                 .put("marvel.agent.exporters._name0.type", "mock")
                 .put("marvel.agent.exporters._name1.type", "mock_master_only")
-                .build(), factories, settingsFilter, clusterService, nodeSettingsService);
+                .build(), factories, settingsFilter, clusterService, clusterSettings);
         exporters.start();
 
         DiscoveryNode localNode = mock(DiscoveryNode.class);
@@ -304,22 +298,4 @@ public class ExportersTests extends ESTestCase {
         }
     }
 
-    static class TestNodeSettingsService extends NodeSettingsService {
-        private final List<Listener> listeners = new ArrayList<>();
-
-        public TestNodeSettingsService() {
-            super(Settings.EMPTY);
-        }
-
-        @Override
-        public void addListener(Listener listener) {
-            listeners.add(listener);
-        }
-
-        public void updateSettings(Settings settings) {
-            for (Listener listener : listeners) {
-                listener.onRefreshSettings(settings);
-            }
-        }
-    }
 }

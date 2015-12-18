@@ -41,9 +41,9 @@ public class ShardsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put(MarvelSettings.COLLECTORS, ShardsCollector.NAME)
-                .put(MarvelSettings.INDICES, INDEX_PREFIX + "*")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ShardsCollector.NAME)
+                .put(MarvelSettings.INDICES_SETTING.getKey(), INDEX_PREFIX + "*")
                 .put("marvel.agent.exporters.default_local.type", "local")
                 .build();
     }

@@ -28,8 +28,8 @@ public class NodeStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "-1")
-                .put(MarvelSettings.COLLECTORS, NodeStatsCollector.NAME)
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), NodeStatsCollector.NAME)
                 .put("marvel.agent.exporters.default_local.type", LocalExporter.TYPE)
                 .build();
     }

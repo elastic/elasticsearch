@@ -84,7 +84,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(200, "successful bulk request ");
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
                 .put("marvel.agent.exporters._http.connection.keep_alive", false)
@@ -121,7 +121,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
     public void testDynamicHostChange() {
         // disable exporting to be able to use non valid hosts
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", "test0");
 
@@ -145,7 +145,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
     public void testHostChangeReChecksTemplate() throws Exception {
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
                 .put("marvel.agent.exporters._http.connection.keep_alive", false)
@@ -247,7 +247,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     public void testUnsupportedClusterVersion() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
                 .put("marvel.agent.exporters._http.connection.keep_alive", false);
@@ -274,7 +274,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     public void testDynamicIndexFormatChange() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
                 .put("marvel.agent.exporters._http.connection.keep_alive", false)
@@ -372,7 +372,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         final String host = webServer.getHostName() + ":" + webServer.getPort();
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL, "-1")
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .put("marvel.agent.exporters._http.type", "http")
                 .put("marvel.agent.exporters._http.host", host)
                 .put("marvel.agent.exporters._http.connection.keep_alive", false);

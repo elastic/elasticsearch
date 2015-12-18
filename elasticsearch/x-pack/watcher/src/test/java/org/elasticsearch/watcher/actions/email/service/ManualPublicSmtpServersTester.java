@@ -8,15 +8,16 @@ package org.elasticsearch.watcher.actions.email.service;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/379")
 public class ManualPublicSmtpServersTester {
@@ -128,7 +129,7 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new NodeSettingsService(settings), WatcherSettingsFilter.Noop.INSTANCE);
+        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)), WatcherSettingsFilter.Noop.INSTANCE);
         service.start();
         return service;
     }

@@ -88,8 +88,8 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
         // now disable ip filtering dynamically and make sure nothing is rejected
         settings = settingsBuilder()
-                .put(IPFilter.IP_FILTER_ENABLED_SETTING, false)
-                .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, true)
+                .put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false)
+                .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), true)
                 .build();
         updateSettings(settings);
         assertConnectionAccepted("default", "127.0.0.8");
@@ -108,7 +108,7 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
         if (httpEnabled) {
             assertConnectionRejected(".http", "127.0.0.8");
             settings = settingsBuilder()
-                    .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, false)
+                    .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), false)
                     .build();
             // as we permanently switch between persistent and transient settings, just set both here to make sure we overwrite
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));

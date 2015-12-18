@@ -24,7 +24,12 @@ import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.plan.a.Definition.*;
+import static org.elasticsearch.plan.a.Definition.Cast;
+import static org.elasticsearch.plan.a.Definition.Field;
+import static org.elasticsearch.plan.a.Definition.Method;
+import static org.elasticsearch.plan.a.Definition.Struct;
+import static org.elasticsearch.plan.a.Definition.Transform;
+import static org.elasticsearch.plan.a.Definition.Type;
 
 public class Def {
     public static Object methodCall(final Object owner, final String name, final Definition definition,
@@ -551,7 +556,7 @@ public class Def {
         throw new ClassCastException("Cannot apply [%] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     public static Object add(final Object left, final Object right) {
         if (left instanceof String || right instanceof String) {
             return "" + left + right;
@@ -738,7 +743,7 @@ public class Def {
         throw new ClassCastException("Cannot apply [>>>] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     public static Object and(final Object left, final Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
             return (boolean)left && (boolean)right;

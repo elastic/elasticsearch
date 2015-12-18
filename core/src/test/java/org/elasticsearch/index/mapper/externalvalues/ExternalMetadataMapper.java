@@ -24,7 +24,6 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -105,7 +104,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         public ExternalMetadataMapper build(BuilderContext context) {
             return new ExternalMetadataMapper(context.indexSettings());
         }
-        
+
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
@@ -119,7 +118,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
             return new ExternalMetadataMapper(indexSettings);
         }
-        
+
     }
 
 }

@@ -19,6 +19,16 @@ package org.elasticsearch.mapper.attachments;
  * under the License.
  */
 
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.Parser;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+
 import java.io.ByteArrayInputStream;
 import java.io.FilePermission;
 import java.io.IOException;
@@ -36,16 +46,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.PropertyPermission;
-
-import org.apache.tika.Tika;
-import org.apache.tika.exception.TikaException;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.parser.AutoDetectParser;
-import org.apache.tika.parser.Parser;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 
 /**
  * Runs tika with limited parsers and limited permissions.
@@ -69,13 +69,13 @@ final class TikaImpl {
         new org.apache.tika.parser.xml.DcXMLParser(),
         new org.apache.tika.parser.epub.EpubParser(),
     };
-    
+
     /** autodetector based on this subset */
     private static final AutoDetectParser PARSER_INSTANCE = new AutoDetectParser(PARSERS);
-    
+
     /** singleton tika instance */
     private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
-    
+
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */

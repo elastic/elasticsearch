@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
+import groovy.lang.MissingPropertyException;
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +27,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-
-import groovy.lang.MissingPropertyException;
 
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;

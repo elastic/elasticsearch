@@ -45,8 +45,8 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 

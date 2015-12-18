@@ -30,7 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class EvilInternalSettingsPreparerTests extends ESTestCase {

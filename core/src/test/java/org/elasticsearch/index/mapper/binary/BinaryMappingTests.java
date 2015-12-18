@@ -20,13 +20,10 @@
 package org.elasticsearch.index.mapper.binary;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -83,7 +80,7 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
         }
         final byte[] binaryValue2 = out.bytes().toBytes();
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
-        
+
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
             ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");

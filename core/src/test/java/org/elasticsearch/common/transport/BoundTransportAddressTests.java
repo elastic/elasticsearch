@@ -28,7 +28,9 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Basic tests for the {@link BoundTransportAddress} class. These tests should not bind to any addresses but should

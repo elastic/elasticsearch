@@ -19,8 +19,6 @@
 
 package org.elasticsearch.node.internal;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
@@ -35,6 +33,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;

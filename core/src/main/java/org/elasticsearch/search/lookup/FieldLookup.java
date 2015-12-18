@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;

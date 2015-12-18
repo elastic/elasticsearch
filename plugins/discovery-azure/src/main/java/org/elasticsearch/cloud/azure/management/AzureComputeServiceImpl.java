@@ -36,7 +36,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.*;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID;
 
 /**
  *

@@ -19,11 +19,16 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.action.search.*;
-import org.elasticsearch.search.SearchHit;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -33,7 +38,10 @@ import java.util.Map;
 
 import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
 import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 
 public class QueryProfilerIT extends ESIntegTestCase {

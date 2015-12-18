@@ -20,7 +20,6 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 

@@ -27,7 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AzureSettingsParserTest extends LuceneTestCase {
 

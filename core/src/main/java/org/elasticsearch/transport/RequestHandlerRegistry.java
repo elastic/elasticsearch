@@ -20,8 +20,6 @@
 package org.elasticsearch.transport;
 
 
-import java.lang.reflect.Constructor;
-import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 /**

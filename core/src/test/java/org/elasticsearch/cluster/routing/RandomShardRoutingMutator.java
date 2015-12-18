@@ -19,7 +19,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.elasticsearch.test.ESTestCase.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 
 /**
  * Utility class the makes random modifications to ShardRouting

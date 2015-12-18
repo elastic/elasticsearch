@@ -23,7 +23,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -107,53 +106,53 @@ public class GeoUtils {
     }
 
     /**
-     * Calculate the width (in meters) of geohash cells at a specific level 
-     * @param level geohash level must be greater or equal to zero 
-     * @return the width of cells at level in meters  
+     * Calculate the width (in meters) of geohash cells at a specific level
+     * @param level geohash level must be greater or equal to zero
+     * @return the width of cells at level in meters
      */
     public static double geoHashCellWidth(int level) {
         assert level>=0;
         // Geohash cells are split into 32 cells at each level. the grid
-        // alternates at each level between a 8x4 and a 4x8 grid 
+        // alternates at each level between a 8x4 and a 4x8 grid
         return EARTH_EQUATOR / (1L<<((((level+1)/2)*3) + ((level/2)*2)));
     }
 
     /**
-     * Calculate the width (in meters) of quadtree cells at a specific level 
-     * @param level quadtree level must be greater or equal to zero 
-     * @return the width of cells at level in meters  
+     * Calculate the width (in meters) of quadtree cells at a specific level
+     * @param level quadtree level must be greater or equal to zero
+     * @return the width of cells at level in meters
      */
     public static double quadTreeCellWidth(int level) {
         assert level >=0;
         return EARTH_EQUATOR / (1L<<level);
     }
-    
+
     /**
-     * Calculate the height (in meters) of geohash cells at a specific level 
-     * @param level geohash level must be greater or equal to zero 
-     * @return the height of cells at level in meters  
+     * Calculate the height (in meters) of geohash cells at a specific level
+     * @param level geohash level must be greater or equal to zero
+     * @return the height of cells at level in meters
      */
     public static double geoHashCellHeight(int level) {
         assert level>=0;
         // Geohash cells are split into 32 cells at each level. the grid
-        // alternates at each level between a 8x4 and a 4x8 grid 
+        // alternates at each level between a 8x4 and a 4x8 grid
         return EARTH_POLAR_DISTANCE / (1L<<((((level+1)/2)*2) + ((level/2)*3)));
     }
-    
+
     /**
-     * Calculate the height (in meters) of quadtree cells at a specific level 
-     * @param level quadtree level must be greater or equal to zero 
-     * @return the height of cells at level in meters  
+     * Calculate the height (in meters) of quadtree cells at a specific level
+     * @param level quadtree level must be greater or equal to zero
+     * @return the height of cells at level in meters
      */
     public static double quadTreeCellHeight(int level) {
         assert level>=0;
         return EARTH_POLAR_DISTANCE / (1L<<level);
     }
-    
+
     /**
-     * Calculate the size (in meters) of geohash cells at a specific level 
-     * @param level geohash level must be greater or equal to zero 
-     * @return the size of cells at level in meters  
+     * Calculate the size (in meters) of geohash cells at a specific level
+     * @param level geohash level must be greater or equal to zero
+     * @return the size of cells at level in meters
      */
     public static double geoHashCellSize(int level) {
         assert level>=0;
@@ -163,20 +162,20 @@ public class GeoUtils {
     }
 
     /**
-     * Calculate the size (in meters) of quadtree cells at a specific level 
-     * @param level quadtree level must be greater or equal to zero 
-     * @return the size of cells at level in meters  
+     * Calculate the size (in meters) of quadtree cells at a specific level
+     * @param level quadtree level must be greater or equal to zero
+     * @return the size of cells at level in meters
      */
     public static double quadTreeCellSize(int level) {
         assert level>=0;
         return Math.sqrt(EARTH_POLAR_DISTANCE*EARTH_POLAR_DISTANCE + EARTH_EQUATOR*EARTH_EQUATOR) / (1L<<level);
     }
-    
+
     /**
      * Calculate the number of levels needed for a specific precision. Quadtree
      * cells will not exceed the specified size (diagonal) of the precision.
      * @param meters Maximum size of cells in meters (must greater than zero)
-     * @return levels need to achieve precision  
+     * @return levels need to achieve precision
      */
     public static int quadTreeLevelsForPrecision(double meters) {
         assert meters >= 0;
@@ -195,7 +194,7 @@ public class GeoUtils {
      * Calculate the number of levels needed for a specific precision. QuadTree
      * cells will not exceed the specified size (diagonal) of the precision.
      * @param distance Maximum size of cells as unit string (must greater or equal to zero)
-     * @return levels need to achieve precision  
+     * @return levels need to achieve precision
      */
     public static int quadTreeLevelsForPrecision(String distance) {
         return quadTreeLevelsForPrecision(DistanceUnit.METERS.parse(distance, DistanceUnit.DEFAULT));
@@ -205,11 +204,11 @@ public class GeoUtils {
      * Calculate the number of levels needed for a specific precision. GeoHash
      * cells will not exceed the specified size (diagonal) of the precision.
      * @param meters Maximum size of cells in meters (must greater or equal to zero)
-     * @return levels need to achieve precision  
+     * @return levels need to achieve precision
      */
     public static int geoHashLevelsForPrecision(double meters) {
         assert meters >= 0;
-        
+
         if(meters == 0) {
             return GeohashPrefixTree.getMaxLevelsPossible();
         } else {
@@ -219,19 +218,19 @@ public class GeoUtils {
             if(part == 1)
                 return 1;
             final int bits = (int)Math.round(Math.ceil(Math.log(part) / Math.log(2)));
-            final int full = bits / 5;                // number of 5 bit subdivisions    
+            final int full = bits / 5;                // number of 5 bit subdivisions
             final int left = bits - full*5;           // bit representing the last level
             final int even = full + (left>0?1:0);     // number of even levels
             final int odd = full + (left>3?1:0);      // number of odd levels
             return even+odd;
         }
     }
-    
+
     /**
      * Calculate the number of levels needed for a specific precision. GeoHash
      * cells will not exceed the specified size (diagonal) of the precision.
      * @param distance Maximum size of cells as unit string (must greater or equal to zero)
-     * @return levels need to achieve precision  
+     * @return levels need to achieve precision
      */
     public static int geoHashLevelsForPrecision(String distance) {
         return geoHashLevelsForPrecision(DistanceUnit.METERS.parse(distance, DistanceUnit.DEFAULT));
@@ -355,7 +354,7 @@ public class GeoUtils {
     }
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}:
-     * 
+     *
      * @param parser {@link XContentParser} to parse the value from
      * @return new {@link GeoPoint} parsed from the parse
      */
@@ -365,14 +364,14 @@ public class GeoUtils {
 
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
-     * 
+     *
      * <ul>
      *     <li>Object: <pre>{&quot;lat&quot;: <i>&lt;latitude&gt;</i>, &quot;lon&quot;: <i>&lt;longitude&gt;</i>}</pre></li>
      *     <li>String: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
      *     <li>Geohash: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
      *     <li>Array: <pre>[<i>&lt;longitude&gt;</i>,<i>&lt;latitude&gt;</i>]</pre></li>
      * </ul>
-     * 
+     *
      * @param parser {@link XContentParser} to parse the value from
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
@@ -381,7 +380,7 @@ public class GeoUtils {
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
-        
+
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
                 if(parser.currentToken() == Token.FIELD_NAME) {
@@ -433,7 +432,7 @@ public class GeoUtils {
             } else {
                 return point.reset(lat, lon);
             }
-            
+
         } else if(parser.currentToken() == Token.START_ARRAY) {
             int element = 0;
             while(parser.nextToken() != Token.END_ARRAY) {

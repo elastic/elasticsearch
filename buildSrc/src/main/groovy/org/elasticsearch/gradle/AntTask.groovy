@@ -19,15 +19,9 @@
 
 package org.elasticsearch.gradle
 
-import org.apache.tools.ant.BuildException
-import org.apache.tools.ant.BuildListener
-import org.apache.tools.ant.BuildLogger
-import org.apache.tools.ant.DefaultLogger
-import org.apache.tools.ant.Project
+import org.apache.tools.ant.*
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.charset.Charset

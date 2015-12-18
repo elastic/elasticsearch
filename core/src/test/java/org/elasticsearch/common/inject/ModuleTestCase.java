@@ -18,7 +18,13 @@
  */
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
+import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.elasticsearch.common.inject.spi.UntargettedBinding;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.annotation.Annotation;

@@ -17,9 +17,9 @@
  * under the License.
  */
 
+
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.test.RestSpecHack
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'com.bmuschko.nexus'

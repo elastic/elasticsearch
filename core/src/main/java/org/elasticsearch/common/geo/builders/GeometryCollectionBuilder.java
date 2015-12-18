@@ -20,11 +20,10 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
-
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;

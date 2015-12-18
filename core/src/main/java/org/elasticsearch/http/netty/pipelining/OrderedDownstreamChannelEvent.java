@@ -22,7 +22,11 @@ package org.elasticsearch.http.netty.pipelining;
 // this file is from netty-http-pipelining, under apache 2.0 license
 // see github.com/typesafehub/netty-http-pipelining
 
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelEvent;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.DownstreamMessageEvent;
 
 /**
  * Permits downstream channel events to be ordered and signalled as to whether more are to come for a given sequence.

@@ -19,13 +19,6 @@
 
 package org.elasticsearch.index.mapper.size;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.util.Collections;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,8 +33,15 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 public class SizeMappingTests extends ESSingleNodeTestCase {
-    
+
     MapperRegistry mapperRegistry;
     IndexService indexService;
     DocumentMapperParser parser;
@@ -72,7 +72,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
         assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
-    
+
     public void testSizeEnabledAndStoredBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).field("store", "yes").endObject()
@@ -97,7 +97,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
         assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
-    
+
     public void testSizeDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
@@ -113,7 +113,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
-    
+
     public void testSizeNotSet() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
@@ -128,7 +128,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
-    
+
     public void testThatDisablingWorksWhenMerging() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()

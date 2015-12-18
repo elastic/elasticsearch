@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -336,17 +335,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"range\" : {\n" + 
-                "    \"timestamp\" : {\n" + 
-                "      \"from\" : \"2015-01-01 00:00:00\",\n" + 
-                "      \"to\" : \"now\",\n" + 
-                "      \"include_lower\" : true,\n" + 
-                "      \"include_upper\" : true,\n" + 
-                "      \"time_zone\" : \"+01:00\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"include_lower\" : true,\n" +
+                "      \"include_upper\" : true,\n" +
+                "      \"time_zone\" : \"+01:00\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         RangeQueryBuilder parsed = (RangeQueryBuilder) parseQuery(json);

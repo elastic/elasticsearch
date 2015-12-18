@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.GeoHashUtils;
-import org.elasticsearch.common.inject.matcher.Matchers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,10 +29,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.search.suggest.completion.context.*;
+import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;

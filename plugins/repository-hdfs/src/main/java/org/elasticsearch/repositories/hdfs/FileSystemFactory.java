@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.IOException;
-
 import org.apache.hadoop.fs.FileSystem;
+
+import java.io.IOException;
 
 interface FileSystemFactory {
 

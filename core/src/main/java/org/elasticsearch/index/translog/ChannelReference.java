@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
+import java.nio.file.Path;
 
 final class ChannelReference extends AbstractRefCounted {
     private final Path file;

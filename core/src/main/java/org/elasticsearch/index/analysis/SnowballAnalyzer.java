@@ -22,14 +22,14 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
-import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
+import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
+import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 
@@ -40,7 +40,7 @@ import org.apache.lucene.util.Version;
  * stemmer is the part of the class name before "Stemmer", e.g., the stemmer in
  * {@link org.tartarus.snowball.ext.EnglishStemmer} is named "English".
 
- * @deprecated (3.1) Use the language-specific analyzer in modules/analysis instead. 
+ * @deprecated (3.1) Use the language-specific analyzer in modules/analysis instead.
  * This analyzer WAS removed in Lucene 5.0
  */
 @Deprecated

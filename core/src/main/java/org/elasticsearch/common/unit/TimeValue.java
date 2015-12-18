@@ -32,7 +32,6 @@ import org.joda.time.format.PeriodFormat;
 import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;

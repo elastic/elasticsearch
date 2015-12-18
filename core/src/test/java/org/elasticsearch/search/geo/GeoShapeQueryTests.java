@@ -20,7 +20,6 @@
 package org.elasticsearch.search.geo;
 
 import com.spatial4j.core.shape.Rectangle;
-
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;

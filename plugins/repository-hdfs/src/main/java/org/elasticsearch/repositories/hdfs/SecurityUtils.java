@@ -19,16 +19,16 @@
 
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.hadoop.fs.FileSystem;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.plugin.hadoop.hdfs.Utils;
+
 import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-
-import org.apache.hadoop.fs.FileSystem;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.plugin.hadoop.hdfs.Utils;
 
 class SecurityUtils {
 

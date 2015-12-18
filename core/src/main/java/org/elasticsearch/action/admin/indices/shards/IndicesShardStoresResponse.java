@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.*;
+import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.readStoreStatus;
 
 /**
  * Response for {@link IndicesShardStoresAction}

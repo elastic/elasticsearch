@@ -15,14 +15,9 @@ import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger
 import org.junit.runner.Description
 
+import javax.sound.sampled.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.Line;
-import javax.sound.sampled.LineEvent;
-import javax.sound.sampled.LineListener;
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
 import static com.carrotsearch.gradle.junit4.TestLoggingConfiguration.OutputMode

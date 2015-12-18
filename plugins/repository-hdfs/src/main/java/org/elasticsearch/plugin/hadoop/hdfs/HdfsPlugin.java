@@ -18,6 +18,16 @@
  */
 package org.elasticsearch.plugin.hadoop.hdfs;
 
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.Repository;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -31,23 +41,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.repositories.Repository;
-
 //
 // Note this plugin is somewhat special as Hadoop itself loads a number of libraries and thus requires a number of permissions to run even in client mode.
 // This poses two problems:
 // - Hadoop itself comes with tons of jars, many providing the same classes across packages. In particular Hadoop 2 provides package annotations in the same
 //   package across jars which trips JarHell. Thus, to allow Hadoop jars to load, the plugin uses a dedicated CL which picks them up from the hadoop-libs folder.
 // - The issue though with using a different CL is that it picks up the jars from a different location / codeBase and thus it does not fall under the plugin
-//   permissions. In other words, the plugin permissions don't apply to the hadoop libraries.  
+//   permissions. In other words, the plugin permissions don't apply to the hadoop libraries.
 //   There are different approaches here:
 //      - implement a custom classloader that loads the jars but 'lies' about the codesource. It is doable but since URLClassLoader is locked down, one would
 //        would have to implement the whole jar opening and loading from it. Not impossible but still fairly low-level.
@@ -64,7 +64,7 @@ import org.elasticsearch.repositories.Repository;
 // - package plugin.hadoop.hdfs is part of the plugin
 // - all the other packages are assumed to be in the nested Hadoop CL.
 
-// Code 
+// Code
 public class HdfsPlugin extends Plugin {
 
     @Override
@@ -81,7 +81,7 @@ public class HdfsPlugin extends Plugin {
     public void onModule(RepositoriesModule repositoriesModule) {
         String baseLib = Utils.detectLibFolder();
         List<URL> cp = getHadoopClassLoaderPath(baseLib);
-        
+
         ClassLoader hadoopCL = URLClassLoader.newInstance(cp.toArray(new URL[cp.size()]), getClass().getClassLoader());
 
         Class<? extends Repository> repository = null;

@@ -29,11 +29,13 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexTypeMapperTests extends ESSingleNodeTestCase {
     private Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-    
+
     public void testSimpleIndexMapperEnabledBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()
@@ -51,7 +53,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("_index"), equalTo("test"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
-    
+
     public void testExplicitDisabledIndexMapperBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).endObject()
@@ -69,7 +71,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
-    
+
     public void testDefaultDisabledIndexMapper() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
@@ -86,7 +88,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
-    
+
     public void testThatMergingFieldMappingAllowsDisablingBackcompat() throws Exception {
         String mappingWithIndexEnabled = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()
@@ -103,7 +105,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
         mapperEnabled.merge(mapperDisabled.mapping(), false, false);
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));
     }
-    
+
     public void testThatDisablingWorksWhenMergingBackcompat() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()

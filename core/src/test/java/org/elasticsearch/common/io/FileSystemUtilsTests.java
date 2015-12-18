@@ -21,7 +21,6 @@ package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,8 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.elasticsearch.common.io.FileTestUtils.assertFileContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.

@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;

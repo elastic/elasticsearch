@@ -20,13 +20,13 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.network.Cidrs;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 public class CidrsTests extends ESTestCase {
     public void testNullCidr() {

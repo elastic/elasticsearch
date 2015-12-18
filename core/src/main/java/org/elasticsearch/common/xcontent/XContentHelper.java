@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 
 import java.util.AbstractMap;
-import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Stream;
 

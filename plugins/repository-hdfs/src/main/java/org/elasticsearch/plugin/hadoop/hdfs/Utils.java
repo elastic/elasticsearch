@@ -19,14 +19,14 @@ package org.elasticsearch.plugin.hadoop.hdfs;
  * under the License.
  */
 
+import org.elasticsearch.SpecialPermission;
+
 import java.net.URL;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.DomainCombiner;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-
-import org.elasticsearch.SpecialPermission;
 
 public abstract class Utils {
 

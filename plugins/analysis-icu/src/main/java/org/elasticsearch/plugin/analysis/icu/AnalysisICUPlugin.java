@@ -19,7 +19,12 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
+import org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuTokenizerFactory;
+import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 

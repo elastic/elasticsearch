@@ -23,7 +23,12 @@ import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -299,7 +304,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             // For further reasoning see
             // https://issues.apache.org/jira/browse/LUCENE-4021
             return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
-                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms) 
+                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
                     && Objects.equals(lenient, other.lenient)
                     && Objects.equals(analyzeWildcard, other.analyzeWildcard));
         }

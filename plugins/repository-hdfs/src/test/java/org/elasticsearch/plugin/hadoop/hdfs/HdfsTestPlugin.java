@@ -23,8 +23,6 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.List;
 
-import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
-
 public class HdfsTestPlugin extends HdfsPlugin {
 
     @Override

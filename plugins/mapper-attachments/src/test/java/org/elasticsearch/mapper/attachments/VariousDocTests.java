@@ -33,7 +33,14 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.*;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.AUTHOR;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_LENGTH;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_TYPE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.DATE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.KEYWORDS;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.LANGUAGE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.NAME;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.TITLE;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.isEmptyOrNullString;

@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 /**

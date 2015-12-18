@@ -18,8 +18,8 @@
  */
 
 package org.elasticsearch.rest.action.cat;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;

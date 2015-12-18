@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
 
@@ -91,7 +92,6 @@ public class RetryTests extends ESTestCase {
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
     }
 
-    @AwaitsFix(bugUrl = "spuriously fails on Jenkins. Investigation ongoing.")
     public void testAsyncRetryBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();
@@ -108,7 +108,6 @@ public class RetryTests extends ESTestCase {
         listener.assertOnFailureNeverCalled();
     }
 
-    @AwaitsFix(bugUrl = "spuriously fails on Jenkins. Investigation ongoing.")
     public void testAsyncRetryFailsAfterBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();
@@ -128,7 +127,7 @@ public class RetryTests extends ESTestCase {
 
     private static class AssertingListener implements ActionListener<BulkResponse> {
         private final CountDownLatch latch;
-        private volatile int countOnResponseCalled = 0;
+        private final AtomicInteger countOnResponseCalled = new AtomicInteger();
         private volatile Throwable lastFailure;
         private volatile BulkResponse response;
 
@@ -142,19 +141,19 @@ public class RetryTests extends ESTestCase {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            latch.countDown();
             this.response = bulkItemResponses;
-            countOnResponseCalled++;
+            countOnResponseCalled.incrementAndGet();
+            latch.countDown();
         }
 
         @Override
         public void onFailure(Throwable e) {
-            latch.countDown();
             this.lastFailure = e;
+            latch.countDown();
         }
 
         public void assertOnResponseCalled() {
-            assertThat(countOnResponseCalled, equalTo(1));
+            assertThat(countOnResponseCalled.get(), equalTo(1));
         }
 
         public void assertResponseWithNumberOfItems(int numItems) {

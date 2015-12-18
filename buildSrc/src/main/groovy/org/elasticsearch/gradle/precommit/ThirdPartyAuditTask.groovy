@@ -114,7 +114,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         
         ant.taskdef(name:      "thirdPartyAudit",
                     classname: "de.thetaphi.forbiddenapis.ant.AntTask",
-                    classpath: project.configurations.forbiddenApis.asPath)
+                    classpath: project.configurations.buildTools.asPath)
         
         // print which jars we are going to scan, always
         // this is not the time to try to be succinct! Forbidden will print plenty on its own!

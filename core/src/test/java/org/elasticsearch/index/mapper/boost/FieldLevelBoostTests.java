@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.boost;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -44,7 +45,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .startObject("short_field").field("type", "short").startObject("norms").field("enabled", true).endObject().endObject()
                 .string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = XContentFactory.jsonBuilder().startObject()
                 .startObject("str_field").field("boost", 2.0).field("value", "some name").endObject()
                 .startObject("int_field").field("boost", 3.0).field("value", 10).endObject()
@@ -94,7 +95,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .startObject("short_field").field("type", "short").startObject("norms").field("enabled", true).endObject().endObject()
                 .string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("str_field").field("foo", "bar")

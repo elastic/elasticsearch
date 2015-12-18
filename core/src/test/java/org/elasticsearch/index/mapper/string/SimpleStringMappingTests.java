@@ -76,7 +76,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("ignore_above", 5).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -122,7 +122,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
     private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
         String mapping = mapper.toXContent(XContentFactory.jsonBuilder().startObject(), new ToXContent.MapParams(emptyMap())).endObject().string();
-        mapper = parser.parse(mapping);
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "2345")
@@ -136,7 +136,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -154,7 +154,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -177,7 +177,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").startObject("norms").field("enabled", true).endObject().field("index_options", "freqs").endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = parser.parse(mapping);
+        defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -200,7 +200,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = parser.parse(mapping);
+        defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -242,7 +242,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = parser.parse(mapping);
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         for (String fieldName : Arrays.asList("field1", "field2", "field3", "field4")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertFalse(fieldName, serializedMap.containsKey("search_quote_analyzer"));
@@ -266,7 +266,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        mapper = parser.parse(mapping);
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         for (String fieldName : Arrays.asList("field1", "field2")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
@@ -318,7 +318,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -389,7 +389,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
@@ -443,7 +443,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -492,7 +492,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        defaultMapper.merge(parser.parse(updatedMapping).mapping(), false, false);
+        defaultMapper.merge(parser.parse("type", new CompressedXContent(updatedMapping)).mapping(), false, false);
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -507,7 +507,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
         try {
-            defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
+            defaultMapper.merge(parser.parse("type", new CompressedXContent(updatedMapping)).mapping(), true, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("different [omit_norms]"));
@@ -531,7 +531,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .field("analyzer", "standard")
                 .endObject().endObject().endObject().endObject().string();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("Mapping definition should fail with the position_offset_gap setting");
         }catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [field2] has unsupported parameters:  [position_offset_gap : 50]");
@@ -554,8 +554,8 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .field("type", "string")
                 .field("position_offset_gap", 10)
                 .endObject().endObject().endObject().endObject().string();
-        parser.parse(mapping);
+        parser.parse("type", new CompressedXContent(mapping));
 
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"position_increment_gap\":10"));
+        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"position_increment_gap\":10"));
     }
 }

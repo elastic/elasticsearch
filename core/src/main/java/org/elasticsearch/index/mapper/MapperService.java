@@ -213,7 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             // NOTE: never apply the default here
-            DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
+            DocumentMapper mapper = documentParser.parse(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
             try (ReleasableLock lock = mappingWriteLock.acquire()) {
@@ -392,7 +392,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }  else {
             defaultMappingSource = this.defaultMappingSource;
         }
-        return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     public boolean hasMapping(String mappingType) {

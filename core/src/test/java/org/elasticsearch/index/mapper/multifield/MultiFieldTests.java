@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -77,7 +78,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     private void testMultiField(String mapping) throws Exception {
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
@@ -161,7 +162,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         String builtMapping = builderDocMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
-        DocumentMapper docMapper = mapperParser.parse(builtMapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
 
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
@@ -189,7 +190,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testConvertMultiFieldNoDefaultField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
@@ -261,7 +262,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.mappers().getMapper("a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("a"), instanceOf(StringFieldMapper.class));
@@ -377,7 +378,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testConvertMultiFieldCompletion() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-completion.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.mappers().getMapper("a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("a"), instanceOf(StringFieldMapper.class));
@@ -457,7 +458,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         }
         builder = builder.endObject().endObject().endObject().endObject().endObject();
         String mapping = builder.string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         Arrays.sort(multiFieldNames);
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true).v2();
@@ -498,8 +499,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         // Check the mapping remains identical when deserialed/re-serialsed
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = parser.parse(builder.string());
-        DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(builder.string()));
+        DocumentMapper docMapper2 = parser.parse("type", docMapper.mappingSource());
         assertThat(docMapper.mappingSource(), equalTo(docMapper2.mappingSource()));
     }
 
@@ -509,7 +510,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject().endObject().string();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected mapping parse failure");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("cannot be used in multi field"));
@@ -522,7 +523,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject().endObject().string();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected mapping parse failure");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("cannot be used in multi field"));
@@ -548,7 +549,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         try {
-            mapperService.documentMapperParser().parse(mapping.string());
+            mapperService.documentMapperParser().parse("my_type", new CompressedXContent(mapping.string()));
             fail("this should throw an exception because one field contains a dot");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));

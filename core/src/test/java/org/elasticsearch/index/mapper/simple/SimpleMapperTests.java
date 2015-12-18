@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.simple;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -64,10 +65,10 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse(builtMapping);
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
@@ -76,7 +77,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
@@ -88,7 +89,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
@@ -98,12 +99,12 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     public void testAttributes() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         String builtMapping = docMapper.mappingSource().string();
-        DocumentMapper builtDocMapper = parser.parse(builtMapping);
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 
@@ -132,7 +133,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
             .startObject("foo.bar").field("type", "string").endObject()
             .endObject().endObject().string();
         try {
-            mapperParser.parse(mapping);
+            mapperParser.parse("type", new CompressedXContent(mapping));
             fail("Mapping parse should have failed");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));

@@ -26,6 +26,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -118,7 +119,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -152,7 +153,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -190,7 +191,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = parser.parse(mapping);
+            DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
             //Test numbers passed as strings
             String invalidJsonNumberAsString="1";
@@ -290,7 +291,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -326,7 +327,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -359,7 +360,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .field("date_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -410,8 +411,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("int",    "100")
@@ -481,8 +482,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("int",    "100")
@@ -540,7 +541,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject().string();
         try {
-            parser.parse(mappingWithTV);
+            parser.parse("type", new CompressedXContent(mappingWithTV));
             fail();
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [term_vector : yes]"));
@@ -550,7 +551,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
                 .build();
         parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
-        parser.parse(mappingWithTV); // no exception
+        parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
     }
 
     public void testAnalyzerBackCompat() throws Exception {
@@ -569,7 +570,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject().string();
         try {
-            parser.parse(mappingWithTV);
+            parser.parse("type", new CompressedXContent(mappingWithTV));
             fail();
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [analyzer : keyword]"));
@@ -579,6 +580,6 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
                 .build();
         parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
-        parser.parse(mappingWithTV); // no exception
+        parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
     }
 }

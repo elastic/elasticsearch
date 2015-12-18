@@ -20,11 +20,14 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  */
@@ -35,7 +38,7 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         try {
             defaultMapper.parse("test", "type", "1", new BytesArray(" {\n" +
                     "      \"object\": {\n" +
@@ -61,7 +64,7 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
                 .endObject().endObject().string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
     }
 
     @Test
@@ -80,10 +83,9 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
                                             .endObject()
                                         .endObject()
                                         .string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 
-    @Test(expected = MapperParsingException.class)
     public void fieldsArrayMultiFieldsShouldThrowExceptionTest() throws Exception {
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -101,7 +103,13 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch(MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("expected map for property [fields]"));
+            assertThat(e.getMessage(), containsString("but got a class java.util.ArrayList"));
+        }
     }
 
     @Test
@@ -116,10 +124,9 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
                                             .endObject()
                                         .endObject()
                                         .string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 
-    @Test(expected = MapperParsingException.class)
     public void fieldsWithFilledArrayShouldThrowExceptionTest() throws Exception {
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -133,7 +140,12 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
+        }
     }
 
     @Test
@@ -156,6 +168,6 @@ public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
                                             .endObject()
                                         .endObject()
                                         .string();
-        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 }

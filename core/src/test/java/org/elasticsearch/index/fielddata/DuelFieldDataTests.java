@@ -32,6 +32,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.English;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +76,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                     .startObject("float").field("type", "float").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                     .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                 .endObject().endObject().endObject().string();
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         Random random = getRandom();
         int atLeast = scaledRandomIntBetween(200, 1500);
         for (int i = 0; i < atLeast; i++) {
@@ -151,7 +152,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                     .startObject("long").field("type", "long").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         Random random = getRandom();
         int atLeast = scaledRandomIntBetween(200, 1500);
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 10);
@@ -233,7 +234,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                     .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         Random random = getRandom();
         int atLeast = scaledRandomIntBetween(200, 1500);
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 10);
@@ -415,7 +416,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                     .startObject("geopoint").field("type", "geo_point").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         Random random = getRandom();
         int atLeast = scaledRandomIntBetween(200, 1500);

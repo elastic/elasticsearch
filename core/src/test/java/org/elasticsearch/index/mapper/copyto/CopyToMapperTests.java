@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.copyto;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -154,7 +155,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -182,7 +183,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -218,7 +219,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -247,7 +248,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -281,7 +282,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -317,7 +318,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapperBefore = parser.parse(mappingBefore);
+        DocumentMapper docMapperBefore = parser.parse("type1", new CompressedXContent(mappingBefore));
 
         List<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
@@ -326,7 +327,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertThat(fields.get(1), equalTo("bar"));
 
 
-        DocumentMapper docMapperAfter = parser.parse(mappingAfter);
+        DocumentMapper docMapperAfter = parser.parse("type1", new CompressedXContent(mappingAfter));
 
         docMapperBefore.merge(docMapperAfter.mapping(), true, false);
 
@@ -381,7 +382,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             }
             mapping = mapping.endObject();
 
-            DocumentMapper mapper = parser.parse(mapping.string());
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
 
             XContentBuilder jsonDoc = XContentFactory.jsonBuilder()
                     .startObject()
@@ -461,7 +462,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")

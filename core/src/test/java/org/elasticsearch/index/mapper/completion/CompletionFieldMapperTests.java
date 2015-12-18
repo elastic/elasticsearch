@@ -27,6 +27,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,7 +39,6 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -61,7 +61,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -95,7 +95,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -131,7 +131,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -157,7 +157,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -179,7 +179,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         for (Version version : Arrays.asList(V_1_7_0, V_1_1_0, randomVersionBetween(random(), V_1_1_0, V_1_7_0))) {
             DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version.id).build())
-                    .mapperService().documentMapperParser().parse(mapping);
+                    .mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
             assertTrue(fieldMapper instanceof OldCompletionFieldMapper);
             MappedFieldType completionFieldType = fieldMapper.fieldType();
@@ -194,7 +194,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             assertAcked(client().admin().indices().prepareDelete("test").execute().get());
         }
         // for 2.0 indices and onwards, should create new completion fields
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertTrue(fieldMapper instanceof CompletionFieldMapper);
         MappedFieldType completionFieldType = fieldMapper.fieldType();
@@ -217,7 +217,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -237,7 +237,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -260,7 +260,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -283,7 +283,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -316,7 +316,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
@@ -349,7 +349,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         try {
             defaultMapper.parse("test", "type1", "1", XContentFactory.jsonBuilder()
                     .startObject()
@@ -376,7 +376,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         CharsRefBuilder charsRefBuilder = new CharsRefBuilder();
         charsRefBuilder.append("sugg");
         charsRefBuilder.setCharAt(2, '\u001F');
@@ -430,7 +430,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType().prefixQuery(new BytesRef("co"));
@@ -445,7 +445,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType().fuzzyQuery("co",
@@ -463,7 +463,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()

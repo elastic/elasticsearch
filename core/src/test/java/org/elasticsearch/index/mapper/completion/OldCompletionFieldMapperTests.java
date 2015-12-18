@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.completion;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,7 +51,7 @@ public class OldCompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
-                .mapperService().documentMapperParser().parse(mapping);
+                .mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(OldCompletionFieldMapper.class));
@@ -75,7 +76,7 @@ public class OldCompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
-                .mapperService().documentMapperParser().parse(mapping);
+                .mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(OldCompletionFieldMapper.class));
@@ -108,7 +109,7 @@ public class OldCompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
-                .mapperService().documentMapperParser().parse(mapping);
+                .mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(OldCompletionFieldMapper.class));

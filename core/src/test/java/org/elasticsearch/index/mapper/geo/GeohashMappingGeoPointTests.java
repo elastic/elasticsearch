@@ -23,6 +23,7 @@ import org.apache.lucene.util.GeoHashUtils;
 import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -48,7 +49,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -73,7 +74,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -98,7 +99,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -120,7 +121,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
         BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
@@ -135,7 +136,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
         BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
@@ -150,7 +151,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

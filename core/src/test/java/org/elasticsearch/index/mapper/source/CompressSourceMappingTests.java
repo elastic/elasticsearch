@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -45,7 +46,7 @@ public class CompressSourceMappingTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("compress", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -61,7 +62,7 @@ public class CompressSourceMappingTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -78,7 +79,7 @@ public class CompressSourceMappingTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("compress_threshold", "200b").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")

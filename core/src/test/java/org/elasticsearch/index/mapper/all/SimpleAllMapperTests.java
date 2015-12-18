@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
@@ -71,7 +72,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleAllMappers() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -90,7 +91,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testAllMappersNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
         IndexService index = createIndex("test");
-        DocumentMapper docMapper = index.mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = index.mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -104,7 +105,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testAllMappersTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_omit_positions_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -122,7 +123,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
     public void testAllMappersWithOffsetsTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -141,7 +142,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
     public void testBoostWithOmitPositions() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -152,7 +153,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     // #6187: if no fields were boosted, we shouldn't use AllTokenStream
     public void testNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -163,10 +164,10 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testSimpleAllMappersWithReparse() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse(builtMapping);
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
 
@@ -181,7 +182,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleAllMappersWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -198,10 +199,10 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse(builtMapping);
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
 
@@ -267,10 +268,10 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = mappingBuilder.endObject().endObject().bytes().toUtf8();
         logger.info(mapping);
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("test", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse(builtMapping);
+        DocumentMapper builtDocMapper = parser.parse("test", new CompressedXContent(builtMapping));
 
         byte[] json = jsonBuilder().startObject()
                 .field("foo", "bar")
@@ -314,7 +315,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiField_includeInAllSetToFalse() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_include_in_all_set_to_false.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -332,7 +333,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiField_defaults() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_default.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -349,24 +350,39 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         assertThat(allEntries.fields(), hasItem("foo.bar"));
     }
 
-    @Test(expected = MapperParsingException.class)
     public void testMisplacedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_type_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("[type : string]"));
+        }
     }
 
     // related to https://github.com/elasticsearch/elasticsearch/issues/5864
-    @Test(expected = MapperParsingException.class)
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("type=string"));
+        }
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
-    @Test(expected = MapperParsingException.class)
     public void testMisplacedMappingAsRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("type=string"));
+        }
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
@@ -374,17 +390,17 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
-        parser.parse("test", mapping);
+        parser.parse("test", new CompressedXContent(mapping));
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_date_formats_mapping.json");
-        parser.parse("test", mapping);
+        parser.parse("test", new CompressedXContent(mapping));
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_date_detection_mapping.json");
-        parser.parse("test", mapping);
+        parser.parse("test", new CompressedXContent(mapping));
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_numeric_detection_mapping.json");
-        parser.parse("test", mapping);
+        parser.parse("test", new CompressedXContent(mapping));
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
-    public void testMetadataMappersStillWorking() {
+    public void testMetadataMappersStillWorking() throws MapperParsingException, IOException {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
         //just pick some example from DocumentMapperParser.rootTypeParsers
@@ -397,7 +413,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             mapping += "\"" + key+ "\"" + ":" + rootTypes.get(key) + ",\n";
         }
         mapping += "\"properties\":{}}" ;
-        createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
     }
     
     public void testDocValuesNotAllowed() throws IOException {
@@ -406,7 +422,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
                 .field("doc_values", true)
             .endObject().endObject().endObject().string();
         try {
-            createIndex("test").mapperService().documentMapperParser().parse(mapping);
+            createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             fail();
         } catch (MapperParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
@@ -420,7 +436,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject().endObject().string();
         Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         try {
-            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse(mapping);
+            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             fail();
         } catch (MapperParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
@@ -445,7 +461,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testIncludeInObjectBackcompat() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject().field("_all", "foo").endObject().bytes());
 
@@ -457,7 +473,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()

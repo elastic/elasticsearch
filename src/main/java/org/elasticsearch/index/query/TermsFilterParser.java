@@ -188,7 +188,9 @@ public class TermsFilterParser implements FilterParser {
 
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext, SearchContext.current());
-            terms.addAll(termsFilterCache.terms(termsLookup, lookupCache, cacheKey));
+            // Note that we avoid a copy here and just assign to the looked-up terms.  This is safe so long as
+            // terms is never modified.
+            terms = termsFilterCache.terms(termsLookup, lookupCache, cacheKey);
         }
 
         if (terms.isEmpty()) {

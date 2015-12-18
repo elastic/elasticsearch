@@ -74,10 +74,16 @@ abstract class BulkRequestHandler {
                         .withSyncBackoff(client, bulkRequest);
                 afterCalled = true;
                 listener.afterBulk(executionId, bulkRequest, bulkResponse);
-            } catch (Exception e) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info("Bulk request {} has been cancelled.", e, executionId);
                 if (!afterCalled) {
-                    logger.warn("Failed to executed bulk request {}.", e, executionId);
                     listener.afterBulk(executionId, bulkRequest, e);
+                }
+            } catch (Throwable t) {
+                logger.warn("Failed to execute bulk request {}.", t, executionId);
+                if (!afterCalled) {
+                    listener.afterBulk(executionId, bulkRequest, t);
                 }
             }
         }
@@ -135,11 +141,11 @@ abstract class BulkRequestHandler {
                         });
                 bulkRequestSetupSuccessful = true;
             } catch (InterruptedException e) {
-                // This is intentionally wrong to avoid changing the behaviour implicitly with this PR. It will be fixed in #14833
-                Thread.interrupted();
+                Thread.currentThread().interrupt();
+                logger.info("Bulk request {} has been cancelled.", e, executionId);
                 listener.afterBulk(executionId, bulkRequest, e);
             } catch (Throwable t) {
-                logger.warn("Failed to executed bulk request {}.", t, executionId);
+                logger.warn("Failed to execute bulk request {}.", t, executionId);
                 listener.afterBulk(executionId, bulkRequest, t);
             } finally {
                 if (!bulkRequestSetupSuccessful && acquired) {  // if we fail on client.bulk() release the semaphore

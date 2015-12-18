@@ -61,6 +61,9 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Callback after a failed execution of bulk request.
+         *
+         * Note that in case an instance of <code>InterruptedException</code> is passed, which means that request processing has been
+         * cancelled externally, the thread's interruption status has been restored prior to calling this method.
          */
         void afterBulk(long executionId, BulkRequest request, Throwable failure);
     }

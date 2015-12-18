@@ -5,7 +5,14 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import com.unboundid.ldap.sdk.*;
+import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.Filter;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPInterface;
+import com.unboundid.ldap.sdk.SearchRequest;
+import com.unboundid.ldap.sdk.SearchResult;
+import com.unboundid.ldap.sdk.SearchResultEntry;
+import com.unboundid.ldap.sdk.SearchScope;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +24,9 @@ import org.elasticsearch.shield.support.Exceptions;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.*;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.search;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.searchForEntry;
 
 /**
  *

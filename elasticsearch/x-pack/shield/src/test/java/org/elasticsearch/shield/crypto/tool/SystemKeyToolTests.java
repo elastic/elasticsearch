@@ -11,7 +11,6 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.crypto.tool.SystemKeyTool.Generate;
 import org.junit.Before;

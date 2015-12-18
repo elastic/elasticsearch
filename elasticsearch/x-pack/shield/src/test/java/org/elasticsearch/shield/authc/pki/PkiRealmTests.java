@@ -18,6 +18,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
+import javax.security.auth.x500.X500Principal;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,8 +26,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.regex.Pattern;
-
-import javax.security.auth.x500.X500Principal;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;

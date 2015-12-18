@@ -24,20 +24,30 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
-import org.elasticsearch.license.plugin.core.*;
-import org.hamcrest.Matchers;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.elasticsearch.test.ESTestCase.assertNotNull;
+import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
 

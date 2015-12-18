@@ -30,7 +30,9 @@ import org.joda.time.PeriodType;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.watcher.support.Exceptions.*;
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.watcher.support.Exceptions.ioException;
 
 
 public class WatcherService extends AbstractComponent {

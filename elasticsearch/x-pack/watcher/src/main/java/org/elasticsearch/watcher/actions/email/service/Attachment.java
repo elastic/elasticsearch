@@ -7,10 +7,10 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.watcher.actions.email.service.support.BodyPartSource;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.actions.email.service.support.BodyPartSource;
 
 import javax.activation.DataHandler;
 import javax.activation.DataSource;

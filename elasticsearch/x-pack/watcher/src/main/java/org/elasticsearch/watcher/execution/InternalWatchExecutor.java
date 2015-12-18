@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 
 import java.util.concurrent.BlockingQueue;

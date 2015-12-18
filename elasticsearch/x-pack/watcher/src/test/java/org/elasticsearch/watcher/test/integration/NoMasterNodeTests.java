@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
-import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;

@@ -14,8 +14,6 @@ import org.elasticsearch.license.core.License;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 @Singleton
 public class FoundLicensesService extends AbstractLifecycleComponent<FoundLicensesService> implements LicenseeRegistry, LicensesManagerService {

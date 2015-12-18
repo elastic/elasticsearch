@@ -6,11 +6,11 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;

@@ -7,7 +7,6 @@ package org.elasticsearch.shield.support;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;

@@ -5,7 +5,16 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.unboundid.ldap.sdk.*;
+import com.unboundid.ldap.sdk.FailoverServerSet;
+import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPConnectionPool;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.SearchRequest;
+import com.unboundid.ldap.sdk.SearchResultEntry;
+import com.unboundid.ldap.sdk.ServerSet;
+import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;

@@ -10,7 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;

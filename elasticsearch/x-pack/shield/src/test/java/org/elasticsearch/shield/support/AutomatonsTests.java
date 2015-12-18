@@ -7,7 +7,6 @@ package org.elasticsearch.shield.support;
 
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RunAutomaton;
-
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.shield.support.Automatons.pattern;

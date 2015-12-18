@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 

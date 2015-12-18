@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.watcher.transport.actions.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.client.Client;
 
 /**
  * A delete document action request builder.

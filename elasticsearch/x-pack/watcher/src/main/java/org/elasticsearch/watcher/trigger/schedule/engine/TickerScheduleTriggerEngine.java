@@ -6,12 +6,16 @@
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
 import org.elasticsearch.common.inject.Inject;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.trigger.schedule.*;
+import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;

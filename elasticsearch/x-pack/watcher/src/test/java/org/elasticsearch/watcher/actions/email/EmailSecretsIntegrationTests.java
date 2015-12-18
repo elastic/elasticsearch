@@ -25,11 +25,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 
+import javax.mail.internet.MimeMessage;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import javax.mail.internet.MimeMessage;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;

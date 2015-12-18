@@ -5,12 +5,8 @@
  */
 package org.elasticsearch.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.client.Client;
 
 /**
  * Watcher stats request builder.

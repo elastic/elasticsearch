@@ -6,7 +6,13 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelStateEvent;
+import org.jboss.netty.channel.DownstreamMessageEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import java.util.LinkedList;

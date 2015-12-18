@@ -21,10 +21,12 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.core.IsEqual.equalTo;

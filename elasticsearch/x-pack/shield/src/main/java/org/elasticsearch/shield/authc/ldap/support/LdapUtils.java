@@ -5,7 +5,15 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
-import com.unboundid.ldap.sdk.*;
+import com.unboundid.ldap.sdk.DN;
+import com.unboundid.ldap.sdk.Filter;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPInterface;
+import com.unboundid.ldap.sdk.LDAPSearchException;
+import com.unboundid.ldap.sdk.ResultCode;
+import com.unboundid.ldap.sdk.SearchRequest;
+import com.unboundid.ldap.sdk.SearchResult;
+import com.unboundid.ldap.sdk.SearchResultEntry;
 import org.elasticsearch.common.logging.ESLogger;
 
 import javax.naming.ldap.Rdn;

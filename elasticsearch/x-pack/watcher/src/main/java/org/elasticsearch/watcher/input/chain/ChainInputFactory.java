@@ -11,11 +11,15 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.input.*;
+import org.elasticsearch.watcher.input.ExecutableInput;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputFactory;
+import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput> implements InitializingService.Initializable {
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;

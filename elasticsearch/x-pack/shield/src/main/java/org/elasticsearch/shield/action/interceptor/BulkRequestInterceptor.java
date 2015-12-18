@@ -6,8 +6,6 @@
 package org.elasticsearch.shield.action.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.update.UpdateRequest;

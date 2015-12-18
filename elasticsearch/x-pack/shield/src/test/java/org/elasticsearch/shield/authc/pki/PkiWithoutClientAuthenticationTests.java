@@ -24,13 +24,12 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.util.Locale;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 

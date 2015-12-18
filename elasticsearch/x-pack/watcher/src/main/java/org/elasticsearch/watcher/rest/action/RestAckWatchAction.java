@@ -5,18 +5,23 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
-import org.elasticsearch.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequest;
-import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.rest.WatcherRestHandler;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequest;
+import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.watcher.watch.Watch;
 
 /**
  * The rest action to ack a watch

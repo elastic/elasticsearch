@@ -6,11 +6,11 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.watcher.actions.email.service.support.BodyPartSource;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.watcher.actions.email.service.support.BodyPartSource;
 
 import javax.activation.DataHandler;
 import javax.activation.DataSource;

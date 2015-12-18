@@ -13,7 +13,10 @@ import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 /**

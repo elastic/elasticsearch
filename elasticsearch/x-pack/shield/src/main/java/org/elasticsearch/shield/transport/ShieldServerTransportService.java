@@ -15,7 +15,15 @@ import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Collections;
@@ -23,7 +31,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.*;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_PROFILE_CLIENT_AUTH_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_PROFILE_SSL_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_SSL_DEFAULT;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_SSL_SETTING;
 
 /**
  *

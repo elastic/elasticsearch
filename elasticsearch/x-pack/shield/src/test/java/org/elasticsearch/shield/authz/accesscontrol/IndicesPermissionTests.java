@@ -21,7 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesPermissionTests extends ESTestCase {
 

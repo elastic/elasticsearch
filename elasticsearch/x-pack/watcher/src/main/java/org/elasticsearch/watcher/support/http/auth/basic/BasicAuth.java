@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 

@@ -5,13 +5,8 @@
  */
 package org.elasticsearch.watcher.transport.actions.get;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.index.VersionType;
 
 /**

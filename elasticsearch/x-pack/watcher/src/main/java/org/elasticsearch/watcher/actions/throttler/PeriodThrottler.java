@@ -6,11 +6,11 @@
 package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.common.Nullable;
-import org.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.joda.time.PeriodType;
 
 /**
  * This throttler throttles the action based on its last <b>successful</b> execution time. If the time passed since

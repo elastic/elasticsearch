@@ -13,9 +13,10 @@ import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 
-import static org.elasticsearch.license.core.License.OperationMode.*;
+import static org.elasticsearch.license.core.License.OperationMode.GOLD;
+import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
+import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
 
 public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
 

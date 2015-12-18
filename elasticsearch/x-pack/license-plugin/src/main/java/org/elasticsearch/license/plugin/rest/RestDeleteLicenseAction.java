@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin.rest;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;

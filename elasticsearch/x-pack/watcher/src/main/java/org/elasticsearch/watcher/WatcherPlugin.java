@@ -7,9 +7,7 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;

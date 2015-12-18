@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.unboundid.ldap.sdk.*;
+import com.unboundid.ldap.sdk.FailoverServerSet;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.ServerSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;

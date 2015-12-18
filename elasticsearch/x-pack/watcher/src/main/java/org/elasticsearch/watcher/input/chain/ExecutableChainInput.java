@@ -12,7 +12,10 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.watch.Payload;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.Result> {
 

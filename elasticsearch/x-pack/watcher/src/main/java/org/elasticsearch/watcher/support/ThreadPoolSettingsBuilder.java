@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  *

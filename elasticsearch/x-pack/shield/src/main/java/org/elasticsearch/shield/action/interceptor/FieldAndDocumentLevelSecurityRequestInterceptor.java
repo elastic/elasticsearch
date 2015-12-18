@@ -11,8 +11,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Collections;

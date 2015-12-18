@@ -23,7 +23,6 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.shield.SecuredClient;
-import org.elasticsearch.node.service.NodeService;
 
 import java.util.ArrayList;
 import java.util.Collection;

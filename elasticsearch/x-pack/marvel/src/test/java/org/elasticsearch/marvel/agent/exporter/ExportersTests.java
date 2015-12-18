@@ -18,7 +18,11 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;

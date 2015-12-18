@@ -8,7 +8,6 @@ package org.elasticsearch.marvel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.XPackPlugin;

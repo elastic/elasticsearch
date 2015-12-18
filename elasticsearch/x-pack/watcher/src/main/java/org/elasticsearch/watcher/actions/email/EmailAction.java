@@ -17,8 +17,8 @@ import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;

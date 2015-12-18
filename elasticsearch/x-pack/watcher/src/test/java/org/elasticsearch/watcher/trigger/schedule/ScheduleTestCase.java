@@ -9,14 +9,23 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.trigger.schedule.support.*;
+import org.elasticsearch.watcher.trigger.schedule.support.DayOfWeek;
+import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.Month;
+import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.daily;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.hourly;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.monthly;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.weekly;
 
 /**
  *

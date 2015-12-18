@@ -8,8 +8,6 @@ package org.elasticsearch.license.plugin.action.delete;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-import java.util.Set;
-
 public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
 
     /**

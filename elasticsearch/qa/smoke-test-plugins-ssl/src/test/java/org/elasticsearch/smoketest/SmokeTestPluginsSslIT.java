@@ -5,7 +5,21 @@
  */
 package org.elasticsearch.smoketest;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.support.Headers;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.client.RestClient;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -14,22 +28,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.client.RestClient;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class SmokeTestPluginsSslIT extends ESRestTestCase {
 

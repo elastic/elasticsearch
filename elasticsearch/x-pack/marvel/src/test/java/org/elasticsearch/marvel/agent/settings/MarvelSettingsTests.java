@@ -14,14 +14,11 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-
-import org.apache.lucene.util.LuceneTestCase.BadApple;
-
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 //test is just too slow, please fix it to not be sleep-based
 //@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.actions.hipchat.service;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -17,7 +17,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Color;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Format;
-import org.elasticsearch.watcher.support.http.*;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;

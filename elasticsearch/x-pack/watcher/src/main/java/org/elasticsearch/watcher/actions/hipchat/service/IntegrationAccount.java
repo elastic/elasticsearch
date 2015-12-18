@@ -17,7 +17,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Color;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Format;
-import org.elasticsearch.watcher.support.http.*;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;

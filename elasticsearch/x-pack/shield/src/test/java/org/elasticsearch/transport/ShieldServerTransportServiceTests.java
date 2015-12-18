@@ -7,7 +7,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.test.ShieldIntegTestCase;
 

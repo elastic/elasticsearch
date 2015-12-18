@@ -5,7 +5,13 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import com.unboundid.ldap.sdk.*;
+import com.unboundid.ldap.sdk.FailoverServerSet;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.SearchRequest;
+import com.unboundid.ldap.sdk.SearchResult;
+import com.unboundid.ldap.sdk.ServerSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsFilter;

@@ -23,13 +23,11 @@ import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginS
 import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumerPlugin;
 import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Arrays;

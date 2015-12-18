@@ -5,28 +5,23 @@
  */
 package org.elasticsearch.watcher.transport.action.stats;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionBuilders;
-import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.execution.ExecutionPhase;
 import org.elasticsearch.watcher.execution.QueuedWatch;
 import org.elasticsearch.watcher.input.InputBuilders;
-import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 

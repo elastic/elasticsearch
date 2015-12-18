@@ -13,7 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.MarvelPlugin;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 
 public class MarvelSettings extends AbstractComponent {

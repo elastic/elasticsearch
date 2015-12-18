@@ -7,7 +7,10 @@ package org.elasticsearch.watcher.support.init.proxy;
 
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;

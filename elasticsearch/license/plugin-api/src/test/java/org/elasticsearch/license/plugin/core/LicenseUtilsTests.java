@@ -10,7 +10,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LicenseUtilsTests extends ESTestCase {
 

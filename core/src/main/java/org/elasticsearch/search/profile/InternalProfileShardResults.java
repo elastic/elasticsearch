@@ -62,8 +62,9 @@ public final class InternalProfileShardResults implements Writeable<InternalProf
                 ProfileShardResult result = new ProfileShardResult(in);
                 shardResult.add(result);
             }
-            shardResults.put(key, shardResult);
+            shardResults.put(key, Collections.unmodifiableList(shardResult));
         }
+        shardResults = Collections.unmodifiableMap(shardResults);
     }
 
     public Map<String, List<ProfileShardResult>> getShardResults() {

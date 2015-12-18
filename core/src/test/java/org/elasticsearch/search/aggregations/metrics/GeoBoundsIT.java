@@ -238,7 +238,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         for (int i = 0; i < 10; i++) {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat("Bucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
+            assertThat("InternalBucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
             GeoBounds geoBounds = bucket.getAggregations().get(aggName);
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(aggName));

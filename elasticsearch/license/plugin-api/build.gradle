@@ -4,7 +4,7 @@ dependencies {
   compile project(':x-plugins:elasticsearch:license:base')
   compile "org.elasticsearch:elasticsearch:${version}"
   testCompile project(':x-plugins:elasticsearch:license:licensor')
-  testCompile "org.elasticsearch:test-framework:${version}"
+  testCompile "org.elasticsearch.test:framework:${version}"
 }
 
 dependencyLicenses.enabled = false

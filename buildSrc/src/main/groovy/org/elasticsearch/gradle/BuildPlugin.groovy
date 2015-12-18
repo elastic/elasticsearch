@@ -202,7 +202,7 @@ class BuildPlugin implements Plugin<Project> {
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
         Closure disableTransitiveDeps = { ModuleDependency dep ->
-            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -302,6 +302,7 @@ class BuildPlugin implements Plugin<Project> {
                     options.compilerArgs << '-profile' << project.compactProfile
                 }
                 options.encoding = 'UTF-8'
+                //options.incremental = true
             }
         }
     }

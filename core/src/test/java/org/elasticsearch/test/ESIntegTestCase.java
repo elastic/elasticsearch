@@ -44,11 +44,11 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1500,9 +1500,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
-                if (randomBoolean()) {
+                if (randomBoolean() || getMinimumVersionInCluster().before(Version.V_2_2_0)) {
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                            new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
+                        new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
                 } else {
                     client().admin().indices().syncedFlush(syncedFlushRequest(indices).indicesOptions(IndicesOptions.lenientExpandOpen()),
                         new LatchedActionListener<SyncedFlushResponse>(newLatch(inFlightAsyncOperations)));

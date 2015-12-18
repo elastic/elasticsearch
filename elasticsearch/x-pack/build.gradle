@@ -150,3 +150,6 @@ thirdPartyAudit.excludes = [
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
 ]
+
+// someone figure out what the x-plugins logic should be
+licenseHeaders.enabled = false

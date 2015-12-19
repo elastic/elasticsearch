@@ -83,6 +83,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -301,7 +303,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
 
-
     @Override
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
@@ -322,7 +323,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
                     if (updateTask.processed.getAndSet(true) == false) {
                         logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
-                        listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                        safelyOnFailure(listener, source, new ProcessClusterEventTimeoutException(config.timeout(), source));
                     }}));
             } else {
                 updateTasksExecutor.execute(updateTask);
@@ -421,7 +422,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         ClusterState previousClusterState = clusterState;
         if (!previousClusterState.nodes().localNodeMaster() && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", source);
-            toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
+            toExecute.stream().forEach(task -> safelyOnNoLongerMaster(task.listener, task.source));
             return;
         }
         ClusterStateTaskExecutor.BatchResult<T> batchResult;
@@ -464,7 +465,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 () -> proccessedListeners.add(updateTask),
                 ex -> {
                     logger.debug("cluster state update task [{}] failed", ex, updateTask.source);
-                    updateTask.listener.onFailure(updateTask.source, ex);
+                    safelyOnFailure(updateTask.listener, updateTask.source, ex);
                 }
             );
         }
@@ -475,7 +476,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     //no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ((AckedClusterStateTaskListener) task.listener).onAllNodesAcked(null);
                 }
-                task.listener.clusterStateProcessed(task.source, previousClusterState, newClusterState);
+                safelyClusterStateProcessed(task.listener, task.source, previousClusterState, newClusterState);
             }
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
             logger.debug("processing [{}]: took {} no change in cluster_state", source, executionTime);
@@ -558,7 +559,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     discoveryService.publish(clusterChangedEvent, ackListener);
                 } catch (Discovery.FailedToCommitClusterStateException t) {
                     logger.warn("failing [{}]: failed to commit cluster state version [{}]", t, source, newClusterState.version());
-                    proccessedListeners.forEach(task -> task.listener.onFailure(task.source, t));
+                    proccessedListeners.forEach(task -> safelyOnFailure(task.listener, task.source, t));
                     return;
                 }
             }
@@ -611,10 +612,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
 
             for (UpdateTask<T> task : proccessedListeners) {
-                task.listener.clusterStateProcessed(task.source, previousClusterState, newClusterState);
+                safelyClusterStateProcessed(task.listener, task.source, previousClusterState, newClusterState);
             }
 
-            executor.clusterStatePublished(newClusterState);
+            safelyClusterStatePublished(executor, newClusterState);
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
             logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());
@@ -628,7 +629,61 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             logger.warn(sb.toString(), t);
             // TODO: do we want to call updateTask.onFailure here?
         }
+    }
 
+    private void safelyOnFailure(ClusterStateTaskListener listener, String source, Throwable failure) {
+        safely(
+            () -> listener.onFailure(source, failure),
+            e -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("exception thrown by listener notifying of failure [{}] from [{}]", e, failure, source);
+                }
+            });
+    }
+
+    private void safelyOnNoLongerMaster(ClusterStateTaskListener listener, String source) {
+        safely(
+            () -> listener.onNoLongerMaster(source),
+            e -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("exception thrown by listener while notifying no longer master from [{}]", e, source);
+                }
+            });
+    }
+
+    private void safelyClusterStateProcessed(ClusterStateTaskListener listener, String source, ClusterState oldState, ClusterState newState) {
+        safely(
+            () -> listener.clusterStateProcessed(source, oldState, newState),
+            e -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n{}\nnew cluster state:\n{}",
+                        e,
+                        source,
+                        oldState.prettyPrint(),
+                        newState.prettyPrint());
+                }
+            });
+    }
+
+    private <T> void safelyClusterStatePublished(ClusterStateTaskExecutor<T> executor, ClusterState newState) {
+        safely(
+            () -> executor.clusterStatePublished(newState),
+            e -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("exception thrown by executor while notifying of cluster state published from [{}]", e, newState.prettyPrint());
+                }
+            });
+    }
+
+    private void safely(Runnable runnable, Consumer<Exception> consumer) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            try {
+                consumer.accept(e);
+            } catch (Exception ignored) {}
+        }
     }
 
     class UpdateTask<T> extends SourcePrioritizedRunnable {

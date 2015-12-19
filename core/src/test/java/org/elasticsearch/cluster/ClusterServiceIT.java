@@ -743,6 +743,59 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
     }
 
+    /*
+     * test that a listener throwing an exception while handling a
+     * notification does not prevent publication notification to the
+     * executor
+     */
+    public void testClusterStateTaskListenerThrowingExceptionIsOkay() throws InterruptedException {
+        Settings settings = settingsBuilder()
+            .put("discovery.type", "local")
+            .build();
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean published = new AtomicBoolean();
+
+        clusterService.submitStateUpdateTask(
+            "testClusterStateTaskListenerThrowingExceptionIsOkay",
+            new Object(),
+            ClusterStateTaskConfig.build(Priority.NORMAL),
+            new ClusterStateTaskExecutor<Object>() {
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return false;
+                }
+
+                @Override
+                public BatchResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                    ClusterState newClusterState = ClusterState.builder(currentState).build();
+                    return BatchResult.builder().successes(tasks).build(newClusterState);
+                }
+
+                @Override
+                public void clusterStatePublished(ClusterState newClusterState) {
+                    published.set(true);
+                    latch.countDown();
+                }
+            },
+            new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    throw new IllegalStateException(source);
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                }
+            }
+        );
+
+        latch.await();
+        assertTrue(published.get());
+    }
+
     public void testClusterStateBatchedUpdates() throws InterruptedException {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")

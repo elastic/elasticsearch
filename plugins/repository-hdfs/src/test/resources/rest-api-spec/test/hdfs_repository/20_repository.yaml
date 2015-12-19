@@ -10,7 +10,7 @@
           body:
             type: hdfs
             settings:
-              uri: "hdfs://localhost:36909"
+              uri: "hdfs://localhost:40737"
               path: "foo/bar"
 
     # Get repository

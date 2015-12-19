@@ -55,38 +55,50 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
 
     public final static String TYPE = "hdfs";
 
-    private final HdfsBlobStore blobStore;
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final RepositorySettings repositorySettings;
+    private final ThreadPool threadPool;
+    private final String path;
     private FileContext fc;
+    private HdfsBlobStore blobStore;
 
     @Inject
     public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, ThreadPool threadPool) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         this.repositorySettings = repositorySettings;
+        this.threadPool = threadPool;
 
-        String path = repositorySettings.settings().get("path", settings.get("path"));
+        path = repositorySettings.settings().get("path", settings.get("path"));
+
+
+        this.basePath = BlobPath.cleanPath();
+        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
+        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
+    }
+    
+    @Override
+    protected void doStart() {
+        // get configuration
         if (path == null) {
             throw new IllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
         }
-
-        // get configuration
-        fc = getFileContext();
-        Path hdfsPath = SecurityUtils.execute(fc, new FcCallback<Path>() {
-            @Override
-            public Path doInHdfs(FileContext fc) throws IOException {
-                return fc.makeQualified(new Path(path));
-            }
-        });
-        this.basePath = BlobPath.cleanPath();
-
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
-        blobStore = new HdfsBlobStore(settings, this, hdfsPath, threadPool);
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
-        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
+        try {
+            fc = getFileContext();
+            Path hdfsPath = SecurityUtils.execute(fc, new FcCallback<Path>() {
+                @Override
+                public Path doInHdfs(FileContext fc) throws IOException {
+                    return fc.makeQualified(new Path(path));
+                }
+            });
+            logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
+            blobStore = new HdfsBlobStore(settings, this, hdfsPath, threadPool);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        super.doStart();
     }
 
     // as the FileSystem is long-lived and might go away, make sure to check it before it's being used.

@@ -83,8 +83,8 @@ public class HdfsTests extends ESIntegTestCase {
     @Before
     public final void wipeBefore() throws Exception {
         wipeRepositories();
-        port = MiniHDFS.getPort();
-        path = "build/data/repo-" + randomInt();
+        //port = MiniHDFS.getPort();
+        //path = "build/data/repo-" + randomInt();
     }
 
     @After

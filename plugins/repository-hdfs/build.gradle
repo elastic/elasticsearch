@@ -52,4 +52,56 @@ dependencyLicenses {
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
 
-thirdPartyAudit.enabled = false
+thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+  // note: the jersey ones may be bogus, see my bug report at forbidden-apis!
+  // internal java api: com.sun.jersey.server.impl.inject.AbstractHttpContextInjectable
+  // internal java api: com.sun.jersey.api.core.HttpContext
+  // internal java api: com.sun.jersey.core.spi.component.ComponentScope
+  // internal java api: com.sun.jersey.spi.inject.Injectable
+  // internal java api: com.sun.jersey.core.spi.component.ComponentContext
+  'org.apache.hadoop.hdfs.web.resources.UserProvider',
+
+  // internal java api: com.sun.jersey.spi.container.ResourceFilters
+  'org.apache.hadoop.hdfs.server.namenode.web.resources.NamenodeWebHdfsMethods',
+  // internal java api: com.sun.jersey.spi.container.servlet.ServletContainer
+  'org.apache.hadoop.http.HttpServer', 
+  'org.apache.hadoop.http.HttpServer2',
+
+  // internal java api: com.sun.jersey.api.ParamException
+  'org.apache.hadoop.hdfs.web.resources.ExceptionHandler',
+  'org.apache.hadoop.hdfs.server.datanode.web.webhdfs.ExceptionHandler',
+  'org.apache.hadoop.hdfs.web.ParamFilter',
+
+  // internal java api: com.sun.jersey.spi.container.ContainerRequestFilter
+  // internal java api: com.sun.jersey.spi.container.ContainerRequest
+  'org.apache.hadoop.hdfs.web.ParamFilter',
+  'org.apache.hadoop.hdfs.web.ParamFilter$1',
+
+  // internal java api: com.sun.jndi.ldap.LdapCtxFactory
+  'org.apache.hadoop.security.LdapGroupsMapping',
+
+  // internal java api: sun.net.dns.ResolverConfiguration
+  // internal java api: sun.net.util.IPAddressUtil
+  'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
+
+  // internal java api: sun.misc.Unsafe
+  'com.google.common.cache.Striped64',
+  'com.google.common.cache.Striped64$1',
+  'com.google.common.cache.Striped64$Cell',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+  'org.apache.hadoop.io.nativeio.NativeIO',
+  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+
+  // internal java api: sun.nio.ch.DirectBuffer
+  // internal java api: sun.misc.Cleaner
+  'org.apache.hadoop.io.nativeio.NativeIO$POSIX',
+  'org.apache.hadoop.crypto.CryptoStreamUtils',
+ 
+  // internal java api: sun.misc.SignalHandler
+  'org.apache.hadoop.util.SignalLogger$Handler',
+]

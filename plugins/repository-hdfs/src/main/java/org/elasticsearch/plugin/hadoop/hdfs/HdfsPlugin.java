@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.plugin.hadoop.hdfs;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -26,6 +30,27 @@ import org.elasticsearch.repositories.hdfs.HdfsRepository;
 
 // Code 
 public class HdfsPlugin extends Plugin {
+  
+    // initialize some problematic classes with elevated privileges
+    static {
+      SecurityManager sm = System.getSecurityManager();
+      if (sm != null) {
+          sm.checkPermission(new SpecialPermission());
+      }
+      AccessController.doPrivileged(new PrivilegedAction<Void>() {
+          @Override
+          public Void run() {
+              try {
+                  Class.forName("org.apache.hadoop.security.UserGroupInformation");
+                  Class.forName("org.apache.hadoop.util.StringUtils");
+                  Class.forName("org.apache.hadoop.util.ShutdownHookManager");
+              } catch (ClassNotFoundException e) {
+                  throw new RuntimeException(e);
+              }
+              return null;
+          }
+      });
+    }
 
     @Override
     public String name() {

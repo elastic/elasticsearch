@@ -28,13 +28,15 @@ grant {
   // Hadoop 2
   //
   
-  // UserGroupInformation (UGI) Metrics
+  // UserGroupInformation (UGI) Metrics clinit
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
-  // Shell initialization - reading system props
+  // org.apache.hadoop.util.StringUtils clinit
   permission java.util.PropertyPermission "*", "read,write";
+
+  // org.apache.hadoop.util.ShutdownHookManager clinit
+  permission java.lang.RuntimePermission "shutdownHooks";
   
   // UGI triggers JAAS
   permission javax.security.auth.AuthPermission "getSubject";
@@ -50,10 +52,6 @@ grant {
   
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
   
-  //permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials \"*\"", "read";
-  
   permission javax.security.auth.AuthPermission "doAs";
   
-  // DFSClient init (metrics again)
-  permission java.lang.RuntimePermission "shutdownHooks";
  };

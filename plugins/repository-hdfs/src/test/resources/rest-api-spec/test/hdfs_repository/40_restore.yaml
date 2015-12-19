@@ -8,7 +8,6 @@ setup:
   - do:
       snapshot.create_repository:
         repository: test_repo_hdfs_restore
-        verify: false
         body:
           type: hdfs
           settings:

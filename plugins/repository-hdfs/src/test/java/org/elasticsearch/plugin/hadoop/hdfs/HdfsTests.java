@@ -31,9 +31,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.store.MockFSDirectoryService;
 
-import java.nio.file.Path;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,42 +41,19 @@ import static org.hamcrest.Matchers.greaterThan;
 public class HdfsTests extends ESIntegTestCase {
 
     @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-                .put(super.indexSettings())
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
-                .build();
-    }
-
-    @Override
-    protected Settings nodeSettings(int ordinal) {
-        Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(ordinal))
-                .put("path.home", createTempDir())
-                .put("path.repo", "")
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(HdfsPlugin.class);
     }
 
     public void testSimpleWorkflow() {
         Client client = client();
-        String path = "foo";
-        logger.info("-->  creating hdfs repository with path [{}]", path);
-        Path dir = createTempDir();
 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.settingsBuilder()
-                        .put("uri", dir.toUri().toString())
+                        .put("uri", "file:///")
                         .put("conf.fs.AbstractFileSystem.file.impl", TestingFs.class.getName())
-                        .put("path", path)
+                        .put("path", "foo")
                         .put("conf", "additional-cfg.xml, conf-2.xml")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
                         .put("compress", randomBoolean())
@@ -135,7 +110,7 @@ public class HdfsTests extends ESIntegTestCase {
 
         // Test restore after index deletion
         logger.info("--> delete indices");
-        wipeIndices("test-idx-1", "test-idx-2");
+        cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -146,21 +121,15 @@ public class HdfsTests extends ESIntegTestCase {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
-    private void wipeIndices(String... indices) {
-        cluster().wipeIndices(indices);
-    }
-
     // RepositoryVerificationException.class
     public void testWrongPath() {
-        Path dir = createTempDir();
-
         Client client = client();
 
         try {
             PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                     .setType("hdfs")
                     .setSettings(Settings.settingsBuilder()
-                        .put("uri", dir.toUri().toString())
+                        .put("uri", "file:///")
                         .put("conf.fs.AbstractFileSystem.file.impl", TestingFs.class.getName())
                         .put("path", "a@b$c#11:22")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")

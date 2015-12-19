@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -99,7 +100,12 @@ public class PluginBuildPlugin extends BuildPlugin {
             from buildProperties // plugin properties file
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
-            from project.configurations.runtime - project.configurations.provided // the dep jars
+            // the dependency jars, filtered for those provided
+            from project.configurations.runtime.fileCollection { Dependency dep ->
+                project.configurations.provided.contains(dep) == false ||
+                // handle dependencies upgraded explicitly from provided to compile
+                project.configurations.compile.contains(dep)
+            }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

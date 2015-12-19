@@ -10,10 +10,10 @@
           body:
             type: hdfs
             settings:
-              uri: "hdfs://localhost:39226"
+              uri: "hdfs://localhost:36909"
               path: "foo/bar"
 
-    # Get repositry
+    # Get repository
     - do:
         snapshot.get_repository:
           repository: test_repo_hdfs_1

@@ -22,21 +22,13 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.fs.FileContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.plugin.hadoop.hdfs.Utils;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
 class SecurityUtils {
-
-    abstract static class AccBridge extends Utils {
-        static AccessControlContext acc() {
-            return Utils.hadoopACC();
-        }
-    }
 
     static <V> V execute(FileContextFactory fcf, FcCallback<V> callback) throws IOException {
         return execute(fcf.getFileContext(), callback);
@@ -55,7 +47,7 @@ class SecurityUtils {
                 public V run() throws IOException {
                     return callback.doInHdfs(fc);
                 }
-            }, AccBridge.acc());
+            });
         } catch (PrivilegedActionException pae) {
             Throwable th = pae.getCause();
             if (th instanceof Error) {

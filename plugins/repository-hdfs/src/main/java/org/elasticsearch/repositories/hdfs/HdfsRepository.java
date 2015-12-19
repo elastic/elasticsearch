@@ -104,7 +104,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
                 public FileContext run() throws IOException {
                     return doGetFileContext();
                 }
-            }, SecurityUtils.AccBridge.acc());
+            });
         } catch (PrivilegedActionException pae) {
             Throwable th = pae.getCause();
             if (th instanceof Error) {

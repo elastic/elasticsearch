@@ -21,9 +21,6 @@ grant {
   // used by the plugin to get the TCCL to properly initialize all of Hadoop components
   permission java.lang.RuntimePermission "getClassLoader";
 
-  // used for DomainCombiner
-  permission java.security.SecurityPermission "createAccessControlContext";
-  
   // set TCCL used for bootstrapping Hadoop Configuration and JAAS
   permission java.lang.RuntimePermission "setContextClassLoader";
 

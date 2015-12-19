@@ -40,6 +40,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.hdfs.HdfsRepository;
 
 //
 // Note this plugin is somewhat special as Hadoop itself loads a number of libraries and thus requires a number of permissions to run even in client mode.
@@ -79,95 +80,6 @@ public class HdfsPlugin extends Plugin {
 
     @SuppressWarnings("unchecked")
     public void onModule(RepositoriesModule repositoriesModule) {
-        String baseLib = Utils.detectLibFolder();
-        List<URL> cp = getHadoopClassLoaderPath(baseLib);
-        
-        ClassLoader hadoopCL = URLClassLoader.newInstance(cp.toArray(new URL[cp.size()]), getClass().getClassLoader());
-
-        Class<? extends Repository> repository = null;
-        try {
-            repository = (Class<? extends Repository>) hadoopCL.loadClass("org.elasticsearch.repositories.hdfs.HdfsRepository");
-        } catch (ClassNotFoundException cnfe) {
-            throw new IllegalStateException("Cannot load plugin class; is the plugin class setup correctly?", cnfe);
-        }
-
-        repositoriesModule.registerRepository("hdfs", repository, BlobStoreIndexShardRepository.class);
-        Loggers.getLogger(HdfsPlugin.class).info("Loaded Hadoop [{}] libraries from {}", getHadoopVersion(hadoopCL), baseLib);
-    }
-
-    protected List<URL> getHadoopClassLoaderPath(String baseLib) {
-        List<URL> cp = new ArrayList<>();
-        // add plugin internal jar
-        discoverJars(createURI(baseLib, "internal-libs"), cp, false);
-        // add Hadoop jars
-        discoverJars(createURI(baseLib, "hadoop-libs"), cp, true);
-        return cp;
-    }
-
-    private String getHadoopVersion(ClassLoader hadoopCL) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
-        }
-
-        return AccessController.doPrivileged(new PrivilegedAction<String>() {
-            @Override
-            public String run() {
-                // Hadoop 2 relies on TCCL to determine the version
-                ClassLoader tccl = Thread.currentThread().getContextClassLoader();
-                try {
-                    Thread.currentThread().setContextClassLoader(hadoopCL);
-                    return doGetHadoopVersion(hadoopCL);
-                } finally {
-                    Thread.currentThread().setContextClassLoader(tccl);
-                }
-            }
-        }, Utils.hadoopACC());
-    }
-
-    private String doGetHadoopVersion(ClassLoader hadoopCL) {
-        String version = "Unknown";
-
-        Class<?> clz = null;
-        try {
-            clz = hadoopCL.loadClass("org.apache.hadoop.util.VersionInfo");
-        } catch (ClassNotFoundException cnfe) {
-            // unknown
-        }
-        if (clz != null) {
-            try {
-                Method method = clz.getMethod("getVersion");
-                version = method.invoke(null).toString();
-            } catch (Exception ex) {
-                // class has changed, ignore
-            }
-        }
-
-        return version;
-    }
-
-    private URI createURI(String base, String suffix) {
-        String location = base + suffix;
-        try {
-            return new URI(location);
-        } catch (URISyntaxException ex) {
-            throw new IllegalStateException(String.format(Locale.ROOT, "Cannot detect plugin folder; [%s] seems invalid", location), ex);
-        }
-    }
-
-    @SuppressForbidden(reason = "discover nested jar")
-    private void discoverJars(URI libPath, List<URL> cp, boolean optional) {
-        try {
-            Path[] jars = FileSystemUtils.files(PathUtils.get(libPath), "*.jar");
-
-            for (Path path : jars) {
-                cp.add(path.toUri().toURL());
-            }
-        } catch (IOException ex) {
-            if (!optional) {
-                throw new IllegalStateException("Cannot compute plugin classpath", ex);
-            }
-        }
+        repositoriesModule.registerRepository("hdfs", HdfsRepository.class, BlobStoreIndexShardRepository.class);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.hdfs.TestingFs;
+import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -74,7 +75,7 @@ public class HdfsTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(HdfsTestPlugin.class);
+        return pluginList(HdfsPlugin.class);
     }
 
     private String path;

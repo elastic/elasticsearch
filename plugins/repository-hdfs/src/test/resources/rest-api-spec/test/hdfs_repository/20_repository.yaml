@@ -10,10 +10,8 @@
           body:
             type: hdfs
             settings:
-              # local HDFS implementation
-              conf.fs.es-hdfs.impl: "org.elasticsearch.repositories.hdfs.TestingFs"
-              uri: "es-hdfs://./build/"
-              path: "build/data/repo-hdfs"
+              uri: "hdfs://localhost:8888"
+              path: "foo/bar"
 
     # Get repositry
     - do:
@@ -21,5 +19,4 @@
           repository: test_repo_hdfs_1
 
     - is_true: test_repo_hdfs_1
-    - is_true: test_repo_hdfs_1.settings.uri
-    - match: {test_repo_hdfs_1.settings.path : "build/data/repo-hdfs"}
+    - match: {test_repo_hdfs_1.settings.path : "foo/bar"}

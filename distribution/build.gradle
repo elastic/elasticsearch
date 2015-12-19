@@ -39,7 +39,7 @@ buildscript {
 }
 
 // this is common configuration for distributions, but we also add it here for the license check to use
-ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive() // .exclude(module: 'slf4j-api')
 
 
 /*****************************************************************************

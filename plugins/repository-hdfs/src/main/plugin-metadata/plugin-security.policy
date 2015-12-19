@@ -44,6 +44,7 @@ grant {
   
   // JAAS libraries are not loaded with the proper context in Hadoop, hence why the permission is needed here
   permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
+  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
   
   // plus LoginContext
   permission javax.security.auth.AuthPermission "modifyPrincipals";

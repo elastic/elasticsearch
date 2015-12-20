@@ -18,3 +18,4 @@
  */
 
 apply plugin: 'elasticsearch.build'
+test.enabled = false

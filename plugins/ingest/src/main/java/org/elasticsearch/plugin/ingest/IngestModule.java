@@ -46,7 +46,7 @@ public class IngestModule extends AbstractModule {
     @Override
     protected void configure() {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
-        binder().bind(PipelineStoreBootstrapper.class).asEagerSingleton();
+        binder().bind(IngestBootstrapper.class).asEagerSingleton();
 
         addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
         addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));

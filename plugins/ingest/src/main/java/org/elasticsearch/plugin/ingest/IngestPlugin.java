@@ -87,7 +87,7 @@ public class IngestPlugin extends Plugin {
         if (transportClient) {
             return Collections.emptyList();
         } else {
-            return Collections.singletonList(PipelineStoreBootstrapper.class);
+            return Collections.singletonList(IngestBootstrapper.class);
         }
     }
 

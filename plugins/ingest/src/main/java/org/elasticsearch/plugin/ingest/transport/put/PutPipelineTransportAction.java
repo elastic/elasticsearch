@@ -20,29 +20,23 @@
 package org.elasticsearch.plugin.ingest.transport.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugin.ingest.PipelineStore;
-import org.elasticsearch.plugin.ingest.PipelineStoreBootstrapper;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.Map;
 
 public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, IndexResponse> {
 
     private final PipelineStore pipelineStore;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStoreBootstrapper bootstrapper) {
+    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IngestBootstrapper bootstrapper) {
         super(settings, PutPipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
         this.pipelineStore = bootstrapper.getPipelineStore();
     }

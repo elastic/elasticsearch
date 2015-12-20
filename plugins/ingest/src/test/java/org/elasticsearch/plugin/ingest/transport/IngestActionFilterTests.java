@@ -36,7 +36,7 @@ import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;
-import org.elasticsearch.plugin.ingest.PipelineStoreBootstrapper;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -61,7 +61,7 @@ public class IngestActionFilterTests extends ESTestCase {
     @Before
     public void setup() {
         executionService = mock(PipelineExecutionService.class);
-        PipelineStoreBootstrapper bootstrapper = mock(PipelineStoreBootstrapper.class);
+        IngestBootstrapper bootstrapper = mock(IngestBootstrapper.class);
         when(bootstrapper.getPipelineExecutionService()).thenReturn(executionService);
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
     }
@@ -184,7 +184,7 @@ public class IngestActionFilterTests extends ESTestCase {
         };
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
-        PipelineStoreBootstrapper bootstrapper = mock(PipelineStoreBootstrapper.class);
+        IngestBootstrapper bootstrapper = mock(IngestBootstrapper.class);
         when(bootstrapper.getPipelineExecutionService()).thenReturn(executionService);
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
 

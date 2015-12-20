@@ -38,7 +38,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
-public class PipelineStoreBootstrapper extends AbstractLifecycleComponent implements ClusterStateListener {
+/**
+ * Instantiates and wires all the services that the ingest plugin will be needing.
+ * Also the bootstrapper is in charge of starting and stopping the ingest plugin based on the cluster state.
+ */
+public class IngestBootstrapper extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final Environment environment;
@@ -47,9 +51,9 @@ public class PipelineStoreBootstrapper extends AbstractLifecycleComponent implem
     private final Map<String, ProcessorFactoryProvider> processorFactoryProvider;
 
     @Inject
-    public PipelineStoreBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
-                                     ClusterService clusterService, TransportService transportService,
-                                     Map<String, ProcessorFactoryProvider> processorFactoryProvider) {
+    public IngestBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
+                              ClusterService clusterService, TransportService transportService,
+                              Map<String, ProcessorFactoryProvider> processorFactoryProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.environment = environment;
@@ -61,8 +65,8 @@ public class PipelineStoreBootstrapper extends AbstractLifecycleComponent implem
     }
 
     // for testing:
-    PipelineStoreBootstrapper(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                              PipelineStore pipelineStore, PipelineExecutionService pipelineExecutionService) {
+    IngestBootstrapper(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                       PipelineStore pipelineStore, PipelineExecutionService pipelineExecutionService) {
         super(settings);
         this.threadPool = threadPool;
         this.environment = null;

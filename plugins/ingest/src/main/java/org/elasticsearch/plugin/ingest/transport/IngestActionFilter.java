@@ -33,7 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
-import org.elasticsearch.plugin.ingest.PipelineStoreBootstrapper;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 
 import java.util.*;
 
@@ -42,7 +42,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     private final PipelineExecutionService executionService;
 
     @Inject
-    public IngestActionFilter(Settings settings, PipelineStoreBootstrapper bootstrapper) {
+    public IngestActionFilter(Settings settings, IngestBootstrapper bootstrapper) {
         super(settings);
         this.executionService = bootstrapper.getPipelineExecutionService();
     }

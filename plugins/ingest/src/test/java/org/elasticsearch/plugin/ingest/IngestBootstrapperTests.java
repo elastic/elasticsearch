@@ -51,10 +51,10 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
-public class PipelineBootstrapperTests extends ESTestCase {
+public class IngestBootstrapperTests extends ESTestCase {
 
     private PipelineStore store;
-    private PipelineStoreBootstrapper bootstrapper;
+    private IngestBootstrapper bootstrapper;
 
     @Before
     public void init() {
@@ -64,7 +64,7 @@ public class PipelineBootstrapperTests extends ESTestCase {
         store = mock(PipelineStore.class);
         when(store.isStarted()).thenReturn(false);
         PipelineExecutionService pipelineExecutionService = mock(PipelineExecutionService.class);
-        bootstrapper = new PipelineStoreBootstrapper(Settings.EMPTY, threadPool, clusterService, store, pipelineExecutionService);
+        bootstrapper = new IngestBootstrapper(Settings.EMPTY, threadPool, clusterService, store, pipelineExecutionService);
     }
 
     public void testStartAndStopInBackground() throws Exception {
@@ -77,7 +77,7 @@ public class PipelineBootstrapperTests extends ESTestCase {
         when(client.searchScroll(any())).thenReturn(PipelineStoreTests.expectedSearchReponse(Collections.emptyList()));
         Settings settings = Settings.EMPTY;
         PipelineStore store = new PipelineStore(settings, clusterService, transportService);
-        PipelineStoreBootstrapper bootstrapper = new PipelineStoreBootstrapper(
+        IngestBootstrapper bootstrapper = new IngestBootstrapper(
                 settings, threadPool, clusterService, store, null
         );
         bootstrapper.setClient(client);

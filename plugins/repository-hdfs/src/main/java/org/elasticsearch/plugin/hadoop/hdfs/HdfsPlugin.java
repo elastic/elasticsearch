@@ -53,7 +53,7 @@ public class HdfsPlugin extends Plugin {
     private static Void evilHadoopInit() {
         String oldValue = null;
         try {
-            // hack: on Windows, Shell's cinit has a similar problem that on unix,
+            // hack: on Windows, Shell's clinit has a similar problem that on unix,
             // but here we can workaround it for now by setting hadoop home
             // TODO: remove THIS when hadoop is fixed
             Path hadoopHome = Files.createTempDirectory("hadoop").toAbsolutePath();

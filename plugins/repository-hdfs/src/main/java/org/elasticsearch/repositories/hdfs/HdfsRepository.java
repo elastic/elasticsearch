@@ -39,6 +39,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
@@ -216,6 +217,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
         }
     }
 
+    @SuppressForbidden(reason = "Where is this reading configuration files from? It should use Environment for ES conf dir")
     private void addConfigLocation(Configuration cfg, String confLocation) {
         URL cfgURL = null;
         // it's an URL

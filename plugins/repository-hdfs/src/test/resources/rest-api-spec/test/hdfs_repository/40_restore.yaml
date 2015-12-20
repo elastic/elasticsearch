@@ -11,7 +11,7 @@ setup:
         body:
           type: hdfs
           settings:
-            uri: "hdfs://localhost:40737"
+            uri: "hdfs://localhost:9999"
             path: "foo/bar"
 
   - do:

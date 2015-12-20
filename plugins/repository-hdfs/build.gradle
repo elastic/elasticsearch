@@ -28,6 +28,10 @@ versions << [
   'hadoop2': '2.7.1'
 ]
 
+configurations {
+  hdfsFixture
+}
+
 dependencies {
   compile "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
@@ -44,10 +48,24 @@ dependencies {
   compile 'commons-lang:commons-lang:2.6'
   compile 'javax.servlet:servlet-api:2.5'
   // we need this one, its not really 'provided' compile 'org.slf4j:slf4j-api:${versions.slf4j}'
+
+  hdfsFixture project(':test:fixtures:hdfs-fixture')
 }
 
 dependencyLicenses {
   mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
+  dependsOn project.configurations.hdfsFixture
+  executable = new File(project.javaHome, 'bin/java')
+  args '-cp', "${ -> project.configurations.hdfsFixture.asPath }",
+       'hdfs.MiniHDFS',
+       baseDir
+}
+
+integTest {
+  dependsOn hdfsFixture
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'

@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.plugin.hadoop.hdfs;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
+import java.util.Collection;
+
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -26,16 +31,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-
-import java.util.Collection;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0)
 public class HdfsTests extends ESIntegTestCase {
@@ -51,8 +50,8 @@ public class HdfsTests extends ESIntegTestCase {
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.settingsBuilder()
-                        .put("uri", "file:///")
-                        .put("conf.fs.AbstractFileSystem.file.impl", TestingFs.class.getName())
+                        .put("uri", "hdfs:///")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
                         .put("path", "foo")
                         .put("conf", "additional-cfg.xml, conf-2.xml")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
@@ -121,7 +120,6 @@ public class HdfsTests extends ESIntegTestCase {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
-    // RepositoryVerificationException.class
     public void testWrongPath() {
         Client client = client();
 
@@ -129,9 +127,53 @@ public class HdfsTests extends ESIntegTestCase {
             PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                     .setType("hdfs")
                     .setSettings(Settings.settingsBuilder()
-                        .put("uri", "file:///")
-                        .put("conf.fs.AbstractFileSystem.file.impl", TestingFs.class.getName())
+                        .put("uri", "hdfs:///")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
                         .put("path", "a@b$c#11:22")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean()))
+                    .get();
+            assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+            createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+            ensureGreen();
+            fail("Path name is invalid");
+        } catch (RepositoryException re) {
+            // expected
+        }
+    }
+    
+    public void testNonHdfsUri() {
+        Client client = client();
+        try {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("hdfs")
+                    .setSettings(Settings.settingsBuilder()
+                        .put("uri", "file:///")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                        .put("path", "should-fail")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean()))
+                    .get();
+            assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+            createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+            ensureGreen();
+            fail("Path name is invalid");
+        } catch (RepositoryException re) {
+            // expected
+        }
+    }
+
+    public void testPathSpecifiedInHdfs() {
+        Client client = client();
+        try {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("hdfs")
+                    .setSettings(Settings.settingsBuilder()
+                        .put("uri", "hdfs:///some/path")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                        .put("path", "should-fail")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
                         .put("compress", randomBoolean()))
                     .get();

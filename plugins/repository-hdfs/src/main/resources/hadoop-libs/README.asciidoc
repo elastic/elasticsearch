@@ -1,1 +1,0 @@
-Folder containing the required Hadoop client libraries and dependencies.

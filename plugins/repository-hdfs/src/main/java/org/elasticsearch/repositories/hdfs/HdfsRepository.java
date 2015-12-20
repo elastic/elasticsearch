@@ -18,27 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.AbstractFileSystem;
-import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -51,6 +30,26 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.AbstractFileSystem;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.repositories.RepositoryName;
+import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
+
 public class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
     public final static String TYPE = "hdfs";
@@ -61,6 +60,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
     private final RepositorySettings repositorySettings;
     private final ThreadPool threadPool;
     private final String path;
+    private final String uri;
     private FileContext fc;
     private HdfsBlobStore blobStore;
 
@@ -71,6 +71,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
         this.repositorySettings = repositorySettings;
         this.threadPool = threadPool;
 
+        uri = repositorySettings.settings().get("uri", settings.get("uri"));
         path = repositorySettings.settings().get("path", settings.get("path"));
 
 
@@ -81,9 +82,25 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
     
     @Override
     protected void doStart() {
+        if (!Strings.hasText(uri)) {
+            throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
+        }
+
+        URI actualUri = URI.create(uri);
+        String scheme = actualUri.getScheme();
+        if (!Strings.hasText(scheme) || !scheme.toLowerCase(Locale.ROOT).equals("hdfs")) {
+            throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", scheme, uri));
+        }
+        String p = actualUri.getPath();
+        if (Strings.hasText(p) && !p.equals("/")) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", p, uri));
+        }
+
         // get configuration
         if (path == null) {
-            throw new IllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
+            throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
         try {
             fc = getFileContext();
@@ -186,13 +203,10 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
             throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot initialize Hadoop"), th);
         }
 
-        String uri = repositorySettings.settings().get("uri", settings.get("uri"));
-        URI actualUri = (uri != null ? URI.create(uri) : null);
-
+        URI actualUri = URI.create(uri);
         try {
             // disable FS cache
-            String disableFsCache = String.format(Locale.ROOT, "fs.%s.impl.disable.cache", actualUri.getScheme());
-            cfg.setBoolean(disableFsCache, true);
+            cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
             // create the AFS manually since through FileContext is relies on Subject.doAs for no reason at all
             AbstractFileSystem fs = AbstractFileSystem.get(actualUri, cfg);
@@ -202,7 +216,6 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
         }
     }
 
-    @SuppressForbidden(reason = "pick up Hadoop config (which can be on HDFS)")
     private void addConfigLocation(Configuration cfg, String confLocation) {
         URL cfgURL = null;
         // it's an URL

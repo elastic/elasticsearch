@@ -40,9 +40,9 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     private final ThreadPool threadPool;
     private final int bufferSizeInBytes;
 
-    public HdfsBlobStore(Settings settings, FileContextFactory ffs, Path path, ThreadPool threadPool) throws IOException {
+    public HdfsBlobStore(Settings settings, FileContextFactory fcf, Path path, ThreadPool threadPool) throws IOException {
         super(settings);
-        this.fcf = ffs;
+        this.fcf = fcf;
         this.rootHdfsPath = path;
         this.threadPool = threadPool;
 

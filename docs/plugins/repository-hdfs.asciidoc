@@ -37,8 +37,7 @@ The node must be stopped before removing the plugin.
 The HDFS snapshot/restore plugin is built against the latest Apache Hadoop 2.x (currently 2.7.1). If the distro you are using is not protocol
 compatible with Apache Hadoop, consider replacing the Hadoop libraries inside the plugin folder with your own (you might have to adjust the security permissions required).
 
-Even if Hadoop is already installed on the Elasticsearch nodes, for security reasons, the required libraries need to be placed under the plugin folder.
-Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
+Even if Hadoop is already installed on the Elasticsearch nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
 
 Windows Users::
 Using Apache Hadoop on Windows is problematic and thus it is not recommended. For those _really_ wanting to use it, make sure you place the elusive `winutils.exe` under the
@@ -54,8 +53,8 @@ Once installed, define the configuration for the `hdfs` repository through `elas
 ----
 repositories
   hdfs:
-    uri: "hdfs://<host>:<port>/"    \# optional - Hadoop file-system URI
-    path: "some/path"               \# required - path with the file-system where data is stored/loaded
+    uri: "hdfs://<host>:<port>/"    \# required - HDFS address only
+    path: "some/path"               \# required - path within the file-system where data is stored/loaded
     load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
     conf_location: "extra-cfg.xml"  \# optional - Hadoop configuration XML to be loaded (use commas for multi values)
     conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
@@ -64,6 +63,3 @@ repositories
     chunk_size: "10mb"              \# optional - chunk size (disabled by default)
     
 ----
-
-NOTE: Be careful when including a paths within the `uri` setting; Some implementations ignore them completely while
-others consider them. In general, we recommend keeping the `uri` to a minimum and using the `path` element instead.

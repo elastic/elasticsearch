@@ -62,7 +62,6 @@ public class HdfsPlugin extends Plugin {
         return "HDFS Repository Plugin";
     }
 
-    @SuppressWarnings("unchecked")
     public void onModule(RepositoriesModule repositoriesModule) {
         repositoriesModule.registerRepository("hdfs", HdfsRepository.class, BlobStoreIndexShardRepository.class);
     }

@@ -11,14 +11,13 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           source:
             index:   src
           dest:
             index:   dest
             routing: =cat
-  - do:
-      indices.refresh: {}
 
   - do:
       get:
@@ -42,14 +41,13 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index:   src
           dest:
             index:   dest
             routing: discard
-  - do:
-      indices.refresh: {}
 
   - do:
       get:

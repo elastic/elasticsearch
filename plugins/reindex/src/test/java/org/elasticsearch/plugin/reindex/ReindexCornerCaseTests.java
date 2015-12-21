@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.index.get.GetField;
-
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+
+import org.elasticsearch.index.get.GetField;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -43,10 +43,8 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         indexRandom(true, client().prepareIndex("source", "test", "test").setSource("foo", "bar"));
 
         // Copy the doc with the timestamp
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
-
     }
 
     public void testTimestamp() throws Exception {
@@ -97,12 +95,11 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
 
         // Copy the child to a new type
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         if (specification != null) {
             copy.destination().setRouting(specification);
         }
         assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
 
         // Make sure routing is intact on the copy
         GetField routing = client().prepareGet("dest", "test", "has_routing").setRouting(expectedRoutingAfterCopy).get().getField("_routing");

@@ -426,6 +426,15 @@ POST /_reindex
 
 
 [float]
+=== Refresh
+
+Both APIs support the `refresh` url parameter. Setting it to true will cause
+all indexes to which the request wrote to be manually refreshed. This is
+different than the Index API's `refresh` parameter which causes the shard that
+received the new data to be indexed.
+
+
+[float]
 === Response body
 
 The JSON response looks like this:
@@ -527,8 +536,7 @@ curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
 But you can issue an `_update_by_query` request to pick up the new mapping:
 
 ```
-curl -XPOST localhost:9200/test/_update_by_query?pretty
-curl -XPOST localhost:9200/test/_refresh?pretty
+curl -XPOST 'localhost:9200/test/_update_by_query?pretty&refresh'
 curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
   "query": {
     "match": {

@@ -1,18 +1,5 @@
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -24,6 +11,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
 /**
  * Tests index-by-search with a script modifying the documents.
@@ -198,7 +198,7 @@ public class ReindexScriptTests extends ReindexTestCase {
     }
 
     private void reindex(String script, String paramKey, Object paramValue) throws Exception {
-        ReindexRequestBuilder request = reindex().source("src").destination("dest")
+        ReindexRequestBuilder request = reindex().source("src").destination("dest").refresh(true)
                 .script(new Script(script, ScriptType.INLINE, "native", singletonMap(paramKey, paramValue)));
         /*
          * Copy versions for all script so we can test those that intentionally
@@ -207,6 +207,5 @@ public class ReindexScriptTests extends ReindexTestCase {
         request.destination().setVersionType(EXTERNAL);
         ReindexResponse response = request.get();
         assertThat(response, responseMatcher().created(1));
-        refresh();
     }
 }

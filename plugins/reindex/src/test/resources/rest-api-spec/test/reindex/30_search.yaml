@@ -17,6 +17,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: test
@@ -25,8 +26,6 @@
                 text: test
           dest:
             index: target
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -52,6 +51,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           size: 1
           src:
@@ -59,8 +59,6 @@
             sort: order
           dest:
             index: target
-  - do:
-      indices.refresh: {}
 
   - do:
       search:

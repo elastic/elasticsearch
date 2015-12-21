@@ -6,7 +6,12 @@
       "path": "/_reindex",
       "paths": ["/_reindex"],
       "parts": {},
-      "params": {}
+      "params": {
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Should the effected indexes be refreshed?"
+        }
+      }
     },
     "body": {
       "description": "The search definition using the Query DSL and the prototype for the index request."

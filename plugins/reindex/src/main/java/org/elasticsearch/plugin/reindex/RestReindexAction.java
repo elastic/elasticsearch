@@ -19,6 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -42,14 +50,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Script;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -142,6 +142,7 @@ public class RestReindexAction extends BaseRestHandler {
             badRequest(channel, e.getDetailedMessage());
             return;
         }
+        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
 
         internalRequest.fillInConditionalDefaults();
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));

@@ -11,14 +11,13 @@
 
   - do:
       update-by-query:
-        index: twitter
+        index:   twitter
+        refresh: true
         body:
           script:
             inline: ctx._source.user = "not" + ctx._source.user
   - match: {updated: 1}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -48,14 +47,13 @@
 
   - do:
       update-by-query:
-        index: twitter
+        refresh: true
+        index:   twitter
         body:
           script:
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {updated: 1}
   - match: {noops: 1}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -94,15 +92,14 @@
 
   - do:
       update-by-query:
-        index: twitter
+        refresh: true
+        index:   twitter
         body:
           script:
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
   - match: {batches: 1}
-  - do:
-      indices.refresh: {}
 
 ---
 "Setting bogus ctx is an error":

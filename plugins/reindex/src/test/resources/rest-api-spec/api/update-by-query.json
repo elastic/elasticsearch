@@ -166,6 +166,14 @@
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
+        },
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Should the effected indexes be refreshed?"
+        },
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Should the effected indexes be refreshed?"
         }
       }
     },

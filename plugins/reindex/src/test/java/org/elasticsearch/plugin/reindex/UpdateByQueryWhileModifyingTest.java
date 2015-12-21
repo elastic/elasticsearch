@@ -31,10 +31,9 @@ public class UpdateByQueryWhileModifyingTest extends UpdateByQueryTestCase {
             public void run() {
                 while (keepUpdating.get()) {
                     try {
-                        assertThat(request().source("test").get(),
+                        assertThat(request().source("test").refresh(true).get(),
                                 responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                                         .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
-                        client().admin().indices().prepareRefresh("test").get();
                     } catch (Throwable t) {
                         failure.set(t);
                     }

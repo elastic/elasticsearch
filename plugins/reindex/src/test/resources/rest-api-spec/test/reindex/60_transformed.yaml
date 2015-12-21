@@ -11,6 +11,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -20,8 +21,6 @@
             inline: ctx._source.user = "other" + ctx._source.user
   - match: {created: 1}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -51,6 +50,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -60,8 +60,6 @@
             inline: if (ctx._id == "1") {ctx._source.user = "other" + ctx._source.user}
   - match: {created: 2}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -111,6 +109,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -120,8 +119,6 @@
             inline: ctx._parent = ctx._source.user
   - match: {created: 1}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -155,6 +152,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -164,8 +162,6 @@
             inline: ctx._routing = ctx._source.user
   - match: {created: 2}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       get:
@@ -214,6 +210,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -223,8 +220,6 @@
             inline: ctx._parent = ctx._source.user; ctx._routing = "cat"
   - match: {created: 1}
   - match: {noops: 0}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -260,6 +255,7 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: twitter
@@ -269,8 +265,6 @@
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {created: 1}
   - match: {noops: 1}
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -318,5 +312,3 @@
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
-  - do:
-      indices.refresh: {}

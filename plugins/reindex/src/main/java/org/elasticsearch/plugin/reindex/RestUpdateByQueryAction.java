@@ -83,6 +83,7 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         if (conflicts != null) {
             internalRequest.conflicts(conflicts);
         }
+        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
 
         // TODO allow the user to modify the batch size? Or pick something better than just a default.
         internalRequest.size(internalRequest.source().source().size());

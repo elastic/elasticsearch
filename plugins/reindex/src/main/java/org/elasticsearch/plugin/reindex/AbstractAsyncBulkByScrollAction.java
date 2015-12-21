@@ -23,7 +23,11 @@ import static java.lang.Math.max;
 import static java.util.Collections.unmodifiableList;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,6 +35,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -63,6 +69,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
     private final List<Failure> failures = new CopyOnWriteArrayList<>();
+    private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
     private final ESLogger logger;
     private final Client client;
@@ -160,7 +167,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             SearchHit[] docs = searchResponse.getHits().getHits();
             logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
             if (docs.length == 0) {
-                finishHim(null);
+                startNormalTermination();
                 return;
             }
             batches.incrementAndGet();
@@ -205,6 +212,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     void onBulkResponse(BulkResponse response) {
         try {
+            Set<String> destinationIndicesThisBatch = new HashSet<>();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
                     recordFailure(item.getFailure());
@@ -227,16 +235,21 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 default:
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
                 }
+                // Track the indexes we've seen so we can refresh them if requested
+                destinationIndicesThisBatch.add(item.getIndex());
+            }
+            if (destinationIndicesThisBatch.isEmpty() == false) {
+                destinationIndices.addAll(destinationIndicesThisBatch);
             }
 
             if (failures.isEmpty() == false) {
-                finishHim(null);
+                startNormalTermination();
                 return;
             }
 
             if (mainRequest.size() != -1 && successfullyProcessed() >= mainRequest.size()) {
                 // We've processed all the requested docs.
-                finishHim(null);
+                startNormalTermination();
                 return;
             }
             startNextScrollRequest();
@@ -272,6 +285,26 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         default:
             failures.add(failure);
         }
+    }
+
+    void startNormalTermination() {
+        if (mainRequest.refresh()) {
+            RefreshRequest refresh = new RefreshRequest(mainRequest);
+            refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
+            client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+                @Override
+                public void onResponse(RefreshResponse response) {
+                    finishHim(null);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    finishHim(e);
+                }
+            });
+            return;
+        }
+        finishHim(null);
     }
 
     /**

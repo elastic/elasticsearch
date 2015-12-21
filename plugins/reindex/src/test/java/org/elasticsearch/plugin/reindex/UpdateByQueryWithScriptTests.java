@@ -30,13 +30,12 @@ public class UpdateByQueryWithScriptTests extends UpdateByQueryTestCase {
     }
 
     private BulkIndexByScrollResponse updateByQuery(String script, String paramKey, Object paramValue) {
-        return request().source("test")
+        return request().source("test").refresh(true)
                 .script(new Script(script, ScriptType.INLINE, "native", singletonMap(paramKey, paramValue))).get();
     }
 
     public void testBasicUpdateByQuery() {
         assertThat(updateByQuery("set-bar", "to", "cat"), responseMatcher().updated(1));
-        refresh();
 
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("bar", "cat")).get(), "1");
     }

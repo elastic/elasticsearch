@@ -3,7 +3,7 @@
 # ReindexVersioningTests is a more thorough, java based version of these tests.
 
 ---
-"versionin defaults to overwrite":
+"versioning defaults to overwrite":
   - do:
       index:
         index:        src
@@ -29,13 +29,12 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index: src
           dest:
             index: dest
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -75,14 +74,13 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index:   src
           dest:
             index:   dest
             op_type: create
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -122,14 +120,13 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index:        src
           dest:
             index:        dest
             version_type: external
-  - do:
-      indices.refresh: {}
 
   - do:
       search:
@@ -167,14 +164,13 @@
 
   - do:
       reindex:
+        refresh: true
         body:
           src:
             index:        src
           dest:
             index:        dest
             version_type: internal
-  - do:
-      indices.refresh: {}
 
   - do:
       search:

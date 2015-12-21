@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
 
 /**
  * Index-by-search tests for parent/child.
@@ -43,22 +42,19 @@ public class ReindexParentChildTests extends ReindexTestCase {
         createParentChildDocs("source");
 
         // Copy parent to the new index
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCountry);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCountry).refresh(true);
         assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
 
         // Copy the child to a new index
-        copy = reindex().source("source").destination("dest").filter(findsCity);
+        copy = reindex().source("source").destination("dest").filter(findsCity).refresh(true);
         assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
 
         // Make sure parent/child is intact on that index
         assertSearchHits(client().prepareSearch("dest").setQuery(findsCity).get(), "pittsburgh");
 
         // Copy the grandchild to a new index
-        copy = reindex().source("source").destination("dest").filter(findsNeighborhood);
+        copy = reindex().source("source").destination("dest").filter(findsNeighborhood).refresh(true);
         assertThat(copy.get(), responseMatcher().created(1));
-        refresh();
 
         // Make sure parent/child is intact on that index
         assertSearchHits(client().prepareSearch("dest").setQuery(findsNeighborhood).get(),
@@ -66,14 +62,12 @@ public class ReindexParentChildTests extends ReindexTestCase {
 
         // Copy the parent/child/grandchild structure all at once to a third index
         createParentChildIndex("dest_all_at_once");
-        copy = reindex().source("source").destination("dest_all_at_once");
+        copy = reindex().source("source").destination("dest_all_at_once").refresh(true);
         assertThat(copy.get(), responseMatcher().created(3));
-        refresh();
 
         // Make sure parent/child/grandchild is intact there too
         assertSearchHits(client().prepareSearch("dest_all_at_once").setQuery(findsNeighborhood).get(),
                 "make-believe");
-
     }
 
     public void testErrorMessageWhenBadParentChild() throws Exception {

@@ -56,4 +56,12 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
         request.abortOnVersionConflict(abortOnVersionConflict);
         return self();
     }
+
+    /**
+     * Call refresh on the indexes we've written to after the request ends?
+     */
+    public Self refresh(boolean refresh) {
+        request.refresh(refresh);
+        return self();
+    }
 }

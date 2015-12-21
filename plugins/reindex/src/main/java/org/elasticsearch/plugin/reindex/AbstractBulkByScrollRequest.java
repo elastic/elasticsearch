@@ -36,6 +36,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private boolean abortOnVersionConflict = false;
 
+    /**
+     * Call refresh on the indexes we've written to after the request ends?
+     */
+    private boolean refresh = false;
+
     public AbstractBulkByScrollRequest() {
     }
 
@@ -120,6 +125,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return source;
     }
 
+    /**
+     * Call refresh on the indexes we've written to after the request ends?
+     */
+    public boolean refresh() {
+        return refresh;
+    }
+
+    /**
+     * Call refresh on the indexes we've written to after the request ends?
+     */
+    public Self refresh(boolean refresh) {
+        this.refresh = refresh;
+        return self();
+    }
+
     public void fillInConditionalDefaults() {
         // NOCOMMIT move this to implementations
         if (size() != -1) {
@@ -136,6 +156,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         super.readFrom(in);
         source.readFrom(in);
         size = in.readVInt();
+        refresh = in.readBoolean();
     }
 
     @Override
@@ -143,6 +164,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         super.writeTo(out);
         source.writeTo(out);
         out.writeVInt(size);
+        out.writeBoolean(refresh);
     }
 
     /**

@@ -46,6 +46,16 @@
         repository: test_snapshot_get_repository
         snapshot: test_snapshot_get
 
+  - length: { snapshots: 1 }
+  - match: { snapshots.0.snapshot : test_snapshot_get }
+
+  # List snapshot info
+  - do:
+      snapshot.get:
+        repository: test_snapshot_get_repository
+        snapshot: "*"
+
+  - length: { snapshots: 1 }
   - match: { snapshots.0.snapshot : test_snapshot_get }
 
   # Remove our snapshot

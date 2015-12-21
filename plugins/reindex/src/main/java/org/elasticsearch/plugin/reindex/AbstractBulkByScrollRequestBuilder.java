@@ -11,26 +11,28 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
         extends ActionRequestBuilder<Request, Response, Self> {
-    private final SearchRequestBuilder search;
+    private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, Response, Self> action, SearchRequestBuilder search, Request request) {
+            Action<Request, Response, Self> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
-        this.search = search;
+        this.source = source;
     }
 
     protected abstract Self self();
 
-    // NOCOMMIT rename to source to match REST
-    public SearchRequestBuilder search() {
-        return search;
+    /**
+     * The search used to find documents to process.
+     */
+    public SearchRequestBuilder source() {
+        return source;
     }
 
     /**
      * Set the source indices.
      */
     public Self source(String... indices) {
-        search.setIndices(indices);
+        source.setIndices(indices);
         return self();
     }
 
@@ -39,7 +41,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * easy chaining.
      */
     public Self filter(QueryBuilder<?> filter) {
-        search.setQuery(filter);
+        source.setQuery(filter);
         return self();
     }
 

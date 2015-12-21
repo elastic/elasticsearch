@@ -78,7 +78,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     public AbstractAsyncBulkByScrollAction(ESLogger logger, Client client, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
-        // NOCOMMIT switch this from Transport*Action to Client.
         this.logger = logger;
         this.client = client;
         this.mainRequest = mainRequest;

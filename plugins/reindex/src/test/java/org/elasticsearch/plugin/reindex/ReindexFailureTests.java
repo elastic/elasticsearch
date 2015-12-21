@@ -51,7 +51,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * multiple batches for this request so we can assert that we abort on
          * the first batch.
          */
-        copy.search().setSize(1);
+        copy.source().setSize(1);
 
         ReindexResponse response = copy.get();
         assertThat(response, responseMatcher()

@@ -16,7 +16,6 @@ public class ReindexSameIndexTests extends ReindexTestCase {
         ensureGreen();
     }
 
-    // NOCOMMIT make sure to resolve aliases one and use the resolved values!
     public void testObviousCases() throws Exception {
         fails("target", "target");
         fails("target", "foo", "bar", "target", "baz");

@@ -71,7 +71,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
         // Use a small batch size so we have to use more than one batch
-        copy.search().setSize(5);
+        copy.source().setSize(5);
         assertThat(copy.get(), responseMatcher().created(max).batches(max, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), max);
 
@@ -79,7 +79,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         int half = max / 2;
         copy = reindex().source("source").destination("dest", "half").refresh(true);
         // Use a small batch size so we have to use more than one batch
-        copy.search().setSize(5);
+        copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
         assertThat(copy.get(), responseMatcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), half);

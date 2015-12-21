@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,7 +50,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
     public void testRoutingMapper() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
             .startObject()
@@ -69,7 +70,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.routingFieldMapper().fieldType().indexOptions());
     }
@@ -79,7 +80,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
                 .startObject("_routing").field("store", "no").field("index", "no").endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper enabledMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(enabledMapping);
+        DocumentMapper enabledMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(enabledMapping));
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.routingFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
@@ -102,7 +103,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
             .startObject("_routing").field("path", "custom_routing").endObject()
             .endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_routing", "routing_value").endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
@@ -115,7 +116,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
     public void testIncludeInObjectBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_routing", "foo").endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
@@ -129,7 +130,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()

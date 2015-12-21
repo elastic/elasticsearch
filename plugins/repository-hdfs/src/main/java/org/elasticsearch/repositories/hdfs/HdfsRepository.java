@@ -52,8 +52,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 public final class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
-    public final static String TYPE = "hdfs";
-
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
@@ -77,7 +75,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
     }
-    
+
     @Override
     protected void doStart() {
         if (!Strings.hasText(uri)) {
@@ -183,13 +181,6 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
         cfg.setClassLoader(this.getClass().getClassLoader());
         cfg.reloadConfiguration();
 
-        String confLocation = repositorySettings.settings().get("conf_location", settings.get("conf_location"));
-        if (Strings.hasText(confLocation)) {
-            for (String entry : Strings.commaDelimitedListToStringArray(confLocation)) {
-                addConfigLocation(cfg, entry.trim());
-            }
-        }
-
         Map<String, String> map = repositorySettings.settings().getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
@@ -212,46 +203,6 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
         } catch (Exception ex) {
             throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
         }
-    }
-
-    @SuppressForbidden(reason = "Where is this reading configuration files from? It should use Environment for ES conf dir")
-    private void addConfigLocation(Configuration cfg, String confLocation) {
-        URL cfgURL = null;
-        // it's an URL
-        if (!confLocation.contains(":")) {
-            cfgURL = cfg.getClassLoader().getResource(confLocation);
-
-            // fall back to file
-            if (cfgURL == null) {
-                java.nio.file.Path path = PathUtils.get(confLocation);
-                if (!Files.isReadable(path)) {
-                    throw new IllegalArgumentException(
-                            String.format(Locale.ROOT,
-                                    "Cannot find classpath resource or file 'conf_location' [%s] defined for hdfs snapshot/restore",
-                                    confLocation));
-                }
-                String pathLocation = path.toUri().toString();
-                logger.debug("Adding path [{}] as file [{}]", confLocation, pathLocation);
-                confLocation = pathLocation;
-            }
-            else {
-                logger.debug("Resolving path [{}] to classpath [{}]", confLocation, cfgURL);
-            }
-        }
-        else {
-            logger.debug("Adding path [{}] as URL", confLocation);
-        }
-
-        if (cfgURL == null) {
-            try {
-                cfgURL = new URL(confLocation);
-            } catch (MalformedURLException ex) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                        "Invalid 'conf_location' URL [%s] defined for hdfs snapshot/restore", confLocation), ex);
-            }
-        }
-
-        cfg.addResource(cfgURL);
     }
 
     @Override

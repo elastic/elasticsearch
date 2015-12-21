@@ -54,7 +54,6 @@ public class HdfsTests extends ESIntegTestCase {
                         .put("uri", "hdfs:///")
                         .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
                         .put("path", "foo")
-                        .put("conf", "additional-cfg.xml, conf-2.xml")
                         .put("chunk_size", randomIntBetween(100, 1000) + "k")
                         .put("compress", randomBoolean())
                         ).get();
@@ -143,7 +142,7 @@ public class HdfsTests extends ESIntegTestCase {
             // expected
         }
     }
-    
+
     public void testNonHdfsUri() {
         Client client = client();
         try {

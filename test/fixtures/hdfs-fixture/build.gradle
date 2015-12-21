@@ -33,6 +33,14 @@ dependencies {
   compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
 }
 
+// for testing, until fixtures are actually debuggable.
+// gradle hides *EVERYTHING* so you have no clue what went wrong.
+task hdfs(type: JavaExec) {
+  classpath = sourceSets.test.compileClasspath + sourceSets.test.output
+  main = "hdfs.MiniHDFS"
+  args = [ 'build/fixtures/hdfsFixture' ]
+}
+
 // just a test fixture: we aren't using jars in releases
 thirdPartyAudit.enabled = false
 // TODO: add a simple HDFS client test for this fixture

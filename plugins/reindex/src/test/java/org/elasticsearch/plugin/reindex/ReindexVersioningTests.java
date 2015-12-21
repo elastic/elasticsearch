@@ -19,80 +19,97 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.index.VersionType.EXTERNAL;
-import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.CREATE;
-import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.OVERWRITE;
-import static org.elasticsearch.plugin.reindex.ReindexRequest.OpType.REFRESH;
-
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.plugin.reindex.ReindexResponse;
-import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 
-public class ReindexOpTypeTests extends ReindexTestCase {
+import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
+import static org.elasticsearch.index.VersionType.EXTERNAL;
+import static org.elasticsearch.index.VersionType.INTERNAL;
+
+
+public class ReindexVersioningTests extends ReindexTestCase {
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;
 
     public void testRefreshCreatesWhenAbsentAndSetsVersion() throws Exception {
         setupSourceAbsent();
-        assertThat(copy(REFRESH), responseMatcher().created(1));
+        assertThat(reindexExternal(), responseMatcher().created(1));
         assertDest("source", SOURCE_VERSION);
     }
 
     public void testRefreshUpdatesOnOlderAndSetsVersion() throws Exception {
         setupDestOlder();
-        assertThat(copy(REFRESH), responseMatcher().updated(1));
+        assertThat(reindexExternal(), responseMatcher().updated(1));
         assertDest("source", SOURCE_VERSION);
     }
 
     public void testRefreshVersionConflictsOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(copy(REFRESH), responseMatcher().versionConflicts(1));
+        assertThat(reindexExternal(), responseMatcher().versionConflicts(1));
         assertDest("dest", NEWER_VERSION);
     }
 
     public void testOverwriteCreatesWhenAbsent() throws Exception {
         setupSourceAbsent();
-        assertThat(copy(OVERWRITE), responseMatcher().created(1));
+        assertThat(reindexInternal(), responseMatcher().created(1));
         assertDest("source", 1);
     }
 
     public void testOverwriteUpdatesOnOlder() throws Exception {
         setupDestOlder();
-        assertThat(copy(OVERWRITE), responseMatcher().updated(1));
+        assertThat(reindexInternal(), responseMatcher().updated(1));
         assertDest("source", OLDER_VERSION + 1);
     }
 
     public void testOverwriteUpdatesOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(copy(OVERWRITE), responseMatcher().updated(1));
+        assertThat(reindexInternal(), responseMatcher().updated(1));
         assertDest("source", NEWER_VERSION + 1);
     }
 
     public void testCreateCreatesWhenAbsent() throws Exception {
         setupSourceAbsent();
-        assertThat(copy(CREATE), responseMatcher().created(1));
+        assertThat(reindexCreate(), responseMatcher().created(1));
         assertDest("source", 1);
     }
 
     public void testCreateVersionConflictsOnOlder() throws Exception {
         setupDestOlder();
-        assertThat(copy(CREATE), responseMatcher().versionConflicts(1));
+        assertThat(reindexCreate(), responseMatcher().versionConflicts(1));
         assertDest("dest", OLDER_VERSION);
     }
 
     public void testCreateVersionConflictsOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(copy(CREATE), responseMatcher().versionConflicts(1));
+        assertThat(reindexCreate(), responseMatcher().versionConflicts(1));
         assertDest("dest", NEWER_VERSION);
     }
 
     /**
-     * Build the index by search request. All test cases share this form of the
-     * request so its convenient to pull it here.
+     * Perform a reindex with EXTERNAL versioning which has "refresh" semantics.
      */
-    private ReindexResponse copy(OpType opType) {
-        return reindex().source("source").destination("dest").opType(opType).get();
+    private ReindexResponse reindexExternal() {
+        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest");
+        reindex.destination().setVersionType(EXTERNAL);
+        return reindex.get();
+    }
+
+    /**
+     * Perform a reindex with INTERNAL versioning which has "overwrite" semantics.
+     */
+    private ReindexResponse reindexInternal() {
+        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest");
+        reindex.destination().setVersionType(INTERNAL);
+        return reindex.get();
+    }
+
+    /**
+     * Perform a reindex with CREATE OpType which has "create" semantics.
+     */
+    private ReindexResponse reindexCreate() {
+        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest");
+        reindex.destination().setOpType(CREATE);
+        return reindex.get();
     }
 
     private void setupSourceAbsent() throws Exception {

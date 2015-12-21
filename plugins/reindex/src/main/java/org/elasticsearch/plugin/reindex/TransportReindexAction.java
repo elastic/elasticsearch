@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
@@ -105,22 +105,18 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 index.type(doc.type());
             }
             index.source(doc.sourceRef());
-            switch (mainRequest.opType()) {
-            case REFRESH:
-                index.versionType(VersionType.EXTERNAL);
+            /*
+             * We've already copied the versionType but we need to be careful
+             * with internal versioning. It either represents "create" (version
+             * == MATCH_DELETED) or overwrite (version == MATCH_ANY). All other
+             * values are invalid.
+             */
+            if (index.versionType() == INTERNAL) {
+                if (index.version() != Versions.MATCH_DELETED && index.version() != Versions.MATCH_ANY) {
+                    throw new IllegalArgumentException("Invalid version for reindex with internal versioning [" + index.version() + ']');
+                }
+            } else {
                 index.version(doc.version());
-                break;
-            case OVERWRITE:
-                index.versionType(VersionType.INTERNAL);
-                index.version(Versions.MATCH_ANY);
-                break;
-            case CREATE:
-                // Matches deleted or absent entirely.
-                index.versionType(VersionType.INTERNAL);
-                index.version(Versions.MATCH_DELETED);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown op_type [" + mainRequest.opType() + ']');
             }
             return index;
         }
@@ -181,7 +177,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         @Override
         protected void scriptChangedVersion(IndexRequest index, Object to) {
             if (to == null) {
-                index.version(Versions.MATCH_ANY).versionType(VersionType.INTERNAL);
+                index.version(Versions.MATCH_ANY).versionType(INTERNAL);
                 return;
             }
             index.version(asLong(to, "_version"));

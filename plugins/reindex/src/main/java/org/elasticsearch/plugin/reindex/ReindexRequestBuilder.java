@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 
 public class ReindexRequestBuilder extends
         AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexResponse, ReindexRequestBuilder> {
@@ -66,11 +65,6 @@ public class ReindexRequestBuilder extends
      */
     public ReindexRequestBuilder destination(String index, String type) {
         destination.setIndex(index).setType(type);
-        return this;
-    }
-
-    public ReindexRequestBuilder opType(OpType opType) {
-        request.opType(opType);
         return this;
     }
 

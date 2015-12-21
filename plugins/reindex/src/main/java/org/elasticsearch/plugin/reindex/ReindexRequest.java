@@ -19,29 +19,23 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
+
+import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> {
     /**
      * Prototype for index requests.
-     *
-     * Note that we co-opt version = Versions.NOT_SET to mean
-     * "do not set the version in the index requests that we send for each scroll hit."
      */
     private IndexRequest destination;
-
-    private OpType opType = OpType.REFRESH;
 
     public ReindexRequest() {
     }
@@ -75,11 +69,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 "keep".equals(destination.routing()) || "discard".equals(destination.routing()))) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
-        if (destination.version() != Versions.MATCH_ANY) {
-            e = addValidationError("overwriting version not supported but was [" + destination.version() + ']', e);
-        }
-        if (destination.versionType() != VersionType.INTERNAL) {
-            e = addValidationError("overwriting version_type not supported but was [" + destination.versionType() + ']', e);
+        if (destination.versionType() == INTERNAL) {
+            if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
+                e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
+            }
         }
         return e;
     }
@@ -88,27 +81,16 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return destination;
     }
 
-    public ReindexRequest opType(OpType opType) {
-        this.opType = opType;
-        return this;
-    }
-
-    public OpType opType() {
-        return opType;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         destination.readFrom(in);
-        opType = opType.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         destination.writeTo(out);
-        opType.writeTo(out);
     }
 
     @Override
@@ -121,62 +103,5 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
-    }
-
-    /**
-     * Controls how versions are handled during the index-by-search.
-     */
-    public static enum OpType implements Writeable<OpType> {
-        OVERWRITE(0),
-        CREATE(1),
-        REFRESH(2);
-
-        /**
-         * Convenient prototype to call readFrom on.
-         */
-        public static final OpType PROTOTYPE = OVERWRITE;
-
-        private byte id;
-
-        private OpType(int id) {
-            this.id = (byte) id;
-        }
-
-        @Override
-        public OpType readFrom(StreamInput in) throws IOException {
-            return fromId(in.readByte());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.write(id);
-        }
-
-        public static OpType fromString(String opType) {
-            switch (opType) {
-            case "overwrite":
-                return OVERWRITE;
-            case "create":
-                return CREATE;
-            case "refresh":
-                return REFRESH;
-            default:
-                throw new IllegalArgumentException(
-                        "OpType must be one of \"overwrite\", \"create\", or \"refresh\" but was [" + opType + ']');
-            }
-        }
-
-        public static OpType fromId(byte id) {
-            switch (id) {
-            case 0:
-                return OVERWRITE;
-            case 1:
-                return CREATE;
-            case 2:
-                return REFRESH;
-            default:
-                throw new IllegalArgumentException("OpType ids vary from 0 to 2 inclusive by was [" + id + ']');
-            }
-        }
     }
 }

@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-
-import java.io.IOException;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,9 +32,9 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -48,6 +42,12 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Script;
+
+import java.io.IOException;
+
+import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -67,12 +67,14 @@ public class RestReindexAction extends BaseRestHandler {
                 throw new ElasticsearchException(e);
             }
         };
-        sourceParser.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT);
+        sourceParser.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT); // NOCOMMIT squash me!
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
+        destParser.declareString(IndexRequest::opType, new ParseField("opType"));
+        destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("versionType"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("src"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("source"), ValueType.OBJECT);
@@ -81,7 +83,6 @@ public class RestReindexAction extends BaseRestHandler {
         PARSER.declareInt(ReindexRequest::size, new ParseField("size"));
         PARSER.declareField((p, v, c) -> {v.script(Script.parse(p, c.parseFieldMatcher()));}, new ParseField("script"), ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::conflicts, new ParseField("conflicts"));
-        PARSER.declareField((p, v, c) -> {v.opType(OpType.fromString(p.text()));}, new ParseField("op_type"), ValueType.STRING);
     }
 
     private IndicesQueriesRegistry indicesQueriesRegistry;

@@ -123,15 +123,6 @@
             version: 10
 
 ---
-"overwriting version type is not supported":
-  - do:
-      catch: /.*\[dest\] unknown field \[version_type\].*/
-      reindex:
-        body:
-          dest:
-            version_type: external
-
----
 "bad conflicts is error":
   - do:
       catch: /.*conflicts may only be "proceed" or "abort" but was \[cat\]/

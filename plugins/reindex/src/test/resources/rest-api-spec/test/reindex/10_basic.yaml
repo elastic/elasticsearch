@@ -43,7 +43,6 @@
   - do:
       reindex:
         body:
-          op_type:   overwrite
           src:
             index:   source
           dest:
@@ -75,11 +74,11 @@
   - do:
       reindex:
         body:
-          op_type:  create
           src:
-            index:  source
+            index:   source
           dest:
-            index:  dest
+            index:   dest
+            op_type: create
   - match: {created: 0}
   - match: {updated: 0}
   - match: {version_conflicts: 1}
@@ -108,11 +107,11 @@
       reindex:
         body:
           conflicts: abort
-          op_type:   create
           src:
             index:   source
           dest:
             index:   dest
+            op_type: create
   - match: {created: 0}
   - match: {updated: 0}
   - match: {version_conflicts: 1}

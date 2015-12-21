@@ -4,7 +4,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -15,6 +14,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.plugin.reindex.ReindexCornerCaseTests.fetchTimestamp;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -198,8 +198,14 @@ public class ReindexScriptTests extends ReindexTestCase {
     }
 
     private void reindex(String script, String paramKey, Object paramValue) throws Exception {
-        ReindexResponse response = reindex().source("src").destination("dest").opType(OpType.REFRESH)
-                .script(new Script(script, ScriptType.INLINE, "native", singletonMap(paramKey, paramValue))).get();
+        ReindexRequestBuilder request = reindex().source("src").destination("dest")
+                .script(new Script(script, ScriptType.INLINE, "native", singletonMap(paramKey, paramValue)));
+        /*
+         * Copy versions for all script so we can test those that intentionally
+         * change them.
+         */
+        request.destination().setVersionType(EXTERNAL);
+        ReindexResponse response = request.get();
         assertThat(response, responseMatcher().created(1));
         refresh();
     }

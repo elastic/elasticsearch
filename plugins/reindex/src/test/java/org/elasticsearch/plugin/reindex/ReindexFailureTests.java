@@ -19,19 +19,17 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexRequestBuilder;
-import org.elasticsearch.plugin.reindex.ReindexResponse;
-import org.elasticsearch.plugin.reindex.ReindexRequest.OpType;
+import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;;
 
 /**
  * Tests failure capturing and abort-on-failure behavior of index-by-search.
@@ -72,8 +70,8 @@ public class ReindexFailureTests extends ReindexTestCase {
         indexDocs(100);
 
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").abortOnVersionConflict(true);
-        // Refresh will cause the conflict to prevent the write.
-        copy.opType(OpType.REFRESH);
+        // CREATE will cause the conflict to prevent the write.
+        copy.destination().setOpType(CREATE);
 
         ReindexResponse response = copy.get();
         assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));

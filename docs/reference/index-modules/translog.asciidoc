@@ -20,7 +20,6 @@ replaying its operations take a considerable amount of time during recovery.
 It is also exposed through an API, though its rarely needed to be performed
 manually.
 
-
 [float]
 === Flush settings
 
@@ -30,10 +29,6 @@ control how often the in-memory buffer is flushed to disk:
 `index.translog.flush_threshold_size`::
 
 Once the translog hits this size, a flush will happen. Defaults to `512mb`.
-
-`index.translog.flush_threshold_ops`::
-
-After how many operations to flush. Defaults to `unlimited`.
 
 [float]
 === Translog settings

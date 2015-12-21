@@ -152,6 +152,14 @@ POST /twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
+And `routing` works, on the off chance that you need it:
+
+[source,js]
+--------------------------------------------------
+POST /twitter//_update_by_query?routing=1
+--------------------------------------------------
+// AUTOSENSE
+
 
 [[reindex-usage]]
 ==== Using `_reindex`

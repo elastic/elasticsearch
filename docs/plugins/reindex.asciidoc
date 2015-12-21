@@ -467,3 +467,108 @@ in this list. See above for how to get them included.
 
 The number of documents that were successfully created. This is not returned by
 `_update_by_query`. It isn't allowed to create documents!
+
+[float]
+=== Examples
+
+Below are some examples of how you might use this plugin:
+
+==== Pick up a new property
+
+Say you created an index without dynamic mapping, filled it with data, and then
+added a mapping value to pick up more fields from the data:
+
+```
+curl -XDELETE localhost:9200/test?pretty
+curl -XPUT localhost:9200/test?pretty -d '{
+  "mappings": {
+    "test": {
+      "dynamic": false,
+      "properties": {
+        "text": {"type": "string"}
+      }
+    }
+  }
+}'
+
+curl -XPOST 'localhost:9200/test/test?refresh&pretty' -d '{
+  "text": "words words",
+  "flag": "bar"
+}'
+curl -XPOST 'localhost:9200/test/test?refresh&pretty' -d '{
+  "text": "words words",
+  "flag": "foo"
+}'
+curl -XPUT localhost:9200/test/_mapping/test?pretty -d '{
+  "properties": {
+    "text": {"type": "string"},
+    "flag": {"type": "string", "analyzer": "keyword"}
+  }
+}'
+```
+
+Searching for the data won't find anything:
+
+```
+curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
+  "query": {
+    "match": {
+      "flag": "foo"
+    }
+  }
+}'
+# {
+#   "hits" : {
+#     "total" : 0
+#   }
+# }
+```
+
+But you can issue an `_update_by_query` request to pick up the new mapping:
+
+```
+curl -XPOST localhost:9200/test/_update_by_query?pretty
+curl -XPOST localhost:9200/test/_refresh?pretty
+curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
+  "query": {
+    "match": {
+      "flag": "foo"
+    }
+  }
+}'
+# {
+#   "hits" : {
+#     "total" : 1
+#   }
+# }
+```
+
+Hurray! Remember that you can do the exact same thing when adding a field to a
+multifield.
+
+==== Change the name of a field
+
+`_reindex` can be used to build a copy of an index with renamed fields:
+
+```
+curl -XDELETE localhost:9200/test?pretty
+
+curl -XPOST 'localhost:9200/test/test/1?refresh&pretty' -d '{
+  "text": "words words",
+  "flag": "foo"
+}'
+
+curl -XDELETE localhost:9200/test2?pretty
+curl -XPOST localhost:9200/_reindex?pretty  -d '{
+  "source": {
+    "index": "test"
+  },
+  "dest": {
+    "index": "test2"
+  },
+  "script": {
+    "inline": "ctx._source.tag = ctx._source.remove(\"flag\")"
+  }
+}'
+curl localhost:9200/test2/test/1?pretty
+```

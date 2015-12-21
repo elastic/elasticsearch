@@ -170,6 +170,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
                 case ClusterStateCollector.TYPE:
                     ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
                     assertThat(clusterStateMarvelDoc.getClusterState().getRoutingTable().allShards(), hasSize(nbShards));
+                    assertThat(clusterStateMarvelDoc.getClusterState().getNodes().getSize(), equalTo(internalCluster().size()));
                     break;
 
                 case ClusterStateCollector.NODES_TYPE:

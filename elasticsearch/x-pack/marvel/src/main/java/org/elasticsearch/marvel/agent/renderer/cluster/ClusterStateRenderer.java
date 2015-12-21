@@ -22,6 +22,7 @@ public class ClusterStateRenderer extends AbstractRenderer<ClusterStateMarvelDoc
             "cluster_state.master_node",
             "cluster_state.state_uuid",
             "cluster_state.status",
+            "cluster_state.nodes",
     };
 
     public ClusterStateRenderer() {

@@ -186,6 +186,9 @@
               "type": "string",
               "index": "not_analyzed"
             },
+            "nodes": {
+              "enabled": false
+            },
             "shards": {
               "type": "object"
             }

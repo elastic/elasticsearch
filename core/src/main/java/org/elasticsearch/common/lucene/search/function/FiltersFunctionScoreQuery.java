@@ -231,7 +231,7 @@ public class FiltersFunctionScoreQuery extends Query {
             }
 
             FiltersFunctionFactorScorer scorer = (FiltersFunctionFactorScorer)scorer(context);
-            int actualDoc = scorer.advance(doc);
+            int actualDoc = scorer.iterator.advance(doc);
             assert (actualDoc == doc);
             double score = scorer.computeScore(doc, subQueryExpl.getValue());
             Explanation factorExplanation = Explanation.match(

@@ -65,7 +65,17 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
 }
 
 integTest {
-  dependsOn hdfsFixture
+  // hdfs fixture will not start without hadoop native libraries on windows
+  // so we can't run integration tests against external hadoop here.
+  if (System.getProperty("os.name").startsWith("Windows")) {
+    systemProperty 'tests.rest.blacklist', [
+      'hdfs_repository/20_repository/*',
+      'hdfs_repository/30_snapshot/*',
+      'hdfs_repository/40_restore/*'
+    ].join(',')
+  } else {
+    dependsOn hdfsFixture
+  }
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'

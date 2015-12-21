@@ -330,7 +330,7 @@ public final class IndexSettings {
         return durability;
     }
 
-    public Translog.Durability getFromSettings(Settings settings, Translog.Durability defaultValue) {
+    private Translog.Durability getFromSettings(Settings settings, Translog.Durability defaultValue) {
         final String value = settings.get(INDEX_TRANSLOG_DURABILITY, defaultValue.name());
         try {
             return Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT));

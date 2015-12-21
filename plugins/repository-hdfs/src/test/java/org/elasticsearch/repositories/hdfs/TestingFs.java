@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.hadoop.hdfs;
+package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.DelegateToFileSystem;

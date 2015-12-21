@@ -41,12 +41,12 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class HdfsBlobContainer extends AbstractBlobContainer {
+final class HdfsBlobContainer extends AbstractBlobContainer {
 
-    protected final HdfsBlobStore blobStore;
-    protected final Path path;
+    private final HdfsBlobStore blobStore;
+    private final Path path;
 
-    public HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore blobStore, Path path) {
+    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore blobStore, Path path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;

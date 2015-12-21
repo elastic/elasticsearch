@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.hadoop.hdfs;
+package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,14 +24,11 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.repositories.hdfs.HdfsRepository;
-
 
 // Code 
 public class HdfsPlugin extends Plugin {

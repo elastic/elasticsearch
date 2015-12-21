@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.hadoop.hdfs;
+package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -24,8 +24,8 @@ import java.util.Collection;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.hdfs.HdfsPlugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;

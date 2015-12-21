@@ -28,23 +28,19 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
 
-public class HdfsBlobStore extends AbstractComponent implements BlobStore {
+final class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     private final FileContextFactory fcf;
     private final Path rootHdfsPath;
-    private final ThreadPool threadPool;
     private final int bufferSizeInBytes;
 
-    public HdfsBlobStore(Settings settings, FileContextFactory fcf, Path path, ThreadPool threadPool) throws IOException {
+    HdfsBlobStore(Settings settings, FileContextFactory fcf, Path path) throws IOException {
         super(settings);
         this.fcf = fcf;
         this.rootHdfsPath = path;
-        this.threadPool = threadPool;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
@@ -68,19 +64,11 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
         return rootHdfsPath.toUri().toString();
     }
 
-    public FileContextFactory fileContextFactory() {
+    FileContextFactory fileContextFactory() {
         return fcf;
     }
 
-    public Path path() {
-        return rootHdfsPath;
-    }
-
-    public Executor executor() {
-        return threadPool.executor(ThreadPool.Names.SNAPSHOT);
-    }
-
-    public int bufferSizeInBytes() {
+    int bufferSizeInBytes() {
         return bufferSizeInBytes;
     }
 
@@ -111,7 +99,7 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     private Path translateToHdfsPath(BlobPath blobPath) {
-        Path path = path();
+        Path path = rootHdfsPath;
         for (String p : blobPath) {
             path = new Path(path, p);
         }

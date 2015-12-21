@@ -49,7 +49,6 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 public class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
@@ -59,18 +58,16 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final RepositorySettings repositorySettings;
-    private final ThreadPool threadPool;
     private final String path;
     private final String uri;
     private FileContext fc;
     private HdfsBlobStore blobStore;
 
     @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, ThreadPool threadPool) throws IOException {
+    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         this.repositorySettings = repositorySettings;
-        this.threadPool = threadPool;
 
         uri = repositorySettings.settings().get("uri", settings.get("uri"));
         path = repositorySettings.settings().get("path", settings.get("path"));
@@ -112,7 +109,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileContextFa
                 }
             });
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
-            blobStore = new HdfsBlobStore(settings, this, hdfsPath, threadPool);
+            blobStore = new HdfsBlobStore(settings, this, hdfsPath);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

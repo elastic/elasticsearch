@@ -64,8 +64,8 @@ dependencyLicenses {
 task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
   dependsOn project.configurations.hdfsFixture
   executable = new File(project.javaHome, 'bin/java')
-  args '-cp', "${ -> project.configurations.hdfsFixture.asPath }",
-       'hdfs.MiniHDFS',
+  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+  args 'hdfs.MiniHDFS',
        baseDir
 }
 

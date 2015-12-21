@@ -71,24 +71,3 @@ update, or bulk request.  This setting accepts the following parameters:
     the event of hardware failure, all acknowledged writes since the last
     automatic commit will be discarded.
 --
-
-`index.translog.fs.type`::
-+
---
-
-Whether to buffer writes to the transaction log in memory or not.  This
-setting accepts the following parameters:
-
-`buffered`::
-
-    (default) Translog writes first go to a 64kB buffer in memory,
-    and are only written to the disk when the buffer is full, or when an
-    `fsync` is triggered by a write request or the `sync_interval`.
-
-`simple`::
-
-    Translog writes are written to the file system immediately, without
-    buffering.  However, these writes will only be persisted to disk when an
-    `fsync` and commit is triggered by a write request or the `sync_interval`.
-
---

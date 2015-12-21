@@ -440,13 +440,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
+            if (routing ==  null) {
+                return parent;
+            }
             return routing;
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
+            if (routing == null) {
+                return parent;
+            }
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -460,17 +466,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
-            routing = aliasMd.indexRouting();
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
         }
-        if (routing != null) {
-            if (routing.indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
-            }
+        if (routing == null) {
+            return parent;
         }
         return routing;
     }

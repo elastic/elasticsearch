@@ -1016,7 +1016,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
      * the new buffering indexing size then we do a refresh to free up the heap.
      */
-    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize) {
 
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
@@ -1054,8 +1054,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 logger.debug(message);
             }
         }
-
-        engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
     /**
@@ -1072,7 +1070,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
-                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
                 logger.debug("marking shard as inactive (inactive_time=[{}]) indexing wise", inactiveTime);
                 indexEventListener.onShardInactive(this);
             }
@@ -1159,12 +1157,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (flushOnClose != this.flushOnClose) {
                 logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
                 this.flushOnClose = flushOnClose;
-            }
-
-            TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
-            if (type != translogConfig.getType()) {
-                logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
-                translogConfig.setType(type);
             }
 
             final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());

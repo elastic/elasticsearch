@@ -45,7 +45,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         final static ByteSizeValue INACTIVE = new ByteSizeValue(-1);
 
         final Map<IndexShard, ByteSizeValue> indexingBuffers = new HashMap<>();
-        final Map<IndexShard, ByteSizeValue> translogBuffers = new HashMap<>();
 
         final Map<IndexShard, Long> lastIndexTimeNanos = new HashMap<>();
         final Set<IndexShard> activeShards = new HashSet<>();
@@ -63,17 +62,14 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         public void deleteShard(IndexShard id) {
             indexingBuffers.remove(id);
-            translogBuffers.remove(id);
         }
 
-        public void assertBuffers(IndexShard id, ByteSizeValue indexing, ByteSizeValue translog) {
+        public void assertBuffers(IndexShard id, ByteSizeValue indexing) {
             assertThat(indexingBuffers.get(id), equalTo(indexing));
-            assertThat(translogBuffers.get(id), equalTo(translog));
         }
 
         public void assertInactive(IndexShard id) {
             assertThat(indexingBuffers.get(id), equalTo(INACTIVE));
-            assertThat(translogBuffers.get(id), equalTo(INACTIVE));
         }
 
         @Override
@@ -92,9 +88,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void updateShardBuffers(IndexShard shard, ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+        protected void updateShardBuffers(IndexShard shard, ByteSizeValue shardIndexingBufferSize) {
             indexingBuffers.put(shard, shardIndexingBufferSize);
-            translogBuffers.put(shard, shardTranslogBufferSize);
         }
 
         @Override
@@ -105,7 +100,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 return true;
             } else if (currentTimeInNanos() - ns >= inactiveTime.nanos()) {
                 indexingBuffers.put(shard, INACTIVE);
-                translogBuffers.put(shard, INACTIVE);
                 activeShards.remove(shard);
                 return true;
             } else {
@@ -122,7 +116,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             if (indexingBuffers.containsKey(shard) == false) {
                 // First time we are seeing this shard; start it off with inactive buffers as IndexShard does:
                 indexingBuffers.put(shard, IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
-                translogBuffers.put(shard, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
             }
             activeShards.add(shard);
             forceCheck();
@@ -135,22 +128,21 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService("test");
 
         MockController controller = new MockController(Settings.builder()
-            .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb").build());
+            .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb").build());
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
-        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB)); // translog is maxed at 64K
 
         // add another shard
         IndexShard shard1 = test.getShard(1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffers(shard0, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertBuffers(shard0, new ByteSizeValue(5, ByteSizeUnit.MB));
+        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB));
 
         // remove first shard
         controller.deleteShard(shard0);
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB)); // translog is maxed at 64K
 
         // remove second shard
         controller.deleteShard(shard1);
@@ -159,7 +151,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         // add a new one
         IndexShard shard2 = test.getShard(2);
         controller.simulateIndexing(shard2);
-        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB)); // translog is maxed at 64K
     }
 
     public void testActiveInactive() {
@@ -169,7 +161,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb")
             .put(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "5s")
             .build());
 
@@ -177,8 +168,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.simulateIndexing(shard0);
         IndexShard shard1 = test.getShard(1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffers(shard0, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertBuffers(shard0, new ByteSizeValue(5, ByteSizeUnit.MB));
+        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB));
 
         // index into both shards, move the clock and see that they are still active
         controller.simulateIndexing(shard0);
@@ -193,12 +184,12 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         // index into one shard only, see it becomes active
         controller.simulateIndexing(shard0);
-        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB));
         controller.assertInactive(shard1);
 
         controller.incrementTimeSec(3); // increment but not enough to become inactive
         controller.forceCheck();
-        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertBuffers(shard0, new ByteSizeValue(10, ByteSizeUnit.MB));
         controller.assertInactive(shard1);
 
         controller.incrementTimeSec(3); // increment some more
@@ -209,13 +200,12 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         // index some and shard becomes immediately active
         controller.simulateIndexing(shard1);
         controller.assertInactive(shard0);
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB));
     }
 
     public void testMinShardBufferSizes() {
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "50kb")
             .put(IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, "6mb")
             .put(IndexingMemoryController.MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, "40kb").build());
 
@@ -225,7 +215,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     public void testMaxShardBufferSizes() {
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "50kb")
             .put(IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, "3mb")
             .put(IndexingMemoryController.MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, "10kb").build());
 
@@ -235,34 +224,26 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     public void testRelativeBufferSizes() {
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "50%")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "0.5%")
             .build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(50, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
 
 
     public void testMinBufferSizes() {
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "0.001%")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "0.001%")
-            .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb")
-            .put(IndexingMemoryController.MIN_TRANSLOG_BUFFER_SIZE_SETTING, "512kb").build());
+            .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
 
     public void testMaxBufferSizes() {
         MockController controller = new MockController(Settings.builder()
             .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "90%")
-            .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "90%")
-            .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb")
-            .put(IndexingMemoryController.MAX_TRANSLOG_BUFFER_SIZE_SETTING, "512kb").build());
+            .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
 
     protected void assertTwoActiveShards(MockController controller, ByteSizeValue indexBufferSize, ByteSizeValue translogBufferSize) {
@@ -273,7 +254,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.simulateIndexing(shard0);
         IndexShard shard1 = test.getShard(1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffers(shard0, indexBufferSize, translogBufferSize);
-        controller.assertBuffers(shard1, indexBufferSize, translogBufferSize);
+        controller.assertBuffers(shard0, indexBufferSize);
+        controller.assertBuffers(shard1, indexBufferSize);
     }
 }

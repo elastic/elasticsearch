@@ -58,15 +58,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** Sets a ceiling on the per-shard index buffer size (default: 512 MB). */
     public static final String MAX_SHARD_INDEX_BUFFER_SIZE_SETTING = "indices.memory.max_shard_index_buffer_size";
 
-    /** How much heap (% or bytes) we will share across all actively indexing shards for the translog buffer (default: 1%). */
-    public static final String TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.translog_buffer_size";
-
-    /** Only applies when <code>indices.memory.translog_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 256 KB). */
-    public static final String MIN_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.min_translog_buffer_size";
-
-    /** Only applies when <code>indices.memory.translog_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
-    public static final String MAX_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.max_translog_buffer_size";
-
     /** Sets a floor on the per-shard translog buffer size (default: 2 KB). */
     public static final String MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.min_shard_translog_buffer_size";
 
@@ -88,11 +79,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final ByteSizeValue indexingBuffer;
     private final ByteSizeValue minShardIndexBufferSize;
     private final ByteSizeValue maxShardIndexBufferSize;
-
-    private final ByteSizeValue translogBuffer;
-    private final ByteSizeValue minShardTranslogBufferSize;
-    private final ByteSizeValue maxShardTranslogBufferSize;
-
     private final TimeValue interval;
 
     private volatile ScheduledFuture scheduler;
@@ -135,27 +121,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
         this.maxShardIndexBufferSize = this.settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, new ByteSizeValue(512, ByteSizeUnit.MB));
 
-        ByteSizeValue translogBuffer;
-        String translogBufferSetting = this.settings.get(TRANSLOG_BUFFER_SIZE_SETTING, "1%");
-        if (translogBufferSetting.endsWith("%")) {
-            double percent = Double.parseDouble(translogBufferSetting.substring(0, translogBufferSetting.length() - 1));
-            translogBuffer = new ByteSizeValue((long) (((double) jvmMemoryInBytes) * (percent / 100)));
-            ByteSizeValue minTranslogBuffer = this.settings.getAsBytesSize(MIN_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(256, ByteSizeUnit.KB));
-            ByteSizeValue maxTranslogBuffer = this.settings.getAsBytesSize(MAX_TRANSLOG_BUFFER_SIZE_SETTING, null);
-
-            if (translogBuffer.bytes() < minTranslogBuffer.bytes()) {
-                translogBuffer = minTranslogBuffer;
-            }
-            if (maxTranslogBuffer != null && translogBuffer.bytes() > maxTranslogBuffer.bytes()) {
-                translogBuffer = maxTranslogBuffer;
-            }
-        } else {
-            translogBuffer = ByteSizeValue.parseBytesSizeValue(translogBufferSetting, TRANSLOG_BUFFER_SIZE_SETTING);
-        }
-        this.translogBuffer = translogBuffer;
-        this.minShardTranslogBufferSize = this.settings.getAsBytesSize(MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(2, ByteSizeUnit.KB));
-        this.maxShardTranslogBufferSize = this.settings.getAsBytesSize(MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(64, ByteSizeUnit.KB));
-
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = this.settings.getAsTime(SHARD_INACTIVE_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(30));
 
@@ -192,14 +157,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return indexingBuffer;
     }
 
-    /**
-     * returns the current budget for the total amount of translog buffers of
-     * active shards on this node
-     */
-    public ByteSizeValue translogBufferSize() {
-        return translogBuffer;
-    }
-
     protected List<IndexShard> availableShards() {
         List<IndexShard> availableShards = new ArrayList<>();
 
@@ -220,9 +177,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /** set new indexing and translog buffers on this shard.  this may cause the shard to refresh to free up heap. */
-    protected void updateShardBuffers(IndexShard shard, ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+    protected void updateShardBuffers(IndexShard shard, ByteSizeValue shardIndexingBufferSize) {
         try {
-            shard.updateBufferSize(shardIndexingBufferSize, shardTranslogBufferSize);
+            shard.updateBufferSize(shardIndexingBufferSize);
         } catch (EngineClosedException | FlushNotAllowedEngineException e) {
             // ignore
         } catch (Exception e) {
@@ -262,18 +219,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 shardIndexingBufferSize = maxShardIndexBufferSize;
             }
 
-            ByteSizeValue shardTranslogBufferSize = new ByteSizeValue(translogBuffer.bytes() / activeShardCount);
-            if (shardTranslogBufferSize.bytes() < minShardTranslogBufferSize.bytes()) {
-                shardTranslogBufferSize = minShardTranslogBufferSize;
-            }
-            if (shardTranslogBufferSize.bytes() > maxShardTranslogBufferSize.bytes()) {
-                shardTranslogBufferSize = maxShardTranslogBufferSize;
-            }
-
-            logger.debug("recalculating shard indexing buffer, total is [{}] with [{}] active shards, each shard set to indexing=[{}], translog=[{}]", indexingBuffer, activeShardCount, shardIndexingBufferSize, shardTranslogBufferSize);
+            logger.debug("recalculating shard indexing buffer, total is [{}] with [{}] active shards, each shard set to indexing=[{}]", indexingBuffer, activeShardCount, shardIndexingBufferSize);
 
             for (IndexShard shard : activeShards) {
-                updateShardBuffers(shard, shardIndexingBufferSize, shardTranslogBufferSize);
+                updateShardBuffers(shard, shardIndexingBufferSize);
             }
         }
     }

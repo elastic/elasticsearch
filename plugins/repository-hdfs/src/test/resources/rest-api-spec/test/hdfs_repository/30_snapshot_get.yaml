@@ -1,18 +1,18 @@
 # Integration tests for HDFS Repository plugin
 #
-# Actually perform a snapshot to hdfs
+# Tests retrieving information about snapshot
 #
 ---
-"take snapshot":
+"Get a snapshot":
   # Create repository
   - do:
       snapshot.create_repository:
-        repository: test_snapshot_repository
+        repository: test_snapshot_get_repository
         body:
           type: hdfs
           settings:
             uri: "hdfs://localhost:9999"
-            path: "test/snapshot"
+            path: "test/snapshot_get"
 
   # Create index
   - do:
@@ -21,33 +21,40 @@
         body:
           settings:
             number_of_shards:   1
-            number_of_replicas: 1
+            number_of_replicas: 0
 
-  # Wait for yellow
+  # Wait for green
   - do:
       cluster.health:
-        wait_for_status: yellow
+        wait_for_status: green
 
   # Create snapshot
   - do:
       snapshot.create:
-        repository: test_snapshot_repository
-        snapshot: test_snapshot
+        repository: test_snapshot_get_repository
+        snapshot: test_snapshot_get
         wait_for_completion: true
 
-  - match: { snapshot.snapshot: test_snapshot }
+  - match: { snapshot.snapshot: test_snapshot_get }
   - match: { snapshot.state : SUCCESS }
   - match: { snapshot.shards.successful: 1 }
   - match: { snapshot.shards.failed : 0 }
 
+  # Get snapshot info
+  - do:
+      snapshot.get:
+        repository: test_snapshot_get_repository
+        snapshot: test_snapshot_get
+
+  - match: { snapshots.0.snapshot : test_snapshot_get }
+
   # Remove our snapshot
   - do: 
       snapshot.delete:
-        repository: test_snapshot_repository
-        snapshot: test_snapshot
+        repository: test_snapshot_get_repository
+        snapshot: test_snapshot_get
 
   # Remove our repository
   - do:
      snapshot.delete_repository:
-       repository: test_snapshot_repository
-
+       repository: test_snapshot_get_repository

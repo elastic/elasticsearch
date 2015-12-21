@@ -2,7 +2,7 @@
 #
 # Check plugin is installed
 #
-"HDFS Repository loaded":
+"Plugin loaded":
     - do:
         cluster.state: {}
 

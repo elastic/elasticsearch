@@ -93,11 +93,8 @@ integTest {
     dependsOn hdfsFixture
   } else {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-    systemProperty 'tests.rest.blacklist', [
-      'hdfs_repository/20_repository/*',
-      'hdfs_repository/30_snapshot/*',
-      'hdfs_repository/40_restore/*'
-    ].join(',')
+    // just tests that the plugin loads
+    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   }
 }
 

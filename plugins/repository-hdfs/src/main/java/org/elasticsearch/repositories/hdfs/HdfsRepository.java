@@ -50,7 +50,7 @@ import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-public class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
+public final class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
     public final static String TYPE = "hdfs";
 

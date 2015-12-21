@@ -31,7 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 
 // Code 
-public class HdfsPlugin extends Plugin {
+public final class HdfsPlugin extends Plugin {
   
     // initialize some problematic classes with elevated privileges
     static {

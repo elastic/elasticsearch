@@ -28,7 +28,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
-class SecurityUtils {
+final class SecurityUtils {
 
     static <V> V execute(FileContextFactory fcf, FcCallback<V> callback) throws IOException {
         return execute(fcf.getFileContext(), callback);

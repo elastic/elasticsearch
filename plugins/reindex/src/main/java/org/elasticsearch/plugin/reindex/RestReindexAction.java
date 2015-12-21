@@ -44,6 +44,8 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -55,11 +57,41 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 public class RestReindexAction extends BaseRestHandler {
     private static final ObjectParser<ReindexRequest, QueryParseContext> PARSER = new ObjectParser<>("reindex");
     static {
-        ObjectParser<SearchRequest, QueryParseContext> sourceParser = new ObjectParser<>("source");
-        sourceParser.declareStringArray((s, i) -> s.indices(i.toArray(new String[i.size()])), new ParseField("index"));
-        sourceParser.declareStringArray((s, i) -> s.types(i.toArray(new String[i.size()])), new ParseField("type"));
-        ObjectParser.Parser<SearchRequest, QueryParseContext> parseSearchSource = (parser, search, context) -> {
+        ObjectParser.Parser<SearchRequest, QueryParseContext> sourceParser = (parser, search, context) -> {
             try {
+                /*
+                 * Extract the parameters that we need from the parser. We could
+                 * do away with this hack when search source has an
+                 * ObjectParser.
+                 */
+                Map<String, Object> source = parser.map();
+                Object index = source.remove("index");
+                if (index != null) {
+                    if (index instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<String> list = (List<String>) index;
+                        search.indices(list.toArray(new String[list.size()]));
+                    } else if (index instanceof String) {
+                        search.indices((String) index);
+                    } else {
+                        throw new IllegalArgumentException("Expected index to be a list of a string but was [" + index + ']');
+                    }
+                }
+                Object type = source.remove("type");
+                if (type != null) {
+                    if (type instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<String> list = (List<String>) type;
+                        search.types(list.toArray(new String[list.size()]));
+                    } else if (type instanceof String) {
+                        search.types((String) type);
+                    } else {
+                        throw new IllegalArgumentException("Expected index to be a type of a string but was [" + type + ']');
+                    }
+                }
+                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                builder.map(source);
+                parser = parser.contentType().xContent().createParser(builder.bytes());
                 context.reset(parser);
                 search.source().parseXContent(parser, context);
             } catch (IOException e) {
@@ -67,7 +99,6 @@ public class RestReindexAction extends BaseRestHandler {
                 throw new ElasticsearchException(e);
             }
         };
-        sourceParser.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT); // NOCOMMIT squash me!
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));

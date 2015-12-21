@@ -207,10 +207,9 @@
         body:
           src:
             index: twitter
-            search:
-              query:
-                match:
-                  user: kimchy
+            query:
+              match:
+                user: kimchy
           dest:
             index: new_twitter
   - do:

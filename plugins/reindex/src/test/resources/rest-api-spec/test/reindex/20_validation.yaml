@@ -16,7 +16,7 @@
 ---
 "junk in source fails":
   - do:
-      catch: /unknown field \[junk\]/
+      catch: /Unknown key for a START_OBJECT in \[junk\]./
       reindex:
         body:
           src:
@@ -40,7 +40,7 @@
           dest: {}
 
 ---
-"search size is accepted":
+"source size is accepted":
   - do:
       index:
         index:   source
@@ -52,10 +52,9 @@
         body:
           src:
             index: source
-            search:
-              size:  1000
+            size:  1000
           dest:
-            index:   dest
+            index: dest
 
 ---
 "destination can used instead of 'dest'":
@@ -96,8 +95,7 @@
       reindex:
         body:
           source:
-            search:
-              size: cat
+            size: cat
           dest:
             index: dest
 
@@ -108,8 +106,7 @@
       reindex:
         body:
           source:
-            search:
-              from: 1
+            from: 1
           dest:
             index: dest
 

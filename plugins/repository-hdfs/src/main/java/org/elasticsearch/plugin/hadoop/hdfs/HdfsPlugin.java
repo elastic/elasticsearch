@@ -54,14 +54,14 @@ public class HdfsPlugin extends Plugin {
     private static Void evilHadoopInit() {
         // hack: on Windows, Shell's clinit has a similar problem that on unix,
         // but here we can workaround it for now by setting hadoop home
+        // on unix: we still want to set this to something we control, because
+        // if the user happens to have HADOOP_HOME in their environment -> checkHadoopHome goes boom
         // TODO: remove THIS when hadoop is fixed
         Path hadoopHome = null;
         String oldValue = null;
         try {
-            if (Constants.WINDOWS) {
-                hadoopHome = Files.createTempDirectory("hadoop").toAbsolutePath();
-                oldValue = System.setProperty("hadoop.home.dir", hadoopHome.toString());
-            }
+            hadoopHome = Files.createTempDirectory("hadoop").toAbsolutePath();
+            oldValue = System.setProperty("hadoop.home.dir", hadoopHome.toString());
             Class.forName("org.apache.hadoop.security.UserGroupInformation");
             Class.forName("org.apache.hadoop.util.StringUtils");
             Class.forName("org.apache.hadoop.util.ShutdownHookManager");
@@ -69,19 +69,17 @@ public class HdfsPlugin extends Plugin {
             throw new RuntimeException(e);
         } finally {
             // try to clean up the hack
-            if (Constants.WINDOWS) {
-                if (oldValue == null) {
-                    System.clearProperty("hadoop.home.dir");
-                } else {
-                    System.setProperty("hadoop.home.dir", oldValue);
-                }
-                try {
-                    // try to clean up our temp dir too if we can
-                    if (hadoopHome != null) {
-                       Files.delete(hadoopHome);
-                    }
-                } catch (IOException thisIsBestEffort) {}
+            if (oldValue == null) {
+                System.clearProperty("hadoop.home.dir");
+            } else {
+                System.setProperty("hadoop.home.dir", oldValue);
             }
+            try {
+                // try to clean up our temp dir too if we can
+                if (hadoopHome != null) {
+                    Files.delete(hadoopHome);
+                }
+            } catch (IOException thisIsBestEffort) {}
         }
         return null;
     }

@@ -49,9 +49,11 @@ public class MiniHDFS {
         // configure Paths
         Path baseDir = Paths.get(args[0]);
         // hadoop-home/, so logs will not complain
-        Path hadoopHome = baseDir.resolve("hadoop-home");
-        Files.createDirectories(hadoopHome);
-        System.setProperty("hadoop.home.dir", hadoopHome.toAbsolutePath().toString());
+        if (System.getenv("HADOOP_HOME") == null) {
+            Path hadoopHome = baseDir.resolve("hadoop-home");
+            Files.createDirectories(hadoopHome);
+            System.setProperty("hadoop.home.dir", hadoopHome.toAbsolutePath().toString());
+        }
         // hdfs-data/, where any data is going
         Path hdfsHome = baseDir.resolve("hdfs-data");
 

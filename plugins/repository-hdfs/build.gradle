@@ -18,6 +18,11 @@
  */
 
 //apply plugin: 'nebula.provided-base'
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
  
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -65,16 +70,34 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
 }
 
 integTest {
-  // hdfs fixture will not start without hadoop native libraries on windows
-  // so we can't run integration tests against external hadoop here.
-  if (System.getProperty("os.name").startsWith("Windows")) {
+  boolean fixtureSupported = false;
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    // hdfs fixture will not start without hadoop native libraries on windows
+    String nativePath = System.getenv("HADOOP_HOME")
+    if (nativePath != null) {
+      Path path = Paths.get(nativePath);
+      if (Files.isDirectory(path) &&
+          Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+          Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+          Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+        fixtureSupported = true
+      } else {
+        throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
+      }
+    }
+  } else {
+    fixtureSupported = true
+  }
+
+  if (fixtureSupported) {
+    dependsOn hdfsFixture
+  } else {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
     systemProperty 'tests.rest.blacklist', [
       'hdfs_repository/20_repository/*',
       'hdfs_repository/30_snapshot/*',
       'hdfs_repository/40_restore/*'
     ].join(',')
-  } else {
-    dependsOn hdfsFixture
   }
 }
 

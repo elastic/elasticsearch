@@ -874,7 +874,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
@@ -913,7 +913,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
@@ -983,7 +983,7 @@ public class GetActionIT extends ESIntegTestCase {
         String storedString = stored ? "yes" : "no";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\",\n" +
                 "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
                 "  },\n" +
@@ -1008,7 +1008,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
         String createIndexSource = "{\n" +
             "  \"settings\": {\n" +
-            "    \"index.translog.disable_flush\": true,\n" +
+            "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
             "    \"refresh_interval\": \"-1\"\n" +
             "  },\n" +
             "  \"mappings\": {\n" +
@@ -1074,7 +1074,7 @@ public class GetActionIT extends ESIntegTestCase {
         String storedString = stored ? "yes" : "no";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\",\n" +
                 "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
                 "  },\n" +
@@ -1126,7 +1126,7 @@ public class GetActionIT extends ESIntegTestCase {
         String storedString = stored ? "yes" : "no";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\",\n" +
                 "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
                 "  },\n" +

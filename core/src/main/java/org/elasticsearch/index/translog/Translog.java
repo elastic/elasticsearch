@@ -1156,7 +1156,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-    public enum Durabilty {
+    public enum Durability {
         /**
          * Async durability - translogs are synced based on a time interval.
          */

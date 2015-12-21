@@ -29,7 +29,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -69,7 +74,7 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private final Predicate<String> indexNameMatcher;
-    private volatile Translog.Durabilty durabilty;
+    private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
 
     /**
@@ -148,8 +153,8 @@ public final class IndexSettings {
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.defaultAllowUnmappedFields = settings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indexNameMatcher = indexNameMatcher;
-        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST.name());
-        this.durabilty = getFromSettings(settings, Translog.Durabilty.REQUEST);
+        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST.name());
+        this.durability = getFromSettings(settings, Translog.Durability.REQUEST);
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
 
         assert indexNameMatcher.test(indexMetaData.getIndex());
@@ -321,25 +326,25 @@ public final class IndexSettings {
     /**
      * Returns the translog durability for this index.
      */
-    public Translog.Durabilty getTranslogDurability() {
-        return durabilty;
+    public Translog.Durability getTranslogDurability() {
+        return durability;
     }
 
-    public Translog.Durabilty getFromSettings(Settings settings, Translog.Durabilty defaultValue) {
+    public Translog.Durability getFromSettings(Settings settings, Translog.Durability defaultValue) {
         final String value = settings.get(INDEX_TRANSLOG_DURABILITY, defaultValue.name());
         try {
-            return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
+            return Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
+            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durability.values()));
             return defaultValue;
         }
     }
 
     private void updateSettings(Settings settings) {
-        final Translog.Durabilty durabilty = getFromSettings(settings, this.durabilty);
-        if (durabilty != this.durabilty) {
-            logger.info("updating durability from [{}] to [{}]", this.durabilty, durabilty);
-            this.durabilty = durabilty;
+        final Translog.Durability durability = getFromSettings(settings, this.durability);
+        if (durability != this.durability) {
+            logger.info("updating durability from [{}] to [{}]", this.durability, durability);
+            this.durability = durability;
         }
     }
 

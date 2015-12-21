@@ -391,35 +391,35 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");
         IndexShard shard = test.getShardOrNull(0);
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         client().prepareIndex("test", "bar", "2").setSource("{}").get();
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "bar", "1").get();
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
 
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "bar", "2").get();
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         assertNoFailures(client().prepareBulk()
                 .add(client().prepareIndex("test", "bar", "3").setSource("{}"))
                 .add(client().prepareDelete("test", "bar", "1")).get());
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
 
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(client().prepareBulk()
                 .add(client().prepareIndex("test", "bar", "4").setSource("{}"))
                 .add(client().prepareDelete("test", "bar", "3")).get());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
     }
 
-    private void setDurability(IndexShard shard, Translog.Durabilty durabilty) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, durabilty.name()).build()).get();
-        assertEquals(durabilty, shard.getTranslogDurability());
+    private void setDurability(IndexShard shard, Translog.Durability durability) {
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, durability.name()).build()).get();
+        assertEquals(durability, shard.getTranslogDurability());
     }
 
     public void testMinimumCompatVersion() {
@@ -691,7 +691,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST).build());
+        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST).build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");

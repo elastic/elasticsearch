@@ -48,7 +48,6 @@ import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -318,7 +317,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
                                  .put("index.merge.policy.type", "tiered")
-                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC.name())
+                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC.name())
                                  ));
         ensureGreen();
         long termUpto = 0;

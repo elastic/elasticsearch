@@ -574,7 +574,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     } // pkg private for testing
 
     private void maybeFSyncTranslogs() {
-        if (indexSettings.getTranslogDurability() == Translog.Durabilty.ASYNC) {
+        if (indexSettings.getTranslogDurability() == Translog.Durability.ASYNC) {
             for (IndexShard shard : this.shards.values()) {
                 try {
                     Translog translog = shard.getTranslog();

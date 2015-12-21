@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.fs.FileContext;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
@@ -49,17 +48,7 @@ final class SecurityUtils {
                 }
             });
         } catch (PrivilegedActionException pae) {
-            Throwable th = pae.getCause();
-            if (th instanceof Error) {
-                throw (Error) th;
-            }
-            if (th instanceof RuntimeException) {
-                throw (RuntimeException) th;
-            }
-            if (th instanceof IOException) {
-                throw (IOException) th;
-            }
-            throw new ElasticsearchException(pae);
+            throw (IOException) pae.getException();
         }
     }
 }

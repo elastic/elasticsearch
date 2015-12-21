@@ -40,8 +40,3 @@ setup:
   - match: { snapshot.shards.successful: 1 }
   - match: { snapshot.shards.failed : 0 }
 
-  # ghetto teardown, so we can debug this thing with external hdfs
-  - do:
-      snapshot.delete:
-        repository: test_repo_hdfs_snapshot
-        snapshot: test_snapshot

@@ -63,8 +63,3 @@ setup:
   - match: { test_index.shards.0.index.files.reused: 0}
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
 
-  # ghetto teardown, so we can debug this thing with external hdfs
-  - do:
-      snapshot.delete:
-        repository: test_repo_hdfs_restore
-        snapshot: test_restore

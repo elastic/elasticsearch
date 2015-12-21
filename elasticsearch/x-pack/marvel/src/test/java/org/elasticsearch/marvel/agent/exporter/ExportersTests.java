@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -14,6 +15,7 @@ import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
+import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -52,12 +54,12 @@ public class ExportersTests extends ESTestCase {
     public void init() throws Exception {
         factories = new HashMap<>();
 
-        SecuredClient securedClient = mock(SecuredClient.class);
-        when(securedClient.settings()).thenReturn(Settings.EMPTY);
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(securedClient, clusterService, mock(RendererRegistry.class)));
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new SecuredClient(client, mock(MarvelShieldIntegration.class)), clusterService, mock(RendererRegistry.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING, MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
         settingsFilter = mock(MarvelSettingsFilter.class);
         exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, clusterSettings);

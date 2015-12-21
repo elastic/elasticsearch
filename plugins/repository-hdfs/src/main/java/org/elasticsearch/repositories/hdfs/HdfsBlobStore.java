@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.ElasticsearchException;
@@ -34,26 +35,28 @@ import java.io.IOException;
 final class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     private final FileContextFactory fcf;
-    private final Path rootHdfsPath;
+    private final Path root;
     private final int bufferSizeInBytes;
 
-    HdfsBlobStore(Settings settings, FileContextFactory fcf, Path path) throws IOException {
+    HdfsBlobStore(Settings settings, FileContextFactory fcf, Path root) throws IOException {
         super(settings);
         this.fcf = fcf;
-        this.rootHdfsPath = path;
+        this.root = root;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
-        mkdirs(path);
+        try {
+            mkdirs(root);
+        } catch (FileAlreadyExistsException ok) {
+            // behaves like Files.createDirectories
+        }
     }
 
     private void mkdirs(Path path) throws IOException {
         SecurityUtils.execute(fcf, new FcCallback<Void>() {
             @Override
             public Void doInHdfs(FileContext fc) throws IOException {
-                if (fc.util().exists(path)) {
-                    fc.mkdir(path, null, true);
-                }
+                fc.mkdir(path, null, true);
                 return null;
             }
         });
@@ -61,7 +64,7 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public String toString() {
-        return rootHdfsPath.toUri().toString();
+        return root.toUri().toString();
     }
 
     FileContextFactory fileContextFactory() {
@@ -92,6 +95,8 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
         final Path path = translateToHdfsPath(blobPath);
         try {
             mkdirs(path);
+        } catch (FileAlreadyExistsException ok) {
+            // behaves like Files.createDirectories
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to create blob container", ex);
         }
@@ -99,7 +104,7 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     private Path translateToHdfsPath(BlobPath blobPath) {
-        Path path = rootHdfsPath;
+        Path path = root;
         for (String p : blobPath) {
             path = new Path(path, p);
         }

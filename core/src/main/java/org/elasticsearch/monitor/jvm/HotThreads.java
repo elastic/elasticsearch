@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
@@ -130,6 +131,11 @@ public class HotThreads {
 
     private String innerDetect() throws Exception {
         StringBuilder sb = new StringBuilder();
+
+        if (Constants.FREE_BSD) {
+            sb.append("hot_threads is not supported on FreeBSD");
+            return sb.toString();
+        }
 
         sb.append("Hot threads at ");
         sb.append(DATE_TIME_FORMATTER.printer().print(System.currentTimeMillis()));

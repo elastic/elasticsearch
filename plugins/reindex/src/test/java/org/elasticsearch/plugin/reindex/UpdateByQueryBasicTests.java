@@ -37,7 +37,6 @@ public class UpdateByQueryBasicTests extends UpdateByQueryTestCase {
         // We can't assert anything about versions here because we don't know which one was updated
     }
 
-    // NOCOMMIT - add a test for abortOnVersionConflict
     public void testRefreshIsFalseByDefault() throws Exception {
         refreshTestCase(null, false);
     }

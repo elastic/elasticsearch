@@ -200,6 +200,11 @@ If you are using any of these settings please take the time and review their pur
 _expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
 cluster settings please use the settings update API and set their superseded keys accordingly.
 
+==== Translog settings
+
+The `index.translog.flush_threshold_ops` setting is not supported anymore. In order to control flushes based on the transaction log
+growth use `index.translog.flush_threshold_size` instead.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

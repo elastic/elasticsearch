@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import com.unboundid.ldap.sdk.FailoverServerSet;
 import com.unboundid.ldap.sdk.LDAPConnection;
-import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResult;
-import com.unboundid.ldap.sdk.ServerSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsFilter;
@@ -23,7 +20,6 @@ import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
-import javax.net.SocketFactory;
 import java.io.IOException;
 
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.createFilter;
@@ -51,10 +47,9 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
     private final String userSearchFilter;
     private final LdapSearchScope userSearchScope;
     private final GroupsResolver groupResolver;
-    private final ServerSet ldapServerSet;
 
     public ActiveDirectorySessionFactory(RealmConfig config, ClientSSLService sslService) {
-        super(config);
+        super(config, sslService);
         Settings settings = config.settings();
         domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
@@ -64,7 +59,6 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
         userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
         userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName + ")))");
-        ldapServerSet = serverSet(config.settings(), sslService);
         groupResolver = new ActiveDirectoryGroupsResolver(settings.getAsSettings("group_search"), domainDN);
     }
 
@@ -72,24 +66,10 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         filter.filterOut("shield.authc.realms." + realmName + "." + HOSTNAME_VERIFICATION_SETTING);
     }
 
-    ServerSet serverSet(Settings settings, ClientSSLService clientSSLService) {
+    @Override
+    protected LDAPServers ldapServers(Settings settings) {
         String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldap://" + domainName + ":389" });
-        LDAPServers servers = new LDAPServers(ldapUrls);
-        LDAPConnectionOptions options = connectionOptions(settings);
-        SocketFactory socketFactory;
-        if (servers.ssl()) {
-            socketFactory = clientSSLService.sslSocketFactory();
-            if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
-                logger.debug("using encryption for LDAP connections with hostname verification");
-            } else {
-                logger.debug("using encryption for LDAP connections without hostname verification");
-            }
-        } else {
-            socketFactory = null;
-        }
-        FailoverServerSet serverSet = new FailoverServerSet(servers.addresses(), servers.ports(), socketFactory, options);
-        serverSet.setReOrderOnFailover(true);
-        return serverSet;
+        return new LDAPServers(ldapUrls);
     }
 
     /**
@@ -103,7 +83,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         LDAPConnection connection;
 
         try {
-            connection = ldapServerSet.getConnection();
+            connection = serverSet.getConnection();
         } catch (LDAPException e) {
             throw new IOException("failed to connect to any active directory servers", e);
         }

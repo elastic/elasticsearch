@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
+import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -15,7 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.ssl.ClientSSLService;
 
+import javax.net.SocketFactory;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
@@ -48,8 +51,9 @@ public abstract class SessionFactory {
     protected final ESLogger connectionLogger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
+    protected final ServerSet serverSet;
 
-    protected SessionFactory(RealmConfig config) {
+    protected SessionFactory(RealmConfig config, ClientSSLService sslService) {
         this.config = config;
         this.logger = config.logger(getClass());
         this.connectionLogger = config.logger(getClass());
@@ -59,6 +63,7 @@ public abstract class SessionFactory {
             searchTimeout = TimeValue.timeValueSeconds(1L);
         }
         this.timeout = searchTimeout;
+        this.serverSet = serverSet(config.settings(), sslService, ldapServers(config.settings()));
     }
 
     /**
@@ -102,6 +107,33 @@ public abstract class SessionFactory {
             options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
         }
         return options;
+    }
+
+    protected LDAPServers ldapServers(Settings settings) {
+        // Parse LDAP urls
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING);
+        if (ldapUrls == null || ldapUrls.length == 0) {
+            throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING + "]");
+        }
+        return new LDAPServers(ldapUrls);
+    }
+
+    protected ServerSet serverSet(Settings settings, ClientSSLService clientSSLService, LDAPServers ldapServers) {
+        SocketFactory socketFactory = null;
+        if (ldapServers.ssl()) {
+            socketFactory = clientSSLService.sslSocketFactory();
+            if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+                logger.debug("using encryption for LDAP connections with hostname verification");
+            } else {
+                logger.debug("using encryption for LDAP connections without hostname verification");
+            }
+        }
+        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), settings, socketFactory, connectionOptions(settings));
+    }
+
+    // package private to use for testing
+    ServerSet getServerSet() {
+        return serverSet;
     }
 
     public static class LDAPServers {

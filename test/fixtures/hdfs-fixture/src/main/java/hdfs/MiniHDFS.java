@@ -79,8 +79,5 @@ public class MiniHDFS {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, Integer.toString(dfs.getNameNodePort()).getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
-
-        // don't rely on hadoop thread leaks, wait forever, until you kill me
-        Thread.sleep(Long.MAX_VALUE);
     }
 }

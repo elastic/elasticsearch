@@ -1,6 +1,5 @@
 package org.elasticsearch.plugin.reindex;
 
-import static java.lang.Math.min;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -180,18 +179,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public Self consistency(WriteConsistencyLevel consistency) {
         this.consistency = consistency;
         return self();
-    }
-
-
-    public void fillInConditionalDefaults() {
-        // NOCOMMIT move this to implementations
-        if (size() != -1) {
-            /*
-             * Don't use larger batches than the maximum request size because
-             * that'd be silly.
-             */
-            source().source().size(min(size(), source().source().size()));
-        }
     }
 
     @Override

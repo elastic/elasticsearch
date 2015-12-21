@@ -145,7 +145,6 @@ public class RestReindexAction extends BaseRestHandler {
         }
         parseCommon(internalRequest, request);
 
-        internalRequest.fillInConditionalDefaults();
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
     }
 

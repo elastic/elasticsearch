@@ -67,11 +67,4 @@ public class ReindexRequestBuilder extends
         destination.setIndex(index).setType(type);
         return this;
     }
-
-    @Override
-    protected ReindexRequest beforeExecute(ReindexRequest request) {
-        request = super.beforeExecute(request);
-        request.fillInConditionalDefaults();
-        return request;
-    }
 }

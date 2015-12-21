@@ -23,8 +23,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 
-import org.apache.log4j.BasicConfigurator;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -48,10 +46,6 @@ public class MiniHDFS {
         if (args.length != 1) {
            throw new IllegalArgumentException("MiniHDFS <baseDirectory>");
         }
-
-        // configure logging, so we see all HDFS server logs if something goes wrong
-        BasicConfigurator.configure();
-
         // configure Paths
         Path baseDir = Paths.get(args[0]);
         // hadoop-home/, so logs will not complain

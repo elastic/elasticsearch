@@ -1,6 +1,6 @@
 # Integration tests for HDFS Repository plugin
 #
-# Check plugin is installed
+# Tests creating a repository
 #
 "HDFS Repository Config":
     - do:

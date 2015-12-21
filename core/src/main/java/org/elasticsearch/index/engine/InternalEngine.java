@@ -1129,20 +1129,18 @@ public class InternalEngine extends Engine {
         @Override
         protected void handleMergeException(final Directory dir, final Throwable exc) {
             logger.error("failed to merge", exc);
-            if (config().getMergeSchedulerConfig().isNotifyOnMergeFailure()) {
-                engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("merge failure action rejected", t);
-                    }
+            engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("merge failure action rejected", t);
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
-                        failEngine("merge failed", e);
-                    }
-                });
-            }
+                @Override
+                protected void doRun() throws Exception {
+                    MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
+                    failEngine("merge failed", e);
+                }
+            });
         }
     }
 

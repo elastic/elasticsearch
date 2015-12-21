@@ -3,8 +3,10 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
@@ -62,6 +64,22 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      */
     public Self refresh(boolean refresh) {
         request.refresh(refresh);
+        return self();
+    }
+
+    /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    public Self timeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return self();
+    }
+
+    /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    public Self consistency(WriteConsistencyLevel consistency) {
+        request.consistency(consistency);
         return self();
     }
 }

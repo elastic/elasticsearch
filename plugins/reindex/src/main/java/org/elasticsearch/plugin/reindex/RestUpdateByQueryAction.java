@@ -1,5 +1,6 @@
 package org.elasticsearch.plugin.reindex;
 
+import static org.elasticsearch.plugin.reindex.RestReindexAction.parseCommon;
 import static org.elasticsearch.plugin.reindex.UpdateByQueryAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -83,7 +84,7 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         if (conflicts != null) {
             internalRequest.conflicts(conflicts);
         }
-        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
+        parseCommon(internalRequest, request);
 
         // TODO allow the user to modify the batch size? Or pick something better than just a default.
         internalRequest.size(internalRequest.source().source().size());

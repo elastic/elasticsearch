@@ -426,13 +426,19 @@ POST /_reindex
 
 
 [float]
-=== Refresh
+=== URL Parameters
 
-Both APIs support the `refresh` url parameter. Setting it to true will cause
-all indexes to which the request wrote to be manually refreshed. This is
-different than the Index API's `refresh` parameter which causes the shard that
-received the new data to be indexed.
+In addition to the standard parameters like `pretty`, all APIs in this plugin
+support `refresh`, `consistency`, and `timeout`.
 
+Sending the `refresh` url parameter will cause all indexes to which the request
+wrote to be refreshed. This is different than the Index API's `refresh`
+parameter which causes just the shard that received the new data to be indexed.
+
+`consistency` controls how many copies of a shard must response to the write
+requests. `timeout` controls how long Elasticsearch waits for the shards to
+become available. `timeout` is per write request. Both work exactly how they
+work in the bulk request.
 
 [float]
 === Response body

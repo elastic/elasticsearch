@@ -190,6 +190,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 startNextScrollRequest();
                 return;
             }
+            request.timeout(mainRequest.timeout());
+            request.consistencyLevel(mainRequest.consistency());
             if (logger.isDebugEnabled()) {
                 logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));

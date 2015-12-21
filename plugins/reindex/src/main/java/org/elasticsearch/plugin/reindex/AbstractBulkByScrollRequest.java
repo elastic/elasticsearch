@@ -9,7 +9,9 @@ import java.util.Arrays;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,6 +42,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Call refresh on the indexes we've written to after the request ends?
      */
     private boolean refresh = false;
+
+    /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    private TimeValue timeout = ReplicationRequest.DEFAULT_TIMEOUT;
+
+    /**
+     * Consistency level for write requests.
+     */
+    private WriteConsistencyLevel consistency = WriteConsistencyLevel.DEFAULT;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -140,6 +152,37 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    public TimeValue timeout() {
+        return timeout;
+    }
+
+    /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    public Self timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return self();
+    }
+
+    /**
+     * Consistency level for write requests.
+     */
+    public WriteConsistencyLevel consistency() {
+        return consistency;
+    }
+
+    /**
+     * Consistency level for write requests.
+     */
+    public Self consistency(WriteConsistencyLevel consistency) {
+        this.consistency = consistency;
+        return self();
+    }
+
+
     public void fillInConditionalDefaults() {
         // NOCOMMIT move this to implementations
         if (size() != -1) {
@@ -157,6 +200,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         source.readFrom(in);
         size = in.readVInt();
         refresh = in.readBoolean();
+        consistency = WriteConsistencyLevel.fromId(in.readByte());
     }
 
     @Override
@@ -165,6 +209,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         source.writeTo(out);
         out.writeVInt(size);
         out.writeBoolean(refresh);
+        out.writeByte(consistency.id());
     }
 
     /**

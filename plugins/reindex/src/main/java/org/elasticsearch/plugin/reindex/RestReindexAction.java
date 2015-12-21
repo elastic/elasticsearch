@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -142,11 +143,10 @@ public class RestReindexAction extends BaseRestHandler {
             badRequest(channel, e.getDetailedMessage());
             return;
         }
-        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
+        parseCommon(internalRequest, request);
 
         internalRequest.fillInConditionalDefaults();
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
-        // NOCOMMIT status from failures!
     }
 
     private void badRequest(RestChannel channel, String message) {
@@ -155,6 +155,15 @@ public class RestReindexAction extends BaseRestHandler {
             channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", message).endObject()));
         } catch (IOException e) {
             logger.warn("Failed to send response", e);
+        }
+    }
+
+    public static void parseCommon(AbstractBulkByScrollRequest<?> internalRequest, RestRequest request) {
+        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
+        internalRequest.timeout(request.paramAsTime("timeout", internalRequest.timeout()));
+        String consistency = request.param("consistency");
+        if (consistency != null) {
+            internalRequest.consistency(WriteConsistencyLevel.fromString(consistency));
         }
     }
 }

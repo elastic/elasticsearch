@@ -1,0 +1,49 @@
+---
+"can override consistency":
+  - do:
+      indices.create:
+          index: dest
+          body:
+            settings:
+              number_of_replicas: 5
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      index:
+        index:       src
+        type:        test
+        id:          1
+        body:        {"text": "test"}
+        consistency: one
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        timeout: 1s
+        body:
+          src:
+            index: src
+          dest:
+            index: dest
+  - match:
+      failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)..Timeout\:.\[1s\],/
+
+  - do:
+      reindex:
+        consistency: one
+        body:
+          src:
+            index: src
+          dest:
+            index: dest
+  - match: {failures: []}
+  - match: {created: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: dest
+        type:  test
+        id:    1

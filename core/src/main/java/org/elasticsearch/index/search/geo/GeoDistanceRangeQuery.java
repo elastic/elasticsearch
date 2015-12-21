@@ -144,13 +144,14 @@ public class GeoDistanceRangeQuery extends Query {
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSetIterator approximation;
                 if (boundingBoxWeight != null) {
-                    approximation = boundingBoxWeight.scorer(context);
+                    Scorer s = boundingBoxWeight.scorer(context);
+                    if (s == null) {
+                        // if the approximation does not match anything, we're done
+                        return null;
+                    }
+                    approximation = s.iterator();
                 } else {
                     approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                }
-                if (approximation == null) {
-                    // if the approximation does not match anything, we're done
-                    return null;
                 }
                 final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
                 final TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approximation) {

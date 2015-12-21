@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -100,6 +101,11 @@ public class PluginBuildPlugin extends BuildPlugin {
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
             from project.configurations.runtime - project.configurations.provided // the dep jars
+            // hack just for slf4j, in case it is "upgrade" from provided to compile,
+            // since it is not actually provided in distributions
+            from project.configurations.runtime.fileCollection { Dependency dep ->
+                return dep.name == 'slf4j-api' && project.configurations.compile.dependencies.contains(dep)
+            }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

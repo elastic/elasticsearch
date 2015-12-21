@@ -179,8 +179,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return (optionalClauseCount < result ?
-                optionalClauseCount : (result < 0 ? 0 : result));
-
+        return result < 0 ? 0 : result;
     }
 }

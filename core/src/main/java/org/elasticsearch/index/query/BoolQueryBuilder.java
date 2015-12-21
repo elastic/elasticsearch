@@ -273,8 +273,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return new MatchAllDocsQuery();
         }
         final String minimumShouldMatch;
-        if (context.isFilter() && this.minimumShouldMatch == null) {
-            //will be applied for real only if there are should clauses
+        if (context.isFilter() && this.minimumShouldMatch == null && shouldClauses.size() > 0) {
             minimumShouldMatch = "1";
         } else {
             minimumShouldMatch = this.minimumShouldMatch;

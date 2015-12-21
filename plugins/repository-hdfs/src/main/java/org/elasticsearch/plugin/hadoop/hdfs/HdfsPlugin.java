@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -51,23 +52,35 @@ public class HdfsPlugin extends Plugin {
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")
     private static Void evilHadoopInit() {
+        // hack: on Windows, Shell's clinit has a similar problem that on unix,
+        // but here we can workaround it for now by setting hadoop home
+        // TODO: remove THIS when hadoop is fixed
+        Path hadoopHome = null;
         String oldValue = null;
         try {
-            // hack: on Windows, Shell's clinit has a similar problem that on unix,
-            // but here we can workaround it for now by setting hadoop home
-            // TODO: remove THIS when hadoop is fixed
-            Path hadoopHome = Files.createTempDirectory("hadoop").toAbsolutePath();
-            oldValue = System.setProperty("hadoop.home.dir", hadoopHome.toString());
+            if (Constants.WINDOWS) {
+                hadoopHome = Files.createTempDirectory("hadoop").toAbsolutePath();
+                oldValue = System.setProperty("hadoop.home.dir", hadoopHome.toString());
+            }
             Class.forName("org.apache.hadoop.security.UserGroupInformation");
             Class.forName("org.apache.hadoop.util.StringUtils");
             Class.forName("org.apache.hadoop.util.ShutdownHookManager");
         } catch (ClassNotFoundException | IOException e) {
             throw new RuntimeException(e);
         } finally {
-            if (oldValue == null) {
-                System.clearProperty("hadoop.home.dir");
-            } else {
-                System.setProperty("hadoop.home.dir", oldValue);
+            // try to clean up the hack
+            if (Constants.WINDOWS) {
+                if (oldValue == null) {
+                    System.clearProperty("hadoop.home.dir");
+                } else {
+                    System.setProperty("hadoop.home.dir", oldValue);
+                }
+                try {
+                    // try to clean up our temp dir too if we can
+                    if (hadoopHome != null) {
+                       Files.delete(hadoopHome);
+                    }
+                } catch (IOException thisIsBestEffort) {}
             }
         }
         return null;

@@ -46,6 +46,7 @@ import org.mockito.stubbing.Answer;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.BulkRequestModifier;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,7 +94,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -106,7 +107,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -133,14 +134,14 @@ public class IngestActionFilterTests extends ESTestCase {
 
         Answer answer = invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<Void> listener = (ActionListener<Void>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
+            Consumer<Boolean> listener = (Consumer) invocationOnMock.getArguments()[3];
+            listener.accept(true);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
@@ -156,26 +157,22 @@ public class IngestActionFilterTests extends ESTestCase {
         Answer answer = new Answer() {
             @Override
             public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-                listener.onFailure(exception);
+                Consumer<Throwable> handler = (Consumer) invocationOnMock.getArguments()[2];
+                handler.accept(exception);
                 return null;
             }
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verify(actionListener).onFailure(exception);
         verifyZeroInteractions(actionFilterChain);
     }
 
     public void testApplyWithBulkRequest() throws Exception {
-        ThreadPool threadPool = new ThreadPool(
-                Settings.builder()
-                        .put("name", "_name")
-                        .put(PipelineExecutionService.additionalSettings(Settings.EMPTY))
-                        .build()
-        );
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(any())).thenReturn(Runnable::run);
         PipelineStore store = mock(PipelineStore.class);
 
         Processor processor = new Processor() {
@@ -238,83 +235,6 @@ public class IngestActionFilterTests extends ESTestCase {
                 assertThat(assertedRequests, equalTo(numRequest));
             }
         });
-
-        threadPool.shutdown();
-    }
-
-
-    public void testApplyWithBulkRequestWithFailureAllFailed() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
-        int numRequest = scaledRandomIntBetween(0, 8);
-        for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
-            indexRequest.source("field1", "value1");
-            bulkRequest.add(indexRequest);
-        }
-
-        RuntimeException exception = new RuntimeException();
-        Answer answer = (invocationOnMock) -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onFailure(exception);
-            return null;
-        };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
-
-        CaptureActionListener actionListener = new CaptureActionListener();
-        RecordRequestAFC actionFilterChain = new RecordRequestAFC();
-
-        filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
-
-        assertThat(actionFilterChain.request, nullValue());
-        ActionResponse response = actionListener.response;
-        assertThat(response, instanceOf(BulkResponse.class));
-        BulkResponse bulkResponse = (BulkResponse) response;
-        assertThat(bulkResponse.getItems().length, equalTo(numRequest));
-        for (BulkItemResponse bulkItemResponse : bulkResponse) {
-            assertThat(bulkItemResponse.isFailed(), equalTo(true));
-        }
-    }
-
-    public void testApplyWithBulkRequestWithFailure() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
-        int numRequest = scaledRandomIntBetween(8, 64);
-        int numNonIndexRequests = 0;
-        for (int i = 0; i < numRequest; i++) {
-            ActionRequest request;
-            if (randomBoolean()) {
-                numNonIndexRequests++;
-                if (randomBoolean()) {
-                    request = new DeleteRequest("_index", "_type", "_id");
-                } else {
-                    request = new UpdateRequest("_index", "_type", "_id");
-                }
-            } else {
-                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
-                indexRequest.source("field1", "value1");
-                request = indexRequest;
-            }
-            bulkRequest.add(request);
-        }
-
-        RuntimeException exception = new RuntimeException();
-        Answer answer = (invocationOnMock) -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onFailure(exception);
-            return null;
-        };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(ActionListener.class));
-
-        ActionListener actionListener = mock(ActionListener.class);
-        RecordRequestAFC actionFilterChain = new RecordRequestAFC();
-
-        filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
-
-        BulkRequest interceptedRequests = actionFilterChain.getRequest();
-        assertThat(interceptedRequests.requests().size(), equalTo(numNonIndexRequests));
-
-        verifyZeroInteractions(actionListener);
     }
 
     public void testBulkRequestModifier() {
@@ -354,26 +274,6 @@ public class IngestActionFilterTests extends ESTestCase {
             } else {
                 assertThat(bulkResponse.getItems()[j], nullValue());
             }
-        }
-    }
-
-    private final static class RecordRequestAFC implements ActionFilterChain {
-
-        private ActionRequest request;
-
-        @Override
-        public void proceed(String action, ActionRequest request, ActionListener listener) {
-            this.request = request;
-        }
-
-        @Override
-        public void proceed(String action, ActionResponse response, ActionListener listener) {
-
-        }
-
-        @SuppressWarnings("unchecked")
-        public <T extends ActionRequest<T>> T getRequest() {
-            return (T) request;
         }
     }
 

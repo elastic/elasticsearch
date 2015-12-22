@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class PipelineExecutionService {
 
@@ -41,41 +42,73 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(IndexRequest indexRequest, String pipelineId, ActionListener<Void> listener) {
-        Pipeline pipeline = store.get(pipelineId);
-        if (pipeline == null) {
-            listener.onFailure(new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist"));
-            return;
-        }
-
+    public void execute(IndexRequest request, String pipelineId, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
+        Pipeline pipeline = getPipeline(pipelineId);
         threadPool.executor(THREAD_POOL_NAME).execute(() -> {
-            String index = indexRequest.index();
-            String type = indexRequest.type();
-            String id = indexRequest.id();
-            String routing = indexRequest.routing();
-            String parent = indexRequest.parent();
-            String timestamp = indexRequest.timestamp();
-            String ttl = indexRequest.ttl() == null ? null : indexRequest.ttl().toString();
-            Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
             try {
-                pipeline.execute(ingestDocument);
-                Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
-                //it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                //before ingestion, which might also get modified during ingestion.
-                indexRequest.index(metadataMap.get(IngestDocument.MetaData.INDEX));
-                indexRequest.type(metadataMap.get(IngestDocument.MetaData.TYPE));
-                indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));
-                indexRequest.routing(metadataMap.get(IngestDocument.MetaData.ROUTING));
-                indexRequest.parent(metadataMap.get(IngestDocument.MetaData.PARENT));
-                indexRequest.timestamp(metadataMap.get(IngestDocument.MetaData.TIMESTAMP));
-                indexRequest.ttl(metadataMap.get(IngestDocument.MetaData.TTL));
-                indexRequest.source(ingestDocument.getSourceAndMetadata());
-                listener.onResponse(null);
-            } catch (Throwable e) {
-                listener.onFailure(e);
+                innerExecute(request, pipeline);
+                completionHandler.accept(true);
+            } catch (Exception e) {
+                failureHandler.accept(e);
             }
         });
+    }
+
+    public void execute(Iterable<ActionRequest> indexRequests, String pipelineId,
+                        Consumer<Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
+        Pipeline pipeline = getPipeline(pipelineId);
+        threadPool.executor(THREAD_POOL_NAME).execute(() -> {
+            Throwable lastThrowable = null;
+            for (ActionRequest actionRequest : indexRequests) {
+                if ((actionRequest instanceof IndexRequest) == false) {
+                    continue;
+                }
+
+                IndexRequest indexRequest = (IndexRequest) actionRequest;
+                try {
+                    innerExecute(indexRequest, pipeline);
+                } catch (Throwable e) {
+                    lastThrowable = e;
+                    if (itemFailureHandler != null) {
+                        itemFailureHandler.accept(e);
+                    }
+                }
+            }
+            completionHandler.accept(lastThrowable == null);
+        });
+    }
+
+    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline) throws Exception {
+        String index = indexRequest.index();
+        String type = indexRequest.type();
+        String id = indexRequest.id();
+        String routing = indexRequest.routing();
+        String parent = indexRequest.parent();
+        String timestamp = indexRequest.timestamp();
+        String ttl = indexRequest.ttl() == null ? null : indexRequest.ttl().toString();
+        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
+        IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
+        pipeline.execute(ingestDocument);
+
+        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+        //it's fine to set all metadata fields all the time, as ingest document holds their starting values
+        //before ingestion, which might also get modified during ingestion.
+        indexRequest.index(metadataMap.get(IngestDocument.MetaData.INDEX));
+        indexRequest.type(metadataMap.get(IngestDocument.MetaData.TYPE));
+        indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));
+        indexRequest.routing(metadataMap.get(IngestDocument.MetaData.ROUTING));
+        indexRequest.parent(metadataMap.get(IngestDocument.MetaData.PARENT));
+        indexRequest.timestamp(metadataMap.get(IngestDocument.MetaData.TIMESTAMP));
+        indexRequest.ttl(metadataMap.get(IngestDocument.MetaData.TTL));
+        indexRequest.source(ingestDocument.getSourceAndMetadata());
+    }
+
+    private Pipeline getPipeline(String pipelineId) {
+        Pipeline pipeline = store.get(pipelineId);
+        if (pipeline == null) {
+            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+        }
+        return pipeline;
     }
 
     public static Settings additionalSettings(Settings nodeSettings) {

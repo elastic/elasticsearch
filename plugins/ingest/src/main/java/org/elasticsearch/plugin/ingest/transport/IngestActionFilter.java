@@ -68,8 +68,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             BulkRequest bulkRequest = (BulkRequest) request;
             @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
-            BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
-            processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, actionListener);
+            processBulkIndexRequest(bulkRequest, pipelineId, action, chain, actionListener);
         } else {
             chain.proceed(action, request, listener);
         }
@@ -88,23 +87,21 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             chain.proceed(action, indexRequest, listener);
             return;
         }
-        executionService.execute(indexRequest, pipelineId, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
-                chain.proceed(action, indexRequest, listener);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                logger.error("failed to execute pipeline [{}]", e, pipelineId);
-                listener.onFailure(e);
-            }
+        executionService.execute(indexRequest, pipelineId, t -> {
+            logger.error("failed to execute pipeline [{}]", t, pipelineId);
+            listener.onFailure(t);
+        }, success -> {
+            indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
+            chain.proceed(action, indexRequest, listener);
         });
     }
 
-    void processBulkIndexRequest(BulkRequestModifier bulkRequestModifier, String pipelineId, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
-        if (!bulkRequestModifier.hasNext()) {
+    void processBulkIndexRequest(BulkRequest original, String pipelineId, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        executionService.execute(() -> bulkRequestModifier, pipelineId, e -> {
+            logger.debug("failed to execute pipeline [{}]", e, pipelineId);
+            bulkRequestModifier.markCurrentItemAsFailed(e);
+        }, (success) -> {
             BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
             ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
             if (bulkRequest.requests().isEmpty()) {
@@ -114,28 +111,6 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
             } else {
                 chain.proceed(action, bulkRequest, actionListener);
-            }
-            return;
-        }
-
-        ActionRequest actionRequest = bulkRequestModifier.next();
-        if (!(actionRequest instanceof IndexRequest)) {
-            processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
-            return;
-        }
-
-        IndexRequest indexRequest = (IndexRequest) actionRequest;
-        executionService.execute(indexRequest, pipelineId, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                logger.debug("failed to execute pipeline [{}]", e, pipelineId);
-                bulkRequestModifier.markCurrentItemAsFailed(e);
-                processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
             }
         });
     }

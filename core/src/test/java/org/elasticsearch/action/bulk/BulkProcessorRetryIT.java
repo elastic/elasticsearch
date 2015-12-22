@@ -54,7 +54,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 //.put("threadpool.listener.queue_size", 1)
                 .put("threadpool.get.queue_size", 1)
                 // default is 50
-                .put("threadpool.bulk.queue_size", 20)
+                .put("threadpool.bulk.queue_size", 30)
                 .build();
     }
 

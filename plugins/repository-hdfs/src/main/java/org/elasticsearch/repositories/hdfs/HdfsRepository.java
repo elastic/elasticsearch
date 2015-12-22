@@ -131,17 +131,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
                 }
             });
         } catch (PrivilegedActionException pae) {
-            Throwable th = pae.getCause();
-            if (th instanceof Error) {
-                throw (Error) th;
-            }
-            if (th instanceof RuntimeException) {
-                throw (RuntimeException) th;
-            }
-            if (th instanceof IOException) {
-                throw (IOException) th;
-            }
-            throw new ElasticsearchException(pae);
+            throw (IOException) pae.getException();
         }
     }
 

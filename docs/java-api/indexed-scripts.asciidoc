@@ -10,7 +10,7 @@ and delete indexed scripts and templates.
 PutIndexedScriptResponse = client.preparePutIndexedScript()
 			 .setScriptLang("groovy")		
 			 .setId("script1") 
-			 .setSource("_score * doc['my_numeric_field'].value")
+			 .setSource("script", "_score * doc['my_numeric_field'].value")
 			 .execute()
 			 .actionGet();
 

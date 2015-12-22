@@ -16,7 +16,7 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 /**
  *
  */
-public class InternalHipChatService extends AbstractLifecycleComponent<InternalHipChatService> implements HipChatService {
+public class InternalHipChatService extends AbstractLifecycleComponent<HipChatService> implements HipChatService {
 
     private final HttpClient httpClient;
     private volatile HipChatAccounts accounts;

@@ -27,6 +27,7 @@ import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class EmailActionTests extends ESTestCase {
     public void testExecute() throws Exception {
         final String account = "account1";
-        EmailService service = new EmailService() {
+        EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService() {
             @Override
             public EmailSent send(Email email, Authentication auth, Profile profile) {
                 return new EmailSent(account, email);

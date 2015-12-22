@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.watcher.actions.hipchat.service;
 
+import org.elasticsearch.common.component.LifecycleComponent;
+
 /**
  *
  */
-public interface HipChatService {
+public interface HipChatService extends LifecycleComponent<HipChatService> {
 
     /**
      * @return The default hipchat account.

@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.watcher.actions.slack.service;
 
+import org.elasticsearch.common.component.LifecycleComponent;
+
 /**
  *
  */
-public interface SlackService {
+public interface SlackService extends LifecycleComponent<SlackService> {
 
 
     /**

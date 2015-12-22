@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -39,6 +38,7 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
@@ -315,7 +315,7 @@ public class WebhookActionTests extends ESTestCase {
                 client,
                 scriptService,
                 ExecuteScenario.Success.client(),
-                new EmailService() {
+                new AbstractWatcherIntegrationTestCase.NoopEmailService() {
                     @Override
                     public EmailSent send(Email email, Authentication auth, Profile profile) {
                         return new EmailSent(account, email);
@@ -327,7 +327,7 @@ public class WebhookActionTests extends ESTestCase {
                     }
                 },
                 logger);
-    }
+    };
 
     private enum ExecuteScenario {
         ErrorCode() {

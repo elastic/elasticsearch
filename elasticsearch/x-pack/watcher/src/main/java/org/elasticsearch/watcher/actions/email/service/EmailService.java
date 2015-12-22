@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.common.component.LifecycleComponent;
+
 import javax.mail.MessagingException;
 
 /**
  *
  */
-public interface EmailService {
+public interface EmailService extends LifecycleComponent<EmailService>{
 
     EmailSent send(Email email, Authentication auth, Profile profile) throws MessagingException;
 

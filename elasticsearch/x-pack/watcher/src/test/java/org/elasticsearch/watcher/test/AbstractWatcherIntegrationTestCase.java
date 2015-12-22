@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
@@ -41,6 +42,7 @@ import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -566,7 +568,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
     }
 
-    private static class NoopEmailService implements EmailService {
+    public static class NoopEmailService extends AbstractLifecycleComponent<EmailService> implements EmailService {
+
+        public NoopEmailService() {
+            super(Settings.EMPTY);
+        }
 
         @Override
         public EmailSent send(Email email, Authentication auth, Profile profile) {
@@ -577,6 +583,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
             return new EmailSent(accountName, email);
         }
+
+        @Override
+        protected void doStart() {}
+
+        @Override
+        protected void doStop() {}
+
+        @Override
+        protected void doClose() {}
     }
 
     protected static class TimeWarp {

@@ -36,10 +36,6 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
         // INDEX_COMPOUND_ON_FLUSH
         InternalEngine engine = ((InternalEngine) EngineAccess.engine(service.getShardOrNull(0)));
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
-        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
-        assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
 
 
         // VERSION MAP SIZE
@@ -61,7 +57,6 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             String versionMapString = versionMapAsPercent ? versionMapPercent + "%" : versionMapSizeInMB + "mb";
 
             Settings build = Settings.builder()
-                    .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
                     .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes, TimeUnit.MILLISECONDS)
                     .put(EngineConfig.INDEX_VERSION_MAP_SIZE, versionMapString)
                     .build();
@@ -69,8 +64,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
 
             client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
             LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
-            assertEquals(engine.config().isCompoundOnFlush(), compoundOnFlush);
-            assertEquals(currentIndexWriterConfig.getUseCompoundFile(), compoundOnFlush);
+            assertEquals(currentIndexWriterConfig.getUseCompoundFile(), true);
 
 
             assertEquals(engine.config().getGcDeletesInMillis(), gcDeletes);

@@ -184,9 +184,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        source = new SearchRequest();
         source.readFrom(in);
+        abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
+        timeout = TimeValue.readTimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
     }
 
@@ -194,8 +197,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         source.writeTo(out);
+        out.writeBoolean(abortOnVersionConflict);
         out.writeVInt(size);
         out.writeBoolean(refresh);
+        timeout.writeTo(out);
         out.writeByte(consistency.id());
     }
 

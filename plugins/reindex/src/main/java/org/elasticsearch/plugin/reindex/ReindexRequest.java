@@ -19,17 +19,17 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.VersionType.INTERNAL;
+
+import java.io.IOException;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-
-import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> {
     /**
@@ -84,6 +84,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        destination = new IndexRequest();
         destination.readFrom(in);
     }
 

@@ -22,7 +22,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("reindex ");
+        b.append("update-by-query ");
         searchToString(b);
         return b.toString();
     }

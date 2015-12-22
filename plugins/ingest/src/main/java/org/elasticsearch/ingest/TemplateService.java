@@ -23,6 +23,7 @@ import java.util.Map;
 /**
  * Abstraction for the template engine.
  */
+// NOTE: this abstraction is added because the 'org.elasticsearch.ingest' has the requirement to be ES agnostic
 public interface TemplateService {
 
     Template compile(String template);

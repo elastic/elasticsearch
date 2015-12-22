@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -36,12 +37,12 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0)
-public class HdfsTests extends ESIntegTestCase {
+public class HdfsTests extends ESSingleNodeTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(HdfsPlugin.class);
     }
 
@@ -59,16 +60,18 @@ public class HdfsTests extends ESIntegTestCase {
                         ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
-        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+        createIndex("test-idx-1");
+        createIndex("test-idx-2");
+        createIndex("test-idx-3");
         ensureGreen();
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
-            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
-        refresh();
+        client().admin().indices().prepareRefresh().get();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
         assertThat(count(client, "test-idx-2"), equalTo(100L));
         assertThat(count(client, "test-idx-3"), equalTo(100L));
@@ -90,7 +93,7 @@ public class HdfsTests extends ESIntegTestCase {
         for (int i = 0; i < 100; i += 2) {
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
-        refresh();
+        client().admin().indices().prepareRefresh().get();
         assertThat(count(client, "test-idx-1"), equalTo(50L));
         assertThat(count(client, "test-idx-2"), equalTo(50L));
         assertThat(count(client, "test-idx-3"), equalTo(50L));
@@ -109,7 +112,7 @@ public class HdfsTests extends ESIntegTestCase {
 
         // Test restore after index deletion
         logger.info("--> delete indices");
-        cluster().wipeIndices("test-idx-1", "test-idx-2");
+        client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
         logger.info("--> restore one index after deletion");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -135,7 +138,9 @@ public class HdfsTests extends ESIntegTestCase {
                     .get();
             assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
-            createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+            createIndex("test-idx-1");
+            createIndex("test-idx-2");
+            createIndex("test-idx-3");
             ensureGreen();
             fail("Path name is invalid");
         } catch (RepositoryException re) {
@@ -157,7 +162,9 @@ public class HdfsTests extends ESIntegTestCase {
                     .get();
             assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
-            createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+            createIndex("test-idx-1");
+            createIndex("test-idx-2");
+            createIndex("test-idx-3");
             ensureGreen();
             fail("Path name is invalid");
         } catch (RepositoryException re) {
@@ -179,7 +186,9 @@ public class HdfsTests extends ESIntegTestCase {
                     .get();
             assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
-            createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+            createIndex("test-idx-1");
+            createIndex("test-idx-2");
+            createIndex("test-idx-3");
             ensureGreen();
             fail("Path name is invalid");
         } catch (RepositoryException re) {

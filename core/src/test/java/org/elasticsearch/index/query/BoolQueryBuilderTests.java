@@ -254,6 +254,24 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
     }
 
+    public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch("3")
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+
+        bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch(3)
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+    }
+
     public void testFromJson() throws IOException {
         String query =
                 "{" +

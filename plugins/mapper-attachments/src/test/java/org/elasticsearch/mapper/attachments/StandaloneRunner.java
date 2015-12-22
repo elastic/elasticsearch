@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +93,7 @@ public class StandaloneRunner extends CliTool {
             DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser(); // use CWD b/c it won't be used
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
-            docMapper = mapperParser.parse(mapping);
+            docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         }
 
         @Override

@@ -134,10 +134,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     protected void doPostCollection() throws IOException {
         IndexReader indexReader = context().searchContext().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
-            DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
-            if (childDocsIter == null) {
+            Scorer childDocsScorer = childFilter.scorer(ctx);
+            if (childDocsScorer == null) {
                 continue;
             }
+            DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
             final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);

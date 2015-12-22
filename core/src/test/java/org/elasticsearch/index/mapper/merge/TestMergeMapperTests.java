@@ -51,13 +51,13 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                 .startObject("name").field("type", "string").endObject()
                 .endObject().endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper stage1 = parser.parse(stage1Mapping);
+        DocumentMapper stage1 = parser.parse("person", new CompressedXContent(stage1Mapping));
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("name").field("type", "string").endObject()
                 .startObject("age").field("type", "integer").endObject()
                 .startObject("obj1").startObject("properties").startObject("prop1").field("type", "integer").endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
-        DocumentMapper stage2 = parser.parse(stage2Mapping);
+        DocumentMapper stage2 = parser.parse("person", new CompressedXContent(stage2Mapping));
 
         stage1.merge(stage2.mapping(), true, false);
         // since we are simulating, we should not have the age mapping
@@ -73,11 +73,11 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
     public void testMergeObjectDynamic() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").endObject().endObject().string();
-        DocumentMapper mapper = parser.parse(objectMapping);
+        DocumentMapper mapper = parser.parse("type1", new CompressedXContent(objectMapping));
         assertNull(mapper.root().dynamic());
 
         String withDynamicMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject().string();
-        DocumentMapper withDynamicMapper = parser.parse(withDynamicMapping);
+        DocumentMapper withDynamicMapper = parser.parse("type1", new CompressedXContent(withDynamicMapping));
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
         mapper.merge(withDynamicMapper.mapping(), false, false);
@@ -89,11 +89,11 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
         String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("obj").field("type", "object").endObject()
                 .endObject().endObject().endObject().string();
-        DocumentMapper objectMapper = parser.parse(objectMapping);
+        DocumentMapper objectMapper = parser.parse("type1", new CompressedXContent(objectMapping));
         String nestedMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("obj").field("type", "nested").endObject()
                 .endObject().endObject().endObject().string();
-        DocumentMapper nestedMapper = parser.parse(nestedMapping);
+        DocumentMapper nestedMapper = parser.parse("type1", new CompressedXContent(nestedMapping));
 
         try {
             objectMapper.merge(nestedMapper.mapping(), true, false);
@@ -119,8 +119,8 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("search_analyzer", "keyword").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper existing = parser.parse(mapping1);
-        DocumentMapper changed = parser.parse(mapping2);
+        DocumentMapper existing = parser.parse("type", new CompressedXContent(mapping1));
+        DocumentMapper changed = parser.parse("type", new CompressedXContent(mapping2));
 
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         existing.merge(changed.mapping(), false, false);
@@ -137,8 +137,8 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("ignore_above", 14).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper existing = parser.parse(mapping1);
-        DocumentMapper changed = parser.parse(mapping2);
+        DocumentMapper existing = parser.parse("type", new CompressedXContent(mapping1));
+        DocumentMapper changed = parser.parse("type", new CompressedXContent(mapping2));
 
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         existing.merge(changed.mapping(), false, false);

@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -65,7 +65,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl").field("enabled", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -80,7 +80,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED_STATE.enabled));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
         assertThat(docMapper.TTLFieldMapper().fieldType().indexOptions(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexOptions()));
@@ -93,7 +93,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(true)); // store was never serialized, so it was always lost
 
@@ -112,8 +112,8 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapperWithoutTtl = parser.parse(mappingWithoutTtl);
-        DocumentMapper mapperWithTtl = parser.parse(mappingWithTtl);
+        DocumentMapper mapperWithoutTtl = parser.parse("type", new CompressedXContent(mappingWithoutTtl));
+        DocumentMapper mapperWithTtl = parser.parse("type", new CompressedXContent(mappingWithTtl));
 
         mapperWithoutTtl.merge(mapperWithTtl.mapping(), false, false);
 
@@ -136,8 +136,8 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper initialMapper = parser.parse(mappingWithTtl);
-        DocumentMapper updatedMapper = parser.parse(updatedMapping);
+        DocumentMapper initialMapper = parser.parse("type", new CompressedXContent(mappingWithTtl));
+        DocumentMapper updatedMapper = parser.parse("type", new CompressedXContent(updatedMapping));
 
         initialMapper.merge(updatedMapper.mapping(), true, false);
 
@@ -148,8 +148,8 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper initialMapper = parser.parse(mappingWithTtl);
-        DocumentMapper updatedMapper = parser.parse(mappingWithTtlDisabled);
+        DocumentMapper initialMapper = parser.parse("type", new CompressedXContent(mappingWithTtl));
+        DocumentMapper updatedMapper = parser.parse("type", new CompressedXContent(mappingWithTtlDisabled));
 
         try {
             initialMapper.merge(updatedMapper.mapping(), true, false);
@@ -278,7 +278,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
             .startObject("_ttl").field("enabled", true).endObject()
             .endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_ttl", "2d").endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
@@ -294,7 +294,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_ttl").field("enabled", true).endObject()
             .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()

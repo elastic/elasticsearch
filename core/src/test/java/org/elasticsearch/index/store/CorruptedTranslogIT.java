@@ -29,6 +29,9 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -166,5 +169,17 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             }
         }
         assertThat("no file corrupted", fileToCorrupt, notNullValue());
+    }
+
+    /** Disables translog flushing for the specified index */
+    private static void disableTranslogFlush(String index) {
+        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables translog flushing for the specified index */
+    private static void enableTranslogFlush(String index) {
+        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB)).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 }

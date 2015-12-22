@@ -512,20 +512,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
-        }
-        if (random.nextBoolean()) {
             builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
-            builder.put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
+            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
         }
         if (random.nextBoolean()) {
             builder.put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durabilty.values()));
         }
 
         if (random.nextBoolean()) {
-            builder.put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogWriter.Type.values()));
             if (rarely(random)) {
                 builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
             } else {
@@ -1451,18 +1447,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
-
-    /** Disables translog flushing for the specified index */
-    public static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
-    }
-
-    /** Enables translog flushing for the specified index */
-    public static void enableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
-    }
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {

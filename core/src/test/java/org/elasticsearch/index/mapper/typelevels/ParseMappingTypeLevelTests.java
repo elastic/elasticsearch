@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.typelevels;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -34,11 +35,7 @@ public class ParseMappingTypeLevelTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("type", mapping);
-        assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.timestampFieldMapper().enabled(), equalTo(true));
-
-        mapper = parser.parse(mapping);
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.timestampFieldMapper().enabled(), equalTo(true));
     }

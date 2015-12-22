@@ -188,18 +188,14 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
     private volatile boolean flushOnClose = true;
-    private volatile int flushThresholdOperations;
     private volatile ByteSizeValue flushThresholdSize;
-    private volatile boolean disableFlush;
 
     /**
      * Index setting to control if a flush is executed before engine is closed
      * This setting is realtime updateable.
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
     /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
     public static final String INDEX_SHARD_INACTIVE_TIME_SETTING = "index.shard.inactive_time";
     private static final String INDICES_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
@@ -270,9 +266,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, settings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
         this.flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        this.disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
@@ -1022,7 +1016,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
      * the new buffering indexing size then we do a refresh to free up the heap.
      */
-    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize) {
 
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
@@ -1060,8 +1054,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 logger.debug(message);
             }
         }
-
-        engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
     /**
@@ -1078,7 +1070,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
-                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
                 logger.debug("marking shard as inactive (inactive_time=[{}]) indexing wise", inactiveTime);
                 indexEventListener.onShardInactive(this);
             }
@@ -1136,15 +1128,13 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Otherwise <code>false</code>.
      */
     boolean shouldFlush() {
-        if (disableFlush == false) {
-            Engine engine = getEngineOrNull();
-            if (engine != null) {
-                try {
-                    Translog translog = engine.getTranslog();
-                    return translog.totalOperations() > flushThresholdOperations || translog.sizeInBytes() > flushThresholdSize.bytes();
-                } catch (AlreadyClosedException | EngineClosedException ex) {
-                    // that's fine we are already close - no need to flush
-                }
+        Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                Translog translog = engine.getTranslog();
+                return translog.sizeInBytes() > flushThresholdSize.bytes();
+            } catch (AlreadyClosedException | EngineClosedException ex) {
+                // that's fine we are already close - no need to flush
             }
         }
         return false;
@@ -1156,20 +1146,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
                 return;
             }
-            int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.flushThresholdOperations);
-            if (flushThresholdOperations != this.flushThresholdOperations) {
-                logger.info("updating flush_threshold_ops from [{}] to [{}]", this.flushThresholdOperations, flushThresholdOperations);
-                this.flushThresholdOperations = flushThresholdOperations;
-            }
             ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
             if (!flushThresholdSize.equals(this.flushThresholdSize)) {
                 logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
                 this.flushThresholdSize = flushThresholdSize;
-            }
-            boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, this.disableFlush);
-            if (disableFlush != this.disableFlush) {
-                logger.info("updating disable_flush from [{}] to [{}]", this.disableFlush, disableFlush);
-                this.disableFlush = disableFlush;
             }
 
             final EngineConfig config = engineConfig;
@@ -1177,12 +1157,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (flushOnClose != this.flushOnClose) {
                 logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
                 this.flushOnClose = flushOnClose;
-            }
-
-            TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
-            if (type != translogConfig.getType()) {
-                logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
-                translogConfig.setType(type);
             }
 
             final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());

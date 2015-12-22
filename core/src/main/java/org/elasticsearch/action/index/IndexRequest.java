@@ -312,14 +312,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the parent id of this document. If routing is not set, automatically set it as the
-     * routing as well.
+     * Sets the parent id of this document.
      */
     public IndexRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 
@@ -601,7 +597,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveIndexRouting(parent, routing, index));
 
         // resolve timestamp if provided externally
         if (timestamp != null) {

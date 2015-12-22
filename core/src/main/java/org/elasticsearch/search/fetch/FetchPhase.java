@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -314,11 +315,12 @@ public class FetchPhase implements SearchPhase {
                 continue;
             }
             final Weight childWeight = context.searcher().createNormalizedWeight(childFilter, false);
-            DocIdSetIterator childIter = childWeight.scorer(subReaderContext);
-            if (childIter == null) {
+            Scorer childScorer = childWeight.scorer(subReaderContext);
+            if (childScorer == null) {
                 current = nestedParentObjectMapper;
                 continue;
             }
+            DocIdSetIterator childIter = childScorer.iterator();
 
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 

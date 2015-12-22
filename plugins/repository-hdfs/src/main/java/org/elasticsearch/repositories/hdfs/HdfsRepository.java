@@ -18,18 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
@@ -39,16 +27,23 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+
+import java.io.IOException;
+import java.net.URI;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
 
 public final class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
@@ -67,13 +62,13 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
 
         this.repositorySettings = repositorySettings;
 
-        uri = repositorySettings.settings().get("uri", settings.get("uri"));
-        path = repositorySettings.settings().get("path", settings.get("path"));
+        uri = repositorySettings.settings().get("uri");
+        path = repositorySettings.settings().get("path");
 
 
         this.basePath = BlobPath.cleanPath();
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
-        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
+        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
+        this.compress = repositorySettings.settings().getAsBoolean("compress", false);
     }
 
     @Override
@@ -107,7 +102,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
                 }
             });
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
-            blobStore = new HdfsBlobStore(settings, this, hdfsPath);
+            blobStore = new HdfsBlobStore(repositorySettings.settings(), this, hdfsPath);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -167,7 +162,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
 
     private FileContext initFileContext(RepositorySettings repositorySettings) throws IOException {
 
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", settings.getAsBoolean("load_defaults", true)));
+        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
         cfg.setClassLoader(this.getClass().getClassLoader());
         cfg.reloadConfiguration();
 

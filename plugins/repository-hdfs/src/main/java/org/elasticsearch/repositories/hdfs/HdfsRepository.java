@@ -50,7 +50,7 @@ import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-public final class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
+public final class HdfsRepository extends BlobStoreRepository {
 
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
@@ -115,8 +115,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
     }
 
     // as the FileSystem is long-lived and might go away, make sure to check it before it's being used.
-    @Override
-    public FileContext getFileContext() throws IOException {
+    FileContext getFileContext() throws IOException {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             // unprivileged code such as scripts do not have SpecialPermission

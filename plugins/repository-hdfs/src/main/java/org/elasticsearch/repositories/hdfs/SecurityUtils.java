@@ -29,8 +29,8 @@ import java.security.PrivilegedExceptionAction;
 
 final class SecurityUtils {
 
-    static <V> V execute(FileContextFactory fcf, FcCallback<V> callback) throws IOException {
-        return execute(fcf.getFileContext(), callback);
+    static <V> V execute(HdfsRepository repository, FcCallback<V> callback) throws IOException {
+        return execute(repository.getFileContext(), callback);
     }
 
     static <V> V execute(FileContext fc, FcCallback<V> callback) throws IOException {

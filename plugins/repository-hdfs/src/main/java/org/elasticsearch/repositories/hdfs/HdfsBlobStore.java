@@ -34,13 +34,13 @@ import java.io.IOException;
 
 final class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final FileContextFactory fcf;
+    private final HdfsRepository repository;
     private final Path root;
     private final int bufferSizeInBytes;
 
-    HdfsBlobStore(Settings settings, FileContextFactory fcf, Path root) throws IOException {
+    HdfsBlobStore(Settings settings, HdfsRepository repository, Path root) throws IOException {
         super(settings);
-        this.fcf = fcf;
+        this.repository = repository;
         this.root = root;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
@@ -53,7 +53,7 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     private void mkdirs(Path path) throws IOException {
-        SecurityUtils.execute(fcf, new FcCallback<Void>() {
+        SecurityUtils.execute(repository, new FcCallback<Void>() {
             @Override
             public Void doInHdfs(FileContext fc) throws IOException {
                 fc.mkdir(path, null, true);
@@ -67,11 +67,11 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
         return root.toUri().toString();
     }
 
-    FileContextFactory fileContextFactory() {
-        return fcf;
+    HdfsRepository getRepository() {
+        return repository;
     }
 
-    int bufferSizeInBytes() {
+    int getBufferSizeInBytes() {
         return bufferSizeInBytes;
     }
 
@@ -82,7 +82,7 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        SecurityUtils.execute(fcf, new FcCallback<Void>() {
+        SecurityUtils.execute(repository, new FcCallback<Void>() {
             @Override
             public Void doInHdfs(FileContext fc) throws IOException {
                 fc.delete(translateToHdfsPath(path), true);

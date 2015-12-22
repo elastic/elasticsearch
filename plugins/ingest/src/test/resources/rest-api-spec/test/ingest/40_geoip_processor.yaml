@@ -21,7 +21,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:
@@ -65,7 +65,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:
@@ -110,7 +110,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:

@@ -79,7 +79,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {
           field_to_rename: "value",
           field_to_remove: "old_value",
@@ -137,7 +137,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field: "value"}
 
   - do:

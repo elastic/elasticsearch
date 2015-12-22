@@ -21,22 +21,34 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 final class HdfsBlobStore implements BlobStore {
 
-    private final HdfsRepository repository;
     private final Path root;
+    private final FileContext fileContext;
+    private final int bufferSize;
+    private volatile boolean closed;
 
-    HdfsBlobStore(HdfsRepository repository, Path root) throws IOException {
-        this.repository = repository;
-        this.root = root;
-
+    HdfsBlobStore(FileContext fileContext, String path, int bufferSize) throws IOException {
+        this.fileContext = fileContext;
+        this.bufferSize = bufferSize;
+        this.root = execute(new Operation<Path>() {
+          @Override
+          public Path run(FileContext fileContext) throws IOException {
+              return fileContext.makeQualified(new Path(path));
+          }
+        });
         try {
             mkdirs(root);
         } catch (FileAlreadyExistsException ok) {
@@ -45,10 +57,10 @@ final class HdfsBlobStore implements BlobStore {
     }
 
     private void mkdirs(Path path) throws IOException {
-        repository.execute(new HdfsRepository.Operation<Void>() {
+        execute(new Operation<Void>() {
             @Override
-            public Void run(FileContext fc) throws IOException {
-                fc.mkdir(path, null, true);
+            public Void run(FileContext fileContext) throws IOException {
+                fileContext.mkdir(path, null, true);
                 return null;
             }
         });
@@ -61,12 +73,12 @@ final class HdfsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, repository, buildHdfsPath(path));
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize);
     }
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        repository.execute(new HdfsRepository.Operation<Void>() {
+        execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fc) throws IOException {
                 fc.delete(translateToHdfsPath(path), true);
@@ -94,9 +106,38 @@ final class HdfsBlobStore implements BlobStore {
         }
         return path;
     }
+    
+    
+    interface Operation<V> {
+        V run(FileContext fileContext) throws IOException;
+    }
+    
+    /**
+     * Executes the provided operation against this store
+     */
+    <V> V execute(Operation<V> operation) throws IOException {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            // unprivileged code such as scripts do not have SpecialPermission
+            sm.checkPermission(new SpecialPermission());
+        }
+        if (closed) {
+            throw new AlreadyClosedException("HdfsBlobStore is closed: " + root);
+        }
+        try {
+            return AccessController.doPrivileged(new PrivilegedExceptionAction<V>() {
+                @Override
+                public V run() throws IOException {
+                    return operation.run(fileContext);
+                }
+            });
+        } catch (PrivilegedActionException pae) {
+            throw (IOException) pae.getException();
+        }
+    }
 
     @Override
     public void close() {
-        //
+        closed = true;
     }
 }

@@ -24,8 +24,6 @@ import java.net.URI;
 import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
@@ -36,10 +34,7 @@ import javax.security.auth.Subject;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
@@ -60,10 +55,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final RepositorySettings repositorySettings;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
-    final int bufferSizeInBytes;
     
     private HdfsBlobStore blobStore;
-    private volatile FileContext fileContext;
 
     @Inject
     public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
@@ -72,7 +65,6 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
         this.compress = repositorySettings.settings().getAsBoolean("compress", false);
-        this.bufferSizeInBytes = (int) repositorySettings.settings().getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
     }
 
     @Override
@@ -96,6 +88,8 @@ public final class HdfsRepository extends BlobStoreRepository {
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
+        
+        int bufferSize = (int) repositorySettings.settings().getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
         try {
             // initialize our filecontext
@@ -103,20 +97,14 @@ public final class HdfsRepository extends BlobStoreRepository {
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
+            FileContext fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
                 @Override
                 public FileContext run() {
                     return createContext(uri, repositorySettings);
                 }
             });
-            Path hdfsPath = execute(new Operation<Path>() {
-                @Override
-                public Path run(FileContext fileContext) throws IOException {
-                    return fileContext.makeQualified(new Path(pathSetting));
-                }
-            });
-            logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), hdfsPath);
-            blobStore = new HdfsBlobStore(this, hdfsPath);
+            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
+            logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
         }
@@ -182,39 +170,5 @@ public final class HdfsRepository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
-        super.doClose();
-        fileContext = null;
-    }
-   
-    interface Operation<V> {
-        V run(FileContext fileContext) throws IOException;
-    }
-    
-    /**
-     * Executes the provided operation against this repository
-     */
-    <V> V execute(Operation<V> operation) throws IOException {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
-        }
-        if (fileContext == null) {
-            throw new AlreadyClosedException("repository is closed: " + repositoryName);
-        }
-        try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<V>() {
-                @Override
-                public V run() throws IOException {
-                    return operation.run(fileContext);
-                }
-            });
-        } catch (PrivilegedActionException pae) {
-            throw (IOException) pae.getException();
-        }
     }
 }

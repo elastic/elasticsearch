@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,20 +41,21 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
-
-    private final HdfsRepository repository;
+    private final HdfsBlobStore store;
     private final Path path;
+    private final int bufferSize;
 
-    HdfsBlobContainer(BlobPath blobPath, HdfsRepository repository, Path path) {
+    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize) {
         super(blobPath);
-        this.repository = repository;
+        this.store = store;
         this.path = path;
+        this.bufferSize = bufferSize;
     }
 
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return repository.execute(new HdfsRepository.Operation<Boolean>() {
+            return store.execute(new Operation<Boolean>() {
                 @Override
                 public Boolean run(FileContext fileContext) throws IOException {
                     return fileContext.util().exists(new Path(path, blobName));
@@ -67,7 +69,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
-            repository.execute(new HdfsRepository.Operation<Boolean>() {
+            store.execute(new Operation<Boolean>() {
                 @Override
                 public Boolean run(FileContext fileContext) throws IOException {
                     return fileContext.delete(new Path(path, blobName), true);
@@ -80,7 +82,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        repository.execute(new HdfsRepository.Operation<Void>() {
+        store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {
                 fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
@@ -92,17 +94,17 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         // FSDataInputStream does buffering internally
-        return repository.execute(new HdfsRepository.Operation<InputStream>() {
+        return store.execute(new Operation<InputStream>() {
             @Override
             public InputStream run(FileContext fileContext) throws IOException {
-                return fileContext.open(new Path(path, blobName), repository.bufferSizeInBytes);
+                return fileContext.open(new Path(path, blobName), bufferSize);
             }
         });
     }
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        repository.execute(new HdfsRepository.Operation<Void>() {
+        store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {
                 Path blob = new Path(path, blobName);
@@ -110,10 +112,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
                 // that should be fixed there, no need to bring truncation into this, give the user an error.
                 EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
-                CreateOpts[] opts = { CreateOpts.bufferSize(repository.bufferSizeInBytes) };
+                CreateOpts[] opts = { CreateOpts.bufferSize(bufferSize) };
                 try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
                     int bytesRead;
-                    byte[] buffer = new byte[repository.bufferSizeInBytes];
+                    byte[] buffer = new byte[bufferSize];
                     while ((bytesRead = inputStream.read(buffer)) != -1) {
                         stream.write(buffer, 0, bytesRead);
                         //  For safety we also hsync each write as well, because of its docs:
@@ -130,7 +132,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
-        FileStatus[] files = repository.execute(new HdfsRepository.Operation<FileStatus[]>() {
+        FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
             @Override
             public FileStatus[] run(FileContext fileContext) throws IOException {
                 return (fileContext.util().listStatus(path, new PathFilter() {
@@ -150,7 +152,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
-        FileStatus[] files = repository.execute(new HdfsRepository.Operation<FileStatus[]>() {
+        FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
             @Override
             public FileStatus[] run(FileContext fileContext) throws IOException {
                 return fileContext.util().listStatus(path);

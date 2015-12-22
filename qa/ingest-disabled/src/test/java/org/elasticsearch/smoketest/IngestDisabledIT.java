@@ -17,16 +17,25 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.smoketest;
 
-dependencies {
-    testCompile project(path: ':plugins:ingest', configuration: 'runtime')
-    testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-integTest {
-    cluster {
-        plugin 'ingest', project(':plugins:ingest')
-        systemProperty 'es.node.ingest', 'true'
+import java.io.IOException;
+
+public class IngestDisabledIT extends ESRestTestCase {
+
+    public IngestDisabledIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
+    }
+
 }

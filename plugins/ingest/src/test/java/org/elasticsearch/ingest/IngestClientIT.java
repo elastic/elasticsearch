@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
@@ -66,6 +67,22 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(IngestPlugin.NODE_INGEST_SETTING, true)
+            .build();
+    }
+
+    @Override
+    protected Settings externalClusterClientSettings() {
+        return Settings.builder()
+            .put(super.transportClientSettings())
+            .put(IngestPlugin.NODE_INGEST_SETTING, true)
+            .build();
     }
 
     public void testSimulate() throws Exception {

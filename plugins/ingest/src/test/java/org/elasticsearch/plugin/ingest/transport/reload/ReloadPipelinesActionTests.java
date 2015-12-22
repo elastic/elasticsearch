@@ -153,7 +153,7 @@ public class ReloadPipelinesActionTests extends ESTestCase {
         if (ingestNode) {
             attributes = Collections.singletonMap("ingest", "true");
         } else {
-            attributes = Collections.emptyMap();
+            attributes = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("ingest", "false");
         }
         String id = String.valueOf(index);
         return new DiscoveryNode(id, id, new LocalTransportAddress(id), attributes, Version.CURRENT);

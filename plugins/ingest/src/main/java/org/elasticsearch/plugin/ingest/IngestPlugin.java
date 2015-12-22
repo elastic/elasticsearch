@@ -30,7 +30,9 @@ import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestPutPipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestSimulatePipelineAction;
+import org.elasticsearch.plugin.ingest.rest.RestIngestDisabledAction;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
+import org.elasticsearch.plugin.ingest.transport.IngestDisabledActionFilter;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineTransportAction;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
@@ -56,11 +58,13 @@ public class IngestPlugin extends Plugin {
     public static final String NODE_INGEST_SETTING = "node.ingest";
 
     private final Settings nodeSettings;
+    private final boolean ingestEnabled;
     private final boolean transportClient;
 
     public IngestPlugin(Settings nodeSettings) {
         this.nodeSettings = nodeSettings;
-        transportClient = TransportClient.CLIENT_TYPE.equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
+        this.ingestEnabled = nodeSettings.getAsBoolean(NODE_INGEST_SETTING, false);
+        this.transportClient = TransportClient.CLIENT_TYPE.equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
     }
 
     @Override
@@ -78,13 +82,13 @@ public class IngestPlugin extends Plugin {
         if (transportClient) {
             return Collections.emptyList();
         } else {
-            return Collections.singletonList(new IngestModule());
+            return Collections.singletonList(new IngestModule(ingestEnabled));
         }
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (transportClient) {
+        if (transportClient|| ingestEnabled == false) {
             return Collections.emptyList();
         } else {
             return Collections.singletonList(IngestBootstrapper.class);
@@ -95,27 +99,37 @@ public class IngestPlugin extends Plugin {
     public Settings additionalSettings() {
         return settingsBuilder()
                 .put(PipelineExecutionService.additionalSettings(nodeSettings))
-                // TODO: in a followup issue this should be made configurable
-                .put(NODE_INGEST_SETTING, true)
                 .build();
     }
 
     public void onModule(ActionModule module) {
         if (transportClient == false) {
-            module.registerFilter(IngestActionFilter.class);
+            if (ingestEnabled) {
+                module.registerFilter(IngestActionFilter.class);
+            } else {
+                module.registerFilter(IngestDisabledActionFilter.class);
+            }
         }
-        module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
-        module.registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
-        module.registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
-        module.registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
+        if (ingestEnabled) {
+            module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+            module.registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+            module.registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+            module.registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
+        }
     }
 
     public void onModule(NetworkModule networkModule) {
-        if (transportClient == false) {
+        if (transportClient) {
+            return;
+        }
+
+        if (ingestEnabled) {
             networkModule.registerRestHandler(RestPutPipelineAction.class);
             networkModule.registerRestHandler(RestGetPipelineAction.class);
             networkModule.registerRestHandler(RestDeletePipelineAction.class);
             networkModule.registerRestHandler(RestSimulatePipelineAction.class);
+        } else {
+            networkModule.registerRestHandler(RestIngestDisabledAction.class);
         }
     }
 

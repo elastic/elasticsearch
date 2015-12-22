@@ -1,6 +1,33 @@
 [[ingest]]
 == Ingest Plugin
 
+The ingest plugin can be used to pre-process documents before the actual indexing takes place.
+This pre-processing happens by the ingest plugin that intercepts bulk and index requests, applies the
+transformations and then passes the documents back to the index or bulk APIs.
+
+The ingest plugin is disabled by default. In order to enable the ingest plugin the following
+setting should be configured in the elasticsearch.yml file:
+
+[source,yaml]
+--------------------------------------------------
+node.ingest: true
+--------------------------------------------------
+
+The ingest plugin can be installed and enabled on any node. It is possible to run ingest
+on an master and or data node or have dedicated client nodes that run with ingest.
+
+In order to pre-process document before indexing the `pipeline` parameter should be used
+on an index or bulk request to tell the ingest plugin what pipeline is going to be used.
+
+[source,js]
+--------------------------------------------------
+PUT /my-index/my-type/my-id?ingest=my_pipeline_id
+{
+  ...
+}
+--------------------------------------------------
+// AUTOSENSE
+
 === Processors
 
 ==== Set processor

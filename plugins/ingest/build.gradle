@@ -66,3 +66,9 @@ bundlePlugin {
 //geoip WebServiceClient needs Google http client, but we're not using WebServiceClient and
 // joni has AsmCompilerSupport, but that isn't being used:
 thirdPartyAudit.missingClasses = true
+
+integTest {
+  cluster {
+    systemProperty 'es.node.ingest', 'true'
+  }
+}

@@ -21,12 +21,10 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
     testCompile project(path: ':plugins:ingest', configuration: 'runtime')
-    testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
 
 integTest {
     cluster {
         plugin 'ingest', project(':plugins:ingest')
-        systemProperty 'es.node.ingest', 'true'
     }
 }

@@ -1,0 +1,58 @@
+---
+"Test ingest APIS fail when is disabled":
+  - do:
+      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field",
+                  "value": "valie"
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+
+  - do:
+      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
+      ingest.get_pipeline:
+        id: "my_pipeline"
+
+  - do:
+      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
+      ingest.simulate:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field",
+                  "value": "valie"
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /ingest plugin is disabled, cannot execute pipeline with id \[my_pipeline_1\]/
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline_1"
+        body: {
+          field1: "1",
+          field2: "2",
+          field3: "3"
+        }

@@ -42,31 +42,41 @@ import java.util.Map;
 
 public class IngestModule extends AbstractModule {
 
+    private final boolean ingestEnabled;
     private final Map<String, ProcessorFactoryProvider> processorFactoryProviders = new HashMap<>();
+
+    public IngestModule(boolean ingestEnabled) {
+        this.ingestEnabled = ingestEnabled;
+    }
 
     @Override
     protected void configure() {
+        // Even if ingest isn't enable we still need to make sure that rest requests with pipeline
+        // param copy the pipeline into the context, so that in IngestDisabledActionFilter
+        // index/bulk requests can be failed
         binder().bind(IngestRestFilter.class).asEagerSingleton();
-        binder().bind(IngestBootstrapper.class).asEagerSingleton();
+        if (ingestEnabled) {
+            binder().bind(IngestBootstrapper.class).asEagerSingleton();
 
-        addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
-        addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
-        addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
-        addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
-        addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
-        addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
-        addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
-        addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
-        addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
-        addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
-        addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
-        addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
-        addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
-        addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
+            addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+            addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
+            addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
+            addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
+            addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
+            addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
+            addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
+            addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
+            addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
+            addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
+            addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
+            addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
+            addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
+            addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
 
-        MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
-        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
-            mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
+            MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
+            for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
+                mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
+            }
         }
     }
 

@@ -54,10 +54,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     /**
-     * Simple implementation of index-by-search scrolling and bulk. There are
-     * tons of optimizations that can be done on certain types of index-by-query
-     * requests but this makes no attempt to do any of them so it can be as
-     * simple possible.
+     * Simple implementation of update-by-query using scrolling and bulk.
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
         public AsyncIndexBySearchAction(UpdateByQueryRequest request,

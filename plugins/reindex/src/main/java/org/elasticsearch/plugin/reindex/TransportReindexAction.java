@@ -81,10 +81,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     /**
-     * Simple implementation of index-by-search scrolling and bulk. There are
-     * tons of optimizations that can be done on certain types of index-by-query
-     * requests but this makes no attempt to do any of them so it can be as
-     * simple possible.
+     * Simple implementation of reindex using scrolling and bulk. There are tons
+     * of optimizations that can be done on certain types of reindex requests
+     * but this makes no attempt to do any of them so it can be as simple
+     * possible.
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
         public AsyncIndexBySearchAction(ReindexRequest request, ActionListener<ReindexResponse> listener) {

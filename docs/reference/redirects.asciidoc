@@ -443,3 +443,9 @@ The `not` query has been replaced by using a `mustNot` clause in a Boolean query
 === Nested type
 
 The docs for the `nested` field datatype have moved to <<nested>>.
+
+[role="exclude",id="indices-warmers"]
+=== Warmers
+
+Warmers have been removed. There have been significant improvements to the
+index that make warmers not necessary anymore.

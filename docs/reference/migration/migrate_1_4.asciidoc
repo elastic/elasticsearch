@@ -32,7 +32,7 @@ Add or update a mapping via the <<indices-create-index,create index>> or
 [float]
 === Indices APIs
 
-The <<warmer-retrieving, get warmer api>> will return a section for `warmers` even if there are
+The get warmer api will return a section for `warmers` even if there are
 no warmers.  This ensures that the following two examples are equivalent:
 
 [source,js]

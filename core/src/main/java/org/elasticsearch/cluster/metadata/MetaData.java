@@ -55,12 +55,10 @@ import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -71,7 +69,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -363,49 +360,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             }
         }
         return indexMapBuilder.build();
-    }
-
-    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
-        assert uncheckedWarmers != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
-        }
-        // special _all check to behave the same like not specifying anything for the warmers (not for the indices)
-        final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
-
-        ImmutableOpenMap.Builder<String, List<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
-            IndexMetaData indexMetaData = indices.get(index);
-            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-            if (indexWarmersMetaData == null || indexWarmersMetaData.entries().isEmpty()) {
-                continue;
-            }
-
-            // TODO: make this a List so we don't have to copy below
-            Collection<IndexWarmersMetaData.Entry> filteredWarmers =
-                    indexWarmersMetaData
-                            .entries()
-                            .stream()
-                            .filter(warmer -> {
-                                if (warmers.length != 0 && types.length != 0) {
-                                    return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
-                                } else if (warmers.length != 0) {
-                                    return Regex.simpleMatch(warmers, warmer.name());
-                                } else if (types.length != 0) {
-                                    return Regex.simpleMatch(types, warmer.types());
-                                } else {
-                                    return true;
-                                }
-                            })
-                            .collect(Collectors.toCollection(ArrayList::new));
-
-            if (!filteredWarmers.isEmpty()) {
-                mapBuilder.put(index, Collections.unmodifiableList(new ArrayList<>(filteredWarmers)));
-            }
-        }
-        return mapBuilder.build();
     }
 
     /**

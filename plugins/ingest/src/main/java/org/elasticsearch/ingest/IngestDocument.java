@@ -23,7 +23,13 @@ import org.elasticsearch.common.Strings;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TimeZone;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).

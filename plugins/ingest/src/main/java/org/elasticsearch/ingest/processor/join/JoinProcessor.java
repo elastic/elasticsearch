@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

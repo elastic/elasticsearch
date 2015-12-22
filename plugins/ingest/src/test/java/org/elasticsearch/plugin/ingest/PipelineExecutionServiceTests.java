@@ -35,11 +35,21 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class PipelineExecutionServiceTests extends ESTestCase {
 

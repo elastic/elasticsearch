@@ -19,18 +19,20 @@
 
 package org.elasticsearch.ingest.processor.grok;
 
-import java.lang.Object;
-import java.lang.String;
-import java.lang.StringIndexOutOfBoundsException;
+import org.jcodings.specific.UTF8Encoding;
+import org.joni.Matcher;
+import org.joni.NameEntry;
+import org.joni.Option;
+import org.joni.Regex;
+import org.joni.Region;
+import org.joni.Syntax;
+import org.joni.exception.ValueException;
+
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-
-import org.jcodings.specific.UTF8Encoding;
-import org.joni.*;
-import org.joni.exception.ValueException;
 
 final class Grok {
 

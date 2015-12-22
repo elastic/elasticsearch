@@ -23,8 +23,11 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.

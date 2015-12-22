@@ -21,8 +21,6 @@ package org.elasticsearch.ingest.processor.trim;
 
 import org.elasticsearch.ingest.processor.AbstractStringProcessor;
 
-import java.util.Collection;
-
 /**
  * Processor that trims the content of string fields.
  * Throws exception is the field is not of type string.

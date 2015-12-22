@@ -22,9 +22,13 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class ConfigurationUtilsTests extends ESTestCase {

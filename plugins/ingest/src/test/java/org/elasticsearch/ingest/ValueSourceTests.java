@@ -21,9 +21,15 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ValueSourceTests extends ESTestCase {
 

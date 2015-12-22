@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.processor.convert;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 

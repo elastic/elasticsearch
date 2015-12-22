@@ -25,9 +25,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.plugin.ingest.PipelineDefinition;
 import org.elasticsearch.plugin.ingest.PipelineStore;
-import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

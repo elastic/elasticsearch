@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor.lowercase;
 
 import org.elasticsearch.ingest.processor.AbstractStringProcessor;
 
-import java.util.Collection;
 import java.util.Locale;
 
 /**

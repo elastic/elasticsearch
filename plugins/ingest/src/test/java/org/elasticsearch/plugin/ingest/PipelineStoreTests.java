@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;

@@ -21,7 +21,11 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.Map;

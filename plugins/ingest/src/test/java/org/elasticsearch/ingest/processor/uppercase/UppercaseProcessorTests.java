@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.processor.uppercase;
 import org.elasticsearch.ingest.processor.AbstractStringProcessor;
 import org.elasticsearch.ingest.processor.AbstractStringProcessorTestCase;
 
-import java.util.Collection;
 import java.util.Locale;
 
 public class UppercaseProcessorTests extends AbstractStringProcessorTestCase {

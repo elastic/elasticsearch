@@ -33,10 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;
-import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -47,11 +47,18 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.BulkRequestModifier;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class IngestActionFilterTests extends ESTestCase {
 

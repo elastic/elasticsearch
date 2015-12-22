@@ -24,7 +24,6 @@ import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 
 /**

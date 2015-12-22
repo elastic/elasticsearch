@@ -24,10 +24,8 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;

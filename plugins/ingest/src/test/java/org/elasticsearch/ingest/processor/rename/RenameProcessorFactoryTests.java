@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor.rename;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 

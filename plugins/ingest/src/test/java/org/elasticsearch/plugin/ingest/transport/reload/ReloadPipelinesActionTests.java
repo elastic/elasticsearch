@@ -38,11 +38,11 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.when;
 
 public class ReloadPipelinesActionTests extends ESTestCase {

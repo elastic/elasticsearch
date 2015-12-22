@@ -20,9 +20,13 @@
 package org.elasticsearch.plugin.ingest.rest;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestFilter;
+import org.elasticsearch.rest.RestFilterChain;
+import org.elasticsearch.rest.RestRequest;
 
-import static org.elasticsearch.plugin.ingest.IngestPlugin.*;
+import static org.elasticsearch.plugin.ingest.IngestPlugin.PIPELINE_ID_PARAM;
 import static org.elasticsearch.plugin.ingest.IngestPlugin.PIPELINE_ID_PARAM_CONTEXT_KEY;
 
 public class IngestRestFilter extends RestFilter {

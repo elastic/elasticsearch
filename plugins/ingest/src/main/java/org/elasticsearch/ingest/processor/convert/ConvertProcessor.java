@@ -23,7 +23,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Processor that converts fields content to a different type. Supported types are: integer, float, boolean and string.

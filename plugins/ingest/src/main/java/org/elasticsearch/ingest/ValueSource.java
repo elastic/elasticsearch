@@ -19,7 +19,11 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Holds a value. If the value is requested a copy is made and optionally template snippets are resolved too.

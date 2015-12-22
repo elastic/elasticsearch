@@ -27,9 +27,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocument.MetaData.*;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;

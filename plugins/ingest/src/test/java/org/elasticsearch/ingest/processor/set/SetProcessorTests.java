@@ -19,12 +19,16 @@
 
 package org.elasticsearch.ingest.processor.set;
 
-import org.elasticsearch.ingest.*;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.*;
+import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 

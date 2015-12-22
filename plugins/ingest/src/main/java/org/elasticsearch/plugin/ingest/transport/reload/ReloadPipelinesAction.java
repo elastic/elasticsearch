@@ -25,7 +25,13 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -23,9 +23,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class GrokProcessorTests extends ESTestCase {

@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
@@ -31,6 +30,7 @@ import org.elasticsearch.ingest.processor.join.JoinProcessor;
 import org.elasticsearch.ingest.processor.lowercase.LowercaseProcessor;
 import org.elasticsearch.ingest.processor.remove.RemoveProcessor;
 import org.elasticsearch.ingest.processor.rename.RenameProcessor;
+import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.ingest.processor.split.SplitProcessor;
 import org.elasticsearch.ingest.processor.trim.TrimProcessor;
 import org.elasticsearch.ingest.processor.uppercase.UppercaseProcessor;

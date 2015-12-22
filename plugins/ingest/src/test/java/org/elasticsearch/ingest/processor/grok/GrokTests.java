@@ -24,9 +24,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.Object;
-import java.lang.String;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

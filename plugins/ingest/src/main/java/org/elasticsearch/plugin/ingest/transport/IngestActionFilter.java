@@ -31,11 +31,15 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
-import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
 

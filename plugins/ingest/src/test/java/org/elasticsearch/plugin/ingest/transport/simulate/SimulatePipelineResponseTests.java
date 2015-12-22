@@ -30,7 +30,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SimulatePipelineResponseTests extends ESTestCase {
 

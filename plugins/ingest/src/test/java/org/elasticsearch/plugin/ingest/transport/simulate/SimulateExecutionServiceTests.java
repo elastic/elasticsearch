@@ -31,8 +31,16 @@ import org.junit.Before;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SimulateExecutionServiceTests extends ESTestCase {
 

@@ -19,11 +19,6 @@
 
 package org.elasticsearch.ingest.processor.grok;
 
-import java.lang.Float;
-import java.lang.Integer;
-import java.lang.Object;
-import java.lang.String;
-
 final class GrokMatchGroup {
     private static final String DEFAULT_TYPE = "string";
     private final String patternName;

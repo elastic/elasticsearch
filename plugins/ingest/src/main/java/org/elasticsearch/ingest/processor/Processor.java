@@ -22,9 +22,6 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.IngestDocument;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 
 /**

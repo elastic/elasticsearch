@@ -227,7 +227,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         executionService.execute(bulkRequest.requests(), pipelineId, requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(error);
-        verify(completionHandler, times(1)).accept(false);
+        verify(completionHandler, times(1)).accept(true);
     }
 
     public void testBulkRequestExecution() throws Exception {

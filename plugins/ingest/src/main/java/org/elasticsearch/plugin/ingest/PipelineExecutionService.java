@@ -54,12 +54,11 @@ public class PipelineExecutionService {
         });
     }
 
-    public void execute(Iterable<ActionRequest> indexRequests, String pipelineId,
+    public void execute(Iterable<ActionRequest> actionRequests, String pipelineId,
                         Consumer<Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(pipelineId);
         threadPool.executor(THREAD_POOL_NAME).execute(() -> {
-            Throwable lastThrowable = null;
-            for (ActionRequest actionRequest : indexRequests) {
+            for (ActionRequest actionRequest : actionRequests) {
                 if ((actionRequest instanceof IndexRequest) == false) {
                     continue;
                 }
@@ -68,13 +67,12 @@ public class PipelineExecutionService {
                 try {
                     innerExecute(indexRequest, pipeline);
                 } catch (Throwable e) {
-                    lastThrowable = e;
                     if (itemFailureHandler != null) {
                         itemFailureHandler.accept(e);
                     }
                 }
             }
-            completionHandler.accept(lastThrowable == null);
+            completionHandler.accept(true);
         });
     }
 

@@ -25,25 +25,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
-final class HdfsBlobStore extends AbstractComponent implements BlobStore {
+final class HdfsBlobStore implements BlobStore {
 
     private final HdfsRepository repository;
     private final Path root;
-    private final int bufferSizeInBytes;
 
-    HdfsBlobStore(Settings settings, HdfsRepository repository, Path root) throws IOException {
-        super(settings);
+    HdfsBlobStore(HdfsRepository repository, Path root) throws IOException {
         this.repository = repository;
         this.root = root;
-
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
         try {
             mkdirs(root);
@@ -67,17 +59,9 @@ final class HdfsBlobStore extends AbstractComponent implements BlobStore {
         return root.toUri().toString();
     }
 
-    HdfsRepository getRepository() {
-        return repository;
-    }
-
-    int getBufferSizeInBytes() {
-        return bufferSizeInBytes;
-    }
-
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, this, buildHdfsPath(path));
+        return new HdfsBlobContainer(path, repository, buildHdfsPath(path));
     }
 
     @Override

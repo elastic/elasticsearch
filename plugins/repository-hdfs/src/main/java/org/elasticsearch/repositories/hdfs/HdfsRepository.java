@@ -44,6 +44,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
@@ -55,6 +56,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
+    final int bufferSizeInBytes;
     private final RepositorySettings repositorySettings;
     private final String path;
     private final String uri;
@@ -66,14 +68,13 @@ public final class HdfsRepository extends BlobStoreRepository {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         this.repositorySettings = repositorySettings;
-
         uri = repositorySettings.settings().get("uri");
         path = repositorySettings.settings().get("path");
-
 
         this.basePath = BlobPath.cleanPath();
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
         this.compress = repositorySettings.settings().getAsBoolean("compress", false);
+        this.bufferSizeInBytes = (int) repositorySettings.settings().getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
     }
 
     @Override
@@ -107,7 +108,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                 }
             });
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
-            blobStore = new HdfsBlobStore(repositorySettings.settings(), this, hdfsPath);
+            blobStore = new HdfsBlobStore(this, hdfsPath);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", actualUri), e);
         }

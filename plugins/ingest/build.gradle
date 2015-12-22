@@ -27,11 +27,11 @@ dependencies {
   // joni dependencies:
   compile 'org.jruby.jcodings:jcodings:1.0.12'
 
-  compile ('com.maxmind.geoip2:geoip2:2.3.1')
+  compile ('com.maxmind.geoip2:geoip2:2.4.0')
   // geoip2 dependencies:
   compile('com.fasterxml.jackson.core:jackson-annotations:2.5.0')
   compile('com.fasterxml.jackson.core:jackson-databind:2.5.3')
-  compile('com.maxmind.db:maxmind-db:1.0.0')
+  compile('com.maxmind.db:maxmind-db:1.0.1')
 
   compile 'joda-time:joda-time:2.8.2'
   testCompile 'org.elasticsearch:geolite2-databases:20151029'
@@ -63,5 +63,6 @@ bundlePlugin {
   }
 }
 
-//geoip depends on asm and google http client which we don't need
+//geoip WebServiceClient needs Google http client, but we're not using WebServiceClient and
+// joni has AsmCompilerSupport, but that isn't being used:
 thirdPartyAudit.missingClasses = true

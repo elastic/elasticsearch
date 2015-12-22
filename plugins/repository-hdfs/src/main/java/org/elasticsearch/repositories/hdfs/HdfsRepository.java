@@ -77,17 +77,10 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     @Override
     protected void doStart() {
-        String pathSetting = repositorySettings.settings().get("path");
-        // get configuration
-        if (pathSetting == null) {
-            throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
-        }
-        
         String uriSetting = repositorySettings.settings().get("uri");
         if (!Strings.hasText(uriSetting)) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
-
         URI uri = URI.create(uriSetting);
         if (!"hdfs".equalsIgnoreCase(uri.getScheme())) {
             throw new IllegalArgumentException(
@@ -97,6 +90,13 @@ public final class HdfsRepository extends BlobStoreRepository {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
+
+        String pathSetting = repositorySettings.settings().get("path");
+        // get configuration
+        if (pathSetting == null) {
+            throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
+        }
+
         try {
             // initialize our filecontext
             SecurityManager sm = System.getSecurityManager();

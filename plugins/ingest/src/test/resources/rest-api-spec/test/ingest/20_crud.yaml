@@ -72,3 +72,53 @@
               }
             ]
           }
+
+---
+"Test basic pipeline with on_failure in processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value",
+                  "on_failure": [
+                    {
+                      "set" : {
+                        "field" : "field2",
+                        "value" : "_failed_value"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 1 }
+  - match: { _id: "my_pipeline" }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline._source.description: "_description" }
+  - match: { my_pipeline._version: 1 }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 2 }
+  - match: { _id: "my_pipeline" }
+  - match: { found: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"

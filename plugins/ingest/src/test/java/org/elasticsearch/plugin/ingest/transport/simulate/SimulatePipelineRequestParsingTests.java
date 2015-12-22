@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.CompoundProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -49,7 +51,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
 
     @Before
     public void init() throws IOException {
-        Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(Processor.class)));
+        CompoundProcessor pipelineCompoundProcessor = mock(CompoundProcessor.class);
+        when(pipelineCompoundProcessor.getProcessors()).thenReturn(Arrays.asList(mock(Processor.class)));
+        Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
         Map<String, Processor.Factory> processorRegistry = new HashMap<>();
         processorRegistry.put("mock_processor", mock(Processor.Factory.class));
         store = mock(PipelineStore.class);
@@ -133,9 +137,28 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         List<Map<String, Object>> processors = new ArrayList<>();
         int numProcessors = randomIntBetween(1, 10);
         for (int i = 0; i < numProcessors; i++) {
-            processors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            Map<String, Object> processorConfig = new HashMap<>();
+            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+            int numOnFailureProcessors = randomIntBetween(0, 1);
+            for (int j = 0; j < numOnFailureProcessors; j++) {
+                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            }
+            if (numOnFailureProcessors > 0) {
+                processorConfig.put("on_failure", onFailureProcessors);
+            }
+            processors.add(Collections.singletonMap("mock_processor", processorConfig));
         }
         pipelineConfig.put("processors", processors);
+
+        List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+        int numOnFailureProcessors = randomIntBetween(0, 1);
+        for (int i = 0; i < numOnFailureProcessors; i++) {
+            onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+        }
+        if (numOnFailureProcessors > 0) {
+            pipelineConfig.put("on_failure", onFailureProcessors);
+        }
+
         requestContent.put(Fields.PIPELINE, pipelineConfig);
 
         SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parse(requestContent, false, store);

@@ -50,7 +50,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class IngestPlugin extends Plugin {
 
     public static final String PIPELINE_ID_PARAM_CONTEXT_KEY = "__pipeline_id__";
-    public static final String PIPELINE_ID_PARAM = "pipeline_id";
+    public static final String PIPELINE_ID_PARAM = "pipeline";
     public static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
     public static final String NAME = "ingest";
     public static final String NODE_INGEST_SETTING = "node.ingest";

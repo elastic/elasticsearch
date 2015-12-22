@@ -42,7 +42,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field1: "123.42 400 <foo>"}
 
   - do:
@@ -107,7 +107,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {field1: "123.42 400 <foo>"}
 
   - do:

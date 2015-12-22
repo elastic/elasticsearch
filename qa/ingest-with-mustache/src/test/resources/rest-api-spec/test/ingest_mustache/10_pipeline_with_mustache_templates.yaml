@@ -32,7 +32,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline_1"
+        pipeline: "my_pipeline_1"
         body: {}
 
   - do:
@@ -112,7 +112,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline_1"
+        pipeline: "my_pipeline_1"
         body: {
           metadata: "0",
           field1: "1",
@@ -137,7 +137,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline_2"
+        pipeline: "my_pipeline_2"
         body: {
           field1: "field2"
         }
@@ -156,7 +156,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline_3"
+        pipeline: "my_pipeline_3"
         body: {
           field_to_remove: "field2",
           field2: "2",

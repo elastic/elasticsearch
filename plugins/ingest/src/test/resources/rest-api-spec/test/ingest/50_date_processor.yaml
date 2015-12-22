@@ -24,7 +24,7 @@
         index: test
         type: test
         id: 1
-        pipeline_id: "my_pipeline"
+        pipeline: "my_pipeline"
         body: {date_source_field: "12/06/2010"}
 
   - do:

@@ -21,6 +21,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -86,6 +87,51 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     is("setting threadpool." + threadPoolName + ".type to " + incorrectThreadPoolType.getType() + " is not permitted; must be " + correctThreadPoolType.getType()));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
+        }
+    }
+
+    public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
+        String threadPoolName = randomThreadPoolName();
+        for (String name : new String[] {ThreadPool.Names.BULK, ThreadPool.Names.INDEX}) {
+            ThreadPool threadPool = null;
+            try {
+
+                int maxSize = EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+
+                // try to create a too-big (maxSize+1) thread pool
+                threadPool = new ThreadPool(settingsBuilder()
+                                               .put("name", "testIndexingThreadPoolsMaxSize")
+                                               .put("threadpool." + name + ".size", maxSize+1)
+                                               .build());
+
+                // confirm it clipped us at the maxSize:
+                assertEquals(maxSize, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+
+                ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                threadPool.setClusterSettings(clusterSettings);
+
+                // update it to a tiny size:
+                clusterSettings.applySettings(
+                        settingsBuilder()
+                        .put("threadpool." + name + ".size", 1)
+                        .build()
+                );
+
+                // confirm it worked:
+                assertEquals(1, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+
+                // try to update to too-big size:
+                clusterSettings.applySettings(
+                        settingsBuilder()
+                        .put("threadpool." + name + ".size", maxSize+1)
+                        .build()
+                );
+
+                // confirm it clipped us at the maxSize:
+                assertEquals(maxSize, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+            } finally {
+                terminateThreadPoolIfNeeded(threadPool);
+            }
         }
     }
 

@@ -45,9 +45,9 @@ final class HdfsBlobStore implements BlobStore {
     }
 
     private void mkdirs(Path path) throws IOException {
-        SecurityUtils.execute(repository, new FcCallback<Void>() {
+        repository.execute(new HdfsRepository.Operation<Void>() {
             @Override
-            public Void doInHdfs(FileContext fc) throws IOException {
+            public Void run(FileContext fc) throws IOException {
                 fc.mkdir(path, null, true);
                 return null;
             }
@@ -66,9 +66,9 @@ final class HdfsBlobStore implements BlobStore {
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        SecurityUtils.execute(repository, new FcCallback<Void>() {
+        repository.execute(new HdfsRepository.Operation<Void>() {
             @Override
-            public Void doInHdfs(FileContext fc) throws IOException {
+            public Void run(FileContext fc) throws IOException {
                 fc.delete(translateToHdfsPath(path), true);
                 return null;
             }

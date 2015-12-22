@@ -53,10 +53,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return SecurityUtils.execute(repository, new FcCallback<Boolean>() {
+            return repository.execute(new HdfsRepository.Operation<Boolean>() {
                 @Override
-                public Boolean doInHdfs(FileContext fc) throws IOException {
-                    return fc.util().exists(new Path(path, blobName));
+                public Boolean run(FileContext fileContext) throws IOException {
+                    return fileContext.util().exists(new Path(path, blobName));
                 }
             });
         } catch (Exception e) {
@@ -67,10 +67,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
-            SecurityUtils.execute(repository, new FcCallback<Boolean>() {
+            repository.execute(new HdfsRepository.Operation<Boolean>() {
                 @Override
-                public Boolean doInHdfs(FileContext fc) throws IOException {
-                    return fc.delete(new Path(path, blobName), true);
+                public Boolean run(FileContext fileContext) throws IOException {
+                    return fileContext.delete(new Path(path, blobName), true);
                 }
             });
         } catch (FileNotFoundException ok) {
@@ -80,10 +80,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        SecurityUtils.execute(repository, new FcCallback<Void>() {
+        repository.execute(new HdfsRepository.Operation<Void>() {
             @Override
-            public Void doInHdfs(FileContext fc) throws IOException {
-                fc.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
+            public Void run(FileContext fileContext) throws IOException {
+                fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
                 return null;
             }
         });
@@ -92,26 +92,26 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         // FSDataInputStream does buffering internally
-        return SecurityUtils.execute(repository, new FcCallback<InputStream>() {
+        return repository.execute(new HdfsRepository.Operation<InputStream>() {
             @Override
-            public InputStream doInHdfs(FileContext fc) throws IOException {
-                return fc.open(new Path(path, blobName), repository.bufferSizeInBytes);
+            public InputStream run(FileContext fileContext) throws IOException {
+                return fileContext.open(new Path(path, blobName), repository.bufferSizeInBytes);
             }
         });
     }
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        SecurityUtils.execute(repository, new FcCallback<Void>() {
+        repository.execute(new HdfsRepository.Operation<Void>() {
             @Override
-            public Void doInHdfs(FileContext fc) throws IOException {
+            public Void run(FileContext fileContext) throws IOException {
                 Path blob = new Path(path, blobName);
                 // we pass CREATE, which means it fails if a blob already exists.
                 // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
                 // that should be fixed there, no need to bring truncation into this, give the user an error.
                 EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
                 CreateOpts[] opts = { CreateOpts.bufferSize(repository.bufferSizeInBytes) };
-                try (FSDataOutputStream stream = fc.create(blob, flags, opts)) {
+                try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
                     int bytesRead;
                     byte[] buffer = new byte[repository.bufferSizeInBytes];
                     while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -130,10 +130,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
-        FileStatus[] files = SecurityUtils.execute(repository, new FcCallback<FileStatus[]>() {
+        FileStatus[] files = repository.execute(new HdfsRepository.Operation<FileStatus[]>() {
             @Override
-            public FileStatus[] doInHdfs(FileContext fc) throws IOException {
-                return (fc.util().listStatus(path, new PathFilter() {
+            public FileStatus[] run(FileContext fileContext) throws IOException {
+                return (fileContext.util().listStatus(path, new PathFilter() {
                     @Override
                     public boolean accept(Path path) {
                         return path.getName().startsWith(blobNamePrefix);
@@ -150,10 +150,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
-        FileStatus[] files = SecurityUtils.execute(repository, new FcCallback<FileStatus[]>() {
+        FileStatus[] files = repository.execute(new HdfsRepository.Operation<FileStatus[]>() {
             @Override
-            public FileStatus[] doInHdfs(FileContext fc) throws IOException {
-                return fc.util().listStatus(path);
+            public FileStatus[] run(FileContext fileContext) throws IOException {
+                return fileContext.util().listStatus(path);
             }
         });
         Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();

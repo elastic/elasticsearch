@@ -107,7 +107,7 @@ public class Def {
         } else if (owner instanceof List) {
             try {
                 final int index = Integer.parseInt(name);
-                ((List)owner).add(index, value);
+                ((List)owner).set(index, value);
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
             }
@@ -198,7 +198,7 @@ public class Def {
                             "in array class [" + array.getClass().getCanonicalName() + "].", throwable);
                 }
             } else if (array instanceof List) {
-                ((List)array).add((int)index, value);
+                ((List)array).set((int)index, value);
             } else {
                 throw new IllegalArgumentException("Attempting to address a non-array type " +
                         "[" + array.getClass().getCanonicalName() + "] as an array.");

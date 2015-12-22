@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -351,6 +352,10 @@ class Definition {
     final Type utilityType;
     final Type defobjType;
 
+    final Type collectionType;
+    final Type ocollectionType;
+    final Type scollectionType;
+
     final Type listType;
     final Type arraylistType;
     final Type mapType;
@@ -367,6 +372,12 @@ class Definition {
     final Type sohashmapType;
 
     final Type execType;
+
+    final Type exceptionType;
+    final Type arithexcepType;
+    final Type iargexcepType;
+    final Type istateexceptType;
+    final Type nfexcepType;
 
     public Definition() {
         structs = new HashMap<>();
@@ -406,6 +417,10 @@ class Definition {
         utilityType = getType("Utility");
         defobjType = getType("Def");
 
+        collectionType = getType("Collection");
+        ocollectionType = getType("Collection<Object>");
+        scollectionType = getType("")
+
         listType = getType("List");
         arraylistType = getType("ArrayList");
         mapType = getType("Map");
@@ -422,6 +437,12 @@ class Definition {
         sohashmapType = getType("HashMap<String,Object>");
 
         execType = getType("Executable");
+
+        exceptionType = getType("Exception");
+        arithexcepType = getType("ArithmeticException");
+        iargexcepType = getType("IllegalArgumentException");
+        istateexceptType = getType("IllegalStateException");
+        nfexcepType = getType("NumberFormatException");
 
         addDefaultElements();
         copyDefaultStructs();
@@ -494,6 +515,12 @@ class Definition {
         sohashmapType = definition.sohashmapType;
 
         execType = definition.execType;
+
+        exceptionType = definition.exceptionType;
+        arithexcepType = definition.arithexcepType;
+        iargexcepType = definition.iargexcepType;
+        istateexceptType = definition.istateexceptType;
+        nfexcepType = definition.nfexcepType;
     }
 
     private void addDefaultStructs() {
@@ -541,7 +568,17 @@ class Definition {
         addStruct( "Map<String,Object>"     , Map.class       );
         addStruct( "HashMap<String,Object>" , HashMap.class   );
 
+        addStruct( "Iterator"         , Iterator.class );
+        addStruct( "Iterator<Object>" , Iterator.class );
+        addStruct( "Iterator<String>" , Iterator.class );
+
         addStruct( "Executable" , Executable.class );
+
+        addStruct( "Exception"                , Exception.class);
+        addStruct( "ArithmeticException"      , ArithmeticException.class);
+        addStruct( "IllegalArgumentException" , IllegalArgumentException.class);
+        addStruct( "IllegalStateException"    , IllegalStateException.class);
+        addStruct( "NumberFormatException"    , NumberFormatException.class);
     }
 
     private void addDefaultClasses() {
@@ -572,6 +609,8 @@ class Definition {
         addClass("ArrayList");
         addClass("Map");
         addClass("HashMap");
+
+        addClass("Exception");
     }
 
     private void addDefaultElements() {
@@ -760,7 +799,44 @@ class Definition {
         addMethod("Utility", "DoubleToboolean", null, true, booleanType, new Type[] {doubleobjType}, null, null);
         addMethod("Utility", "DoubleTochar", null, true, charType, new Type[] {doubleobjType}, null, null);
 
-        addMethod("Math", "dmax", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);
+        addMethod("Math", "labs", "abs", true, longType, new Type[] {longType}, null, null);
+        addMethod("Math", "iabs", "abs", true, intType, new Type[] {intType}, null, null);
+        addMethod("Math", "acos", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "asin", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "atan", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "atan2", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "cbrt", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "ceil", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "cos", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "cosh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "exp", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "expm1", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "floor", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "hypot", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "log", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "log10", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "log1p", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "max", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "fmax", "max", true, floatType, new Type[] {floatType, floatType}, null, null);
+        addMethod("Math", "lmax", "max", true, longType, new Type[] {longType, longType}, null, null);
+        addMethod("Math", "imax", "max", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "min", "min", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "fmin", "min", true, floatType, new Type[] {floatType, floatType}, null, null);
+        addMethod("Math", "lmin", "min", true, longType, new Type[] {longType, longType}, null, null);
+        addMethod("Math", "imin", "min", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "pow", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "random", null, true, doubleType, new Type[] {}, null, null);
+        addMethod("Math", "rint", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "round", null, true, longType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sin", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sinh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sqrt", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "tan", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "tanh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "toDegrees", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "toRadians", null, true, doubleType, new Type[] {doubleType}, null, null);
 
         addMethod("Def", "DefToboolean", null, true, booleanType, new Type[] {defType}, null, null);
         addMethod("Def", "DefTobyte", null, true, byteType, new Type[] {defType}, null, null);
@@ -778,9 +854,9 @@ class Definition {
         addMethod("Def", "DefToLong", null, true, longobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToFloat", null, true, floatobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToDouble", null, true, doubleobjType, new Type[] {defType}, null, null);
-        
-        addMethod("List", "addLast", "add", false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
-        addMethod("List", "add", null, false, voidType, new Type[] {intType, objectType}, null, new Type[] {intType, defType});
+
+        addMethod("List", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("List", "set", null, false, objectType, new Type[] {intType, objectType}, defType, new Type[] {intType, defType});
         addMethod("List", "get", null, false, objectType, new Type[] {intType}, defType, null);
         addMethod("List", "remove", null, false, objectType, new Type[] {intType}, defType, null);
         addMethod("List", "size", null, false, intType, new Type[] {}, null, null);
@@ -804,8 +880,8 @@ class Definition {
 
         addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
 
-        addMethod("List<Object>", "addLast", "add", false, booleanType, new Type[] {objectType}, null, null);
-        addMethod("List<Object>", "add", null, false, voidType, new Type[] {intType, objectType}, null, null);
+        addMethod("List<Object>", "add", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("List<Object>", "set", null, false, objectType, new Type[] {intType, objectType}, null, null);
         addMethod("List<Object>", "get", null, false, objectType, new Type[] {intType}, null, null);
         addMethod("List<Object>", "remove", null, false, objectType, new Type[] {intType}, null, null);
         addMethod("List<Object>", "size", null, false, intType, new Type[] {}, null, null);
@@ -828,6 +904,16 @@ class Definition {
         addMethod("Map<String,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
 
         addConstructor("HashMap<String,Object>", "new", new Type[] {}, null);
+
+        addMethod("Exception", "getMessage", null, false, stringType, new Type[] {}, null, null);
+
+        addConstructor("ArithmeticException", "new", new Type[] {stringType}, null);
+
+        addConstructor("IllegalArgumentException", "new", new Type[] {stringType}, null);
+
+        addConstructor("IllegalStateException", "new", new Type[] {stringType}, null);
+
+        addConstructor("NumberFormatException", "new", new Type[] {stringType}, null);
     }
 
     private void copyDefaultStructs() {
@@ -860,6 +946,12 @@ class Definition {
         copyStruct("HashMap<String,Object>", "Map<String,Object>", "Object");
 
         copyStruct("Executable", "Object");
+
+        copyStruct("Exception", "Object");
+        copyStruct("ArithmeticException", "Exception", "Object");
+        copyStruct("IllegalArgumentException", "Exception", "Object");
+        copyStruct("IllegalStateException", "Exception", "Object");
+        copyStruct("NumberFormatException", "Exception", "Object");
     }
 
     private void addDefaultTransforms() {
@@ -984,7 +1076,7 @@ class Definition {
         addTransform(defType, longobjType, "Def", "DefToLong", true);
         addTransform(defType, floatobjType, "Def", "DefToFloat", true);
         addTransform(defType, doubleobjType, "Def", "DefToDouble", true);
-        
+
         addTransform(numberType, booleanType, "Utility", "NumberToboolean", true);
         addTransform(numberType, byteType, "Number", "byteValue", false);
         addTransform(numberType, shortType, "Number", "shortValue", false);
@@ -1197,6 +1289,17 @@ class Definition {
         addBound(sohashmapType, smapType, smapType);
         addBound(sohashmapType, shashmapType, shashmapType);
         addBound(sohashmapType, somapType, somapType);
+
+        addBound(arithexcepType, exceptionType, exceptionType);
+        addBound(iargexcepType, exceptionType, exceptionType);
+        addBound(istateexceptType, exceptionType, exceptionType);
+        addBound(nfexcepType, exceptionType, exceptionType);
+        addBound(arithexcepType, iargexcepType, exceptionType);
+        addBound(arithexcepType, istateexceptType, exceptionType);
+        addBound(arithexcepType, nfexcepType, exceptionType);
+        addBound(iargexcepType, istateexceptType, exceptionType);
+        addBound(iargexcepType, nfexcepType, exceptionType);
+        addBound(istateexceptType, nfexcepType, exceptionType);
     }
 
     public final void addStruct(final String name, final Class<?> clazz) {
@@ -1232,27 +1335,27 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException(
-                    "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
+                "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException(
-                    "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
+                "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.constructors.containsKey(name)) {
             throw new IllegalArgumentException(
-                    "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
+                "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and functions may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
         if (owner.methods.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
         final Class[] classes = new Class[args.length];
@@ -1263,8 +1366,8 @@ class Definition {
                     genargs[count].clazz.asSubclass(args[count].clazz);
                 } catch (ClassCastException exception) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "]" +
-                            " is not a sub class of [" + args[count].name + "] in the constructor" +
-                            " [" + name + " ] from the struct [" + owner.name + "].");
+                        " is not a sub class of [" + args[count].name + "] in the constructor" +
+                        " [" + name + " ] from the struct [" + owner.name + "].");
                 }
             }
 
@@ -1277,12 +1380,12 @@ class Definition {
             reflect = owner.clazz.getConstructor(classes);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException("Constructor [" + name + "] not found for class" +
-                    " [" + owner.clazz.getName() + "] with arguments " + Arrays.toString(classes) + ".");
+                " [" + owner.clazz.getName() + "] with arguments " + Arrays.toString(classes) + ".");
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
         final Constructor constructor =
-                new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
+            new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
 
         owner.constructors.put(name, constructor);
     }
@@ -1293,37 +1396,37 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
-                    " for " + (statik ? "function" : "method") + " [" + name + "].");
+                " for " + (statik ? "function" : "method") + " [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid " + (statik ? "function" : "method") +
-                    " name [" + name + "] with the struct [" + owner.name + "].");
+                " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.constructors.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and " + (statik ? "functions" : "methods") +
-                    " may not have the same name [" + name + "] within the same struct" +
-                    " [" + owner.name + "].");
+                " may not have the same name [" + name + "] within the same struct" +
+                " [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException(
-                        "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
+                    "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                        " [" + name + "] within the same struct [" + owner.name + "].");
+                    " [" + name + "] within the same struct [" + owner.name + "].");
             }
         }
 
         if (owner.methods.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                        " [" + name + "] within the same struct [" + owner.name + "].");
+                    " [" + name + "] within the same struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Duplicate method name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             }
         }
 
@@ -1332,15 +1435,15 @@ class Definition {
                 genrtn.clazz.asSubclass(rtn.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Generic return [" + genrtn.clazz.getCanonicalName() + "]" +
-                        " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
-                        " [" + name + " ] from the struct [" + owner.name + "].");
+                    " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
+                    " [" + name + " ] from the struct [" + owner.name + "].");
             }
         }
 
         if (genargs != null && genargs.length != args.length) {
             throw new IllegalArgumentException("Generic arguments arity [" +  genargs.length + "] is not the same as " +
-                    (statik ? "function" : "method") + " [" + name + "] arguments arity" +
-                    " [" + args.length + "] within the struct [" + owner.name + "].");
+                (statik ? "function" : "method") + " [" + name + "] arguments arity" +
+                " [" + args.length + "] within the struct [" + owner.name + "].");
         }
 
         final Class[] classes = new Class[args.length];
@@ -1351,8 +1454,8 @@ class Definition {
                     genargs[count].clazz.asSubclass(args[count].clazz);
                 } catch (ClassCastException exception) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "] is not a sub class" +
-                            " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
-                            " [" + name + " ] from the struct [" + owner.name + "].");
+                        " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
+                        " [" + name + " ] from the struct [" + owner.name + "].");
                 }
             }
 
@@ -1365,15 +1468,15 @@ class Definition {
             reflect = owner.clazz.getMethod(alias == null ? name : alias, classes);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException((statik ? "Function" : "Method") +
-                    " [" + (alias == null ? name : alias) + "] not found for class [" + owner.clazz.getName() + "]" +
-                    " with arguments " + Arrays.toString(classes) + ".");
+                " [" + (alias == null ? name : alias) + "] not found for class [" + owner.clazz.getName() + "]" +
+                " with arguments " + Arrays.toString(classes) + ".");
         }
 
         if (!reflect.getReturnType().equals(rtn.clazz)) {
             throw new IllegalArgumentException("Specified return type class [" + rtn.clazz + "]" +
-                    " does not match the found return type class [" + reflect.getReturnType() + "] for the " +
-                    (statik ? "function" : "method") + " [" + name + "]" +
-                    " within the struct [" + owner.name + "].");
+                " does not match the found return type class [" + reflect.getReturnType() + "] for the " +
+                (statik ? "function" : "method") + " [" + name + "]" +
+                " within the struct [" + owner.name + "].");
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
@@ -1383,32 +1486,32 @@ class Definition {
         try {
             if (statik) {
                 handle = MethodHandles.publicLookup().in(owner.clazz).findStatic(
-                        owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
+                    owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
             } else {
                 handle = MethodHandles.publicLookup().in(owner.clazz).findVirtual(
-                        owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
+                    owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
             }
         } catch (NoSuchMethodException | IllegalAccessException exception) {
             throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "]" +
-                    " with arguments " + Arrays.toString(classes) + ".");
+                " not found for class [" + owner.clazz.getName() + "]" +
+                " with arguments " + Arrays.toString(classes) + ".");
         }
 
         final Method method = new Method(name, owner, genrtn != null ? genrtn : rtn,
-                Arrays.asList(genargs != null ? genargs : args), asm, reflect, handle);
+            Arrays.asList(genargs != null ? genargs : args), asm, reflect, handle);
         final int modifiers = reflect.getModifiers();
 
         if (statik) {
             if (!java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Function [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to a static Java method.");
+                    " within the struct [" + owner.name + "] is not linked to a static Java method.");
             }
 
             owner.functions.put(name, method);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Method [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
+                    " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
             }
 
             owner.methods.put(name, method);
@@ -1421,31 +1524,31 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
-                    (statik ? "static" : "member") + " [" + name + "].");
+                (statik ? "static" : "member") + " [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid " + (statik ? "static" : "member") +
-                    " name [" + name + "] with the struct [" + owner.name + "].");
+                " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Duplicate static name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Statics and members may not have the same name " +
-                        "[" + name + "] within the same struct [" + owner.name + "].");
+                    "[" + name + "] within the same struct [" + owner.name + "].");
             }
         }
 
         if (owner.members.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Statics and members may not have the same name " +
-                        "[" + name + "] within the same struct [" + owner.name + "].");
+                    "[" + name + "] within the same struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Duplicate member name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             }
         }
 
@@ -1454,8 +1557,8 @@ class Definition {
                 generic.clazz.asSubclass(type.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Generic type [" + generic.clazz.getCanonicalName() + "]" +
-                        " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
-                        " [" + name + " ] from the struct [" + owner.name + "].");
+                    " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
+                    " [" + name + " ] from the struct [" + owner.name + "].");
             }
         }
 
@@ -1465,7 +1568,7 @@ class Definition {
             reflect = owner.clazz.getField(alias == null ? name : alias);
         } catch (NoSuchFieldException exception) {
             throw new IllegalArgumentException("Field [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "].");
+                " not found for class [" + owner.clazz.getName() + "].");
         }
 
         MethodHandle getter = null;
@@ -1474,13 +1577,13 @@ class Definition {
         try {
             if (!statik) {
                 getter = MethodHandles.publicLookup().in(owner.clazz).findGetter(
-                        owner.clazz, alias == null ? name : alias, type.clazz);
+                    owner.clazz, alias == null ? name : alias, type.clazz);
                 setter = MethodHandles.publicLookup().in(owner.clazz).findSetter(
-                        owner.clazz, alias == null ? name : alias, type.clazz);
+                    owner.clazz, alias == null ? name : alias, type.clazz);
             }
         } catch (NoSuchFieldException | IllegalAccessException exception) {
             throw new IllegalArgumentException("Getter/Setter [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "].");
+                " not found for class [" + owner.clazz.getName() + "].");
         }
 
         final Field field = new Field(name, owner, generic == null ? type : generic, type, reflect, getter, setter);
@@ -1493,14 +1596,14 @@ class Definition {
 
             if (!java.lang.reflect.Modifier.isFinal(modifiers)) {
                 throw new IllegalArgumentException("Static [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to static Java field.");
+                    " within the struct [" + owner.name + "] is not linked to static Java field.");
             }
 
             owner.statics.put(alias == null ? name : alias, field);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Member [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to non-static Java field.");
+                    " within the struct [" + owner.name + "] is not linked to non-static Java field.");
             }
 
             owner.members.put(alias == null ? name : alias, field);
@@ -1519,18 +1622,18 @@ class Definition {
 
             if (struct == null) {
                 throw new IllegalArgumentException("Child struct [" + children[count] + "]" +
-                        " not defined for copy to owner struct [" + owner.name + "].");
+                    " not defined for copy to owner struct [" + owner.name + "].");
             }
 
             try {
                 owner.clazz.asSubclass(child.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Child struct [" + child.name + "]" +
-                        " is not a super type of owner struct [" + owner.name + "] in copy.");
+                    " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
 
             final boolean object = child.clazz.equals(Object.class) &&
-                    java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
+                java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
 
             for (final Method method : child.methods.values()) {
                 if (owner.methods.get(method.name) == null) {
@@ -1543,22 +1646,22 @@ class Definition {
                         reflect = clazz.getMethod(method.method.getName(), method.reflect.getParameterTypes());
                     } catch (NoSuchMethodException exception) {
                         throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                                " class [" + owner.clazz.getName() + "] with arguments " +
-                                Arrays.toString(method.reflect.getParameterTypes()) + ".");
+                            " class [" + owner.clazz.getName() + "] with arguments " +
+                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
                     try {
                         handle = MethodHandles.publicLookup().in(owner.clazz).findVirtual(
-                                owner.clazz, method.method.getName(),
-                                MethodType.methodType(method.reflect.getReturnType(), method.reflect.getParameterTypes()));
+                            owner.clazz, method.method.getName(),
+                            MethodType.methodType(method.reflect.getReturnType(), method.reflect.getParameterTypes()));
                     } catch (NoSuchMethodException | IllegalAccessException exception) {
                         throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                                " class [" + owner.clazz.getName() + "] with arguments " +
-                                Arrays.toString(method.reflect.getParameterTypes()) + ".");
+                            " class [" + owner.clazz.getName() + "] with arguments " +
+                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
                     owner.methods.put(method.name,
-                            new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
+                        new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
                 }
             }
 
@@ -1572,21 +1675,21 @@ class Definition {
                         reflect = owner.clazz.getField(field.reflect.getName());
                     } catch (NoSuchFieldException exception) {
                         throw new IllegalArgumentException("Field [" + field.reflect.getName() + "]" +
-                                " not found for class [" + owner.clazz.getName() + "].");
+                            " not found for class [" + owner.clazz.getName() + "].");
                     }
 
                     try {
                         getter = MethodHandles.publicLookup().in(owner.clazz).findGetter(
-                                owner.clazz, field.name, field.type.clazz);
+                            owner.clazz, field.name, field.type.clazz);
                         setter = MethodHandles.publicLookup().in(owner.clazz).findSetter(
-                                owner.clazz, field.name, field.type.clazz);
+                            owner.clazz, field.name, field.type.clazz);
                     } catch (NoSuchFieldException | IllegalAccessException exception) {
                         throw new IllegalArgumentException("Getter/Setter [" + field.name + "]" +
-                                " not found for class [" + owner.clazz.getName() + "].");
+                            " not found for class [" + owner.clazz.getName() + "].");
                     }
 
                     owner.members.put(field.name,
-                            new Field(field.name, owner, field.type, field.generic, reflect, getter, setter));
+                        new Field(field.name, owner, field.type, field.generic, reflect, getter, setter));
                 }
             }
         }
@@ -1598,19 +1701,19 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for" +
-                    " transform with cast type from [" + from.name + "] and cast type to [" + to.name + "].");
+                " transform with cast type from [" + from.name + "] and cast type to [" + to.name + "].");
         }
 
         if (from.equals(to)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "] cannot" +
-                    " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
+                " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
         }
 
         final Cast cast = new Cast(from, to);
 
         if (transforms.containsKey(cast)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
+                " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
         }
 
         Method method;
@@ -1622,14 +1725,14 @@ class Definition {
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using a function [" + name + "] that is not defined.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using a function [" + name + "] that is not defined.");
             }
 
             if (method.arguments.size() != 1) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using function [" + name + "] does not have a single type argument.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using function [" + name + "] does not have a single type argument.");
             }
 
             Type argument = method.arguments.get(0);
@@ -1642,8 +1745,8 @@ class Definition {
                     upcast = argument;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " function [" + name + "] cannot cast from type to the function input argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " function [" + name + "] cannot cast from type to the function input argument type.");
                 }
             }
 
@@ -1657,8 +1760,8 @@ class Definition {
                     downcast = to;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " function [" + name + "] cannot cast to type to the function return argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " function [" + name + "] cannot cast to type to the function return argument type.");
                 }
             }
         } else {
@@ -1666,14 +1769,14 @@ class Definition {
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using a method [" + name + "] that is not defined.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using a method [" + name + "] that is not defined.");
             }
 
             if (!method.arguments.isEmpty()) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using method [" + name + "] does not have a single type argument.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using method [" + name + "] does not have a single type argument.");
             }
 
             try {
@@ -1684,8 +1787,8 @@ class Definition {
                     upcast = getType(owner.name);
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " method [" + name + "] cannot cast from type to the method input argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " method [" + name + "] cannot cast from type to the method input argument type.");
                 }
             }
 
@@ -1699,8 +1802,8 @@ class Definition {
                     downcast = to;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
-                            " using method [" + name + "] cannot cast to type to the method return argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
+                        " using method [" + name + "] cannot cast to type to the method return argument type.");
                 }
             }
         }
@@ -1715,12 +1818,12 @@ class Definition {
 
         if (bounds.containsKey(pair0)) {
             throw new IllegalArgumentException(
-                    "Bound already defined for types [" + type0.name + "] and [" + type1.name + "].");
+                "Bound already defined for types [" + type0.name + "] and [" + type1.name + "].");
         }
 
         if (bounds.containsKey(pair1)) {
             throw new IllegalArgumentException(
-                    "Bound already defined for types [" + type1.name + "] and [" + type0.name + "].");
+                "Bound already defined for types [" + type1.name + "] and [" + type0.name + "].");
         }
 
         bounds.put(pair0, bound);
@@ -1763,7 +1866,7 @@ class Definition {
                 clazz = Class.forName(type.getInternalName().replace('/', '.'));
             } catch (ClassNotFoundException exception) {
                 throw new IllegalArgumentException("The class [" + type.getInternalName() + "]" +
-                        " could not be found to create type [" + name + "].");
+                    " could not be found to create type [" + name + "].");
             }
 
             sort = Sort.ARRAY;

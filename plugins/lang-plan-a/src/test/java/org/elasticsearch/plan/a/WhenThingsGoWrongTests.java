@@ -40,13 +40,71 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             fail("should have hit cce");
         } catch (ClassCastException expected) {}
     }
-    
+
     public void testBogusParameter() {
         try {
             exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
             fail("should have hit IAE");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
+        }
+    }
+
+    public void testInfiniteLoops() {
+        try {
+            exec("boolean x = true; while (x) {}");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("while (true) {int y = 5}");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("while (true) { boolean x = true; while (x) {} }");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("while (true) { boolean x = false; while (x) {} }");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("boolean x = true; for (;x;) {}");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("for (;;) {int x = 5}");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
+
+        try {
+            exec("def x = true; do {int y = 5;} while (x)");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
         }
     }
 }

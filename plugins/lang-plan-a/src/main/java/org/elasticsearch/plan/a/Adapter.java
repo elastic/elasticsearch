@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plan.a;
 
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.tree.ParseTree;
-
 import java.util.HashMap;
 import java.util.Map;
+
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 
 import static org.elasticsearch.plan.a.Definition.Cast;
 import static org.elasticsearch.plan.a.Definition.Type;
@@ -34,28 +34,40 @@ class Adapter {
     static class StatementMetadata {
         final ParserRuleContext source;
 
-        boolean last;
+        boolean lastSource;
+        boolean topLoop;
+        boolean inLoop;
+        boolean lastLoop;
 
-        boolean allExit;
-        boolean allReturn;
-        boolean anyReturn;
-        boolean allBreak;
-        boolean anyBreak;
-        boolean allContinue;
+        boolean methodEscape;
+        boolean loopEscape;
+        boolean allLast;
         boolean anyContinue;
+        boolean anyBreak;
+
+        int count;
+
+        Type exception;
+        int slot;
 
         private StatementMetadata(final ParserRuleContext source) {
             this.source = source;
 
-            last = false;
+            lastSource = false;
+            topLoop = false;
+            inLoop = false;
+            lastLoop = false;
 
-            allExit = false;
-            allReturn = false;
-            anyReturn = false;
-            allBreak = false;
-            anyBreak = false;
-            allContinue = false;
+            methodEscape = false;
+            loopEscape = false;
+            allLast = false;
             anyContinue = false;
+            anyBreak = false;
+
+            count = 0;
+
+            exception = null;
+            slot = -1;
         }
     }
 
@@ -164,6 +176,8 @@ class Adapter {
     final ParserRuleContext root;
     final CompilerSettings settings;
 
+    int loopCounterSlot;
+
     private final Map<ParserRuleContext, StatementMetadata> statementMetadata;
     private final Map<ParserRuleContext, ExpressionMetadata> expressionMetadata;
     private final Map<ParserRuleContext, ExternalMetadata> externalMetadata;
@@ -174,6 +188,8 @@ class Adapter {
         this.source = source;
         this.root = root;
         this.settings = settings;
+
+        loopCounterSlot = -1;
 
         statementMetadata = new HashMap<>();
         expressionMetadata = new HashMap<>();
@@ -193,7 +209,7 @@ class Adapter {
 
         if (sourcesmd == null) {
             throw new IllegalStateException(error(source) + "Statement metadata does not exist at" +
-                    " the parse node with text [" + source.getText() + "].");
+                " the parse node with text [" + source.getText() + "].");
         }
 
         return sourcesmd;
@@ -234,7 +250,7 @@ class Adapter {
 
         if (sourceemd == null) {
             throw new IllegalStateException(error(source) + "Expression metadata does not exist at" +
-                    " the parse node with text [" + source.getText() + "].");
+                " the parse node with text [" + source.getText() + "].");
         }
 
         return sourceemd;
@@ -252,7 +268,7 @@ class Adapter {
 
         if (sourceemd == null) {
             throw new IllegalStateException(error(source) + "External metadata does not exist at" +
-                    " the parse node with text [" + source.getText() + "].");
+                " the parse node with text [" + source.getText() + "].");
         }
 
         return sourceemd;
@@ -270,7 +286,7 @@ class Adapter {
 
         if (sourceemd == null) {
             throw new IllegalStateException(error(source) + "External metadata does not exist at" +
-                    " the parse node with text [" + source.getText() + "].");
+                " the parse node with text [" + source.getText() + "].");
         }
 
         return sourceemd;

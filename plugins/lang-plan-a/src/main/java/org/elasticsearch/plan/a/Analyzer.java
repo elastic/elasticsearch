@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plan.a;
 
-import org.antlr.v4.runtime.ParserRuleContext;
-
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import org.antlr.v4.runtime.ParserRuleContext;
 
 import static org.elasticsearch.plan.a.Adapter.ExpressionMetadata;
 import static org.elasticsearch.plan.a.Adapter.ExtNodeMetadata;
@@ -99,7 +99,10 @@ import static org.elasticsearch.plan.a.PlanAParser.SUB;
 import static org.elasticsearch.plan.a.PlanAParser.SingleContext;
 import static org.elasticsearch.plan.a.PlanAParser.SourceContext;
 import static org.elasticsearch.plan.a.PlanAParser.StatementContext;
+import static org.elasticsearch.plan.a.PlanAParser.ThrowContext;
+import static org.elasticsearch.plan.a.PlanAParser.TrapContext;
 import static org.elasticsearch.plan.a.PlanAParser.TrueContext;
+import static org.elasticsearch.plan.a.PlanAParser.TryContext;
 import static org.elasticsearch.plan.a.PlanAParser.USH;
 import static org.elasticsearch.plan.a.PlanAParser.UnaryContext;
 import static org.elasticsearch.plan.a.PlanAParser.WhileContext;
@@ -137,8 +140,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         variables = new ArrayDeque<>();
 
         incrementScope();
-        addVariable(null, "this", definition.execType);
+        addVariable(null, "#this", definition.execType);
         addVariable(null, "input", definition.smapType);
+
+        adapter.loopCounterSlot = addVariable(null, "#loop", definition.intType).slot;
 
         adapter.createStatementMetadata(adapter.root);
         visit(adapter.root);
@@ -179,7 +184,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 throw new IllegalArgumentException("Argument name [" + name + "] already defined within the scope.");
             } else {
                 throw new IllegalArgumentException(
-                        error(source) + "Variable name [" + name + "] already defined within the scope.");
+                    error(source) + "Variable name [" + name + "] already defined within the scope.");
             }
         }
 
@@ -208,27 +213,17 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         incrementScope();
 
         for (final StatementContext statectx : statectxs) {
-            if (sourcesmd.allExit) {
+            if (sourcesmd.allLast) {
                 throw new IllegalArgumentException(error(statectx) +
-                        "Statement will never be executed because all prior paths exit.");
+                    "Statement will never be executed because all prior paths escape.");
             }
 
             final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-            statesmd.last = statectx == lastctx;
+            statesmd.lastSource = statectx == lastctx;
             visit(statectx);
 
-            if (statesmd.anyContinue) {
-                throw new IllegalArgumentException(error(statectx) +
-                        "Cannot have a continue statement outside of a loop.");
-            }
-
-            if (statesmd.anyBreak) {
-                throw new IllegalArgumentException(error(statectx) +
-                        "Cannot have a break statement outside of a loop.");
-            }
-
-            sourcesmd.allExit = statesmd.allExit;
-            sourcesmd.allReturn = statesmd.allReturn;
+            sourcesmd.methodEscape = statesmd.methodEscape;
+            sourcesmd.allLast = statesmd.allLast;
         }
 
         decrementScope();
@@ -239,8 +234,6 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     @Override
     public Void visitIf(final IfContext ctx) {
         final StatementMetadata ifsmd = adapter.getStatementMetadata(ctx);
-
-        incrementScope();
 
         final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
         final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
@@ -254,29 +247,36 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         final BlockContext blockctx0 = ctx.block(0);
         final StatementMetadata blocksmd0 = adapter.createStatementMetadata(blockctx0);
-        blocksmd0.last = ifsmd.last;
+        blocksmd0.lastSource = ifsmd.lastSource;
+        blocksmd0.inLoop = ifsmd.inLoop;
+        blocksmd0.lastLoop = ifsmd.lastLoop;
+        incrementScope();
         visit(blockctx0);
+        decrementScope();
 
-        ifsmd.anyReturn = blocksmd0.anyReturn;
-        ifsmd.anyBreak = blocksmd0.anyBreak;
         ifsmd.anyContinue = blocksmd0.anyContinue;
+        ifsmd.anyBreak = blocksmd0.anyBreak;
+
+        ifsmd.count = blocksmd0.count;
 
         if (ctx.ELSE() != null) {
             final BlockContext blockctx1 = ctx.block(1);
             final StatementMetadata blocksmd1 = adapter.createStatementMetadata(blockctx1);
-            blocksmd1.last = ifsmd.last;
+            blocksmd1.lastSource = ifsmd.lastSource;
+            incrementScope();
             visit(blockctx1);
+            decrementScope();
 
-            ifsmd.allExit = blocksmd0.allExit && blocksmd1.allExit;
-            ifsmd.allReturn = blocksmd0.allReturn && blocksmd1.allReturn;
-            ifsmd.anyReturn |= blocksmd1.anyReturn;
-            ifsmd.allBreak = blocksmd0.allBreak && blocksmd1.allBreak;
-            ifsmd.anyBreak |= blocksmd1.anyBreak;
-            ifsmd.allContinue = blocksmd0.allContinue && blocksmd1.allContinue;
+            ifsmd.methodEscape = blocksmd0.methodEscape && blocksmd1.methodEscape;
+            ifsmd.loopEscape = blocksmd0.loopEscape && blocksmd1.loopEscape;
+            ifsmd.allLast = blocksmd0.allLast && blocksmd1.allLast;
             ifsmd.anyContinue |= blocksmd1.anyContinue;
-        }
+            ifsmd.anyBreak |= blocksmd1.anyBreak;
 
-        decrementScope();
+            if (blocksmd1.count > ifsmd.count) {
+                ifsmd.count = blocksmd1.count;
+            }
+        }
 
         return null;
     }
@@ -293,43 +293,39 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         visit(exprctx);
         markCast(expremd);
 
-        boolean exitrequired = false;
+        boolean continuous = false;
 
         if (expremd.postConst != null) {
-            boolean constant = (boolean)expremd.postConst;
+            continuous = (boolean)expremd.postConst;
 
-            if (!constant) {
+            if (!continuous) {
                 throw new IllegalArgumentException(error(ctx) + "The loop will never be executed.");
             }
 
-            exitrequired = true;
+            if (ctx.empty() != null) {
+                throw new IllegalArgumentException(error(ctx) + "The loop is continuous.");
+            }
         }
 
         final BlockContext blockctx = ctx.block();
 
         if (blockctx != null) {
             final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+            blocksmd.topLoop = true;
+            blocksmd.inLoop = true;
             visit(blockctx);
 
-            if (blocksmd.allReturn) {
-                throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
+            if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (blocksmd.allBreak) {
-                throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
+            if (continuous && !blocksmd.anyBreak) {
+                whilesmd.methodEscape = true;
+                whilesmd.allLast = true;
             }
-
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
-            }
-
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                whilesmd.allExit = true;
-                whilesmd.allReturn = true;
-            }
-        } else if (exitrequired) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
         }
+
+        whilesmd.count = 1;
 
         decrementScope();
 
@@ -344,18 +340,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         final BlockContext blockctx = ctx.block();
         final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+        blocksmd.topLoop = true;
+        blocksmd.inLoop = true;
         visit(blockctx);
 
-        if (blocksmd.allReturn) {
-            throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
-        }
-
-        if (blocksmd.allBreak) {
-            throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
-        }
-
-        if (blocksmd.allContinue) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
+        if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+            throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
         }
 
         final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
@@ -365,21 +355,19 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         markCast(expremd);
 
         if (expremd.postConst != null) {
-            final boolean exitrequired = (boolean)expremd.postConst;
+            final boolean continuous = (boolean)expremd.postConst;
 
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
+            if (!continuous) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                dosmd.allExit = true;
-                dosmd.allReturn = true;
-            }
-
-            if (!exitrequired && !blocksmd.anyContinue) {
-                throw new IllegalArgumentException(error(ctx) + "All paths exit so the loop is not necessary.");
+            if (!blocksmd.anyBreak) {
+                dosmd.methodEscape = true;
+                dosmd.allLast = true;
             }
         }
+
+        dosmd.count = 1;
 
         decrementScope();
 
@@ -389,7 +377,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     @Override
     public Void visitFor(final ForContext ctx) {
         final StatementMetadata forsmd = adapter.getStatementMetadata(ctx);
-        boolean exitrequired = false;
+        boolean continuous = false;
 
         incrementScope();
 
@@ -409,16 +397,18 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             markCast(expremd);
 
             if (expremd.postConst != null) {
-                boolean constant = (boolean)expremd.postConst;
+                continuous = (boolean)expremd.postConst;
 
-                if (!constant) {
+                if (!continuous) {
                     throw new IllegalArgumentException(error(ctx) + "The loop will never be executed.");
                 }
 
-                exitrequired = true;
+                if (ctx.empty() != null) {
+                    throw new IllegalArgumentException(error(ctx) + "The loop is continuous.");
+                }
             }
         } else {
-            exitrequired = true;
+            continuous = true;
         }
 
         final AfterthoughtContext atctx = ctx.afterthought();
@@ -432,27 +422,21 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (blockctx != null) {
             final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+            blocksmd.topLoop = true;
+            blocksmd.inLoop = true;
             visit(blockctx);
 
-            if (blocksmd.allReturn) {
-                throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
+            if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (blocksmd.allBreak) {
-                throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
+            if (continuous && !blocksmd.anyBreak) {
+                forsmd.methodEscape = true;
+                forsmd.allLast = true;
             }
-
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
-            }
-
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                forsmd.allExit = true;
-                forsmd.allReturn = true;
-            }
-        } else if (exitrequired) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
         }
+
+        forsmd.count = 1;
 
         decrementScope();
 
@@ -461,9 +445,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDecl(final DeclContext ctx) {
+        final StatementMetadata declsmd = adapter.getStatementMetadata(ctx);
+
         final DeclarationContext declctx = ctx.declaration();
         adapter.createStatementMetadata(declctx);
         visit(declctx);
+
+        declsmd.count = 1;
 
         return null;
     }
@@ -472,9 +460,18 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     public Void visitContinue(final ContinueContext ctx) {
         final StatementMetadata continuesmd = adapter.getStatementMetadata(ctx);
 
-        continuesmd.allExit = true;
-        continuesmd.allContinue = true;
+        if (!continuesmd.inLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Cannot have a continue statement outside of a loop.");
+        }
+
+        if (continuesmd.lastLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Unnessary continue statement at the end of a loop.");
+        }
+
+        continuesmd.allLast = true;
         continuesmd.anyContinue = true;
+
+        continuesmd.count = 1;
 
         return null;
     }
@@ -483,9 +480,15 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     public Void visitBreak(final BreakContext ctx) {
         final StatementMetadata breaksmd = adapter.getStatementMetadata(ctx);
 
-        breaksmd.allExit = true;
-        breaksmd.allBreak = true;
+        if (!breaksmd.inLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Cannot have a break statement outside of a loop.");
+        }
+
+        breaksmd.loopEscape = true;
+        breaksmd.allLast = true;
         breaksmd.anyBreak = true;
+
+        breaksmd.count = 1;
 
         return null;
     }
@@ -500,9 +503,74 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         visit(exprctx);
         markCast(expremd);
 
-        returnsmd.allExit = true;
-        returnsmd.allReturn = true;
-        returnsmd.anyReturn = true;
+        returnsmd.methodEscape = true;
+        returnsmd.loopEscape = true;
+        returnsmd.allLast = true;
+
+        returnsmd.count = 1;
+
+        return null;
+    }
+
+    @Override
+    public Void visitTry(final TryContext ctx) {
+        final StatementMetadata trysmd = adapter.getStatementMetadata(ctx);
+
+        final BlockContext blockctx = ctx.block();
+        final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+        blocksmd.lastSource = trysmd.lastSource;
+        blocksmd.inLoop = trysmd.inLoop;
+        blocksmd.lastLoop = trysmd.lastLoop;
+        incrementScope();
+        visit(blockctx);
+        decrementScope();
+
+        trysmd.methodEscape = blocksmd.methodEscape;
+        trysmd.loopEscape = blocksmd.loopEscape;
+        trysmd.allLast = blocksmd.allLast;
+        trysmd.anyContinue = blocksmd.anyContinue;
+        trysmd.anyBreak = blocksmd.anyBreak;
+
+        int trapcount = 0;
+
+        for (final TrapContext trapctx : ctx.trap()) {
+            final StatementMetadata trapsmd = adapter.createStatementMetadata(trapctx);
+            trapsmd.lastSource = trysmd.lastSource;
+            trapsmd.inLoop = trysmd.inLoop;
+            trapsmd.lastLoop = trysmd.lastLoop;
+            incrementScope();
+            visit(trapctx);
+            decrementScope();
+
+            trysmd.methodEscape &= trapsmd.methodEscape;
+            trysmd.loopEscape &= trapsmd.loopEscape;
+            trysmd.allLast &= trapsmd.allLast;
+            trysmd.anyContinue |= trapsmd.anyContinue;
+            trysmd.anyBreak |= trapsmd.anyBreak;
+
+            trapcount = trapcount < trapsmd.count ? trapsmd.count : trapcount;
+        }
+
+        trysmd.count = blocksmd.count + trapcount;
+
+        return null;
+    }
+
+    @Override
+    public Void visitThrow(final ThrowContext ctx) {
+        final StatementMetadata throwsmd = adapter.getStatementMetadata(ctx);
+
+        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        expremd.to = definition.exceptionType;
+        visit(exprctx);
+        markCast(expremd);
+
+        throwsmd.methodEscape = true;
+        throwsmd.loopEscape = true;
+        throwsmd.allLast = true;
+
+        throwsmd.count = 1;
 
         return null;
     }
@@ -512,19 +580,21 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final StatementMetadata exprsmd = adapter.getStatementMetadata(ctx);
         final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
         final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
-        expremd.read = exprsmd.last;
+        expremd.read = exprsmd.lastSource;
         visit(exprctx);
 
-        if (!expremd.statement && !exprsmd.last) {
+        if (!expremd.statement && !exprsmd.lastSource) {
             throw new IllegalArgumentException(error(ctx) + "Not a statement.");
         }
 
-        final boolean rtn = exprsmd.last && expremd.from.sort != Sort.VOID;
-        exprsmd.allExit = rtn;
-        exprsmd.allReturn = rtn;
-        exprsmd.anyReturn = rtn;
+        final boolean rtn = exprsmd.lastSource && expremd.from.sort != Sort.VOID;
+        exprsmd.methodEscape = rtn;
+        exprsmd.loopEscape = rtn;
+        exprsmd.allLast = rtn;
         expremd.to = rtn ? definition.objectType : expremd.from;
         markCast(expremd);
+
+        exprsmd.count = 1;
 
         return null;
     }
@@ -536,22 +606,24 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final StatementContext lastctx = statectxs.get(statectxs.size() - 1);
 
         for (StatementContext statectx : statectxs) {
-            if (multiplesmd.allExit) {
+            if (multiplesmd.allLast) {
                 throw new IllegalArgumentException(error(statectx) +
-                        "Statement will never be executed because all prior paths exit.");
+                    "Statement will never be executed because all prior paths escape.");
             }
 
             final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-            statesmd.last = multiplesmd.last && statectx == lastctx;
+            statesmd.lastSource = multiplesmd.lastSource && statectx == lastctx;
+            statesmd.inLoop = multiplesmd.inLoop;
+            statesmd.lastLoop = (multiplesmd.topLoop || multiplesmd.lastLoop) && statectx == lastctx;
             visit(statectx);
 
-            multiplesmd.allExit = statesmd.allExit;
-            multiplesmd.allReturn = statesmd.allReturn && !statesmd.anyBreak && !statesmd.anyContinue;
-            multiplesmd.anyReturn |= statesmd.anyReturn;
-            multiplesmd.allBreak = !statesmd.anyReturn && statesmd.allBreak && !statesmd.anyContinue;
-            multiplesmd.anyBreak |= statesmd.anyBreak;
-            multiplesmd.allContinue = !statesmd.anyReturn && !statesmd.anyBreak && statesmd.allContinue;
+            multiplesmd.methodEscape = statesmd.methodEscape;
+            multiplesmd.loopEscape = statesmd.loopEscape;
+            multiplesmd.allLast = statesmd.allLast;
             multiplesmd.anyContinue |= statesmd.anyContinue;
+            multiplesmd.anyBreak |= statesmd.anyBreak;
+
+            multiplesmd.count += statesmd.count;
         }
 
         return null;
@@ -563,16 +635,18 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         final StatementContext statectx = ctx.statement();
         final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-        statesmd.last = singlesmd.last;
+        statesmd.lastSource = singlesmd.lastSource;
+        statesmd.inLoop = singlesmd.inLoop;
+        statesmd.lastLoop = singlesmd.topLoop || singlesmd.lastLoop;
         visit(statectx);
 
-        singlesmd.allExit = statesmd.allExit;
-        singlesmd.allReturn = statesmd.allReturn;
-        singlesmd.anyReturn = statesmd.anyReturn;
-        singlesmd.allBreak = statesmd.allBreak;
-        singlesmd.anyBreak = statesmd.anyBreak;
-        singlesmd.allContinue = statesmd.allContinue;
+        singlesmd.methodEscape = statesmd.methodEscape;
+        singlesmd.loopEscape = statesmd.loopEscape;
+        singlesmd.allLast = statesmd.allLast;
         singlesmd.anyContinue = statesmd.anyContinue;
+        singlesmd.anyBreak = statesmd.anyBreak;
+
+        singlesmd.count = statesmd.count;
 
         return null;
     }
@@ -600,7 +674,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (!expremd.statement) {
                 throw new IllegalArgumentException(error(exprctx) +
-                        "The intializer of a for loop must be a statement.");
+                    "The intializer of a for loop must be a statement.");
             }
         } else {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -611,7 +685,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAfterthought(AfterthoughtContext ctx) {
-        ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
 
         if (exprctx != null) {
             final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
@@ -623,7 +697,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (!expremd.statement) {
                 throw new IllegalArgumentException(error(exprctx) +
-                        "The afterthought of a for loop must be a statement.");
+                    "The afterthought of a for loop must be a statement.");
             }
         }
 
@@ -669,6 +743,43 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             expremd.to = declvaremd.to;
             visit(exprctx);
             markCast(expremd);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitTrap(final TrapContext ctx) {
+        final StatementMetadata trapsmd = adapter.getStatementMetadata(ctx);
+
+        final String type = ctx.TYPE().getText();
+        trapsmd.exception = definition.getType(type);
+
+        try {
+            trapsmd.exception.clazz.asSubclass(Exception.class);
+        } catch (final ClassCastException exception) {
+            throw new IllegalArgumentException(error(ctx) + "Invalid exception type [" + trapsmd.exception.name + "].");
+        }
+
+        final String id = ctx.ID().getText();
+        trapsmd.slot = addVariable(ctx, id, trapsmd.exception).slot;
+
+        final BlockContext blockctx = ctx.block();
+
+        if (blockctx != null) {
+            final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+            blocksmd.lastSource = trapsmd.lastSource;
+            blocksmd.inLoop = trapsmd.inLoop;
+            blocksmd.lastLoop = trapsmd.lastLoop;
+            visit(blockctx);
+
+            trapsmd.methodEscape = blocksmd.methodEscape;
+            trapsmd.loopEscape = blocksmd.loopEscape;
+            trapsmd.allLast = blocksmd.allLast;
+            trapsmd.anyContinue = blocksmd.anyContinue;
+            trapsmd.anyBreak = blocksmd.anyBreak;
+        } else if (ctx.emptyscope() == null) {
+            throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
         }
 
         return null;
@@ -912,7 +1023,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (promote == null) {
                 throw new ClassCastException("Cannot apply [" + ctx.getChild(0).getText() + "] " +
-                        "operation to type [" + expremd.from.name + "].");
+                    "operation to type [" + expremd.from.name + "].");
             }
 
             expremd.to = promote;
@@ -1022,12 +1133,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final boolean add = ctx.ADD() != null;
         final boolean xor = ctx.BWXOR() != null;
         final Type promote = add ? promoteAdd(expremd0.from, expremd1.from) :
-                             xor ? promoteXor(expremd0.from, expremd1.from) :
-                                   promoteNumeric(expremd0.from, expremd1.from, decimal, true);
+            xor ? promoteXor(expremd0.from, expremd1.from) :
+                promoteNumeric(expremd0.from, expremd1.from, decimal, true);
 
         if (promote == null) {
             throw new ClassCastException("Cannot apply [" + ctx.getChild(1).getText() + "] " +
-                    "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
+                "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
         }
 
         final Sort sort = promote.sort;
@@ -1251,12 +1362,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         final Type promote = equality ? promoteEquality(expremd0.from, expremd1.from) :
-                reference ? promoteReference(expremd0.from, expremd1.from) :
-                            promoteNumeric(expremd0.from, expremd1.from, true, true);
+            reference ? promoteReference(expremd0.from, expremd1.from) :
+                promoteNumeric(expremd0.from, expremd1.from, true, true);
 
         if (promote == null) {
             throw new ClassCastException("Cannot apply [" + ctx.getChild(1).getText() + "] " +
-                    "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
+                "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
         }
 
         expremd0.to = promote;
@@ -1653,7 +1764,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             braceenmd.target = "#brace";
             braceenmd.type = def ? definition.defType :
-                    definition.getType(parentemd.current.struct, parentemd.current.type.getDimensions() - 1);
+                definition.getType(parentemd.current.struct, parentemd.current.type.getDimensions() - 1);
             analyzeLoadStoreExternal(ctx);
             parentemd.current = braceenmd.type;
 
@@ -1680,16 +1791,16 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal map get shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal map get shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (setter != null && setter.arguments.size() != 2) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal map set shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal map set shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
-                        || !getter.rtn.equals(setter.arguments.get(1)))) {
+                    || !getter.rtn.equals(setter.arguments.get(1)))) {
                     throw new IllegalArgumentException(error(ctx) + "Shortcut argument types must match.");
                 }
 
@@ -1697,21 +1808,21 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 settype = setter == null ? null : setter.arguments.get(1);
             } else if (list) {
                 getter = parentemd.current.struct.methods.get("get");
-                setter = parentemd.current.struct.methods.get("add");
+                setter = parentemd.current.struct.methods.get("set");
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                        getter.arguments.get(0).sort != Sort.INT)) {
+                    getter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal list get shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal list get shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal list set shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal list set shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
-                        || !getter.rtn.equals(setter.arguments.get(1)))) {
+                    || !getter.rtn.equals(setter.arguments.get(1)))) {
                     throw new IllegalArgumentException(error(ctx) + "Shortcut argument types must match.");
                 }
 
@@ -1735,7 +1846,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (braceenmd.target == null) {
             throw new IllegalArgumentException(error(ctx) +
-                    "Attempting to address a non-array type [" + parentemd.current.name + "] as an array.");
+                "Attempting to address a non-array type [" + parentemd.current.name + "] as an array.");
         }
 
         return null;
@@ -1811,7 +1922,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (method == null && !def) {
             throw new IllegalArgumentException(
-                    error(ctx) + "Unknown call [" + name + "] on type [" + struct.name + "].");
+                error(ctx) + "Unknown call [" + name + "] on type [" + struct.name + "].");
         } else if (method != null) {
             types = new Type[method.arguments.size()];
             method.arguments.toArray(types);
@@ -1823,8 +1934,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (size != types.length) {
                 throw new IllegalArgumentException(error(ctx) + "When calling [" + name + "] on type " +
-                        "[" + struct.name + "] expected [" + types.length + "] arguments," +
-                        " but found [" + arguments.size() + "].");
+                    "[" + struct.name + "] expected [" + types.length + "] arguments," +
+                    " but found [" + arguments.size() + "].");
             }
         } else {
             types = new Type[arguments.size()];
@@ -1924,7 +2035,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                     throw new IllegalArgumentException(error(ctx) + "Must read array field [length].");
                 } else if (store) {
                     throw new IllegalArgumentException(
-                            error(ctx) + "Cannot write to read-only array field [length].");
+                        error(ctx) + "Cannot write to read-only array field [length].");
                 }
 
                 memberenmd.target = "#length";
@@ -1945,7 +2056,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             if (field != null) {
                 if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
                     throw new IllegalArgumentException(error(ctx) + "Cannot write to read-only" +
-                            " field [" + value + "] for type [" + struct.name + "].");
+                        " field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 memberenmd.target = field;
@@ -1962,12 +2073,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "].");
+                        "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "].");
+                        "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 Type settype = setter == null ? null : setter.arguments.get(0);
@@ -1983,13 +2094,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                             if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
                                 getter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal map get shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal map get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (setter != null && (setter.arguments.size() != 2 ||
-                                    setter.arguments.get(0).sort != Sort.STRING)) {
+                                setter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal map set shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal map set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
@@ -2006,18 +2117,18 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                             parentemd.current.clazz.asSubclass(List.class);
 
                             getter = parentemd.current.struct.methods.get("get");
-                            setter = parentemd.current.struct.methods.get("add");
+                            setter = parentemd.current.struct.methods.get("set");
 
                             if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                                    getter.arguments.get(0).sort != Sort.INT)) {
+                                getter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 2 ||
-                                    setter.arguments.get(0).sort != Sort.INT)) {
+                                setter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list add shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal list set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
@@ -2030,7 +2141,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                                 constant = Integer.parseInt(value);
                             } catch (NumberFormatException exception) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list shortcut value [" + value + "].");
+                                    "Illegal list shortcut value [" + value + "].");
                             }
                         } catch (ClassCastException exception) {
                             //Do nothing.
@@ -2050,7 +2161,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (memberenmd.target == null) {
                 throw new IllegalArgumentException(
-                        error(ctx) + "Unknown field [" + value + "] for type [" + struct.name + "].");
+                    error(ctx) + "Unknown field [" + value + "] for type [" + struct.name + "].");
             }
         }
 
@@ -2129,7 +2240,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 parentemd.current = newenmd.type;
             } else {
                 throw new IllegalArgumentException(
-                        error(ctx) + "Unknown new call on type [" + struct.name + "].");
+                    error(ctx) + "Unknown new call on type [" + struct.name + "].");
             }
         } else {
             throw new IllegalArgumentException(error(ctx) + "Unknown parser state.");
@@ -2137,8 +2248,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (size != types.length) {
             throw new IllegalArgumentException(error(ctx) + "When calling [" + name + "] on type " +
-                    "[" + struct.name + "] expected [" + types.length + "] arguments," +
-                    " but found [" + arguments.size() + "].");
+                "[" + struct.name + "] expected [" + types.length + "] arguments," +
+                " but found [" + arguments.size() + "].");
         }
 
         for (int argument = 0; argument < size; ++argument) {
@@ -2182,7 +2293,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             throw new IllegalArgumentException(error(ctx) + "Must read String constant [" + string + "].");
         } else if (store) {
             throw new IllegalArgumentException(
-                    error(ctx) + "Cannot write to read-only String constant [" + string + "].");
+                error(ctx) + "Cannot write to read-only String constant [" + string + "].");
         }
 
         memberenmd.target = string;
@@ -2256,12 +2367,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 final boolean decimal = token == MUL || token == DIV || token == REM || token == SUB;
 
                 extenmd.promote = add ? promoteAdd(extenmd.type, storeemd.from) :
-                                  xor ? promoteXor(extenmd.type, storeemd.from) :
-                                        promoteNumeric(extenmd.type, storeemd.from, decimal, true);
+                    xor ? promoteXor(extenmd.type, storeemd.from) :
+                        promoteNumeric(extenmd.type, storeemd.from, decimal, true);
 
                 if (extenmd.promote == null) {
                     throw new IllegalArgumentException("Cannot apply compound assignment to " +
-                            " types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
+                        " types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
                 }
 
                 extenmd.castFrom = getLegalCast(source, extenmd.type, extenmd.promote, false);
@@ -2727,11 +2838,11 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                     return cast;
                 } else {
                     throw new ClassCastException(
-                            error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
+                        error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
                 }
             } catch (ClassCastException cce1) {
                 throw new ClassCastException(
-                        error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
+                    error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
             }
         }
     }
@@ -2741,7 +2852,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (transform == null) {
             throw new ClassCastException(
-                    error(source) + "Cannot cast from [" + cast.from.name + "] to [" + cast.to.name + "].");
+                error(source) + "Cannot cast from [" + cast.from.name + "] to [" + cast.to.name + "].");
         }
 
         return transform;
@@ -2779,8 +2890,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 }
             } else {
                 throw new IllegalStateException(error(source) + "No valid constant cast from " +
-                        "[" + cast.from.clazz.getCanonicalName() + "] to " +
-                        "[" + cast.to.clazz.getCanonicalName() + "].");
+                    "[" + cast.from.clazz.getCanonicalName() + "] to " +
+                    "[" + cast.to.clazz.getCanonicalName() + "].");
             }
         }
     }
@@ -2797,10 +2908,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 return jmethod.invoke(object);
             }
         } catch (IllegalAccessException | IllegalArgumentException |
-                java.lang.reflect.InvocationTargetException | NullPointerException |
-                ExceptionInInitializerError exception) {
+            java.lang.reflect.InvocationTargetException | NullPointerException |
+            ExceptionInInitializerError exception) {
             throw new IllegalStateException(error(source) + "Unable to invoke transform to cast constant from " +
-                    "[" + transform.from.name + "] to [" + transform.to.name + "].");
+                "[" + transform.from.name + "] to [" + transform.to.name + "].");
         }
     }
 
@@ -2810,7 +2921,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         if (sort == Sort.DEF) {
             return definition.defType;
         } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ || sort == Sort.NUMBER) && decimal) {
-             return primitive ? definition.doubleType : definition.doubleobjType;
+            return primitive ? definition.doubleType : definition.doubleobjType;
         } else if ((sort == Sort.FLOAT || sort == Sort.FLOAT_OBJ) && decimal) {
             return primitive ? definition.floatType : definition.floatobjType;
         } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ || sort == Sort.NUMBER) {
@@ -2832,7 +2943,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (decimal) {
             if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort0 == Sort.NUMBER ||
-                    sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
+                sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
                 return primitive ? definition.doubleType : definition.doubleobjType;
             } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
                 return primitive ? definition.floatType : definition.floatobjType;
@@ -2840,8 +2951,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort0 == Sort.NUMBER ||
-                sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
-             return primitive ? definition.longType : definition.longobjType;
+            sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
+            return primitive ? definition.longType : definition.longobjType;
         } else if (sort0.numeric && sort1.numeric) {
             return primitive ? definition.intType : definition.intobjType;
         }

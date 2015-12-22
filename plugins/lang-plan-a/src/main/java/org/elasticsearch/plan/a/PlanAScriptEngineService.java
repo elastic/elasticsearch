@@ -19,6 +19,15 @@
 
 package org.elasticsearch.plan.a;
 
+import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -31,15 +40,6 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
-import java.util.HashMap;
-import java.util.Map;
-
 public class PlanAScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "plan-a";
@@ -47,6 +47,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
 
     public static final String NUMERIC_OVERFLOW = "numeric_overflow";
+    public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
     // TODO: how should custom definitions be specified?
     private Definition definition = null;
@@ -98,6 +99,10 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
             if (value != null) {
                 // TODO: can we get a real boolean parser in here?
                 compilerSettings.setNumericOverflow(Boolean.parseBoolean(value));
+            }
+            value = clone.remove(MAX_LOOP_COUNTER);
+            if (value != null) {
+                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
             }
             if (!clone.isEmpty()) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + clone);

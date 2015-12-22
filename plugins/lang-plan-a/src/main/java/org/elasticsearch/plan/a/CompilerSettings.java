@@ -19,12 +19,14 @@
 
 package org.elasticsearch.plan.a;
 
-/** 
- * Settings to use when compiling a script 
+/**
+ * Settings to use when compiling a script
  */
 final class CompilerSettings {
 
     private boolean numericOverflow = true;
+
+    private int maxLoopCounter = 10000;
 
     /**
      * Returns {@code true} if numeric operations should overflow, {@code false}
@@ -45,5 +47,21 @@ final class CompilerSettings {
      */
     public void setNumericOverflow(boolean allow) {
         this.numericOverflow = allow;
+    }
+
+    /**
+     * Returns the value for the cumulative total number of statements that can be made in all loops
+     * in a script before an exception is thrown.  This attempts to prevent infinite loops.
+     */
+    public int getMaxLoopCounter() {
+        return maxLoopCounter;
+    }
+
+    /**
+     * Set the cumulative total number of statements that can be made in all loops.
+     * @see #getMaxLoopCounter
+     */
+    public void setMaxLoopCounter(int max) {
+        this.maxLoopCounter = max;
     }
 }

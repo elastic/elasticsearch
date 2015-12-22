@@ -19,21 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static java.lang.Math.max;
-import static java.util.Collections.unmodifiableList;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -52,6 +37,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.lang.Math.max;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all
@@ -73,13 +74,15 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     private final ESLogger logger;
     private final Client client;
+    private final ThreadPool threadPool;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
 
-    public AbstractAsyncBulkByScrollAction(ESLogger logger, Client client, Request mainRequest, SearchRequest firstSearchRequest,
-            ActionListener<Response> listener) {
+    public AbstractAsyncBulkByScrollAction(ESLogger logger, Client client, ThreadPool threadPool, Request mainRequest,
+            SearchRequest firstSearchRequest, ActionListener<Response> listener) {
         this.logger = logger;
         this.client = client;
+        this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.firstSearchRequest = firstSearchRequest;
         this.listener = listener;
@@ -161,54 +164,56 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void onScrollResponse(SearchResponse searchResponse) {
-        try {
-            scroll.set(searchResponse.getScrollId());
-            SearchHit[] docs = searchResponse.getHits().getHits();
-            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
-            if (docs.length == 0) {
-                startNormalTermination();
-                return;
-            }
-            batches.incrementAndGet();
-            List<SearchHit> docsIterable = Arrays.asList(docs);
-            if (mainRequest.size() != -1) {
-                // Truncate the docs if we have more than the request size
-                long remaining = max(0, mainRequest.size() - successfullyProcessed());
-                if (remaining <= docs.length) {
-                    if (remaining < docs.length) {
-                        docsIterable = docsIterable.subList(0, (int) remaining);
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try {
+                scroll.set(searchResponse.getScrollId());
+                SearchHit[] docs = searchResponse.getHits().getHits();
+                logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
+                if (docs.length == 0) {
+                    startNormalTermination();
+                    return;
+                }
+                batches.incrementAndGet();
+                List<SearchHit> docsIterable = Arrays.asList(docs);
+                if (mainRequest.size() != -1) {
+                    // Truncate the docs if we have more than the request size
+                    long remaining = max(0, mainRequest.size() - successfullyProcessed());
+                    if (remaining <= docs.length) {
+                        if (remaining < docs.length) {
+                            docsIterable = docsIterable.subList(0, (int) remaining);
+                        }
                     }
                 }
-            }
-            BulkRequest request = buildBulk(docsIterable);
-            if (request.requests().isEmpty()) {
-                /*
-                 * If we noop-ed the entire batch then just skip to the next
-                 * batch or the BulkRequest would fail validation.
-                 */
-                startNextScrollRequest();
-                return;
-            }
-            request.timeout(mainRequest.timeout());
-            request.consistencyLevel(mainRequest.consistency());
-            if (logger.isDebugEnabled()) {
-                logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                        new ByteSizeValue(request.estimatedSizeInBytes()));
-            }
-            client.bulk(request, new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse response) {
-                    onBulkResponse(response);
+                BulkRequest request = buildBulk(docsIterable);
+                if (request.requests().isEmpty()) {
+                    /*
+                     * If we noop-ed the entire batch then just skip to the next
+                     * batch or the BulkRequest would fail validation.
+                     */
+                    startNextScrollRequest();
+                    return;
                 }
+                request.timeout(mainRequest.timeout());
+                request.consistencyLevel(mainRequest.consistency());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
+                            new ByteSizeValue(request.estimatedSizeInBytes()));
+                }
+                client.bulk(request, new ActionListener<BulkResponse>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        onBulkResponse(response);
+                    }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    finishHim(e);
-                }
-            });
-        } catch (Throwable t) {
-            finishHim(t);
-        }
+                    @Override
+                    public void onFailure(Throwable e) {
+                        finishHim(e);
+                    }
+                });
+            } catch (Throwable t) {
+                finishHim(t);
+            }
+        });
     }
 
     void onBulkResponse(BulkResponse response) {

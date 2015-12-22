@@ -12,6 +12,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,9 +30,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     private final ScriptService scriptService;
     private final CompiledScript script;
 
-    public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, ScriptService scriptService, Client client, Request mainRequest, SearchRequest firstSearchRequest,
-            ActionListener<Response> listener) {
-        super(logger, client, mainRequest, firstSearchRequest, listener);
+    public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
+            Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+        super(logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
         if (mainRequest.script() == null) {
             script = null;

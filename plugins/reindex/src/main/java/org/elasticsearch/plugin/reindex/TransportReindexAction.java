@@ -88,7 +88,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
         public AsyncIndexBySearchAction(ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(logger, scriptService, client, request, request.source(), listener);
+            super(logger, scriptService, client, threadPool, request, request.source(), listener);
         }
 
         @Override

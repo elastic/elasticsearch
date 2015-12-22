@@ -18,7 +18,7 @@
  */
 
 grant {
-  // Hadoop UserGroupInformation clinit
+  // Hadoop UserGroupInformation, HdfsConstants, PipelineAck clinit
   permission java.lang.RuntimePermission "getClassLoader";
 
   // UserGroupInformation (UGI) Metrics clinit

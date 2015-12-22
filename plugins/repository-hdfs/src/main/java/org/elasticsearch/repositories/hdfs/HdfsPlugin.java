@@ -63,6 +63,8 @@ public final class HdfsPlugin extends Plugin {
             Class.forName("org.apache.hadoop.util.StringUtils");
             Class.forName("org.apache.hadoop.util.ShutdownHookManager");
             Class.forName("org.apache.hadoop.conf.Configuration");
+            Class.forName("org.apache.hadoop.hdfs.protocol.HdfsConstants");
+            Class.forName("org.apache.hadoop.hdfs.protocol.datatransfer.PipelineAck");
         } catch (ClassNotFoundException | IOException e) {
             throw new RuntimeException(e);
         } finally {

@@ -29,9 +29,12 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
+import java.lang.reflect.ReflectPermission;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+
+import javax.security.auth.AuthPermission;
 
 final class HdfsBlobStore implements BlobStore {
 
@@ -110,10 +113,13 @@ final class HdfsBlobStore implements BlobStore {
     interface Operation<V> {
         V run(FileContext fileContext) throws IOException;
     }
-    
+
     /**
      * Executes the provided operation against this store
      */
+    // we can do FS ops with only two elevated permissions:
+    // 1) hadoop dynamic proxy is messy with access rules
+    // 2) allow hadoop to add credentials to our Subject
     <V> V execute(Operation<V> operation) throws IOException {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -129,7 +135,8 @@ final class HdfsBlobStore implements BlobStore {
                 public V run() throws IOException {
                     return operation.run(fileContext);
                 }
-            });
+            }, null, new ReflectPermission("suppressAccessChecks"),
+                     new AuthPermission("modifyPrivateCredentials"));
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();
         }

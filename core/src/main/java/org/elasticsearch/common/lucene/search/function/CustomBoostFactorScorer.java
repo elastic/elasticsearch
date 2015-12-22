@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 
@@ -27,6 +28,7 @@ import java.io.IOException;
 abstract class CustomBoostFactorScorer extends Scorer {
 
     final Scorer scorer;
+    final DocIdSetIterator iterator;
     final float maxBoost;
     final CombineFunction scoreCombiner;
 
@@ -42,6 +44,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
             nextDoc = new MinScoreNextDoc();
         }
         this.scorer = scorer;
+        this.iterator = scorer.iterator();
         this.maxBoost = maxBoost;
         this.scoreCombiner = scoreCombiner;
         this.minScore = minScore;
@@ -53,13 +56,25 @@ abstract class CustomBoostFactorScorer extends Scorer {
     }
 
     @Override
-    public int advance(int target) throws IOException {
-        return nextDoc.advance(target);
-    }
-
-    @Override
-    public int nextDoc() throws IOException {
-        return nextDoc.nextDoc();
+    public DocIdSetIterator iterator() {
+        return new DocIdSetIterator() {
+            @Override
+            public int nextDoc() throws IOException {
+                return nextDoc.nextDoc();
+            }
+            @Override
+            public int advance(int target) throws IOException {
+                return nextDoc.advance(target);
+            }
+            @Override
+            public long cost() {
+                return iterator.cost();
+            }
+            @Override
+            public int docID() {
+                return iterator.docID();
+            }
+        };
     }
 
     public abstract float innerScore() throws IOException;
@@ -72,11 +87,6 @@ abstract class CustomBoostFactorScorer extends Scorer {
     @Override
     public int freq() throws IOException {
         return scorer.freq();
-    }
-
-    @Override
-    public long cost() {
-        return scorer.cost();
     }
 
     public interface NextDoc {
@@ -94,8 +104,8 @@ abstract class CustomBoostFactorScorer extends Scorer {
         public int nextDoc() throws IOException {
             int doc;
             do {
-                doc = scorer.nextDoc();
-                if (doc == NO_MORE_DOCS) {
+                doc = iterator.nextDoc();
+                if (doc == DocIdSetIterator.NO_MORE_DOCS) {
                     return doc;
                 }
                 currentScore = innerScore();
@@ -110,13 +120,13 @@ abstract class CustomBoostFactorScorer extends Scorer {
 
         @Override
         public int advance(int target) throws IOException {
-            int doc = scorer.advance(target);
-            if (doc == NO_MORE_DOCS) {
+            int doc = iterator.advance(target);
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
                 return doc;
             }
             currentScore = innerScore();
             if (currentScore < minScore) {
-                return scorer.nextDoc();
+                return iterator.nextDoc();
             }
             return doc;
         }
@@ -126,7 +136,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
 
         @Override
         public int nextDoc() throws IOException {
-            return scorer.nextDoc();
+            return iterator.nextDoc();
         }
 
         @Override
@@ -136,7 +146,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
 
         @Override
         public int advance(int target) throws IOException {
-            return scorer.advance(target);
+            return iterator.advance(target);
         }
     }
 }

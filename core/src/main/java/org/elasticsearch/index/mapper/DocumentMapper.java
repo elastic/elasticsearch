@@ -25,8 +25,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -321,12 +321,12 @@ public class DocumentMapper implements ToXContent {
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
             final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
-            DocIdSetIterator iterator = nestedWeight.scorer(context);
-            if (iterator == null) {
+            Scorer scorer = nestedWeight.scorer(context);
+            if (scorer == null) {
                 continue;
             }
 
-            if (iterator.advance(nestedDocId) == nestedDocId) {
+            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {

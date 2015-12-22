@@ -250,7 +250,8 @@ public class Lucene {
                 continue;
             }
             final Bits liveDocs = context.reader().getLiveDocs();
-            for (int doc = scorer.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = scorer.nextDoc()) {
+            final DocIdSetIterator iterator = scorer.iterator();
+            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
                 if (liveDocs == null || liveDocs.get(doc)) {
                     return true;
                 }
@@ -633,19 +634,11 @@ public class Lucene {
                 throw new IllegalStateException(message);
             }
             @Override
-            public int advance(int arg0) throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public long cost() {
-                throw new IllegalStateException(message);
-            }
-            @Override
             public int docID() {
                 throw new IllegalStateException(message);
             }
             @Override
-            public int nextDoc() throws IOException {
+            public DocIdSetIterator iterator() {
                 throw new IllegalStateException(message);
             }
         };
@@ -730,10 +723,10 @@ public class Lucene {
         if (scorer == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
-        final TwoPhaseIterator twoPhase = scorer.asTwoPhaseIterator();
+        final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {
-            iterator = scorer;
+            iterator = scorer.iterator();
         } else {
             iterator = twoPhase.approximation();
         }

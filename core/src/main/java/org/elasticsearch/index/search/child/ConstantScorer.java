@@ -45,8 +45,8 @@ public class ConstantScorer extends Scorer {
     }
 
     @Override
-    public int nextDoc() throws IOException {
-        return docIdSetIterator.nextDoc();
+    public DocIdSetIterator iterator() {
+        return docIdSetIterator;
     }
 
     @Override
@@ -56,22 +56,12 @@ public class ConstantScorer extends Scorer {
 
     @Override
     public float score() throws IOException {
-        assert docIdSetIterator.docID() != NO_MORE_DOCS;
+        assert docIdSetIterator.docID() != DocIdSetIterator.NO_MORE_DOCS;
         return constantScore;
     }
 
     @Override
     public int freq() throws IOException {
         return 1;
-    }
-
-    @Override
-    public int advance(int target) throws IOException {
-        return docIdSetIterator.advance(target);
-    }
-
-    @Override
-    public long cost() {
-        return docIdSetIterator.cost();
     }
 }

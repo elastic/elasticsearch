@@ -574,61 +574,71 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            if (parentWeight.remaining == 0) {
-                return currentDocId = NO_MORE_DOCS;
-            }
-
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
-                if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+        public DocIdSetIterator iterator() {
+            return new DocIdSetIterator() {
+                @Override
+                public int docID() {
                     return currentDocId;
                 }
 
-                final int globalOrdinal = globalOrdinals.getOrd(currentDocId);
-                if (globalOrdinal < 0) {
-                    continue;
-                }
+                @Override
+                public int nextDoc() throws IOException {
+                    if (parentWeight.remaining == 0) {
+                        return currentDocId = NO_MORE_DOCS;
+                    }
 
-                final long parentIdx = parentIds.find(globalOrdinal);
-                if (parentIdx != -1) {
-                    parentWeight.remaining--;
-                    if (acceptAndScore(parentIdx)) {
-                        return currentDocId;
+                    while (true) {
+                        currentDocId = parentsIterator.nextDoc();
+                        if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                            return currentDocId;
+                        }
+
+                        final int globalOrdinal = globalOrdinals.getOrd(currentDocId);
+                        if (globalOrdinal < 0) {
+                            continue;
+                        }
+
+                        final long parentIdx = parentIds.find(globalOrdinal);
+                        if (parentIdx != -1) {
+                            parentWeight.remaining--;
+                            if (acceptAndScore(parentIdx)) {
+                                return currentDocId;
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        @Override
-        public int advance(int target) throws IOException {
-            if (parentWeight.remaining == 0) {
-                return currentDocId = NO_MORE_DOCS;
-            }
+                @Override
+                public int advance(int target) throws IOException {
+                    if (parentWeight.remaining == 0) {
+                        return currentDocId = NO_MORE_DOCS;
+                    }
 
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
+                    currentDocId = parentsIterator.advance(target);
+                    if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentDocId;
+                    }
 
-            final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-            if (globalOrdinal < 0) {
-                return nextDoc();
-            }
+                    final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
+                    if (globalOrdinal < 0) {
+                        return nextDoc();
+                    }
 
-            final long parentIdx = parentIds.find(globalOrdinal);
-            if (parentIdx != -1) {
-                parentWeight.remaining--;
-                if (acceptAndScore(parentIdx)) {
-                    return currentDocId;
+                    final long parentIdx = parentIds.find(globalOrdinal);
+                    if (parentIdx != -1) {
+                        parentWeight.remaining--;
+                        if (acceptAndScore(parentIdx)) {
+                            return currentDocId;
+                        }
+                    }
+                    return nextDoc();
                 }
-            }
-            return nextDoc();
-        }
 
-        @Override
-        public long cost() {
-            return parentsIterator.cost();
+                @Override
+                public long cost() {
+                    return parentsIterator.cost();
+                }
+            };
         }
     }
 

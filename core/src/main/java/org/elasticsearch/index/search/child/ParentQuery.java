@@ -301,50 +301,61 @@ public class ParentQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            while (true) {
-                currentChildDoc = childrenIterator.nextDoc();
-                if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
+        public DocIdSetIterator iterator() {
+            return new DocIdSetIterator() {
+
+                @Override
+                public int docID() {
                     return currentChildDoc;
                 }
 
-                int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
-                if (globalOrdinal < 0) {
-                    continue;
+                @Override
+                public int nextDoc() throws IOException {
+                    while (true) {
+                        currentChildDoc = childrenIterator.nextDoc();
+                        if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                            return currentChildDoc;
+                        }
+
+                        int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
+                        if (globalOrdinal < 0) {
+                            continue;
+                        }
+
+                        final long parentIdx = parentIdxs.find(globalOrdinal);
+                        if (parentIdx != -1) {
+                            currentScore = scores.get(parentIdx);
+                            return currentChildDoc;
+                        }
+                    }
                 }
 
-                final long parentIdx = parentIdxs.find(globalOrdinal);
-                if (parentIdx != -1) {
-                    currentScore = scores.get(parentIdx);
-                    return currentChildDoc;
+                @Override
+                public int advance(int target) throws IOException {
+                    currentChildDoc = childrenIterator.advance(target);
+                    if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentChildDoc;
+                    }
+
+                    int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
+                    if (globalOrdinal < 0) {
+                        return nextDoc();
+                    }
+
+                    final long parentIdx = parentIdxs.find(globalOrdinal);
+                    if (parentIdx != -1) {
+                        currentScore = scores.get(parentIdx);
+                        return currentChildDoc;
+                    } else {
+                        return nextDoc();
+                    }
                 }
-            }
-        }
 
-        @Override
-        public int advance(int target) throws IOException {
-            currentChildDoc = childrenIterator.advance(target);
-            if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentChildDoc;
-            }
-
-            int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
-            if (globalOrdinal < 0) {
-                return nextDoc();
-            }
-
-            final long parentIdx = parentIdxs.find(globalOrdinal);
-            if (parentIdx != -1) {
-                currentScore = scores.get(parentIdx);
-                return currentChildDoc;
-            } else {
-                return nextDoc();
-            }
-        }
-
-        @Override
-        public long cost() {
-            return childrenIterator.cost();
+                @Override
+                public long cost() {
+                    return childrenIterator.cost();
+                }
+            };
         }
     }
 }

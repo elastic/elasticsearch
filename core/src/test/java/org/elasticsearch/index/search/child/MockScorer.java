@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 
@@ -86,17 +87,7 @@ class MockScorer extends Scorer {
     }
 
     @Override
-    public int nextDoc() throws IOException {
-        return 0;
-    }
-
-    @Override
-    public int advance(int target) throws IOException {
-        return 0;
-    }
-
-    @Override
-    public long cost() {
-        return 0;
+    public DocIdSetIterator iterator() {
+        throw new UnsupportedOperationException();
     }
 }

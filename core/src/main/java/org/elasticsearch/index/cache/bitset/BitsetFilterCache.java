@@ -31,6 +31,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
@@ -162,12 +163,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                 searcher.setQueryCache(null);
                 final Weight weight = searcher.createNormalizedWeight(query, false);
-                final DocIdSetIterator it = weight.scorer(context);
+                final Scorer s = weight.scorer(context);
                 final BitSet bitSet;
-                if (it == null) {
+                if (s == null) {
                     bitSet = null;
                 } else {
-                    bitSet = BitSet.of(it, context.reader().maxDoc());
+                    bitSet = BitSet.of(s.iterator(), context.reader().maxDoc());
                 }
 
                 Value value = new Value(bitSet, shardId);

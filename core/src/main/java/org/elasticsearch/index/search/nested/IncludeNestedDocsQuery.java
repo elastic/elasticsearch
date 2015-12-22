@@ -123,7 +123,7 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            int firstParentDoc = parentScorer.nextDoc();
+            int firstParentDoc = parentScorer.iterator().nextDoc();
             if (firstParentDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 // No matches
                 return null;
@@ -172,64 +172,80 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            if (currentParentPointer == NO_MORE_DOCS) {
-                return (currentDoc = NO_MORE_DOCS);
-            }
+        public DocIdSetIterator iterator() {
+            final DocIdSetIterator parentIterator = parentScorer.iterator();
+            return new DocIdSetIterator() {
+                @Override
+                public int docID() {
+                    return currentDoc;
+                }
 
-            if (currentChildPointer == currentParentPointer) {
-                // we need to return the current parent as well, but prepare to return
-                // the next set of children
-                currentDoc = currentParentPointer;
-                currentParentPointer = parentScorer.nextDoc();
-                if (currentParentPointer != NO_MORE_DOCS) {
-                    currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
-                    if (currentChildPointer == -1) {
-                        // no previous set parent, just set the child to the current parent
-                        currentChildPointer = currentParentPointer;
-                    } else {
-                        currentChildPointer++; // we only care about children
+                @Override
+                public int nextDoc() throws IOException {
+                    if (currentParentPointer == NO_MORE_DOCS) {
+                        return (currentDoc = NO_MORE_DOCS);
                     }
-                }
-            } else {
-                currentDoc = currentChildPointer++;
-            }
 
-            assert currentDoc != -1;
-            return currentDoc;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            if (target == NO_MORE_DOCS) {
-                return (currentDoc = NO_MORE_DOCS);
-            }
-
-            if (target == 0) {
-                return nextDoc();
-            }
-
-            if (target < currentParentPointer) {
-                currentDoc = currentParentPointer = parentScorer.advance(target);
-                if (currentParentPointer == NO_MORE_DOCS) {
-                    return (currentDoc = NO_MORE_DOCS);
-                }
-                if (currentParentPointer == 0) {
-                    currentChildPointer = 0;
-                } else {
-                    currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
-                    if (currentChildPointer == -1) {
-                        // no previous set parent, just set the child to 0 to delete all up to the parent
-                        currentChildPointer = 0;
+                    if (currentChildPointer == currentParentPointer) {
+                        // we need to return the current parent as well, but prepare to return
+                        // the next set of children
+                        currentDoc = currentParentPointer;
+                        currentParentPointer = parentIterator.nextDoc();
+                        if (currentParentPointer != NO_MORE_DOCS) {
+                            currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
+                            if (currentChildPointer == -1) {
+                                // no previous set parent, just set the child to the current parent
+                                currentChildPointer = currentParentPointer;
+                            } else {
+                                currentChildPointer++; // we only care about children
+                            }
+                        }
                     } else {
-                        currentChildPointer++; // we only care about children
+                        currentDoc = currentChildPointer++;
                     }
-                }
-            } else {
-                currentDoc = currentChildPointer++;
-            }
 
-            return currentDoc;
+                    assert currentDoc != -1;
+                    return currentDoc;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    if (target == NO_MORE_DOCS) {
+                        return (currentDoc = NO_MORE_DOCS);
+                    }
+
+                    if (target == 0) {
+                        return nextDoc();
+                    }
+
+                    if (target < currentParentPointer) {
+                        currentDoc = currentParentPointer = parentIterator.advance(target);
+                        if (currentParentPointer == NO_MORE_DOCS) {
+                            return (currentDoc = NO_MORE_DOCS);
+                        }
+                        if (currentParentPointer == 0) {
+                            currentChildPointer = 0;
+                        } else {
+                            currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
+                            if (currentChildPointer == -1) {
+                                // no previous set parent, just set the child to 0 to delete all up to the parent
+                                currentChildPointer = 0;
+                            } else {
+                                currentChildPointer++; // we only care about children
+                            }
+                        }
+                    } else {
+                        currentDoc = currentChildPointer++;
+                    }
+
+                    return currentDoc;
+                }
+
+                @Override
+                public long cost() {
+                    return parentIterator.cost();
+                }
+            };
         }
 
         @Override
@@ -245,11 +261,6 @@ public class IncludeNestedDocsQuery extends Query {
         @Override
         public int docID() {
             return currentDoc;
-        }
-
-        @Override
-        public long cost() {
-            return parentScorer.cost();
         }
     }
 

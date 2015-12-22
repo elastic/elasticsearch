@@ -209,10 +209,11 @@ public final class InnerHitsContext {
                             return null;
                         }
 
-                        final DocIdSetIterator childrenIterator = childWeight.scorer(context);
-                        if (childrenIterator == null) {
+                        final Scorer childrenScorer = childWeight.scorer(context);
+                        if (childrenScorer == null) {
                             return null;
                         }
+                        final DocIdSetIterator childrenIterator = childrenScorer.iterator();
                         final DocIdSetIterator it = new DocIdSetIterator() {
 
                             int doc = -1;

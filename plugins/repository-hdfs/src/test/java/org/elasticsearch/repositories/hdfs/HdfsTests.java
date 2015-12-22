@@ -123,76 +123,67 @@ public class HdfsTests extends ESSingleNodeTestCase {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
-    public void testWrongPath() {
-        Client client = client();
-
+    public void testMissingUri() {
         try {
-            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("hdfs")
-                    .setSettings(Settings.settingsBuilder()
-                        .put("uri", "hdfs:///")
-                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                        .put("path", "a@b$c#11:22")
-                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                        .put("compress", randomBoolean()))
-                    .get();
-            assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+            client().admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.EMPTY).get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertTrue(e.getCause().getMessage().contains("No 'uri' defined for hdfs"));
+        }
+    }
 
-            createIndex("test-idx-1");
-            createIndex("test-idx-2");
-            createIndex("test-idx-3");
-            ensureGreen();
-            fail("Path name is invalid");
-        } catch (RepositoryException re) {
-            // expected
+    public void testEmptyUri() {
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder()
+                    .put("uri", "/path").build()).get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertTrue(e.getCause().getMessage(), e.getCause().getMessage().contains("Invalid scheme [null] specified in uri [/path]"));
         }
     }
 
     public void testNonHdfsUri() {
-        Client client = client();
         try {
-            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("hdfs")
-                    .setSettings(Settings.settingsBuilder()
-                        .put("uri", "file:///")
-                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                        .put("path", "should-fail")
-                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                        .put("compress", randomBoolean()))
-                    .get();
-            assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-
-            createIndex("test-idx-1");
-            createIndex("test-idx-2");
-            createIndex("test-idx-3");
-            ensureGreen();
-            fail("Path name is invalid");
-        } catch (RepositoryException re) {
-            // expected
+            client().admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder()
+                    .put("uri", "file:///").build()).get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertTrue(e.getCause().getMessage().contains("Invalid scheme [file] specified in uri [file:///]"));
         }
     }
 
     public void testPathSpecifiedInHdfs() {
-        Client client = client();
         try {
-            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("hdfs")
-                    .setSettings(Settings.settingsBuilder()
-                        .put("uri", "hdfs:///some/path")
-                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                        .put("path", "should-fail")
-                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                        .put("compress", randomBoolean()))
-                    .get();
-            assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+            client().admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder()
+                    .put("uri", "hdfs:///some/path").build()).get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertTrue(e.getCause().getMessage().contains("Use 'path' option to specify a path [/some/path]"));
+        }
+    }
 
-            createIndex("test-idx-1");
-            createIndex("test-idx-2");
-            createIndex("test-idx-3");
-            ensureGreen();
-            fail("Path name is invalid");
-        } catch (RepositoryException re) {
-            // expected
+    public void testMissingPath() {
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder()
+                    .put("uri", "hdfs:///").build()).get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertTrue(e.getCause().getMessage().contains("No 'path' defined for hdfs"));
         }
     }
 

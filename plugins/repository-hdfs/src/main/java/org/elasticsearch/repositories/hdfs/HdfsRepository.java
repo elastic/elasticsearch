@@ -79,18 +79,18 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     @Override
     protected void doStart() {
-        if (!Strings.hasText(uri)) {
+        if (Strings.hasText(uri) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
 
         URI actualUri = URI.create(uri);
         String scheme = actualUri.getScheme();
-        if (!Strings.hasText(scheme) || !scheme.toLowerCase(Locale.ROOT).equals("hdfs")) {
+        if (Strings.hasText(scheme) == false || scheme.toLowerCase(Locale.ROOT).equals("hdfs") == false) {
             throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", scheme, uri));
         }
         String p = actualUri.getPath();
-        if (Strings.hasText(p) && !p.equals("/")) {
+        if (Strings.hasText(p) && p.equals("/") == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", p, uri));
         }
@@ -167,7 +167,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }
-        
+
         // create a hadoop user. if we want other auth, it must be done different anyway, and tested.
         Subject subject;
         try {

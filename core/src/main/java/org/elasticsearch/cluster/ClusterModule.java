@@ -185,7 +185,6 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(IndexSettings.INDEX_TRANSLOG_DURABILITY, Validator.EMPTY);
         registerIndexDynamicSetting(IndicesWarmer.INDEX_WARMER_ENABLED, Validator.EMPTY);
         registerIndexDynamicSetting(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, Validator.BOOLEAN);
-        registerIndexDynamicSetting(IndicesRequestCache.DEPRECATED_INDEX_CACHE_REQUEST_ENABLED, Validator.BOOLEAN);
         registerIndexDynamicSetting(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, Validator.TIME);
         registerIndexDynamicSetting(DefaultSearchContext.MAX_RESULT_WINDOW, Validator.POSITIVE_INTEGER);
     }

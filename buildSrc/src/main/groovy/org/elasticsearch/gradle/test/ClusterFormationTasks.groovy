@@ -258,8 +258,8 @@ class ClusterFormationTasks {
                 Configuration configuration = project.configurations.findByName(configurationName)
                 if (configuration == null) {
                     configuration = project.configurations.create(configurationName)
-                    project.dependencies.add(configurationName, pluginProject)
                 }
+                project.dependencies.add(configurationName, pluginProject)
                 setup.dependsOn(pluginProject.tasks.bundlePlugin)
                 pluginZip = configuration
 

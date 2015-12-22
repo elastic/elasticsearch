@@ -3,8 +3,6 @@ package org.elasticsearch.gradle.test
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.tasks.Input
-import org.gradle.util.ConfigureUtil
 
 class RunTask extends DefaultTask {
 
@@ -22,11 +20,6 @@ class RunTask extends DefaultTask {
     )
     public void setDebug(boolean enabled) {
         clusterConfig.debug = enabled;
-    }
-
-    @Input
-    public void cluster(Closure closure) {
-        ConfigureUtil.configure(closure, clusterConfig)
     }
 
     static void configure(Project project) {

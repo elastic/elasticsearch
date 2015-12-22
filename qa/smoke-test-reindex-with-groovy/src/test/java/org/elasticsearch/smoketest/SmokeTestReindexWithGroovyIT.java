@@ -17,7 +17,23 @@
  * under the License.
  */
 
-esplugin {
-  description 'The Reindex Plugin adds APIs to reindex from one index to another or update documents in place.'
-  classname 'org.elasticsearch.plugin.reindex.ReindexPlugin'
+package org.elasticsearch.smoketest;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+
+import java.io.IOException;
+
+public class SmokeTestReindexWithGroovyIT extends ESRestTestCase {
+    public SmokeTestReindexWithGroovyIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
+    }
 }

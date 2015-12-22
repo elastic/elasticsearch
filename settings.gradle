@@ -34,6 +34,7 @@ List projects = [
   'qa:evil-tests',
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
+  'qa:smoke-test-reindex-with-groovy',
   'qa:smoke-test-plugins',
   'qa:vagrant',
 ]

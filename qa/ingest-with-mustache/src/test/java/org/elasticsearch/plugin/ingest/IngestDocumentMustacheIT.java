@@ -22,7 +22,12 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.ValueSource;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 

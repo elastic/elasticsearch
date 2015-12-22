@@ -20,11 +20,12 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.script.ScriptException;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TemplateServiceIT extends AbstractMustacheTests {
 

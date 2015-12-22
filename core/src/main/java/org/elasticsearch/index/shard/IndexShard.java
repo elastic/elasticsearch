@@ -1179,12 +1179,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 change = true;
             }
 
-            final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
-            if (compoundOnFlush != config.isCompoundOnFlush()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
-                config.setCompoundOnFlush(compoundOnFlush);
-                change = true;
-            }
             final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
             if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
                 config.setVersionMapSizeSetting(versionMapSize);

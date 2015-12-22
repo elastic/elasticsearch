@@ -313,7 +313,6 @@ public class InternalEngine extends Engine {
         try {
             final LiveIndexWriterConfig iwc = indexWriter.getConfig();
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-            iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
         } catch (AlreadyClosedException ex) {
             // ignore
         }
@@ -939,7 +938,7 @@ public class InternalEngine extends Engine {
              * here but with 1s poll this is only executed twice at most
              * in combination with the default writelock timeout*/
             iwc.setWriteLockTimeout(5000);
-            iwc.setUseCompoundFile(this.engineConfig.isCompoundOnFlush());
+            iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             iwc.setMergedSegmentWarmer(new IndexReaderWarmer() {

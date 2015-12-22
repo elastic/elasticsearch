@@ -169,7 +169,6 @@ public class InternalEngineTests extends ESTestCase {
             codecName = "default";
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -300,7 +299,6 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats().getCount(), equalTo(0l));
             assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-            final boolean defaultCompound = defaultSettings.getSettings().getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -323,7 +321,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
 
             engine.flush();
@@ -335,10 +333,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-
-            engine.config().setCompoundOnFlush(false);
-            engine.onSettingsChanged();
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.index(new Engine.Index(newUid("3"), doc3));
@@ -357,14 +352,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
 
             engine.delete(new Engine.Delete("test", "1", newUid("1")));
@@ -378,15 +373,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
-            engine.config().setCompoundOnFlush(true);
             engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.index(new Engine.Index(newUid("4"), doc4));
@@ -400,13 +394,13 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
             assertThat(segments.get(2).isCommitted(), equalTo(false));
             assertThat(segments.get(2).isSearch(), equalTo(true));

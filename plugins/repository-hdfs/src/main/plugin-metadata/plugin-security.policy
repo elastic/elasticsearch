@@ -18,16 +18,9 @@
  */
 
 grant {
-  // used by the plugin to get the TCCL to properly initialize all of Hadoop components
+  // Hadoop UserGroupInformation clinit
   permission java.lang.RuntimePermission "getClassLoader";
 
-  // set TCCL used for bootstrapping Hadoop Configuration and JAAS
-  permission java.lang.RuntimePermission "setContextClassLoader";
-
-  //
-  // Hadoop 2
-  //
-  
   // UserGroupInformation (UGI) Metrics clinit
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
@@ -38,20 +31,8 @@ grant {
   // org.apache.hadoop.util.ShutdownHookManager clinit
   permission java.lang.RuntimePermission "shutdownHooks";
   
-  // UGI triggers JAAS
+  // JAAS is used always, we use a fake subject, hurts nobody
   permission javax.security.auth.AuthPermission "getSubject";
-  
-  // JAAS libraries are not loaded with the proper context in Hadoop, hence why the permission is needed here
-  permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
-  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
-  
-  // plus LoginContext
-  permission javax.security.auth.AuthPermission "modifyPrincipals";
-  
-  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
-  
-  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
-  
   permission javax.security.auth.AuthPermission "doAs";
-  
- };
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+};

@@ -18,15 +18,29 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.security.auth.Subject;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
@@ -35,15 +49,6 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-
-import java.io.IOException;
-import java.net.URI;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
 
 public final class HdfsRepository extends BlobStoreRepository implements FileContextFactory {
 
@@ -104,7 +109,7 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fc.getDefaultFileSystem(), fc.getDefaultFileSystem().getUri(), hdfsPath);
             blobStore = new HdfsBlobStore(repositorySettings.settings(), this, hdfsPath);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", actualUri), e);
         }
         super.doStart();
     }
@@ -146,20 +151,12 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
             }
         }
         if (fc == null) {
-            Thread th = Thread.currentThread();
-            ClassLoader oldCL = th.getContextClassLoader();
-            try {
-                th.setContextClassLoader(getClass().getClassLoader());
-                return initFileContext(repositorySettings);
-            } catch (IOException ex) {
-                throw ex;
-            } finally {
-                th.setContextClassLoader(oldCL);
-            }
+            return initFileContext(repositorySettings);
         }
         return fc;
     }
 
+    @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private FileContext initFileContext(RepositorySettings repositorySettings) throws IOException {
 
         Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
@@ -170,23 +167,34 @@ public final class HdfsRepository extends BlobStoreRepository implements FileCon
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }
-
+        
+        // create a hadoop user. if we want other auth, it must be done different anyway, and tested.
+        Subject subject;
         try {
-            UserGroupInformation.setConfiguration(cfg);
-        } catch (Throwable th) {
-            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot initialize Hadoop"), th);
+            Class<?> clazz = Class.forName("org.apache.hadoop.security.User");
+            Constructor<?> ctor = clazz.getConstructor(String.class);
+            ctor.setAccessible(true);
+            Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
+            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
         }
 
         URI actualUri = URI.create(uri);
-        try {
-            // disable FS cache
-            cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
+        // disable FS cache
+        cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
-            // create the AFS manually since through FileContext is relies on Subject.doAs for no reason at all
-            AbstractFileSystem fs = AbstractFileSystem.get(actualUri, cfg);
-            return FileContext.getFileContext(fs, cfg);
-        } catch (Exception ex) {
-            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
+        // create the AFS manually since through FileContext is relies on Subject.doAs for no reason at all
+        try {
+            return Subject.doAs(subject, new PrivilegedExceptionAction<FileContext>() {
+                @Override
+                public FileContext run() throws IOException {
+                    AbstractFileSystem fs = AbstractFileSystem.get(actualUri, cfg);
+                    return FileContext.getFileContext(fs, cfg);
+                }
+            });
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getException();
         }
     }
 

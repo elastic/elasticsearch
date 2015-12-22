@@ -1018,7 +1018,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 // ignore
             }
         }
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null) {
             indexShard.sync(location);
         }
         indexShard.maybeFlush();

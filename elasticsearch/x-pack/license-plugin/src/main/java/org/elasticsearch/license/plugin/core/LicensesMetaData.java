@@ -102,8 +102,8 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
     public LicensesMetaData fromXContent(XContentParser parser) throws IOException {
         List<License> pre20Licenses = new ArrayList<>(1);
         License license = LICENSE_TOMBSTONE;
-        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            XContentParser.Token token = parser.nextToken();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.text();
                 if (fieldName != null) {

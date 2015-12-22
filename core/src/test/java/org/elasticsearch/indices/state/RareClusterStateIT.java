@@ -56,12 +56,19 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
@@ -171,7 +178,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
 
         Set<String> nodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         nodes.remove(internalCluster().getMasterName());
@@ -200,7 +207,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0ms").build();
+        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0ms").build();
         final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 

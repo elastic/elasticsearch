@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.Aggregator;

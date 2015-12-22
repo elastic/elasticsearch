@@ -32,7 +32,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -61,6 +64,9 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Callback after a failed execution of bulk request.
+         *
+         * Note that in case an instance of <code>InterruptedException</code> is passed, which means that request processing has been
+         * cancelled externally, the thread's interruption status has been restored prior to calling this method.
          */
         void afterBulk(long executionId, BulkRequest request, Throwable failure);
     }

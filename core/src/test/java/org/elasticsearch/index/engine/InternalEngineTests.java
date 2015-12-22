@@ -28,7 +28,17 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
@@ -62,13 +72,25 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -91,7 +113,12 @@ import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -102,7 +129,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
 
@@ -137,7 +169,6 @@ public class InternalEngineTests extends ESTestCase {
             codecName = "default";
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -221,7 +252,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Translog createTranslog(Path translogPath) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
         return new Translog(translogConfig);
     }
 
@@ -239,7 +270,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
 
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, INDEX_SETTINGS), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
@@ -268,7 +299,6 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats().getCount(), equalTo(0l));
             assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-            final boolean defaultCompound = defaultSettings.getSettings().getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -291,7 +321,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
 
             engine.flush();
@@ -303,10 +333,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-
-            engine.config().setCompoundOnFlush(false);
-            engine.onSettingsChanged();
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.index(new Engine.Index(newUid("3"), doc3));
@@ -325,14 +352,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
 
             engine.delete(new Engine.Delete("test", "1", newUid("1")));
@@ -346,15 +373,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
-            engine.config().setCompoundOnFlush(true);
             engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.index(new Engine.Index(newUid("4"), doc4));
@@ -368,13 +394,13 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
 
             assertThat(segments.get(1).isCommitted(), equalTo(false));
             assertThat(segments.get(1).isSearch(), equalTo(true));
             assertThat(segments.get(1).getNumDocs(), equalTo(1));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertThat(segments.get(1).isCompound(), equalTo(false));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
 
             assertThat(segments.get(2).isCommitted(), equalTo(false));
             assertThat(segments.get(2).isSearch(), equalTo(true));
@@ -1943,14 +1969,14 @@ public class InternalEngineTests extends ESTestCase {
         Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
         engine.close();
 
-        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool));
+        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE));
         translog.add(new Translog.Index("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
 
         EngineConfig config = engine.config();
         /* create a TranslogConfig that has been created with a different UUID */
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE);
 
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),

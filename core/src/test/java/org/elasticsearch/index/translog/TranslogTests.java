@@ -36,6 +36,8 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -57,15 +59,29 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  *
@@ -118,12 +134,12 @@ public class TranslogTests extends ESTestCase {
         return new Translog(getTranslogConfig(path));
     }
 
-    protected TranslogConfig getTranslogConfig(Path path) {
+    private TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.settingsBuilder()
-                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
-        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
+        ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
+        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -1387,6 +1403,33 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testTragicEventCanBeAnyException() throws IOException {
+        Path tempDir = createTempDir();
+        final AtomicBoolean fail = new AtomicBoolean();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        assumeFalse("this won't work if we sync on any op",config.isSyncOnEachOperation());
+        Translog translog = getFailableTranslog(fail, config, false, true);
+        LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
+        translog.add(new Translog.Index("test", "1", lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
+        fail.set(true);
+        try {
+            Translog.Location location = translog.add(new Translog.Index("test", "2", lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
+            if (randomBoolean()) {
+                translog.ensureSynced(location);
+            } else {
+                translog.sync();
+            }
+            //TODO once we have a mock FS that can simulate we can also fail on plain sync
+            fail("WTF");
+        } catch (UnknownException ex) {
+            // w00t
+        } catch (TranslogException ex) {
+            assertTrue(ex.getCause() instanceof UnknownException);
+        }
+        assertFalse(translog.isOpen());
+        assertTrue(translog.getTragicException() instanceof  UnknownException);
+    }
+
     public void testFatalIOExceptionsWhileWritingConcurrently() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         final AtomicBoolean fail = new AtomicBoolean(false);
@@ -1432,9 +1475,9 @@ public class TranslogTests extends ESTestCase {
             }
             boolean atLeastOneFailed = false;
             for (Throwable ex : threadExceptions) {
+                assertTrue(ex.toString(), ex instanceof IOException || ex instanceof AlreadyClosedException);
                 if (ex != null) {
                     atLeastOneFailed = true;
-                    break;
                 }
             }
             if (atLeastOneFailed == false) {
@@ -1477,8 +1520,11 @@ public class TranslogTests extends ESTestCase {
             }
         }
     }
-
     private Translog getFailableTranslog(final AtomicBoolean fail, final TranslogConfig config) throws IOException {
+        return getFailableTranslog(fail, config, randomBoolean(), false);
+    }
+
+    private Translog getFailableTranslog(final AtomicBoolean fail, final TranslogConfig config, final boolean paritalWrites, final boolean throwUnknownException) throws IOException {
         return new Translog(config) {
             @Override
             TranslogWriter.ChannelFactory getChannelFactory() {
@@ -1488,7 +1534,7 @@ public class TranslogTests extends ESTestCase {
                     @Override
                     public FileChannel open(Path file) throws IOException {
                         FileChannel channel = factory.open(file);
-                        return new ThrowingFileChannel(fail, randomBoolean(), channel);
+                        return new ThrowingFileChannel(fail, paritalWrites, throwUnknownException, channel);
                     }
                 };
             }
@@ -1498,11 +1544,13 @@ public class TranslogTests extends ESTestCase {
     public static class ThrowingFileChannel extends FilterFileChannel {
         private final AtomicBoolean fail;
         private final boolean partialWrite;
+        private final boolean throwUnknownException;
 
-        public ThrowingFileChannel(AtomicBoolean fail, boolean partialWrite, FileChannel delegate) {
+        public ThrowingFileChannel(AtomicBoolean fail, boolean partialWrite, boolean throwUnknownException, FileChannel delegate) {
             super(delegate);
             this.fail = fail;
             this.partialWrite = partialWrite;
+            this.throwUnknownException = throwUnknownException;
         }
 
         @Override
@@ -1519,19 +1567,27 @@ public class TranslogTests extends ESTestCase {
         public int write(ByteBuffer src) throws IOException {
             if (fail.get()) {
                 if (partialWrite) {
-                    if (src.limit() > 1) {
+                    if (src.hasRemaining()) {
                         final int pos = src.position();
                         final int limit = src.limit();
-                        src.limit(limit / 2);
+                        src.limit(randomIntBetween(pos, limit));
                         super.write(src);
-                        src.position(pos);
                         src.limit(limit);
+                        src.position(pos);
                         throw new IOException("__FAKE__ no space left on device");
                     }
                 }
-                throw new MockDirectoryWrapper.FakeIOException();
+                if (throwUnknownException) {
+                    throw new UnknownException();
+                } else {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
             }
             return super.write(src);
         }
+    }
+
+    private static final class UnknownException extends RuntimeException {
+
     }
 }

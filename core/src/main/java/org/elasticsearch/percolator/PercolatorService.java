@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;

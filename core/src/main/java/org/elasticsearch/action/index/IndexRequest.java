@@ -22,7 +22,11 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,7 +40,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -304,14 +312,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the parent id of this document. If routing is not set, automatically set it as the
-     * routing as well.
+     * Sets the parent id of this document.
      */
     public IndexRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 
@@ -593,7 +597,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveIndexRouting(parent, routing, index));
 
         // resolve timestamp if provided externally
         if (timestamp != null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -32,7 +33,11 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
@@ -45,7 +50,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
         byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
@@ -74,7 +79,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
     public void testMultipleDocsEncryptedFirst() throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
         byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
@@ -107,7 +112,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
                 getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-            DocumentMapper docMapper = mapperParser.parse(mapping);
+            DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
             byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
             byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 

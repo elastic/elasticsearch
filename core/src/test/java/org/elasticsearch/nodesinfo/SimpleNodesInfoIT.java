@@ -31,7 +31,9 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.List;
 
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *

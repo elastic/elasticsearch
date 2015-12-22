@@ -23,8 +23,8 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -46,12 +47,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -316,7 +317,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
                                  .put("index.merge.policy.type", "tiered")
-                                 .put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, "ASYNC")
+                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC.name())
                                  ));
         ensureGreen();
         long termUpto = 0;

@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
@@ -46,7 +45,7 @@ public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
     static {
         BootstrapForTesting.ensureInitialized();
     }
-    
+
     public static Version randomVersion() {
         return VersionUtils.randomVersion(random());
     }

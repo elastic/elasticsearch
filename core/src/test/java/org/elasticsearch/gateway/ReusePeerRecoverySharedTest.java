@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.client;
-import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,7 +88,7 @@ public class ReusePeerRecoverySharedTest {
 
             // Disable allocations while we are closing nodes
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE)).get();
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)).get();
             logger.info("--> full cluster restart");
             restartCluster.run();
 
@@ -105,7 +103,7 @@ public class ReusePeerRecoverySharedTest {
         logger.info("--> disabling allocation while the cluster is shut down", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
         logger.info("--> full cluster restart");
         restartCluster.run();

@@ -21,13 +21,16 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
  * A field data implementation that forbids loading and will throw an {@link IllegalStateException} if you try to load

@@ -27,8 +27,9 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,6 +39,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -48,6 +52,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
+    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder();
+
+    private static final Coordinate[][] EMPTY = new Coordinate[0][];
+
+    private Orientation orientation = Orientation.RIGHT;
 
     // line string defining the shell of the polygon
     private LineStringBuilder shell;
@@ -56,7 +65,7 @@ public class PolygonBuilder extends ShapeBuilder {
     private final ArrayList<LineStringBuilder> holes = new ArrayList<>();
 
     public PolygonBuilder() {
-        this(new ArrayList<Coordinate>(), Orientation.RIGHT);
+        this(Orientation.RIGHT);
     }
 
     public PolygonBuilder(Orientation orientation) {
@@ -64,8 +73,12 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     public PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
-        super(orientation);
+        this.orientation = orientation;
         this.shell = new LineStringBuilder().points(points);
+    }
+
+    public Orientation orientation() {
+        return this.orientation;
     }
 
     public PolygonBuilder point(double longitude, double latitude) {
@@ -101,6 +114,20 @@ public class PolygonBuilder extends ShapeBuilder {
     public PolygonBuilder hole(LineStringBuilder hole) {
         holes.add(hole);
         return this;
+    }
+
+    /**
+     * @return the list of holes defined for this polygon
+     */
+    public List<LineStringBuilder> holes() {
+        return this.holes;
+    }
+
+    /**
+     * @return the list of points of the shell for this polygon
+     */
+    public LineStringBuilder shell() {
+        return this.shell;
     }
 
     /**
@@ -175,6 +202,7 @@ public class PolygonBuilder extends ShapeBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
+        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_COORDINATES);
         coordinatesArray(builder, params);
         builder.endArray();
@@ -356,8 +384,6 @@ public class PolygonBuilder extends ShapeBuilder {
 
         return result;
     }
-
-    private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
     private static Coordinate[][] holes(Edge[] holes, int numHoles) {
         if (numHoles == 0) {
@@ -662,5 +688,45 @@ public class PolygonBuilder extends ShapeBuilder {
                 c.x += 2*DATELINE;
             }
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shell, holes, orientation);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PolygonBuilder other = (PolygonBuilder) obj;
+        return Objects.equals(shell, other.shell) &&
+                Objects.equals(holes, other.holes) &&
+                Objects.equals(orientation,  other.orientation);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        orientation.writeTo(out);
+        shell.writeTo(out);
+        out.writeVInt(holes.size());
+        for (LineStringBuilder hole : holes) {
+            hole.writeTo(out);
+        }
+    }
+
+    @Override
+    public PolygonBuilder readFrom(StreamInput in) throws IOException {
+        PolygonBuilder polyBuilder = new PolygonBuilder(Orientation.readFrom(in));
+        polyBuilder.shell = LineStringBuilder.PROTOTYPE.readFrom(in);
+        int holes = in.readVInt();
+        for (int i = 0; i < holes; i++) {
+            polyBuilder.hole(LineStringBuilder.PROTOTYPE.readFrom(in));
+        }
+        return polyBuilder;
     }
 }

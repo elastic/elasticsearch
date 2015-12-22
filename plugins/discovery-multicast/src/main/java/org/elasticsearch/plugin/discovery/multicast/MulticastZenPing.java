@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.discovery.multicast;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
@@ -149,8 +148,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             // may not even be bound to an interface on this machine! use the first bound address.
             List<InetAddress> addresses = Arrays.asList(networkService.resolveBindHostAddresses(address == null ? null : new String[] { address }));
             NetworkUtils.sortAddresses(addresses);
-            
-            final MulticastChannel.Config config = new MulticastChannel.Config(port, group, bufferSize, ttl, 
+
+            final MulticastChannel.Config config = new MulticastChannel.Config(port, group, bufferSize, ttl,
                                                                                addresses.get(0), deferToInterface);
             SecurityManager sm = System.getSecurityManager();
             if (sm != null) {

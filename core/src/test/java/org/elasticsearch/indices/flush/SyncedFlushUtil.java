@@ -20,8 +20,6 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
@@ -31,9 +29,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-
-import static org.elasticsearch.test.ESIntegTestCase.client;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {

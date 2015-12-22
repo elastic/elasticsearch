@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.test.junit.listeners;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
-import com.carrotsearch.randomizedtesting.TraceFormatting;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -145,7 +142,7 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 
+            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

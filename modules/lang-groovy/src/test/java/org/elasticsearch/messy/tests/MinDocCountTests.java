@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -65,7 +64,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
     private static int cardinality;

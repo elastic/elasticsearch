@@ -19,8 +19,16 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 

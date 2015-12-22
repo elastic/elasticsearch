@@ -19,8 +19,6 @@ package org.elasticsearch.common.lucene.uid;
  * under the License.
  */
 
-import java.io.IOException;
-
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -35,6 +33,8 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.uid.Versions.DocIdAndVersion;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+
+import java.io.IOException;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the

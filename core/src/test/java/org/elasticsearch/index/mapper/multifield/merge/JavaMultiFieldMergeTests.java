@@ -43,7 +43,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
@@ -56,7 +56,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(f, nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
-        DocumentMapper docMapper2 = parser.parse(mapping);
+        DocumentMapper docMapper2 = parser.parse("person", new CompressedXContent(mapping));
 
         docMapper.merge(docMapper2.mapping(), true, false);
 
@@ -77,7 +77,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
-        DocumentMapper docMapper3 = parser.parse(mapping);
+        DocumentMapper docMapper3 = parser.parse("person", new CompressedXContent(mapping));
 
         docMapper.merge(docMapper3.mapping(), true, false);
 
@@ -92,7 +92,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
-        DocumentMapper docMapper4 = parser.parse(mapping);
+        DocumentMapper docMapper4 = parser.parse("person", new CompressedXContent(mapping));
 
         docMapper.merge(docMapper4.mapping(), true, false);
 

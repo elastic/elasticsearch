@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CannedTokenStream;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Token;
+import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -46,7 +51,7 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper stage1 = parser.parse(stage1Mapping);
+        DocumentMapper stage1 = parser.parse("person", new CompressedXContent(stage1Mapping));
 
         String stage2Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -57,7 +62,7 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
-        DocumentMapper stage2 = parser.parse(stage2Mapping);
+        DocumentMapper stage2 = parser.parse("person", new CompressedXContent(stage2Mapping));
 
         stage1.merge(stage2.mapping(), true, false);
         // Just simulated so merge hasn't happened yet

@@ -22,7 +22,6 @@ package org.elasticsearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Structure;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -53,21 +52,21 @@ final class JNACLibrary {
     static native int mlockall(int flags);
 
     static native int geteuid();
-    
+
     /** corresponds to struct rlimit */
     public static final class Rlimit extends Structure implements Structure.ByReference {
         public NativeLong rlim_cur = new NativeLong(0);
         public NativeLong rlim_max = new NativeLong(0);
-        
+
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList(new String[] { "rlim_cur", "rlim_max" });
         }
     }
-    
+
     static native int getrlimit(int resource, Rlimit rlimit);
     static native int setrlimit(int resource, Rlimit rlimit);
-    
+
     static native String strerror(int errno);
 
     private JNACLibrary() {

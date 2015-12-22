@@ -22,6 +22,7 @@ package org.elasticsearch.codecs;
 import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -46,7 +47,7 @@ public class CodecTests extends ESSingleNodeTestCase {
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
-                parser.parse(mapping);
+                parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }
@@ -69,7 +70,7 @@ public class CodecTests extends ESSingleNodeTestCase {
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
-                parser.parse(mapping);
+                parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }

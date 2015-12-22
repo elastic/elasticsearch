@@ -23,7 +23,13 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -71,7 +77,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * TODO: document me!
@@ -107,7 +118,6 @@ public class ShadowEngineTests extends ESTestCase {
             codecName = "default";
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -213,7 +223,7 @@ public class ShadowEngineTests extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
@@ -269,7 +279,6 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0l));
         assertThat(primaryEngine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getSettings().getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -292,7 +301,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertTrue(segments.get(0).isCompound());
         assertThat(segments.get(0).ramTree, nullValue());
 
         // Check that the replica sees nothing
@@ -320,7 +329,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
@@ -329,11 +338,8 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
-
-        primaryEngine.config().setCompoundOnFlush(false);
-        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("3"), doc3));
@@ -352,12 +358,12 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(false));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         // Make visible to shadow replica
         primaryEngine.flush();
@@ -376,12 +382,12 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         primaryEngine.delete(new Engine.Delete("test", "1", newUid("1")));
         primaryEngine.refresh("test");
@@ -394,19 +400,16 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         // Make visible to shadow replica
         primaryEngine.flush();
         replicaEngine.refresh("test");
-
-        primaryEngine.config().setCompoundOnFlush(true);
-        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("4"), doc4));
@@ -420,13 +423,13 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         assertThat(segments.get(2).isCommitted(), equalTo(false));
         assertThat(segments.get(2).isSearch(), equalTo(true));

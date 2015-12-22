@@ -47,14 +47,21 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -152,9 +159,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-        if (config.getSyncInterval().millis() > 0 && config.getThreadPool() != null) {
-            syncScheduler = config.getThreadPool().schedule(config.getSyncInterval(), ThreadPool.Names.SAME, new Sync());
-        }
 
         try {
             if (translogGeneration != null) {
@@ -272,13 +276,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         throw new IllegalArgumentException("can't parse id from file: " + fileName);
     }
 
-    public void updateBuffer(ByteSizeValue bufferSize) {
-        config.setBufferSize(bufferSize.bytesAsInt());
-        try (ReleasableLock lock = writeLock.acquire()) {
-            current.updateBufferSize(config.getBufferSize());
-        }
-    }
-
     /** Returns {@code true} if this {@code Translog} is still open. */
     public boolean isOpen() {
         return closed.get() == false;
@@ -359,7 +356,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     TranslogWriter createWriter(long fileGeneration) throws IOException {
         TranslogWriter newFile;
         try {
-            newFile = TranslogWriter.create(config.getType(), shardId, translogUUID, fileGeneration, location.resolve(getFilename(fileGeneration)), new OnCloseRunnable(), config.getBufferSize(), getChannelFactory());
+            newFile = TranslogWriter.create(shardId, translogUUID, fileGeneration, location.resolve(getFilename(fileGeneration)), new OnCloseRunnable(), getChannelFactory(), config.getBufferSize());
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -424,6 +421,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             closeOnTragicEvent(ex);
             throw ex;
         } catch (Throwable e) {
+            closeOnTragicEvent(e);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
@@ -500,7 +498,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (Throwable ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }
@@ -533,7 +531,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (Throwable ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }
@@ -709,34 +707,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to close view", e);
                 }
-            }
-        }
-    }
-
-    class Sync implements Runnable {
-        @Override
-        public void run() {
-            // don't re-schedule  if its closed..., we are done
-            if (closed.get()) {
-                return;
-            }
-            final ThreadPool threadPool = config.getThreadPool();
-            if (syncNeeded()) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            sync();
-                        } catch (Exception e) {
-                            logger.warn("failed to sync translog", e);
-                        }
-                        if (closed.get() == false) {
-                            syncScheduler = threadPool.schedule(config.getSyncInterval(), ThreadPool.Names.SAME, Sync.this);
-                        }
-                    }
-                });
-            } else {
-                syncScheduler = threadPool.schedule(config.getSyncInterval(), ThreadPool.Names.SAME, Sync.this);
             }
         }
     }
@@ -1186,7 +1156,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-    public enum Durabilty {
+    public enum Durability {
         /**
          * Async durability - translogs are synced based on a time interval.
          */

@@ -37,7 +37,7 @@ public class EnableAllocationDeciderIT extends ESIntegTestCase {
 
     public void testEnableRebalance() throws InterruptedException {
         final String firstNode = internalCluster().startNode();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
         // all shards are relocated to the second node which is not what we want here. It's solely a test for the settings to take effect
         final int numShards = 2;
@@ -64,7 +64,7 @@ public class EnableAllocationDeciderIT extends ESIntegTestCase {
         assertThat("index: [test] expected to be rebalanced on both nodes", test.size(), equalTo(2));
 
         // flip the cluster wide setting such that we can also balance for index test_1 eventually we should have one shard of each index on each node
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL)).get();
         logger.info("--> balance index [test_1]");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test_1");

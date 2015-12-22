@@ -123,8 +123,8 @@ public class CollectorResult implements ToXContent, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder = builder.startObject()
-                .field(NAME.getPreferredName(), toString())
-                .field(REASON.getPreferredName(), reason)
+                .field(NAME.getPreferredName(), getName())
+                .field(REASON.getPreferredName(), getReason())
                 .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
 
         if (!children.isEmpty()) {

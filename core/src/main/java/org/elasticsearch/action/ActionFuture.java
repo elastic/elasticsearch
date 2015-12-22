@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.Future;

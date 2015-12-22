@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
@@ -126,7 +126,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 // manual collection or upon cluster forming.
-                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT, "1s")
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
                 .build();
     }
 
@@ -137,9 +137,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
-        internalCluster().startNodesAsync(2,
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
-                .get();
+        internalCluster().startNodesAsync(2).get();
         assertAcked(prepareCreate("test").setSettings(settingsBuilder()
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE).build()));
@@ -147,6 +145,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        infoService.onMaster();
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
@@ -188,7 +188,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodesAsync(2,
                 // manually control publishing
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "60m").build())
+                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build())
                 .get();
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
         ensureGreen("test");

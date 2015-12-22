@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.plugin
 
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy

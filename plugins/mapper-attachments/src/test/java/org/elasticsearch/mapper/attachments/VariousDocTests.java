@@ -22,6 +22,7 @@ package org.elasticsearch.mapper.attachments;
 import org.apache.tika.io.IOUtils;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -33,7 +34,14 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.*;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.AUTHOR;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_LENGTH;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_TYPE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.DATE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.KEYWORDS;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.LANGUAGE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.NAME;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.TITLE;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -51,7 +59,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
-        docMapper = mapperParser.parse(mapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
     }
 
     /**

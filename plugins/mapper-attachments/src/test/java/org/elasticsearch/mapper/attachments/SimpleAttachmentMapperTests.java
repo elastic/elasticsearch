@@ -30,12 +30,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -45,7 +46,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
     public void testSimpleMappings() throws Exception {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
@@ -57,7 +58,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
-        docMapper = mapperParser.parse(builtMapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
 
         json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 
@@ -73,7 +74,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build(),
             getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
@@ -88,7 +89,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
     public void testSimpleMappingsWithAllFields() throws Exception {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping-all-fields.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
@@ -100,7 +101,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
-        docMapper = mapperParser.parse(builtMapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
 
         json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 

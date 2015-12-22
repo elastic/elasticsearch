@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchParseException;
 
 import java.io.IOException;
 import java.text.ParseException;

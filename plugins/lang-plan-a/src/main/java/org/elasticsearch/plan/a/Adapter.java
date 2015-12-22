@@ -19,14 +19,16 @@
 
 package org.elasticsearch.plan.a;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 
-import static org.elasticsearch.plan.a.Definition.*;
-import static org.elasticsearch.plan.a.PlanAParser.*;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.elasticsearch.plan.a.Definition.Cast;
+import static org.elasticsearch.plan.a.Definition.Type;
+import static org.elasticsearch.plan.a.PlanAParser.ExpressionContext;
+import static org.elasticsearch.plan.a.PlanAParser.PrecedenceContext;
 
 class Adapter {
     static class StatementMetadata {
@@ -226,7 +228,7 @@ class Adapter {
 
         return sourceemd;
     }
-    
+
     ExpressionMetadata getExpressionMetadata(final ParserRuleContext source) {
         final ExpressionMetadata sourceemd = expressionMetadata.get(source);
 

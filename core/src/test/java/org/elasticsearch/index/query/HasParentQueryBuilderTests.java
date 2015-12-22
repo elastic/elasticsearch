@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
@@ -45,10 +44,9 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.containsString;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -245,20 +243,20 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"has_parent\" : {\n" + 
-                "    \"query\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"tag\" : {\n" + 
-                "          \"value\" : \"something\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"parent_type\" : \"blog\",\n" + 
-                "    \"score\" : true,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"has_parent\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"tag\" : {\n" +
+                "          \"value\" : \"something\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"parent_type\" : \"blog\",\n" +
+                "    \"score\" : true,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

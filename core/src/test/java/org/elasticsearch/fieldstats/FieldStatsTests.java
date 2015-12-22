@@ -33,10 +33,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */

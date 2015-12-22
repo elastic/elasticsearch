@@ -87,7 +87,7 @@ public class InternalProfileCollector implements Collector {
     /**
      * Creates a human-friendly representation of the Collector name.
      *
-     * Bucket Collectors use the aggregation name in their toString() method,
+     * InternalBucket Collectors use the aggregation name in their toString() method,
      * which makes the profiled output a bit nicer.
      *
      * @param c The Collector to derive a name from

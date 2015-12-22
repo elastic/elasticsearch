@@ -50,8 +50,8 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
-                .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 5)
+                .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), 10)
                 .build();
     }
 
@@ -69,7 +69,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
     private void removePublishTimeout() {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
     }
 
     public void testClusterUpdateSettingsAcknowledgement() {

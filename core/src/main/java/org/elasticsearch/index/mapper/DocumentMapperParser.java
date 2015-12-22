@@ -37,7 +37,9 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
@@ -74,32 +76,11 @@ public class DocumentMapperParser {
         return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher);
     }
 
-    public DocumentMapper parse(String source) throws MapperParsingException {
-        return parse(null, source);
-    }
-
-    public DocumentMapper parse(@Nullable String type, String source) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         return parse(type, source, null);
     }
 
-    public DocumentMapper parse(@Nullable String type, String source, String defaultSource) throws MapperParsingException {
-        Map<String, Object> mapping = null;
-        if (source != null) {
-            Tuple<String, Map<String, Object>> t = extractMapping(type, source);
-            type = t.v1();
-            mapping = t.v2();
-        }
-        if (mapping == null) {
-            mapping = new HashMap<>();
-        }
-        return parse(type, mapping, defaultSource);
-    }
-
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parseCompressed(type, source, null);
-    }
-
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true).v2();

@@ -37,7 +37,11 @@ import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Service responsible for submitting add and remove aliases requests

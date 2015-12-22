@@ -21,8 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -33,24 +31,17 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
@@ -68,9 +59,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -123,14 +114,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> set test persistent setting");
         client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.settingsBuilder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
-                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, random, TimeUnit.MINUTES))
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(), random, TimeUnit.MINUTES))
                 .execute().actionGet();
 
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), equalTo(2));
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1), equalTo(2));
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -146,23 +137,26 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> clean the test persistent setting");
         client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.settingsBuilder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 1)
-                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)))
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 1)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(1)))
                 .execute().actionGet();
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
 
         stopNode(secondNode);
         assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut(), equalTo(false));
 
         logger.info("--> restore snapshot");
-        client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).execute().actionGet();
-        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
-
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).execute().actionGet();
+            fail("can't restore minimum master nodes");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("illegal value can't update [discovery.zen.minimum_master_nodes] from [1] to [2]", ex.getMessage());
+            assertEquals("cannot set discovery.zen.minimum_master_nodes to more than the current master nodes count [1]", ex.getCause().getMessage());
+        }
         logger.info("--> ensure that zen discovery minimum master nodes wasn't restored");
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), not(equalTo(2)));
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1), not(equalTo(2)));
     }
 
     public void testRestoreCustomMetadata() throws Exception {
@@ -554,7 +548,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
         Settings nodeSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                 .build();
 
         internalCluster().startNode(nodeSettings);
@@ -897,78 +891,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
         ));
-    }
-
-    public static abstract class TestCustomMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
-        private final String data;
-
-        protected TestCustomMetaData(String data) {
-            this.data = data;
-        }
-
-        public String getData() {
-            return data;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TestCustomMetaData that = (TestCustomMetaData) o;
-
-            if (!data.equals(that.data)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return data.hashCode();
-        }
-
-        protected abstract TestCustomMetaData newTestCustomMetaData(String data);
-
-        @Override
-        public Custom readFrom(StreamInput in) throws IOException {
-            return newTestCustomMetaData(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getData());
-        }
-
-        @Override
-        public Custom fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            String data = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    if ("data".equals(currentFieldName)) {
-                        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                            throw new ElasticsearchParseException("failed to parse snapshottable metadata, invalid data type");
-                        }
-                        data = parser.text();
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [{}]", currentFieldName);
-                    }
-                } else {
-                    throw new ElasticsearchParseException("failed to parse snapshottable metadata");
-                }
-            }
-            if (data == null) {
-                throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
-            }
-            return newTestCustomMetaData(data);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.field("data", getData());
-            return builder;
-        }
     }
 
 

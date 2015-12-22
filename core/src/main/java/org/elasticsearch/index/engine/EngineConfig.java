@@ -53,7 +53,6 @@ public final class EngineConfig {
     private volatile ByteSizeValue indexingBufferSize;
     private volatile ByteSizeValue versionMapSize;
     private volatile String versionMapSizeSetting;
-    private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
@@ -72,11 +71,6 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-
-    /**
-     * Index setting for compound file on flush. This setting is realtime updateable.
-     */
-    public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
 
     /**
      * Index setting to enable / disable deletes garbage collection.
@@ -132,7 +126,6 @@ public final class EngineConfig {
         this.similarity = similarity;
         this.codecService = codecService;
         this.eventListener = eventListener;
-        this.compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
         indexingBufferSize = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
@@ -206,13 +199,6 @@ public final class EngineConfig {
      */
     public ByteSizeValue getIndexingBufferSize() {
         return indexingBufferSize;
-    }
-
-    /**
-     * Returns <code>true</code> iff flushed segments should be written as compound file system. Defaults to <code>true</code>
-     */
-    public boolean isCompoundOnFlush() {
-        return compoundOnFlush;
     }
 
     /**
@@ -344,13 +330,6 @@ public final class EngineConfig {
      */
     public void setGcDeletesInMillis(long gcDeletesInMillis) {
         this.gcDeletesInMillis = gcDeletesInMillis;
-    }
-
-    /**
-     * Sets if flushed segments should be written as compound file system. Defaults to <code>true</code>
-     */
-    public void setCompoundOnFlush(boolean compoundOnFlush) {
-        this.compoundOnFlush = compoundOnFlush;
     }
 
     /**

@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -360,7 +359,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             // Disable allocations while we are closing nodes
             client().admin().cluster().prepareUpdateSettings()
                     .setTransientSettings(settingsBuilder()
-                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                     .get();
             logger.info("--> full cluster restart");
             internalCluster().fullRestart();
@@ -377,7 +376,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();

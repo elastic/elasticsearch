@@ -19,7 +19,6 @@
 package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;

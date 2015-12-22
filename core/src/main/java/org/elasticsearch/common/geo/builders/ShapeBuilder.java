@@ -26,7 +26,6 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -42,7 +41,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
@@ -77,14 +80,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
     protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
-    protected Orientation orientation = Orientation.RIGHT;
-
     protected ShapeBuilder() {
 
-    }
-
-    protected ShapeBuilder(Orientation orientation) {
-        this.orientation = orientation;
     }
 
     protected static Coordinate coordinate(double longitude, double latitude) {
@@ -184,22 +181,6 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
     protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
         return new Coordinate(in.readDouble(), in.readDouble());
-    }
-
-    public static Orientation orientationFromString(String orientation) {
-        orientation = orientation.toLowerCase(Locale.ROOT);
-        switch (orientation) {
-            case "right":
-            case "counterclockwise":
-            case "ccw":
-                return Orientation.RIGHT;
-            case "left":
-            case "clockwise":
-            case "cw":
-                return Orientation.LEFT;
-            default:
-                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-        }
     }
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
@@ -408,6 +389,30 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
         public static final Orientation CW = Orientation.LEFT;
         public static final Orientation CCW = Orientation.RIGHT;
+
+        public void writeTo (StreamOutput out) throws IOException {
+            out.writeBoolean(this == Orientation.RIGHT);
+        }
+
+        public static Orientation readFrom (StreamInput in) throws IOException {
+            return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
+        }
+
+        public static Orientation fromString(String orientation) {
+            orientation = orientation.toLowerCase(Locale.ROOT);
+            switch (orientation) {
+                case "right":
+                case "counterclockwise":
+                case "ccw":
+                    return Orientation.RIGHT;
+                case "left":
+                case "clockwise":
+                case "cw":
+                    return Orientation.LEFT;
+                default:
+                    throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+            }
+        }
     }
 
     public static final String FIELD_TYPE = "type";
@@ -498,7 +503,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                         radius = Distance.parseDistance(parser.text());
                     } else if (FIELD_ORIENTATION.equals(fieldName)) {
                         parser.nextToken();
-                        requestedOrientation = orientationFromString(parser.text());
+                        requestedOrientation = Orientation.fromString(parser.text());
                     } else {
                         parser.nextToken();
                         parser.skipChildren();
@@ -524,7 +529,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 case POLYGON: return parsePolygon(node, requestedOrientation, coerce);
                 case MULTIPOLYGON: return parseMultiPolygon(node, requestedOrientation, coerce);
                 case CIRCLE: return parseCircle(node, radius);
-                case ENVELOPE: return parseEnvelope(node, requestedOrientation);
+                case ENVELOPE: return parseEnvelope(node);
                 case GEOMETRYCOLLECTION: return geometryCollections;
                 default:
                     throw new ElasticsearchParseException("shape type [{}] not included", shapeType);
@@ -550,7 +555,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
             return ShapeBuilders.newCircleBuilder().center(coordinates.coordinate).radius(radius);
         }
 
-        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates, final Orientation orientation) {
+        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
             // validate the coordinate array for envelope type
             if (coordinates.children.size() != 2) {
                 throw new ElasticsearchParseException("invalid number of points [{}] provided for " +
@@ -564,7 +569,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
                 lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
             }
-            return ShapeBuilders.newEnvelope(orientation).topLeft(uL).bottomRight(lR);
+            return ShapeBuilders.newEnvelope().topLeft(uL).bottomRight(lR);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {
@@ -684,8 +689,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
             }
 
             XContentParser.Token token = parser.nextToken();
-            GeometryCollectionBuilder geometryCollection = ShapeBuilders.newGeometryCollection( (mapper == null) ? Orientation.RIGHT : mapper
-                    .fieldType().orientation());
+            GeometryCollectionBuilder geometryCollection = ShapeBuilders.newGeometryCollection();
             while (token != XContentParser.Token.END_ARRAY) {
                 ShapeBuilder shapeBuilder = GeoShapeType.parse(parser);
                 geometryCollection.shape(shapeBuilder);
@@ -699,16 +703,5 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     @Override
     public String getWriteableName() {
         return type().shapeName();
-    }
-
-    // NORELEASE this should be deleted as soon as all shape builders implement writable
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
-
-    // NORELEASE this should be deleted as soon as all shape builders implement writable
-    @Override
-    public ShapeBuilder readFrom(StreamInput in) throws IOException {
-        return null;
     }
 }

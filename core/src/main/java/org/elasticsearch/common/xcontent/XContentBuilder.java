@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.nio.charset.StandardCharsets;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -42,6 +40,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.Date;

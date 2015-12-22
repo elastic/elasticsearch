@@ -33,7 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -627,6 +627,13 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads a {@link ShapeBuilder} from the current stream
+     */
+    public ShapeBuilder readShape() throws IOException {
+        return readNamedWriteable(ShapeBuilder.class);
     }
 
     /**

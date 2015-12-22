@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
-import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 
 import java.io.InputStream;

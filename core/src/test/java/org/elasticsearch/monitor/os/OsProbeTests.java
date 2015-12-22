@@ -22,7 +22,15 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
     OsProbe probe = OsProbe.getInstance();

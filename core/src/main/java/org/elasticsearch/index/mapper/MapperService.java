@@ -20,14 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -52,13 +55,24 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -199,7 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             // NOTE: never apply the default here
-            DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
+            DocumentMapper mapper = documentParser.parse(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
             try (ReleasableLock lock = mappingWriteLock.acquire()) {
@@ -308,7 +322,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // Before 3.0 some metadata mappers are also registered under the root object mapper
             // So we avoid false positives by deduplicating mappers
             // given that we check exact equality, this would still catch the case that a mapper
-            // is defined under the root object 
+            // is defined under the root object
             Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<>());
             uniqueFieldMappers.addAll(fieldMappers);
             fieldMappers = uniqueFieldMappers;
@@ -378,7 +392,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }  else {
             defaultMappingSource = this.defaultMappingSource;
         }
-        return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     public boolean hasMapping(String mappingType) {

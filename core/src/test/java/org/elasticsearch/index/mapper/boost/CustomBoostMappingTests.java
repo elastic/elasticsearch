@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.boost;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -39,7 +40,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                 .startObject("date_field").field("type", "date").startObject("norms").field("enabled", true).endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("s_field").field("value", "s_value").field("boost", 2.0f).endObject()

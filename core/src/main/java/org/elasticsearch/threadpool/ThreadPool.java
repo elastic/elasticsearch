@@ -20,13 +20,13 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.SizeValue;
@@ -38,14 +38,26 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -172,7 +184,7 @@ public class ThreadPool extends AbstractComponent {
         }
     }
 
-    public static final String THREADPOOL_GROUP = "threadpool.";
+    public static final Setting<Settings> THREADPOOL_GROUP_SETTING = Setting.groupSetting("threadpool.", true, Setting.Scope.CLUSTER);
 
     private volatile Map<String, ExecutorHolder> executors;
 
@@ -184,7 +196,7 @@ public class ThreadPool extends AbstractComponent {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    private boolean settingsListenerIsSet = false;
+    private final AtomicBoolean settingsListenerIsSet = new AtomicBoolean(false);
 
     static final Executor DIRECT_EXECUTOR = command -> command.run();
 
@@ -197,7 +209,8 @@ public class ThreadPool extends AbstractComponent {
 
         assert settings.get("name") != null : "ThreadPool's settings should contain a name";
 
-        Map<String, Settings> groupSettings = getThreadPoolSettingsGroup(settings);
+        Map<String, Settings> groupSettings = THREADPOOL_GROUP_SETTING.get(settings).getAsGroups();
+        validate(groupSettings);
 
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
@@ -252,18 +265,12 @@ public class ThreadPool extends AbstractComponent {
         this.estimatedTimeThread.start();
     }
 
-    private Map<String, Settings> getThreadPoolSettingsGroup(Settings settings) {
-        Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
-        validate(groupSettings);
-        return groupSettings;
-    }
-
-    public void setNodeSettingsService(NodeSettingsService nodeSettingsService) {
-        if(settingsListenerIsSet) {
+    public void setClusterSettings(ClusterSettings clusterSettings) {
+        if(settingsListenerIsSet.compareAndSet(false, true)) {
+            clusterSettings.addSettingsUpdateConsumer(THREADPOOL_GROUP_SETTING, this::updateSettings, (s) -> validate(s.getAsGroups()));
+        } else {
             throw new IllegalStateException("the node settings listener was set more then once");
         }
-        nodeSettingsService.addListener(new ApplySettings());
-        settingsListenerIsSet = true;
     }
 
     public long estimatedTimeInMillis() {
@@ -526,8 +533,8 @@ public class ThreadPool extends AbstractComponent {
         throw new IllegalArgumentException("No type found [" + type + "], for [" + name + "]");
     }
 
-    public void updateSettings(Settings settings) {
-        Map<String, Settings> groupSettings = getThreadPoolSettingsGroup(settings);
+    private void updateSettings(Settings settings) {
+        Map<String, Settings> groupSettings = settings.getAsGroups();
         if (groupSettings.isEmpty()) {
             return;
         }
@@ -583,7 +590,7 @@ public class ThreadPool extends AbstractComponent {
             ThreadPoolType correctThreadPoolType = THREAD_POOL_TYPES.get(key);
             // TODO: the type equality check can be removed after #3760/#6732 are addressed
             if (type != null && !correctThreadPoolType.getType().equals(type)) {
-                throw new IllegalArgumentException("setting " + THREADPOOL_GROUP + key + ".type to " + type + " is not permitted; must be " + correctThreadPoolType.getType());
+                throw new IllegalArgumentException("setting " + THREADPOOL_GROUP_SETTING.getKey() + key + ".type to " + type + " is not permitted; must be " + correctThreadPoolType.getType());
             }
         }
     }
@@ -866,13 +873,6 @@ public class ThreadPool extends AbstractComponent {
 
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            updateSettings(settings);
-        }
-    }
-
     /**
      * Returns <code>true</code> if the given service was terminated successfully. If the termination timed out,
      * the service is <code>null</code> this method will return <code>false</code>.
@@ -911,38 +911,4 @@ public class ThreadPool extends AbstractComponent {
         }
         return false;
     }
-
-    public static ThreadPoolTypeSettingsValidator THREAD_POOL_TYPE_SETTINGS_VALIDATOR = new ThreadPoolTypeSettingsValidator();
-    private static class ThreadPoolTypeSettingsValidator implements Validator {
-        @Override
-        public String validate(String setting, String value, ClusterState clusterState) {
-            // TODO: the type equality validation can be removed after #3760/#6732 are addressed
-            Matcher matcher = Pattern.compile("threadpool\\.(.*)\\.type").matcher(setting);
-            if (!matcher.matches()) {
-                return null;
-            } else {
-                String threadPool = matcher.group(1);
-                ThreadPool.ThreadPoolType defaultThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPool);
-                ThreadPool.ThreadPoolType threadPoolType;
-                try {
-                    threadPoolType = ThreadPool.ThreadPoolType.fromType(value);
-                } catch (IllegalArgumentException e) {
-                    return e.getMessage();
-                }
-                if (defaultThreadPoolType.equals(threadPoolType)) {
-                    return null;
-                } else {
-                    return String.format(
-                            Locale.ROOT,
-                            "thread pool type for [%s] can only be updated to [%s] but was [%s]",
-                            threadPool,
-                            defaultThreadPoolType.getType(),
-                            threadPoolType.getType()
-                    );
-                }
-            }
-
-        }
-    }
-
 }

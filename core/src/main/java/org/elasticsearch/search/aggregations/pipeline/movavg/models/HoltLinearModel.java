@@ -29,7 +29,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * Calculate a doubly exponential weighted moving average

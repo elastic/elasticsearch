@@ -27,10 +27,12 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IndicesStatsTests extends ESSingleNodeTestCase {
-    
+
     public void testSegmentStatsEmptyIndex() {
         createIndex("test");
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
@@ -41,7 +43,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(0, stats.getNormsMemoryInBytes());
         assertEquals(0, stats.getDocValuesMemoryInBytes());
     }
-    
+
     public void testSegmentStats() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

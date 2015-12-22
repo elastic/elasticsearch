@@ -124,7 +124,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         } else if (key instanceof Number) {
             return ((Number) key).longValue();
         } else {
-            throw new AggregationExecutionException("Bucket keys must be either a Number or a DateTime for aggregation " + name()
+            throw new AggregationExecutionException("InternalBucket keys must be either a Number or a DateTime for aggregation " + name()
                     + ". Found bucket with key " + key);
         }
     }

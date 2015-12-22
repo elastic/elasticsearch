@@ -184,7 +184,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setDistanceErrorPct(Double.parseDouble(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.ORIENTATION.equals(fieldName)) {
-                    builder.fieldType().setOrientation(ShapeBuilder.orientationFromString(fieldNode.toString()));
+                    builder.fieldType().setOrientation(ShapeBuilder.Orientation.fromString(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.fieldType().setStrategyName(fieldNode.toString());

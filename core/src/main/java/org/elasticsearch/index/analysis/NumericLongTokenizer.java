@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.NumericTokenStream;
 
 import java.io.IOException;
-import java.io.Reader;
 
 /**
  *

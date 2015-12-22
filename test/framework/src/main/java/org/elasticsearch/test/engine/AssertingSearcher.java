@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;

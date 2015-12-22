@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.common.text;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if

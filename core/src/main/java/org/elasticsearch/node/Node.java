@@ -44,6 +44,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -75,7 +76,6 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -164,7 +164,6 @@ public class Node implements Releasable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
         boolean success = false;
@@ -180,7 +179,7 @@ public class Node implements Releasable {
             modules.add(new PluginsModule(pluginsService));
             modules.add(new SettingsModule(this.settings, settingsFilter));
             modules.add(new EnvironmentModule(environment));
-            modules.add(new NodeModule(this, nodeSettingsService, monitorService));
+            modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false));
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
@@ -204,7 +203,7 @@ public class Node implements Releasable {
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setNodeSettingsService(injector.getInstance(NodeSettingsService.class));
+            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

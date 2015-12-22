@@ -29,7 +29,8 @@ import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.netty.NettyTransport;
 
-import java.io.*;
+import java.io.FilePermission;
+import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -49,7 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 
+/**
  * Initializes SecurityManager with necessary permissions.
  * <br>
  * <h1>Initialization</h1>
@@ -105,8 +106,8 @@ import java.util.Map;
 final class Security {
     /** no instantiation */
     private Security() {}
-       
-    /** 
+
+    /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
      * @param environment configuration for generating dynamic permissions
@@ -266,11 +267,11 @@ final class Security {
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
     }
-    
+
     static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
         // http is simple
-        String httpRange = settings.get("http.netty.port", 
-                               settings.get("http.port", 
+        String httpRange = settings.get("http.netty.port",
+                               settings.get("http.port",
                                        NettyHttpServerTransport.DEFAULT_PORT_RANGE));
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
@@ -287,8 +288,8 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port", 
-                                        settings.get("transport.tcp.port", 
+            String transportRange = profileSettings.get("port",
+                                        settings.get("transport.tcp.port",
                                                 NettyTransport.DEFAULT_PORT_RANGE));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
@@ -300,7 +301,7 @@ final class Security {
             }
         }
     }
-    
+
     /**
      * Add access to path (and all files underneath it)
      * @param policy current policy to add permissions to
@@ -320,7 +321,7 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-    
+
     /**
      * Ensures configured directory {@code path} exists.
      * @throws IOException if {@code path} exists, but is not a directory, not accessible, or broken symbolic link.

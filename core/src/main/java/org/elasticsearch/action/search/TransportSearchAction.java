@@ -20,7 +20,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,7 +39,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.search.SearchType.*;
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
+import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 
 /**
  *

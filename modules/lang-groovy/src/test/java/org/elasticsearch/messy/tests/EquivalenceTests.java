@@ -20,7 +20,6 @@
 package org.elasticsearch.messy.tests;
 
 import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -78,7 +77,7 @@ public class EquivalenceTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {

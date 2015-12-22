@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -39,8 +38,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -65,10 +64,10 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final float balanceTreshold = 1.0f;
 
         Settings.Builder settings = settingsBuilder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
-        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
-        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
 
         AllocationService strategy = createAllocationService(settings.build());
 
@@ -90,10 +89,10 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final float balanceTreshold = 1.0f;
 
         Settings.Builder settings = settingsBuilder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
-        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
-        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
 
         AllocationService strategy = createAllocationService(settings.build());
 
@@ -279,36 +278,30 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     public void testPersistedSettings() {
         Settings.Builder settings = settingsBuilder();
-        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
-        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.3);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 2.0);
-        final NodeSettingsService.Listener[] listeners = new NodeSettingsService.Listener[1];
-        NodeSettingsService service = new NodeSettingsService(settingsBuilder().build()) {
-
-            @Override
-            public void addListener(Listener listener) {
-                assertNull("addListener was called twice while only one time was expected", listeners[0]);
-                listeners[0] = listener;
-            }
-
-        };
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
+        ClusterSettings service = new ClusterSettings(settingsBuilder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
 
         settings = settingsBuilder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
-        listeners[0].onRefreshSettings(settings.build());
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        service.applySettings(settings.build());
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
 
         settings = settingsBuilder();
-        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.5);
-        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.1);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 3.0);
-        listeners[0].onRefreshSettings(settings.build());
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.1);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 3.0);
+        service.applySettings(settings.build());
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.5f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.1f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(3.0f));
@@ -317,7 +310,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
-                new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
+                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
                 NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
 
             @Override

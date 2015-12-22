@@ -67,16 +67,6 @@ final class HdfsBlobStore implements BlobStore {
     }
 
     @Override
-    public String toString() {
-        return root.toUri().toString();
-    }
-
-    @Override
-    public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize);
-    }
-
-    @Override
     public void delete(BlobPath path) throws IOException {
         execute(new Operation<Void>() {
             @Override
@@ -85,6 +75,16 @@ final class HdfsBlobStore implements BlobStore {
                 return null;
             }
         });
+    }
+
+    @Override
+    public String toString() {
+        return root.toUri().toString();
+    }
+
+    @Override
+    public BlobContainer blobContainer(BlobPath path) {
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize);
     }
 
     private Path buildHdfsPath(BlobPath blobPath) {
@@ -107,7 +107,6 @@ final class HdfsBlobStore implements BlobStore {
         return path;
     }
     
-    
     interface Operation<V> {
         V run(FileContext fileContext) throws IOException;
     }
@@ -122,7 +121,7 @@ final class HdfsBlobStore implements BlobStore {
             sm.checkPermission(new SpecialPermission());
         }
         if (closed) {
-            throw new AlreadyClosedException("HdfsBlobStore is closed: " + root);
+            throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }
         try {
             return AccessController.doPrivileged(new PrivilegedExceptionAction<V>() {

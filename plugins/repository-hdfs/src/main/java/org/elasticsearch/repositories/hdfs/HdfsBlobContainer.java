@@ -131,14 +131,14 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String prefix) throws IOException {
         FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
             @Override
             public FileStatus[] run(FileContext fileContext) throws IOException {
                 return (fileContext.util().listStatus(path, new PathFilter() {
                     @Override
                     public boolean accept(Path path) {
-                        return path.getName().startsWith(blobNamePrefix);
+                        return prefix == null || path.getName().startsWith(prefix);
                     }
                 }));
             }
@@ -152,16 +152,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
-        FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
-            @Override
-            public FileStatus[] run(FileContext fileContext) throws IOException {
-                return fileContext.util().listStatus(path);
-            }
-        });
-        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
-        for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
-        }
-        return Collections.unmodifiableMap(map);
+        return listBlobsByPrefix(null);
     }
 }

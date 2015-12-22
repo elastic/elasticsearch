@@ -215,64 +215,6 @@ public enum VersionType implements Writeable<VersionType> {
 
     },
     /**
-     * Like INTERNAL but preserves the version on write. Like EXTERNAL but only writes on exact match. Meant for use with the _reindex API.
-     */
-    REINDEX((byte) 4) {
-        @Override
-        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            return isVersionConflict(currentVersion, expectedVersion, deleted);
-        }
-
-        @Override
-        public String explainConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            if (expectedVersion == Versions.MATCH_DELETED) {
-                return "document already exists (current version [" + currentVersion + "])";
-            }
-            return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
-        }
-
-        @Override
-        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
-            return isVersionConflict(currentVersion, expectedVersion, false);
-        }
-
-        @Override
-        public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
-        }
-
-        private boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_SET) {
-                return false;
-            }
-            if (expectedVersion == Versions.MATCH_ANY) {
-                return false;
-            }
-            if (expectedVersion == Versions.MATCH_DELETED) {
-                return deleted == false;
-            }
-            if (currentVersion != expectedVersion) {
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public long updateVersion(long currentVersion, long expectedVersion) {
-            return expectedVersion;
-        }
-
-        @Override
-        public boolean validateVersionForWrites(long version) {
-            return version >= 0L;
-        }
-
-        @Override
-        public boolean validateVersionForReads(long version) {
-            return version >= 0L || version == Versions.MATCH_ANY;
-        }
-    },
-    /**
      * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
      */
     FORCE((byte) 3) {
@@ -407,21 +349,18 @@ public enum VersionType implements Writeable<VersionType> {
     }
 
     public static VersionType fromString(String versionType) {
-        switch (versionType) {
-        case "internal":
+        if ("internal".equals(versionType)) {
             return INTERNAL;
-        case "external":
-        case "external_gt":
+        } else if ("external".equals(versionType)) {
             return EXTERNAL;
-        case "external_gte":
+        } else if ("external_gt".equals(versionType)) {
+            return EXTERNAL;
+        } else if ("external_gte".equals(versionType)) {
             return EXTERNAL_GTE;
-        case "force":
+        } else if ("force".equals(versionType)) {
             return FORCE;
-        case "reindex":
-            return REINDEX;
-        default:
-            throw new IllegalArgumentException("No version type match [" + versionType + "]");
         }
+        throw new IllegalArgumentException("No version type match [" + versionType + "]");
     }
 
     public static VersionType fromString(String versionType, VersionType defaultVersionType) {
@@ -432,26 +371,22 @@ public enum VersionType implements Writeable<VersionType> {
     }
 
     public static VersionType fromValue(byte value) {
-        switch (value) {
-        case 0:
+        if (value == 0) {
             return INTERNAL;
-        case 1:
+        } else if (value == 1) {
             return EXTERNAL;
-        case 2:
+        } else if (value == 2) {
             return EXTERNAL_GTE;
-        case 3:
+        } else if (value == 3) {
             return FORCE;
-        case 4:
-            return REINDEX;
-        default:
-            throw new IllegalArgumentException("No version type match [" + value + "]");
         }
+        throw new IllegalArgumentException("No version type match [" + value + "]");
     }
 
     @Override
     public VersionType readFrom(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
-        assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3 || ordinal == 4);
+        assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
         return VersionType.values()[ordinal];
     }
 

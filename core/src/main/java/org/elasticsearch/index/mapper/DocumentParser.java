@@ -596,40 +596,22 @@ class DocumentParser implements Closeable {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return null;
         }
+        final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fullName(context.path().pathAsText(currentFieldName));
+        final MappedFieldType existingFieldType = context.mapperService().fullName(path);
         Mapper.Builder builder = null;
         if (existingFieldType != null) {
             // create a builder of the same type
             builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-            if (builder != null) {
-                // best-effort to not introduce a conflict
-                if (builder instanceof StringFieldMapper.Builder) {
-                    StringFieldMapper.Builder stringBuilder = (StringFieldMapper.Builder) builder;
-                    stringBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
-                    stringBuilder.store(existingFieldType.stored());
-                    stringBuilder.indexOptions(existingFieldType.indexOptions());
-                    stringBuilder.tokenized(existingFieldType.tokenized());
-                    stringBuilder.omitNorms(existingFieldType.omitNorms());
-                    stringBuilder.docValues(existingFieldType.hasDocValues());
-                    stringBuilder.indexAnalyzer(existingFieldType.indexAnalyzer());
-                    stringBuilder.searchAnalyzer(existingFieldType.searchAnalyzer());
-                } else if (builder instanceof NumberFieldMapper.Builder) {
-                    NumberFieldMapper.Builder<?,?> numberBuilder = (NumberFieldMapper.Builder<?, ?>) builder;
-                    numberBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
-                    numberBuilder.store(existingFieldType.stored());
-                    numberBuilder.indexOptions(existingFieldType.indexOptions());
-                    numberBuilder.tokenized(existingFieldType.tokenized());
-                    numberBuilder.omitNorms(existingFieldType.omitNorms());
-                    numberBuilder.docValues(existingFieldType.hasDocValues());
-                    numberBuilder.precisionStep(existingFieldType.numericPrecisionStep());
-                }
-            }
         }
         if (builder == null) {
             builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         }
         Mapper mapper = builder.build(builderContext);
+        if (existingFieldType != null) {
+            // try to not introduce a conflict
+            mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));
+        }
 
         mapper = parseAndMergeUpdate(mapper, context);
 

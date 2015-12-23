@@ -1,5 +1,5 @@
 ---
-"Test metadata templateing":
+"Test metadata templating":
   - do:
       cluster.health:
           wait_for_status: green
@@ -45,7 +45,7 @@
   - match: { _source.metadata: ["test", "test", "1"] }
 
 ---
-"Test templateing":
+"Test templating":
   - do:
       cluster.health:
           wait_for_status: green
@@ -169,3 +169,52 @@
         id: 1
   - length: { _source: 1 }
   - match: { _source.field_to_remove: "field2" }
+
+---
+"Test on_failure metadata context templating":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_handled_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "field_to_remove",
+                  "on_failure" : [
+                    {
+                      "set" : {
+                        "field" : "error",
+                        "value" : "processor [{{ _ingest.on_failure_processor }}]: {{ _ingest.on_failure_message }}"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_handled_pipeline" }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_handled_pipeline"
+        body: {
+          do_nothing: "foo",
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - length: { _source: 2 }
+  - match: { _source.do_nothing: "foo" }
+  - match: { _source.error: "processor [remove]: field [field_to_remove] not present as part of path [field_to_remove]" }

@@ -25,6 +25,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +33,8 @@ import java.util.stream.Collectors;
  * "onFailureProcessors" when any of the processors throw an {@link Exception}.
  */
 public class CompoundProcessor implements Processor {
+    static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
+    static final String ON_FAILURE_PROCESSOR_FIELD = "on_failure_processor";
 
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
@@ -59,23 +62,31 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        try {
-            for (Processor processor : processors) {
+        for (Processor processor : processors) {
+            try {
                 processor.execute(ingestDocument);
-            }
-        } catch (Exception e) {
-            if (onFailureProcessors.isEmpty()) {
-                throw e;
-            } else {
-                executeOnFailure(ingestDocument);
+            } catch (Exception e) {
+                if (onFailureProcessors.isEmpty()) {
+                    throw e;
+                } else {
+                    executeOnFailure(ingestDocument, e, processor.getType());
+                }
+                return;
             }
         }
-
     }
 
-    void executeOnFailure(IngestDocument ingestDocument) throws Exception {
-        for (Processor processor : onFailureProcessors) {
-            processor.execute(ingestDocument);
+    void executeOnFailure(IngestDocument ingestDocument, Exception cause, String failedProcessorType) throws Exception {
+        Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
+        try {
+            ingestMetadata.put(ON_FAILURE_MESSAGE_FIELD, cause.getMessage());
+            ingestMetadata.put(ON_FAILURE_PROCESSOR_FIELD, failedProcessorType);
+            for (Processor processor : onFailureProcessors) {
+                processor.execute(ingestDocument);
+            }
+        } finally {
+            ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
+            ingestMetadata.remove(ON_FAILURE_PROCESSOR_FIELD);
         }
     }
 }

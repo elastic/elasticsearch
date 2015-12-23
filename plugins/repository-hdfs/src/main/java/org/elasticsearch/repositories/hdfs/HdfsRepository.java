@@ -55,8 +55,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final RepositorySettings repositorySettings;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
-    
+
     private HdfsBlobStore blobStore;
+
+    // buffer size passed to HDFS read/write methods
+    // TODO: why 100KB?
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     @Inject
     public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
@@ -70,11 +74,11 @@ public final class HdfsRepository extends BlobStoreRepository {
     @Override
     protected void doStart() {
         String uriSetting = repositorySettings.settings().get("uri");
-        if (!Strings.hasText(uriSetting)) {
+        if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
         URI uri = URI.create(uriSetting);
-        if (!"hdfs".equalsIgnoreCase(uri.getScheme())) {
+        if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
             throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
         }
@@ -89,7 +93,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
         
-        int bufferSize = (int) repositorySettings.settings().getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
+        int bufferSize = repositorySettings.settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         try {
             // initialize our filecontext

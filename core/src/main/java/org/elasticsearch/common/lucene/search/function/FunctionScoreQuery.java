@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -90,7 +91,7 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        if (needsScores == false) {
+        if (needsScores == false && minScore == null) {
             return subQuery.createWeight(searcher, needsScores);
         }
 
@@ -128,8 +129,7 @@ public class FunctionScoreQuery extends Query {
             subQueryWeight.normalize(norm, boost);
         }
 
-        @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
+        private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
             Scorer subQueryScorer = subQueryWeight.scorer(context);
             if (subQueryScorer == null) {
                 return null;
@@ -138,7 +138,16 @@ public class FunctionScoreQuery extends Query {
             if (function != null) {
                 leafFunction = function.getLeafScoreFunction(context);
             }
-            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore, needsScores);
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, needsScores);
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            Scorer scorer = functionScorer(context);
+            if (scorer != null && minScore != null) {
+                scorer = new MinScoreScorer(this, scorer, minScore);
+            }
+            return scorer;
         }
 
         @Override
@@ -147,38 +156,47 @@ public class FunctionScoreQuery extends Query {
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
+            Explanation expl;
             if (function != null) {
                 Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
-                return combineFunction.explain(subQueryExpl, functionExplanation, maxBoost);
+                expl = combineFunction.explain(subQueryExpl, functionExplanation, maxBoost);
             } else {
-                return subQueryExpl;
+                expl = subQueryExpl;
             }
+            if (minScore != null && minScore > expl.getValue()) {
+                expl = Explanation.noMatch("Score value is too low, expected at least " + minScore + " but got " + expl.getValue(), expl);
+            }
+            return expl;
         }
     }
 
-    static class FunctionFactorScorer extends CustomBoostFactorScorer {
+    static class FunctionFactorScorer extends FilterScorer {
 
         private final LeafScoreFunction function;
         private final boolean needsScores;
+        private final CombineFunction scoreCombiner;
+        private final float maxBoost;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore, boolean needsScores)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, boolean needsScores)
                 throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner, minScore);
+            super(scorer, w);
             this.function = function;
+            this.scoreCombiner = scoreCombiner;
+            this.maxBoost = maxBoost;
             this.needsScores = needsScores;
         }
 
         @Override
-        public float innerScore() throws IOException {
+        public float score() throws IOException {
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
             // are needed
-            float score = needsScores ? scorer.score() : 0f;
+            float score = needsScores ? super.score() : 0f;
             if (function == null) {
                 return score;
             } else {
                 return scoreCombiner.combine(score,
-                        function.score(scorer.docID(), score), maxBoost);
+                        function.score(docID(), score), maxBoost);
             }
         }
     }

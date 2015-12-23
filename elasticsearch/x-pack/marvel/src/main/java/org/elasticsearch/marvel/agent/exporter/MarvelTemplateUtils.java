@@ -76,7 +76,7 @@ public final class MarvelTemplateUtils {
             if (Strings.hasLength(version)) {
                 return Integer.parseInt(version);
             }
-            return null;
+            throw new IllegalArgumentException("no marvel template version found");
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("failed to parse marvel template version");
         } catch (IOException e) {

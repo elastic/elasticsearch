@@ -8,16 +8,20 @@ package org.elasticsearch.marvel.agent.exporter.http;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -28,8 +32,11 @@ import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.elasticsearch.marvel.support.VersionUtils;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -52,12 +59,14 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
  */
-public class HttpExporter extends Exporter {
+public class HttpExporter extends Exporter implements CleanerService.Listener {
 
     public static final String TYPE = "http";
 
@@ -92,6 +101,7 @@ public class HttpExporter extends Exporter {
 
     final Environment env;
     final RendererRegistry rendererRegistry;
+    final CleanerService cleanerService;
 
     final @Nullable TimeValue templateCheckTimeout;
 
@@ -105,11 +115,12 @@ public class HttpExporter extends Exporter {
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
 
-    public HttpExporter(Exporter.Config config, Environment env, RendererRegistry rendererRegistry) {
+    public HttpExporter(Exporter.Config config, Environment env, RendererRegistry rendererRegistry, CleanerService cleanerService) {
 
         super(TYPE, config);
         this.env = env;
         this.rendererRegistry = rendererRegistry;
+        this.cleanerService = cleanerService;
 
         hosts = config.settings().getAsArray(HOST_SETTING, Strings.EMPTY_ARRAY);
         if (hosts.length == 0) {
@@ -139,6 +150,7 @@ public class HttpExporter extends Exporter {
         if (templateVersion == null) {
             throw new IllegalStateException("unable to find built-in template version");
         }
+        cleanerService.add(this);
 
         logger.debug("initialized with hosts [{}], index prefix [{}], index resolver [{}], template version [{}]",
                 Strings.arrayToCommaDelimitedString(hosts),
@@ -153,6 +165,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void close() {
+        cleanerService.remove(this);
         if (keepAliveThread != null && keepAliveThread.isAlive()) {
             keepAliveWorker.closed = true;
             keepAliveThread.interrupt();
@@ -477,6 +490,127 @@ public class HttpExporter extends Exporter {
         }
     }
 
+    @Override
+    public void onCleanUpIndices(TimeValue retention) {
+
+        // Retention duration can be overridden at exporter level
+        TimeValue exporterRetention = config.settings().getAsTime(CleanerService.HISTORY_DURATION, null);
+        if (exporterRetention != null) {
+            try {
+                cleanerService.validateRetention(exporterRetention);
+                retention = exporterRetention;
+            } catch (IllegalArgumentException e) {
+                logger.warn("http exporter [{}] - unable to use custom history duration [{}]: {}", name(), exporterRetention, e.getMessage());
+            }
+        }
+
+        // Reference date time will be compared to index.creation_date settings,
+        // that's why it must be in UTC
+        DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());
+        logger.debug("http exporter [{}] - cleaning indices [expiration={}, retention={}]", name(), expiration, retention);
+
+        Set<String> indices = new HashSet<>();
+        String host = hosts[0];
+        HttpURLConnection connection = null;
+        try {
+            String url = String.format("/%s*/_settings/%s", MarvelSettings.MARVEL_INDICES_PREFIX, IndexMetaData.SETTING_CREATION_DATE);
+            connection = openConnection(host, "GET", url, null);
+            if (connection == null) {
+                throw new ElasticsearchException("unable to clean indices: no available connection for host [" + host + "]");
+            }
+
+            long expirationTime = expiration.getMillis();
+            try (InputStream is = connection.getInputStream()) {
+                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    Streams.copy(is, out);
+
+                    try (XContentParser parser = XContentHelper.createParser(new BytesArray(out.toByteArray()))) {
+                        XContentParser.Token token;
+                        String indexName = null;
+
+                        while ((token = parser.nextToken()) != null) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                if ("settings".equals(parser.currentName()) || ("index".equals(parser.currentName())) || ("creation_date".equals(parser.currentName()))) {
+                                    continue;
+                                }
+                                indexName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if ("creation_date".equals(parser.currentName())) {
+                                    if (Regex.simpleMatch(MarvelSettings.MARVEL_INDICES_PREFIX + "*", indexName)) {
+                                        // Never delete the data indices
+                                        if (indexName.startsWith(MarvelSettings.MARVEL_DATA_INDEX_PREFIX)) {
+                                            continue;
+                                        }
+
+                                        // Never delete the current timestamped index
+                                        if (indexName.equals(indexNameResolver().resolve(System.currentTimeMillis()))) {
+                                            continue;
+                                        }
+
+                                        long creationDate = parser.longValue();
+                                        if (creationDate <= expirationTime) {
+                                            if (logger.isDebugEnabled()) {
+                                                logger.debug("http exporter [{}] - detected expired index [name={}, created={}, expired={}]", name(),
+                                                        indexName, new DateTime(creationDate, DateTimeZone.UTC), expiration);
+                                            }
+                                            indices.add(indexName);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to verify the remote cluster version on host [" + host + "]:\n" + e.getMessage());
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+
+        if (!indices.isEmpty()) {
+            logger.info("http exporter [{}] - cleaning up [{}] old indices", name(), indices.size());
+            deleteIndices(host, indices);
+        } else {
+            logger.debug("http exporter [{}] - no old indices found for clean up", name());
+        }
+    }
+
+    void deleteIndices(String host, Set<String> indices) {
+        logger.trace("http exporter [{}] - deleting {} indices: {}", name(), indices.size(), Strings.collectionToCommaDelimitedString(indices));
+        HttpURLConnection connection = null;
+        try {
+            connection = openConnection(host, "DELETE", "/" + Strings.collectionToCommaDelimitedString(indices), XContentType.JSON.restContentType());
+            if (connection == null) {
+                logger.debug("http exporter [{}] - no available connection to delete indices", name());
+                return;
+            }
+
+            if (connection.getResponseCode() != 200) {
+                logConnectionError("http exporter [" + name() +"] - unable to delete indices on host [" + host + "]", connection);
+                return;
+            }
+
+            logger.debug("http exporter [{}] - indices deleted", name());
+        } catch (Exception e) {
+            logger.error("local exporter [{}] - failed to delete indices on host [{}]", e, name(), host);
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
     private void logConnectionError(String msg, HttpURLConnection conn) {
         InputStream inputStream = conn.getErrorStream();
         String err = "";
@@ -714,17 +848,19 @@ public class HttpExporter extends Exporter {
 
         private final Environment env;
         private final RendererRegistry rendererRegistry;
+        private final CleanerService cleanerService;
 
         @Inject
-        public Factory(Environment env, RendererRegistry rendererRegistry) {
+        public Factory(Environment env, RendererRegistry rendererRegistry, CleanerService cleanerService) {
             super(TYPE, false);
             this.env = env;
             this.rendererRegistry = rendererRegistry;
+            this.cleanerService = cleanerService;
         }
 
         @Override
         public HttpExporter create(Config config) {
-            return new HttpExporter(config, env, rendererRegistry);
+            return new HttpExporter(config, env, rendererRegistry, cleanerService);
         }
 
         @Override

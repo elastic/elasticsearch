@@ -31,7 +31,7 @@ public class InternalMarvelUser extends User.Simple {
             // we need all monitoring access
             .add(Privilege.Index.MONITOR, "*")
 
-            // and full access to .marvel-* and .marvel-data indices
+            // and full access to .marvel-es-* and .marvel-es-data indices
             .add(Privilege.Index.ALL, MarvelSettings.MARVEL_INDICES_PREFIX + "*")
 
             // note, we don't need _license permission as we're taking the licenses

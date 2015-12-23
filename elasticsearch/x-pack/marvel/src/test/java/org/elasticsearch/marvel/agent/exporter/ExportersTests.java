@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.SecuredClient;
@@ -59,7 +60,7 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new SecuredClient(client, mock(MarvelShieldIntegration.class)), clusterService, mock(RendererRegistry.class)));
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new SecuredClient(client, mock(MarvelShieldIntegration.class)), clusterService, mock(RendererRegistry.class), mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING, MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
         settingsFilter = mock(MarvelSettingsFilter.class);
         exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, clusterSettings);

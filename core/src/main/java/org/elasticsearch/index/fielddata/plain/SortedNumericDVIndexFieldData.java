@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -52,7 +51,7 @@ import java.util.Collections;
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
 
-    public SortedNumericDVIndexFieldData(Index index, Names fieldNames, NumericType numericType, FieldDataType fieldDataType) {
+    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
         if (numericType == null) {
             throw new IllegalArgumentException("numericType must be non-null");
@@ -86,7 +85,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     @Override
     public AtomicNumericFieldData load(LeafReaderContext context) {
         final LeafReader reader = context.reader();
-        final String field = fieldNames.indexName();
+        final String field = fieldName;
 
         switch (numericType) {
             case FLOAT:

@@ -117,7 +117,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        final MappedFieldType fieldType = context.getMapperService().smartNameFieldType("_uid");
+        final MappedFieldType fieldType = context.getMapperService().fullName("_uid");
         if (fieldType == null) {
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();

@@ -48,7 +48,6 @@ import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -75,10 +74,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     private final Set<String> parentTypes;
     private final CircuitBreakerService breakerService;
 
-    public ParentChildIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
+    public ParentChildIndexFieldData(IndexSettings indexSettings, String fieldName,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, fieldDataType, cache);
         this.breakerService = breakerService;
         Set<String> parentTypes = new HashSet<>();
         for (DocumentMapper mapper : mapperService.docMappers(false)) {
@@ -147,7 +146,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                                        MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
+            return new ParentChildIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache,
                     mapperService, breakerService);
         }
     }
@@ -319,8 +318,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public Names getFieldNames() {
-            return ParentChildIndexFieldData.this.getFieldNames();
+        public String getFieldName() {
+            return ParentChildIndexFieldData.this.getFieldName();
         }
 
         @Override

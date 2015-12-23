@@ -54,7 +54,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         static {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
-            SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            SIZE_FIELD_TYPE.setName(NAME);
             SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
             SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             SIZE_FIELD_TYPE.freeze();

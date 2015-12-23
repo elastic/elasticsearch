@@ -38,13 +38,8 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         assertNull(lookup.get("foo"));
-        assertNull(lookup.getByIndexName("foo"));
         assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
-        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
-        assertNotNull(names);
-        assertTrue(names.isEmpty());
-        names = lookup.simpleMatchToIndexNames("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
         Iterator<MappedFieldType> itr = lookup.iterator();
@@ -64,55 +59,45 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testAddNewField() {
         FieldTypeLookup lookup = new FieldTypeLookup();
-        FakeFieldMapper f = new FakeFieldMapper("foo", "bar");
+        FakeFieldMapper f = new FakeFieldMapper("foo");
         FieldTypeLookup lookup2 = lookup.copyAndAddAll("type", newList(f), randomBoolean());
         assertNull(lookup.get("foo"));
         assertNull(lookup.get("bar"));
-        assertNull(lookup.getByIndexName("foo"));
-        assertNull(lookup.getByIndexName("bar"));
         assertEquals(f.fieldType(), lookup2.get("foo"));
         assertNull(lookup.get("bar"));
-        assertEquals(f.fieldType(), lookup2.getByIndexName("bar"));
-        assertNull(lookup.getByIndexName("foo"));
         assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
-        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("foo"));
         assertEquals(Collections.emptySet(), lookup.getTypes("bar"));
-        assertEquals(Collections.emptySet(), lookup.getTypesByIndexName("bar"));
         assertEquals(Collections.singleton("type"), lookup2.getTypes("foo"));
-        assertEquals(Collections.emptySet(), lookup2.getTypesByIndexName("foo"));
         assertEquals(Collections.emptySet(), lookup2.getTypes("bar"));
-        assertEquals(Collections.singleton("type"), lookup2.getTypesByIndexName("bar"));
         assertEquals(1, size(lookup2.iterator()));
     }
 
     public void testAddExistingField() {
-        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
-        FakeFieldMapper f2 = new FakeFieldMapper("foo", "foo");
+        FakeFieldMapper f = new FakeFieldMapper("foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type1", newList(f), randomBoolean());
         FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
 
         assertSame(f2.fieldType(), lookup2.get("foo"));
-        assertSame(f2.fieldType(), lookup2.getByIndexName("foo"));
         assertEquals(1, size(lookup2.iterator()));
     }
 
     public void testAddExistingIndexName() {
-        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
-        FakeFieldMapper f2 = new FakeFieldMapper("bar", "foo");
+        FakeFieldMapper f = new FakeFieldMapper("foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("bar");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type1", newList(f), randomBoolean());
         FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
 
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertSame(f2.fieldType(), lookup2.get("bar"));
-        assertSame(f2.fieldType(), lookup2.getByIndexName("foo"));
         assertEquals(2, size(lookup2.iterator()));
     }
 
     public void testAddExistingFullName() {
-        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
-        FakeFieldMapper f2 = new FakeFieldMapper("foo", "bar");
+        FakeFieldMapper f = new FakeFieldMapper("foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         try {
             lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
@@ -121,33 +106,12 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    public void testAddExistingBridgeName() {
-        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
-        FakeFieldMapper f2 = new FakeFieldMapper("bar", "bar");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f, f2), randomBoolean());
-
-        try {
-            FakeFieldMapper f3 = new FakeFieldMapper("foo", "bar");
-            lookup.copyAndAddAll("type2", newList(f3), randomBoolean());
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("insane mappings"));
-        }
-
-        try {
-            FakeFieldMapper f3 = new FakeFieldMapper("bar", "foo");
-            lookup.copyAndAddAll("type2", newList(f3), randomBoolean());
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("insane mappings"));
-        }
-    }
-
     public void testCheckCompatibilityMismatchedTypes() {
-        FieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FieldMapper f1 = new FakeFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
 
-        MappedFieldType ft2 = FakeFieldMapper.makeOtherFieldType("foo", "foo");
+        MappedFieldType ft2 = FakeFieldMapper.makeOtherFieldType("foo");
         FieldMapper f2 = new FakeFieldMapper("foo", ft2);
         try {
             lookup.copyAndAddAll("type2", newList(f2), false);
@@ -165,11 +129,11 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     public void testCheckCompatibilityConflict() {
-        FieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FieldMapper f1 = new FakeFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
 
-        MappedFieldType ft2 = FakeFieldMapper.makeFieldType("foo", "bar");
+        MappedFieldType ft2 = FakeFieldMapper.makeFieldType("foo");
         ft2.setBoost(2.0f);
         FieldMapper f2 = new FakeFieldMapper("foo", ft2);
         try {
@@ -182,7 +146,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         lookup.copyAndAddAll("type", newList(f2), false); // boost is updateable, so ok since we are implicitly updating all types
         lookup.copyAndAddAll("type2", newList(f2), true); // boost is updateable, so ok if forcing
         // now with a non changeable setting
-        MappedFieldType ft3 = FakeFieldMapper.makeFieldType("foo", "bar");
+        MappedFieldType ft3 = FakeFieldMapper.makeFieldType("foo");
         ft3.setStored(true);
         FieldMapper f3 = new FakeFieldMapper("foo", ft3);
         try {
@@ -200,28 +164,18 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    public void testSimpleMatchIndexNames() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
-        FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1, f2), randomBoolean());
-        Collection<String> names = lookup.simpleMatchToIndexNames("b*");
-        assertTrue(names.contains("baz"));
-        assertTrue(names.contains("boo"));
-    }
-
     public void testSimpleMatchFullNames() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
-        FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
+        FakeFieldMapper f1 = new FakeFieldMapper("foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("bar");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type", newList(f1, f2), randomBoolean());
         Collection<String> names = lookup.simpleMatchToFullName("b*");
-        assertTrue(names.contains("foo"));
+        assertFalse(names.contains("foo"));
         assertTrue(names.contains("bar"));
     }
 
     public void testIteratorImmutable() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FakeFieldMapper f1 = new FakeFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
 
@@ -243,20 +197,20 @@ public class FieldTypeLookupTests extends ESTestCase {
     // this sucks how much must be overridden just do get a dummy field mapper...
     static class FakeFieldMapper extends FieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        public FakeFieldMapper(String fullName, String indexName) {
-            super(fullName, makeFieldType(fullName, indexName), makeFieldType(fullName, indexName), dummySettings, null, null);
+        public FakeFieldMapper(String fullName) {
+            super(fullName, makeFieldType(fullName), makeFieldType(fullName), dummySettings, null, null);
         }
         public FakeFieldMapper(String fullName, MappedFieldType fieldType) {
             super(fullName, fieldType, fieldType, dummySettings, null, null);
         }
-        static MappedFieldType makeFieldType(String fullName, String indexName) {
+        static MappedFieldType makeFieldType(String fullName) {
             FakeFieldType fieldType = new FakeFieldType();
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, fullName));
+            fieldType.setName(fullName);
             return fieldType;
         }
-        static MappedFieldType makeOtherFieldType(String fullName, String indexName) {
+        static MappedFieldType makeOtherFieldType(String fullName) {
             OtherFakeFieldType fieldType = new OtherFakeFieldType();
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, fullName));
+            fieldType.setName(fullName);
             return fieldType;
         }
         static class FakeFieldType extends MappedFieldType {

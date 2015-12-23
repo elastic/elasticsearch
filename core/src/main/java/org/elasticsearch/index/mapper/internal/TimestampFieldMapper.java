@@ -67,7 +67,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER);
             FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Defaults.PRECISION_STEP_64_BIT));
             FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Integer.MAX_VALUE));
@@ -313,13 +313,13 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
-                context.ignoredValue(fieldType().names().indexName(), String.valueOf(timestamp));
+                context.ignoredValue(fieldType().name(), String.valueOf(timestamp));
             }
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 fields.add(new LongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
             }
             if (fieldType().hasDocValues()) {
-                fields.add(new NumericDocValuesField(fieldType().names().indexName(), timestamp));
+                fields.add(new NumericDocValuesField(fieldType().name(), timestamp));
             }
         }
     }

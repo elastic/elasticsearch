@@ -170,7 +170,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -180,7 +180,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             int iValue = parseValue(value);
             int iSim = fuzziness.asInt();
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -247,7 +247,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).intValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Integer.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Integer.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -258,7 +258,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -287,7 +287,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.intValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

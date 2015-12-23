@@ -167,7 +167,7 @@ public class MultiMatchQuery extends MatchQuery {
                 MappedFieldType fieldType = context.fieldMapper(name);
                 if (fieldType != null) {
                     Analyzer actualAnalyzer = getAnalyzer(fieldType);
-                    name = fieldType.names().indexName();
+                    name = fieldType.name();
                     if (!groups.containsKey(actualAnalyzer)) {
                        groups.put(actualAnalyzer, new ArrayList<>());
                     }

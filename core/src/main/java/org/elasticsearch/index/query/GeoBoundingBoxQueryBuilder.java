@@ -265,7 +265,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         }
 
         if (context.indexVersionCreated().onOrAfter(Version.V_2_2_0)) {
-            return new GeoPointInBBoxQuery(fieldType.names().fullName(), luceneTopLeft.lon(), luceneBottomRight.lat(),
+            return new GeoPointInBBoxQuery(fieldType.name(), luceneTopLeft.lon(), luceneBottomRight.lat(),
                     luceneBottomRight.lon(), luceneTopLeft.lat());
         }
 

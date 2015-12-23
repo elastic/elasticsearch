@@ -77,7 +77,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -285,10 +285,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
         } // else we are in the pre/post parse phase
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().names().indexName(), context.id(), fieldType()));
+            fields.add(new Field(fieldType().name(), context.id(), fieldType()));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new BinaryDocValuesField(fieldType().names().indexName(), new BytesRef(context.id())));
+            fields.add(new BinaryDocValuesField(fieldType().name(), new BytesRef(context.id())));
         }
     }
 

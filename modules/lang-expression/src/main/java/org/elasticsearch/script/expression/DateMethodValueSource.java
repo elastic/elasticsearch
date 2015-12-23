@@ -54,7 +54,7 @@ class DateMethodValueSource extends FieldDataValueSource {
 
     @Override
     public String description() {
-        return methodName + ": field(" + fieldData.getFieldNames().toString() + ")";
+        return methodName + ": field(" + fieldData.getFieldName() + ")";
     }
 
     @Override

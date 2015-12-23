@@ -37,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -52,9 +51,9 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     protected Settings regex;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType,
+    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType,
                                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, fieldDataType, cache);
         final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
         frequency = groups.get("frequency");
         regex = groups.get("regex");
@@ -74,7 +73,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         }
         boolean fieldFound = false;
         for (LeafReaderContext context : indexReader.leaves()) {
-            if (context.reader().getFieldInfos().fieldInfo(getFieldNames().indexName()) != null) {
+            if (context.reader().getFieldInfos().fieldInfo(getFieldName()) != null) {
                 fieldFound = true;
                 break;
             }

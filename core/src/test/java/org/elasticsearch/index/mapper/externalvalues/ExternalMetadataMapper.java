@@ -45,7 +45,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     private static MappedFieldType FIELD_TYPE = new BooleanFieldMapper.BooleanFieldType();
     static {
-        FIELD_TYPE.setNames(new MappedFieldType.Names(FIELD_NAME));
+        FIELD_TYPE.setName(FIELD_NAME);
         FIELD_TYPE.freeze();
     }
 

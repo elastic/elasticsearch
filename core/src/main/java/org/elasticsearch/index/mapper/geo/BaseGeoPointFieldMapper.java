@@ -287,20 +287,20 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             super.checkCompatibility(fieldType, conflicts, strict);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [lat_lon]");
+                conflicts.add("mapper [" + name() + "] has different [lat_lon]");
             }
             if (isLatLonEnabled() && other.isLatLonEnabled() &&
                     latFieldType().numericPrecisionStep() != other.latFieldType().numericPrecisionStep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [precision_step]");
+                conflicts.add("mapper [" + name() + "] has different [precision_step]");
             }
             if (isGeoHashEnabled() != other.isGeoHashEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash]");
+                conflicts.add("mapper [" + name() + "] has different [geohash]");
             }
             if (geoHashPrecision() != other.geoHashPrecision()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_precision]");
+                conflicts.add("mapper [" + name() + "] has different [geohash_precision]");
             }
             if (isGeoHashPrefixEnabled() != other.isGeoHashPrefixEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_prefix]");
+                conflicts.add("mapper [" + name() + "] has different [geohash_prefix]");
             }
         }
 

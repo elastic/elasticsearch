@@ -637,12 +637,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().smartNameFieldType(name, types);
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return mapperService().smartNameFieldType(name);
+        return mapperService().fullName(name);
     }
 
     @Override

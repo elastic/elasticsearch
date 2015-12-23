@@ -60,7 +60,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
@@ -86,8 +85,8 @@ public class FunctionScoreTests extends ESTestCase {
      */
     private static class IndexFieldDataStub implements IndexFieldData<AtomicFieldData> {
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
+        public String getFieldName() {
+            return "test";
         }
 
         @Override
@@ -171,8 +170,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
+        public String getFieldName() {
+            return "test";
         }
 
         @Override

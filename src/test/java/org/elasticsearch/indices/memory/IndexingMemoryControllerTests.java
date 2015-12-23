@@ -111,7 +111,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
                 return shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
             }
         });
-        if (!success) {
+        if (success == false) {
             fail("failed to update shard indexing buffer size due to inactive state. expected [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
@@ -125,10 +125,22 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
                 return shard1.engine().config().getIndexingBufferSize().bytes() > EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
             }
         });
-        if (!success) {
-            fail("failed to update shard indexing buffer size due to active state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
-                            shard1.engine().config().getIndexingBufferSize().bytes() + "]"
-            );
+
+        if (success == false) {
+            // Give it one more chance, since sync'd flush on going inactive before we indexed the last doc
+            // could have swept in our one indexed document, preventing IMC from noticing the shard is now active:
+            index("test1", "type", "2", "f", 1);
+
+            success = awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object input) {
+                        return shard1.engine().config().getIndexingBufferSize().bytes() > EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
+                    }
+                });
+            if (success == false) {
+                fail("failed to update shard indexing buffer size due to active state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+                     shard1.engine().config().getIndexingBufferSize().bytes() + "]");
+            }
         }
 
         if (randomBoolean()) {

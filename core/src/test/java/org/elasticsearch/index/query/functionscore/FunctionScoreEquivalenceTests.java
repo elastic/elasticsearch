@@ -36,10 +36,10 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Term term = randomTerm();
         Query query = new TermQuery(term);
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f);
         assertSameScores(query, fsq);
 
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 0f, CombineFunction.MULTIPLY);
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, 0f);
         assertSameScores(query, ffsq);
     }
 
@@ -47,10 +47,10 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Term term = randomTerm();
         Query query = new TermQuery(term);
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         assertSameScores(new MatchNoDocsQuery(), fsq);
 
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, CombineFunction.MULTIPLY);
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
         assertSameScores(new MatchNoDocsQuery(), ffsq);
     }
 
@@ -59,12 +59,12 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Query query = new TermQuery(term);
         Float minScore = random().nextFloat();
 
-        FunctionScoreQuery fsq1 = new FunctionScoreQuery(query, null, minScore, null, Float.POSITIVE_INFINITY);
-        FunctionScoreQuery fsq2 = new FunctionScoreQuery(new RandomApproximationQuery(query, random()), null, minScore, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq1 = new FunctionScoreQuery(query, null, minScore);
+        FunctionScoreQuery fsq2 = new FunctionScoreQuery(new RandomApproximationQuery(query, random()), null, minScore);
         assertSameScores(fsq1, fsq2);
 
-        FiltersFunctionScoreQuery ffsq1 = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, minScore, CombineFunction.MULTIPLY);
-        FiltersFunctionScoreQuery ffsq2 = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, minScore, CombineFunction.MULTIPLY);
+        FiltersFunctionScoreQuery ffsq1 = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, minScore);
+        FiltersFunctionScoreQuery ffsq2 = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, minScore);
         assertSameScores(ffsq1, ffsq2);
     }
 

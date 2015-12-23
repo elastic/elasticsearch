@@ -566,24 +566,24 @@ public class FunctionScoreTests extends ESTestCase {
         Query query = new MatchAllDocsQuery();
         Explanation queryExpl = searcher.explain(query, 0);
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f);
         Explanation fsqExpl = searcher.explain(fsq, 0);
         assertTrue(fsqExpl.isMatch());
         assertEquals(queryExpl.getValue(), fsqExpl.getValue(), 0f);
         assertEquals(queryExpl.getDescription(), fsqExpl.getDescription());
 
-        fsq = new FunctionScoreQuery(query, null, 10f, null, Float.POSITIVE_INFINITY);
+        fsq = new FunctionScoreQuery(query, null, 10f);
         fsqExpl = searcher.explain(fsq, 0);
         assertFalse(fsqExpl.isMatch());
         assertEquals("Score value is too low, expected at least 10.0 but got 1.0", fsqExpl.getDescription());
 
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 0f, CombineFunction.MULTIPLY);
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, 0f);
         Explanation ffsqExpl = searcher.explain(ffsq, 0);
         assertTrue(ffsqExpl.isMatch());
         assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
         assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
 
-        ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 10f, CombineFunction.MULTIPLY);
+        ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, 10f);
         ffsqExpl = searcher.explain(ffsq, 0);
         assertFalse(ffsqExpl.isMatch());
         assertEquals("Score value is too low, expected at least 10.0 but got 1.0", ffsqExpl.getDescription());
@@ -594,14 +594,14 @@ public class FunctionScoreTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
         searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null);
         for (boolean needsScores : new boolean[] {true, false}) {
             Weight weight = searcher.createWeight(fsq, needsScores);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
 
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, null, CombineFunction.MULTIPLY);
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.Sum, new FilterFunction[0], Float.POSITIVE_INFINITY, null);
         for (boolean needsScores : new boolean[] {true, false}) {
             Weight weight = searcher.createWeight(ffsq, needsScores);
             Scorer scorer = weight.scorer(reader.leaves().get(0));

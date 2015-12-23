@@ -92,18 +92,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final Path file = path.resolve(blobName);
+        // TODO: why is this not specifying CREATE_NEW? Do we really need to be able to truncate existing files?
         try (OutputStream outputStream = Files.newOutputStream(file)) {
             Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
-        }
-        IOUtils.fsync(file, false);
-        IOUtils.fsync(path, true);
-    }
-
-    @Override
-    public void writeBlob(String blobName, BytesReference data) throws IOException {
-        final Path file = path.resolve(blobName);
-        try (OutputStream outputStream = Files.newOutputStream(file)) {
-            data.writeTo(outputStream);
         }
         IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);

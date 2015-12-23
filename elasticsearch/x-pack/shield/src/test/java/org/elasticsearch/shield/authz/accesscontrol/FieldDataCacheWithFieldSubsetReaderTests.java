@@ -58,11 +58,11 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
     public void setup() throws Exception {
         IndexSettings indexSettings = createIndexSettings();
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        MappedFieldType.Names names = new MappedFieldType.Names("_field");
+        String name = "_field";
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
         indexFieldDataCache = new DummyAccountingFieldDataCache();
-        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  names, circuitBreakerService, fieldDataType);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, names, fieldDataType, indexFieldDataCache, circuitBreakerService);
+        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name, circuitBreakerService, fieldDataType);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, fieldDataType, indexFieldDataCache, circuitBreakerService);
 
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);

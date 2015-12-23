@@ -209,7 +209,9 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         ensureYellow("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
-            assertSearchHits(client().prepareSearch().setSize(ids.size()).get(), ids.toArray(new String[ids.size()]));
+            SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
+            assertNoFailures(afterRelocation);
+            assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
         assertVersionCreated(compatibilityVersion(), "test");
     }

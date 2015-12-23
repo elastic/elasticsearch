@@ -390,6 +390,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.names().fullName());
         if (newFieldType == null) {
             throw new IllegalStateException();
+        } else if (fieldType.getClass() != newFieldType.getClass()) {
+            throw new IllegalStateException("Mixing up field types: " + fieldType.getClass() + " != " + newFieldType.getClass());
         }
         MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
         if (fieldType == newFieldType && multiFields == updatedMultiFields) {

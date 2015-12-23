@@ -20,6 +20,7 @@
       indices.refresh: {}
 
   - do:
+      catch: unavailable
       update-by-query:
         index: test
         timeout: 1s

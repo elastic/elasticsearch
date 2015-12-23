@@ -24,10 +24,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;;
 
@@ -62,7 +65,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         }
     }
 
-    public void testVersionConflictsRecorded() throws Exception {
+    public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
         indexRandom(true,
                 client().prepareIndex("dest", "test", "1").setSource("test", "test"));
@@ -80,6 +83,37 @@ public class ReindexFailureTests extends ReindexTestCase {
         }
     }
 
+    /**
+     * Make sure that search failures get pushed back to the user as failures of
+     * the whole process. We do lose some information about how far along the
+     * process got, but its important that they see these failures.
+     */
+    public void testResponseOnSearchFailure() throws Exception {
+        /*
+         * Attempt to trigger a reindex failure by deleting the source index out
+         * from under it.
+         */
+        int attempt = 1;
+        while (attempt < 5) {
+            indexDocs(100);
+            ReindexRequestBuilder copy = reindex().source("source").destination("dest");
+            copy.source().setSize(10);
+            Future<ReindexResponse> response = copy.execute();
+            client().admin().indices().prepareDelete("source").get();
+
+            try {
+                response.get();
+                logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
+                attempt++;
+                continue;
+            } catch (ExecutionException e) {
+                logger.info("Triggered a reindex failure on the {} attempt", attempt);
+                assertThat(e.getMessage(), either(containsString("all shards failed")).or(containsString("No search context found")));
+                return;
+            }
+        }
+        assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
+    }
 
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>(count);

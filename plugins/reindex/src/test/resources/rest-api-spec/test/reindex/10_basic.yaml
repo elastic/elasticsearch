@@ -87,7 +87,7 @@
   - is_true: took
 
 ---
-"Response format for version conflict with conflicts:abort":
+"Response format for version conflict with conflicts=abort":
   - do:
       index:
         index:   source
@@ -104,6 +104,7 @@
       indices.refresh: {}
 
   - do:
+      catch: conflict
       reindex:
         body:
           conflicts: abort

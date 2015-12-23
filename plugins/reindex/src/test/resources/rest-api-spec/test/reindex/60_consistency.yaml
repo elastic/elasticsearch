@@ -20,6 +20,7 @@
       indices.refresh: {}
 
   - do:
+      catch: unavailable
       reindex:
         timeout: 1s
         body:

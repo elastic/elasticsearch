@@ -59,7 +59,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger counter = new AtomicInteger(responses.length());
         for (int i = 0; i < responses.length(); i++) {
             final int index = i;
-            SearchRequest searchRequest = new SearchRequest(request.requests().get(i), request);
+            SearchRequest searchRequest = new SearchRequest(request.requests().get(i));
             searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {

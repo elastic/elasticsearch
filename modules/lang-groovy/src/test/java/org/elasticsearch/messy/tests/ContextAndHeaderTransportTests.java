@@ -21,11 +21,9 @@ package org.elasticsearch.messy.tests;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -38,12 +36,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -63,6 +61,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,6 +70,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE)
 public class ContextAndHeaderTransportTests extends ESIntegTestCase {
-    private static final List<ActionRequest> requests =  new CopyOnWriteArrayList<>();
+    private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private String randomHeaderKey = randomAsciiOfLength(10);
     private String randomHeaderValue = randomAsciiOfLength(20);
     private String queryIndex = "query-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
@@ -127,7 +127,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
                 .setSettings(settings).addMapping("type", mapping));
         ensureGreen(queryIndex, lookupIndex);
-
         requests.clear();
     }
 
@@ -139,58 +138,60 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
     public void testThatTermsLookupGetRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().array("followers", "foo", "bar", "baz").endObject()).get();
+            .setSource(jsonBuilder().startObject().array("followers", "foo", "bar", "baz").endObject()).get();
         transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("username", "foo").endObject()).get();
+            .setSource(jsonBuilder().startObject().field("username", "foo").endObject()).get();
         transportClient().admin().indices().prepareRefresh(queryIndex, lookupIndex).get();
 
         TermsQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username", new TermsLookup(lookupIndex, "type", "1", "followers"));
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(termsLookupFilterBuilder);
 
         SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .setQuery(queryBuilder)
-                .get();
+            .prepareSearch(queryIndex)
+            .setQuery(queryBuilder)
+            .get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
 
         assertGetRequestsContainHeaders();
     }
 
+
+
     public void testThatGeoShapeQueryGetRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1").setSource(jsonBuilder().startObject()
-                .field("name", "Munich Suburban Area")
-                .startObject("location")
-                .field("type", "polygon")
-                .startArray("coordinates").startArray()
-                .startArray().value(11.34).value(48.25).endArray()
-                .startArray().value(11.68).value(48.25).endArray()
-                .startArray().value(11.65).value(48.06).endArray()
-                .startArray().value(11.37).value(48.13).endArray()
-                .startArray().value(11.34).value(48.25).endArray() // close the polygon
-                .endArray().endArray()
-                .endObject()
-                .endObject())
-                .get();
+            .field("name", "Munich Suburban Area")
+            .startObject("location")
+            .field("type", "polygon")
+            .startArray("coordinates").startArray()
+            .startArray().value(11.34).value(48.25).endArray()
+            .startArray().value(11.68).value(48.25).endArray()
+            .startArray().value(11.65).value(48.06).endArray()
+            .startArray().value(11.37).value(48.13).endArray()
+            .startArray().value(11.34).value(48.25).endArray() // close the polygon
+            .endArray().endArray()
+            .endObject()
+            .endObject())
+            .get();
         // second document
         transportClient().prepareIndex(queryIndex, "type", "1").setSource(jsonBuilder().startObject()
-                .field("name", "Munich Center")
-                .startObject("location")
-                .field("type", "point")
-                .startArray("coordinates").value(11.57).value(48.13).endArray()
-                .endObject()
-                .endObject())
-                .get();
+            .field("name", "Munich Center")
+            .startObject("location")
+            .field("type", "point")
+            .startArray("coordinates").value(11.57).value(48.13).endArray()
+            .endObject()
+            .endObject())
+            .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
         GeoShapeQueryBuilder queryBuilder = QueryBuilders.geoShapeQuery("location", "1", "type")
-                .indexedShapeIndex(lookupIndex)
-                .indexedShapePath("location");
+            .indexedShapeIndex(lookupIndex)
+            .indexedShapePath("location");
 
         SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .setQuery(queryBuilder)
-                .get();
+            .prepareSearch(queryIndex)
+            .setQuery(queryBuilder)
+            .get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
         assertThat(requests, hasSize(greaterThan(0)));
@@ -200,25 +201,25 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
     public void testThatMoreLikeThisQueryMultiTermVectorRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-                .get();
+            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+            .get();
         transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Jar Jar Binks - A horrible mistake").endObject())
-                .get();
+            .setSource(jsonBuilder().startObject().field("name", "Jar Jar Binks - A horrible mistake").endObject())
+            .get();
         transportClient().prepareIndex(queryIndex, "type", "2")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - Return of the jedi").endObject())
-                .get();
+            .setSource(jsonBuilder().startObject().field("name", "Star Wars - Return of the jedi").endObject())
+            .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"name"}, null,
-                new Item[] {new Item(lookupIndex, "type", "1")})
-                .minTermFreq(1)
-                .minDocFreq(1);
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(new String[]{"name"}, null,
+            new Item[]{new Item(lookupIndex, "type", "1")})
+            .minTermFreq(1)
+            .minDocFreq(1);
 
         SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .setQuery(moreLikeThisQueryBuilder)
-                .get();
+            .prepareSearch(queryIndex)
+            .setQuery(moreLikeThisQueryBuilder)
+            .get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
 
@@ -226,16 +227,17 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
     }
 
     public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
-        transportClient().prepareIndex(lookupIndex, ".percolator", "1")
-                .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
-                .get();
-        transportClient().prepareIndex(lookupIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-                .get();
-        transportClient().admin().indices().prepareRefresh(lookupIndex).get();
+        Client client = transportClient();
+        client.prepareIndex(lookupIndex, ".percolator", "1")
+            .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
+            .get();
+        client.prepareIndex(lookupIndex, "type", "1")
+            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+            .get();
+        client.admin().indices().prepareRefresh(lookupIndex).get();
 
-        GetRequest getRequest = transportClient().prepareGet(lookupIndex, "type", "1").request();
-        PercolateResponse response = transportClient().preparePercolate().setDocumentType("type").setGetRequest(getRequest).get();
+        GetRequest getRequest = client.prepareGet(lookupIndex, "type", "1").request();
+        PercolateResponse response = client.preparePercolate().setDocumentType("type").setGetRequest(getRequest).get();
         assertThat(response.getCount(), is(1l));
 
         assertGetRequestsContainHeaders();
@@ -243,21 +245,21 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
     public void testThatIndexedScriptGetRequestContainsContextAndHeaders() throws Exception {
         PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(GroovyScriptEngineService.NAME, "my_script",
-                jsonBuilder().startObject().field("script", "_score * 10").endObject().string()
+            jsonBuilder().startObject().field("script", "_score * 10").endObject().string()
         ).get();
         assertThat(scriptResponse.isCreated(), is(true));
 
         transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-                .get();
+            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+            .get();
         transportClient().admin().indices().prepareRefresh(queryIndex).get();
 
         SearchResponse searchResponse = transportClient()
-                .prepareSearch(queryIndex)
-                .setQuery(
-                        QueryBuilders.functionScoreQuery(
-                                new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null))).boostMode(
-                                CombineFunction.REPLACE)).get();
+            .prepareSearch(queryIndex)
+            .setQuery(
+                QueryBuilders.functionScoreQuery(
+                    new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null))).boostMode(
+                    CombineFunction.REPLACE)).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getMaxScore(), is(10.0f));
@@ -274,27 +276,27 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
         CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpResponse response = new HttpRequestBuilder(httpClient)
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-                .addHeader(randomHeaderKey, randomHeaderValue)
-                .addHeader(releventHeaderName, randomHeaderValue)
-                .path("/" + queryIndex + "/_search")
-                .execute();
+            .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+            .addHeader(randomHeaderKey, randomHeaderValue)
+            .addHeader(releventHeaderName, randomHeaderValue)
+            .path("/" + queryIndex + "/_search")
+            .execute();
 
         assertThat(response, hasStatus(OK));
-        List<SearchRequest> searchRequests = getRequests(SearchRequest.class);
+        List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
         assertThat(searchRequests, hasSize(greaterThan(0)));
-        for (SearchRequest searchRequest : searchRequests) {
-            assertThat(searchRequest.hasHeader(releventHeaderName), is(true));
+        for (RequestAndHeaders requestAndHeaders : searchRequests) {
+            assertThat(requestAndHeaders.headers.containsKey(releventHeaderName), is(true));
             // was not specified, thus is not included
-            assertThat(searchRequest.hasHeader(randomHeaderKey), is(false));
+            assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
         }
     }
 
-    private <T> List<T> getRequests(Class<T> clazz) {
-        List<T> results = new ArrayList<>();
-        for (ActionRequest request : requests) {
-            if (request.getClass().equals(clazz)) {
-                results.add((T) request);
+    private  List<RequestAndHeaders> getRequests(Class<?> clazz) {
+        List<RequestAndHeaders> results = new ArrayList<>();
+        for (RequestAndHeaders request : requests) {
+            if (request.request.getClass().equals(clazz)) {
+                results.add(request);
             }
         }
 
@@ -302,9 +304,9 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
     }
 
     private void assertRequestsContainHeader(Class<? extends ActionRequest> clazz) {
-        List<? extends ActionRequest> classRequests = getRequests(clazz);
-        for (ActionRequest request : classRequests) {
-            assertRequestContainsHeader(request);
+        List<RequestAndHeaders> classRequests = getRequests(clazz);
+        for (RequestAndHeaders request : classRequests) {
+            assertRequestContainsHeader(request.request, request.headers);
         }
     }
 
@@ -313,42 +315,33 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
     }
 
     private void assertGetRequestsContainHeaders(String index) {
-        List<GetRequest> getRequests = getRequests(GetRequest.class);
+        List<RequestAndHeaders> getRequests = getRequests(GetRequest.class);
         assertThat(getRequests, hasSize(greaterThan(0)));
 
-        for (GetRequest request : getRequests) {
-            if (!request.index().equals(index)) {
+        for (RequestAndHeaders request : getRequests) {
+            if (!((GetRequest)request.request).index().equals(index)) {
                 continue;
             }
-            assertRequestContainsHeader(request);
+            assertRequestContainsHeader(request.request, request.headers);
         }
     }
 
-    private void assertRequestContainsHeader(ActionRequest request) {
+    private void assertRequestContainsHeader(ActionRequest request, Map<String, String> context) {
         String msg = String.format(Locale.ROOT, "Expected header %s to be in request %s", randomHeaderKey, request.getClass().getName());
         if (request instanceof IndexRequest) {
             IndexRequest indexRequest = (IndexRequest) request;
             msg = String.format(Locale.ROOT, "Expected header %s to be in index request %s/%s/%s", randomHeaderKey,
                     indexRequest.index(), indexRequest.type(), indexRequest.id());
         }
-        assertThat(msg, request.hasHeader(randomHeaderKey), is(true));
-        assertThat(request.getHeader(randomHeaderKey).toString(), is(randomHeaderValue));
+        assertThat(msg, context.containsKey(randomHeaderKey), is(true));
+        assertThat(context.get(randomHeaderKey).toString(), is(randomHeaderValue));
     }
 
     /**
      * a transport client that adds our random header
      */
     private Client transportClient() {
-        Client transportClient = internalCluster().transportClient();
-        FilterClient filterClient = new FilterClient(transportClient) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                request.putHeader(randomHeaderKey, randomHeaderValue);
-                super.doExecute(action, request, listener);
-            }
-        };
-
-        return filterClient;
+        return internalCluster().transportClient().filterWithHeader(Collections.singletonMap(randomHeaderKey, randomHeaderValue));
     }
 
     public static class ActionLoggingPlugin extends Plugin {
@@ -383,9 +376,12 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
     public static class LoggingFilter extends ActionFilter.Simple {
 
+        private final ThreadPool threadPool;
+
         @Inject
-        public LoggingFilter(Settings settings) {
+        public LoggingFilter(Settings settings, ThreadPool pool) {
             super(settings);
+            this.threadPool = pool;
         }
 
         @Override
@@ -395,13 +391,23 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
 
         @Override
         protected boolean apply(String action, ActionRequest request, ActionListener listener) {
-            requests.add(request);
+            requests.add(new RequestAndHeaders(threadPool.getThreadContext().getHeaders(), request));
             return true;
         }
 
         @Override
         protected boolean apply(String action, ActionResponse response, ActionListener listener) {
             return true;
+        }
+    }
+
+    private static class RequestAndHeaders {
+        final Map<String, String> headers;
+        final ActionRequest request;
+
+        private RequestAndHeaders(Map<String, String> headers, ActionRequest request) {
+            this.headers = headers;
+            this.request = request;
         }
     }
 }

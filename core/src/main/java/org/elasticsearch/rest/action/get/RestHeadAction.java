@@ -44,7 +44,7 @@ public class RestHeadAction extends BaseRestHandler {
 
     @Inject
     public RestHeadAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }

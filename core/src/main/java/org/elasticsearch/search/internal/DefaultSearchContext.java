@@ -165,7 +165,7 @@ public class DefaultSearchContext extends SearchContext {
                                 BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
                                 TimeValue timeout
     ) {
-        super(parseFieldMatcher, request);
+        super(parseFieldMatcher);
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();

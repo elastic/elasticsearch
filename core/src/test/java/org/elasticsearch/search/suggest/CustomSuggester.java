@@ -54,7 +54,7 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
 
     @Override
     public SuggestContextParser getContextParser() {
-        return (parser, mapperService, fieldData, headersContext) -> {
+        return (parser, mapperService, fieldData) -> {
             Map<String, Object> options = parser.map();
             CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(CustomSuggester.this, options);
             suggestionContext.setField((String) options.get("field"));

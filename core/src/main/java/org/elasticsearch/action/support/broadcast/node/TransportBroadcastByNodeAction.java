@@ -433,7 +433,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
-            super(request);
             this.indicesLevelRequest = request;
             this.shards = shards;
             this.nodeId = nodeId;

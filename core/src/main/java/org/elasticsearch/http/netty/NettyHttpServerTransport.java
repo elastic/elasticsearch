@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpInfo;
@@ -47,6 +48,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
@@ -139,6 +141,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected final String publishHosts[];
 
     protected final boolean detailedErrorsEnabled;
+    private final ThreadPool threadPool;
 
     protected int publishPort;
 
@@ -167,10 +170,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     @Inject
     @SuppressForbidden(reason = "sets org.jboss.netty.epollBugWorkaround based on netty.epollBugWorkaround")
     // TODO: why be confusing like this? just let the user do it with the netty parameter instead!
-    public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
+    public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
+        this.threadPool = threadPool;
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
@@ -389,7 +393,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
-        httpServerAdapter.dispatchRequest(request, channel);
+        httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
@@ -414,7 +418,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-        return new HttpChannelPipelineFactory(this, detailedErrorsEnabled);
+        return new HttpChannelPipelineFactory(this, detailedErrorsEnabled, threadPool.getThreadContext());
     }
 
     protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
@@ -422,9 +426,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         protected final NettyHttpServerTransport transport;
         protected final HttpRequestHandler requestHandler;
 
-        public HttpChannelPipelineFactory(NettyHttpServerTransport transport, boolean detailedErrorsEnabled) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport, boolean detailedErrorsEnabled, ThreadContext threadContext) {
             this.transport = transport;
-            this.requestHandler = new HttpRequestHandler(transport, detailedErrorsEnabled);
+            this.requestHandler = new HttpRequestHandler(transport, detailedErrorsEnabled, threadContext);
         }
 
         @Override

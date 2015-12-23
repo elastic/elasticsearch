@@ -291,7 +291,7 @@ public abstract class TransportTasksAction<
         }
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
-            super(tasksRequest);
+            super();
             this.tasksRequest = tasksRequest;
         }
 

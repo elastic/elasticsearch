@@ -247,7 +247,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
 
         NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
-            super(request, nodeId);
+            super(nodeId);
             this.shardId = request.shardId();
             this.indexUUID = request.getIndexUUID();
         }

@@ -36,7 +36,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestPutIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }

@@ -740,5 +740,4 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public AnalysisRegistry getAnalysis() {
         return analysisRegistry;
     }
-
 }

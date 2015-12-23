@@ -317,11 +317,15 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -330,21 +334,13 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     private final ThreadPool threadPool;
     private final Admin admin;
-
-    private final Headers headers;
     private final ThreadedActionListener.Wrapper threadedWrapper;
 
-    public AbstractClient(Settings settings, ThreadPool threadPool, Headers headers) {
+    public AbstractClient(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
-        this.headers = headers;
         this.admin = new Admin(this);
         this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
-    }
-
-    @Override
-    public Headers headers() {
-        return this.headers;
     }
 
     @Override
@@ -379,7 +375,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
      */
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-        headers.applyTo(request);
         listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
@@ -1671,5 +1666,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
             execute(GetSettingsAction.INSTANCE, request, listener);
         }
+    }
+
+    @Override
+    public Client filterWithHeader(Map<String, String> headers) {
+        return new FilterClient(this) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                ThreadContext threadContext = threadPool().getThreadContext();
+                try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                    threadContext.putHeader(headers);
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
     }
 }

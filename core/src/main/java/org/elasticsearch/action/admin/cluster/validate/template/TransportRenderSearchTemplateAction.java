@@ -57,7 +57,7 @@ public class TransportRenderSearchTemplateAction extends HandledTransportAction<
 
             @Override
             protected void doRun() throws Exception {
-                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, request, Collections.emptyMap());
+                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 BytesReference processedTemplate = (BytesReference) executable.run();
                 RenderSearchTemplateResponse response = new RenderSearchTemplateResponse();
                 response.source(processedTemplate);

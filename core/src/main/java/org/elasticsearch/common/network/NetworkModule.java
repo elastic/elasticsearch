@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -361,7 +360,6 @@ public class NetworkModule extends AbstractModule {
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {
-            bind(Headers.class).asEagerSingleton();
             bind(TransportProxyClient.class).asEagerSingleton();
             bind(TransportClientNodesService.class).asEagerSingleton();
         } else {

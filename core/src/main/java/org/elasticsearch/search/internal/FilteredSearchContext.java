@@ -62,7 +62,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     public FilteredSearchContext(SearchContext in) {
         //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher(), in);
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 

@@ -54,7 +54,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     @Inject
     public RestGetIndicesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
     }

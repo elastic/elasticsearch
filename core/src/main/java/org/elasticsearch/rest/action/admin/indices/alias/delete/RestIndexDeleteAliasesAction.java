@@ -38,7 +38,7 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     @Inject
     public RestIndexDeleteAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
         controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }

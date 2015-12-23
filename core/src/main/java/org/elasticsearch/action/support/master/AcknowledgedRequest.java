@@ -42,10 +42,6 @@ public abstract class AcknowledgedRequest<T extends MasterNodeRequest> extends M
     protected AcknowledgedRequest() {
     }
 
-    protected AcknowledgedRequest(ActionRequest request) {
-        super(request);
-    }
-
     /**
      * Allows to set the timeout
      * @param timeout timeout as a string (e.g. 1s)

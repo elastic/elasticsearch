@@ -249,7 +249,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         List<Object> terms = new ArrayList<>();
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id())
                 .preference("_local").routing(termsLookup.routing());
-        getRequest.copyContextAndHeadersFrom(SearchContext.current());
         final GetResponse getResponse = client.get(getRequest).actionGet();
         if (getResponse.isExists()) {
             List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());

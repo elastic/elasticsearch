@@ -52,16 +52,7 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
     public SingleShardRequest() {
     }
 
-    protected SingleShardRequest(String index) {
-        this.index = index;
-    }
-
-    protected SingleShardRequest(ActionRequest request) {
-        super(request);
-    }
-
-    protected SingleShardRequest(ActionRequest request, String index) {
-        super(request);
+    public SingleShardRequest(String index) {
         this.index = index;
     }
 

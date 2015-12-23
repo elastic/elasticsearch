@@ -36,11 +36,6 @@ public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends Act
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     protected MasterNodeRequest() {
-
-    }
-
-    protected MasterNodeRequest(ActionRequest request) {
-        super(request);
     }
 
     /**

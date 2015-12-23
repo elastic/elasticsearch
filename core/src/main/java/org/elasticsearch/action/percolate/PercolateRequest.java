@@ -66,7 +66,6 @@ public class PercolateRequest extends BroadcastRequest<PercolateRequest> impleme
     }
 
     PercolateRequest(PercolateRequest request, BytesReference docSource) {
-        super(request);
         this.indices = request.indices();
         this.documentType = request.documentType();
         this.routing = request.routing();
@@ -274,7 +273,7 @@ public class PercolateRequest extends BroadcastRequest<PercolateRequest> impleme
         source = in.readBytesReference();
         docSource = in.readBytesReference();
         if (in.readBoolean()) {
-            getRequest = new GetRequest(null);
+            getRequest = new GetRequest();
             getRequest.readFrom(in);
         }
         onlyCount = in.readBoolean();

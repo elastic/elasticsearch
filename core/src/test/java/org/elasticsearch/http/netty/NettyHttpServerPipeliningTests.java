@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport.HttpChannelPipelineFactory;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
@@ -132,13 +133,13 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         private final ExecutorService executorService;
 
         public CustomNettyHttpServerTransport(Settings settings) {
-            super(settings, NettyHttpServerPipeliningTests.this.networkService, NettyHttpServerPipeliningTests.this.bigArrays);
+            super(settings, NettyHttpServerPipeliningTests.this.networkService, NettyHttpServerPipeliningTests.this.bigArrays, NettyHttpServerPipeliningTests.this.threadPool);
             this.executorService = Executors.newFixedThreadPool(5);
         }
 
         @Override
         public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-            return new CustomHttpChannelPipelineFactory(this, executorService);
+            return new CustomHttpChannelPipelineFactory(this, executorService, NettyHttpServerPipeliningTests.this.threadPool.getThreadContext());
         }
 
         @Override
@@ -152,8 +153,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService) {
-            super(transport, randomBoolean());
+        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
+            super(transport, randomBoolean(), threadContext);
             this.executorService = executorService;
         }
 

@@ -102,7 +102,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         }
 
         NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

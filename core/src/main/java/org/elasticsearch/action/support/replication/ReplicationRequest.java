@@ -58,35 +58,20 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
 
     }
 
-    /**
-     * Creates a new request that inherits headers and context from the request provided as argument.
-     */
-    public ReplicationRequest(ActionRequest request) {
-        super(request);
-    }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(ActionRequest request, ShardId shardId) {
-        super(request);
+    public ReplicationRequest(ShardId shardId) {
         this.index = shardId.getIndex();
         this.shardId = shardId;
     }
 
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     */
-    protected ReplicationRequest(T request) {
-        this(request, request);
-    }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ReplicationRequest(T request, ActionRequest originalRequest) {
-        super(originalRequest);
+    protected ReplicationRequest(T request) {
         this.timeout = request.timeout();
         this.index = request.index();
         this.consistencyLevel = request.consistencyLevel();

@@ -31,7 +31,6 @@ import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -225,7 +224,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext, Map<String, String> params) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -253,14 +252,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script, headersContext, params);
+        return compileInternal(script, params);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
      * without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(Script script, HasContextAndHeaders context, Map<String, String> params) {
+    public CompiledScript compileInternal(Script script, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -297,7 +296,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromIndex(indexedScript.lang, indexedScript.id, context);
+            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
         }
 
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
@@ -323,7 +322,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
-        GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
+        GetRequest getRequest = new GetRequest(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .preference("_local"); //Set preference for no forking
         client.get(getRequest, listener);
@@ -338,13 +337,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    String getScriptFromIndex(String scriptLang, String id, HasContextAndHeaders context) {
+    String getScriptFromIndex(String scriptLang, String id) {
         if (client == null) {
             throw new IllegalArgumentException("Got an indexed script with no Client registered.");
         }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
-        getRequest.copyContextAndHeadersFrom(context);
         GetResponse responseFields = client.get(getRequest).actionGet();
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
@@ -392,7 +390,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         //verify that the script compiles
         validate(request.source(), scriptLang);
 
-        IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
+        IndexRequest indexRequest = new IndexRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
         client.index(indexRequest, listener);
@@ -400,7 +398,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public void deleteScriptFromIndex(DeleteIndexedScriptRequest request, ActionListener<DeleteResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
-        DeleteRequest deleteRequest = new DeleteRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
+        DeleteRequest deleteRequest = new DeleteRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .refresh(true).version(request.version()).versionType(request.versionType());
         client.delete(deleteRequest, listener);
     }
@@ -437,8 +435,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext, Map<String, String> params) {
-        return executable(compile(script, scriptContext, headersContext, params), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params) {
+        return executable(compile(script, scriptContext, params), script.getParams());
     }
 
     /**
@@ -452,7 +450,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * Compiles (or retrieves from cache) and executes the provided search script
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
-        CompiledScript compiledScript = compile(script, scriptContext, SearchContext.current(), params);
+        CompiledScript compiledScript = compile(script, scriptContext, params);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 

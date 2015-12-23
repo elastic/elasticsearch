@@ -30,13 +30,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -79,17 +79,17 @@ public class RestClient implements Closeable {
     private final String protocol;
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
-    private final Headers headers;
     private final InetSocketAddress[] addresses;
     private final Version esVersion;
+    private final ThreadContext threadContext;
 
     public RestClient(RestSpec restSpec, Settings settings, InetSocketAddress[] addresses) throws IOException, RestException {
         assert addresses.length > 0;
         this.restSpec = restSpec;
-        this.headers = new Headers(settings);
         this.protocol = settings.get(PROTOCOL, "http");
         this.httpClient = createHttpClient(settings);
         this.addresses = addresses;
+        this.threadContext = new ThreadContext(settings);
         this.esVersion = readAndCheckVersion();
         logger.info("REST client initialized {}, elasticsearch version: [{}]", addresses, esVersion);
     }
@@ -248,7 +248,7 @@ public class RestClient implements Closeable {
 
     protected HttpRequestBuilder httpRequestBuilder(InetSocketAddress address) {
         return new HttpRequestBuilder(httpClient)
-                .addHeaders(headers)
+                .addHeaders(threadContext.getHeaders())
                 .protocol(protocol)
                 .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
     }

@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -99,7 +100,7 @@ public class UpdateHelper extends AbstractComponent {
                 // Tell the script that this is a create and not an update
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
-                ctx = executeScript(request, ctx);
+                ctx = executeScript(request.script, ctx);
                 //Allow the script to set TTL using ctx._ttl
                 if (ttl == null) {
                     ttl = getTTLFromScriptContext(ctx);
@@ -193,7 +194,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
 
-            ctx = executeScript(request, ctx);
+            ctx = executeScript(request.script, ctx);
 
             operation = (String) ctx.get("op");
 
@@ -243,14 +244,14 @@ public class UpdateHelper extends AbstractComponent {
         }
     }
 
-    private Map<String, Object> executeScript(UpdateRequest request, Map<String, Object> ctx) {
+    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE, request, Collections.emptyMap());
-                script.setNextVar("ctx", ctx);
-                script.run();
+                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap());
+                executableScript.setNextVar("ctx", ctx);
+                executableScript.run();
                 // we need to unwrap the ctx...
-                ctx = (Map<String, Object>) script.unwrap(ctx);
+                ctx = (Map<String, Object>) executableScript.unwrap(ctx);
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

@@ -25,9 +25,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.BigArrays;
@@ -98,7 +95,7 @@ public class TestSearchContext extends SearchContext {
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
-        super(ParseFieldMatcher.STRICT, null);
+        super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -110,7 +107,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext() {
-        super(ParseFieldMatcher.STRICT, null);
+        super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;
@@ -583,73 +580,6 @@ public class TestSearchContext extends SearchContext {
     public InnerHitsContext innerHits() {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    public <V> V putInContext(Object key, Object value) {
-        return null;
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return null;
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return false;
-    }
-
-    @Override
-    public int contextSize() {
-        return 0;
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return true;
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return ImmutableOpenMap.of();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {}
-
-    @Override
-    public <V> V getHeader(String key) {
-        return null;
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return false;
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {}
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
     public Profilers getProfilers() {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -53,7 +54,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
+public class HttpServer extends AbstractLifecycleComponent<HttpServer> implements HttpServerAdapter {
 
     private final Environment environment;
 
@@ -79,23 +80,9 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         nodeService.setHttpServer(this);
 
         this.disableSites = this.settings.getAsBoolean("http.disable_sites", false);
-
-        transport.httpServerAdapter(new Dispatcher(this));
+        transport.httpServerAdapter(this);
     }
 
-    static class Dispatcher implements HttpServerAdapter {
-
-        private final HttpServer server;
-
-        Dispatcher(HttpServer server) {
-            this.server = server;
-        }
-
-        @Override
-        public void dispatchRequest(HttpRequest request, HttpChannel channel) {
-            server.internalDispatchRequest(request, channel);
-        }
-    }
 
     @Override
     protected void doStart() {
@@ -125,7 +112,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         return transport.stats();
     }
 
-    public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
+    public void dispatchRequest(HttpRequest request, HttpChannel channel, ThreadContext threadContext) {
         String rawPath = request.rawPath();
         if (rawPath.startsWith("/_plugin/")) {
             RestFilterChain filterChain = restController.filterChain(pluginSiteFilter);
@@ -135,7 +122,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             handleFavicon(request, channel);
             return;
         }
-        restController.dispatchRequest(request, channel);
+        restController.dispatchRequest(request, channel, threadContext);
     }
 
 

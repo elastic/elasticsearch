@@ -50,7 +50,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
 
     @Inject
     public RestFieldStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_field_stats", this);
         controller.registerHandler(POST, "/_field_stats", this);
         controller.registerHandler(GET, "/{index}/_field_stats", this);

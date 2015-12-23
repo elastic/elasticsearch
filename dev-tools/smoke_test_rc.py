@@ -70,9 +70,11 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "lang-javascript",
                    "lang-plan-a",
                    "lang-python",
+                   "mapper-attachments",
                    "mapper-murmur3",
                    "mapper-size",
                    "repository-azure",
+                   "repository-hdfs",
                    "repository-s3",
                    "store-smb"]
 

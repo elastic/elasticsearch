@@ -196,10 +196,10 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), true, false);
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
         } else {
             try {
-                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), true, false);
+                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
                 fail();
             } catch (IllegalArgumentException e) {
                 for (String conflict : conflicts) {

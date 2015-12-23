@@ -95,8 +95,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         private boolean explicitStore = false;
         private Boolean ignoreMissing = null;
 
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing, Settings settings) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, chooseFieldType(settings, null));
             if (existing != null) {
                 // if there is an existing type, always use that store value (only matters for < 2.0)
                 explicitStore = true;
@@ -167,7 +167,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.mapperService().getIndexSettings().getSettings());
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
             }
@@ -260,7 +260,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     private final Boolean ignoreMissing;
 
     private TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
+        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null).clone(), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
     }
 
     private TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,

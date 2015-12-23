@@ -134,14 +134,13 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = parser.parse("type", new CompressedXContent(enabledMapping));
+        DocumentMapper enabledMapper = indexService.mapperService().merge("type", new CompressedXContent(enabledMapping), true, false);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(disabledMapping));
+        DocumentMapper disabledMapper = indexService.mapperService().merge("type", new CompressedXContent(disabledMapping), false, false);
 
-        enabledMapper.merge(disabledMapper.mapping(), false, false);
-        assertThat(enabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
+        assertThat(disabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }
 }

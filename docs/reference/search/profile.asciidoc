@@ -1,8 +1,6 @@
 [[search-profile]]
 == Profile API
 
-coming[2.2.0]
-
 experimental[]
 
 The Profile API provides detailed timing information about the execution of individual components

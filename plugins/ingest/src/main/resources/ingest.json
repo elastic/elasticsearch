@@ -1,0 +1,31 @@
+{
+  "template": ".ingest",
+  "order": 2147483647,
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.mapper.dynamic" : false
+  },
+  "mappings": {
+    "pipeline": {
+      "dynamic" : "strict",
+      "_all" : {
+        "enabled" : false
+      },
+      "properties": {
+        "processors": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "on_failure": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

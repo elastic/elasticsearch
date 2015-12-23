@@ -19,14 +19,19 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
@@ -36,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 /**
@@ -44,6 +50,9 @@ import java.util.Map;
  */
 public class IngestBootstrapper extends AbstractLifecycleComponent implements ClusterStateListener {
 
+    static final String INGEST_INDEX_TEMPLATE_NAME = "ingest-template";
+
+    private Client client;
     private final ThreadPool threadPool;
     private final Environment environment;
     private final PipelineStore pipelineStore;
@@ -86,6 +95,7 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
 
     @Inject
     public void setClient(Client client) {
+        this.client = client;
         pipelineStore.setClient(client);
     }
 
@@ -96,17 +106,25 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        ClusterState state = event.state();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
 
         if (pipelineStore.isStarted()) {
-            if (validClusterState(event.state()) == false) {
-                stopPipelineStore("cluster state invalid [" + event.state() + "]");
+            if (validClusterState(state) == false) {
+                stopPipelineStore("cluster state invalid [" + state + "]");
+            }
+            // We always check if the index template still exist,
+            // because it may have been removed via an api call and
+            // this allows us to add it back immediately:
+            // (this method gets invoked on each cluster state update)
+            if (isIngestTemplateInstallationRequired(state.metaData())) {
+                forkAndInstallIngestIndexTemplate();
             }
         } else {
-            if (validClusterState(event.state())) {
-                startPipelineStore();
+            if (validClusterState(state)) {
+                startPipelineStore(state.metaData());
             }
         }
     }
@@ -123,6 +141,39 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         } else {
             // it will be ready when auto create index kicks in before the first pipeline doc gets added
             return true;
+        }
+    }
+
+    boolean isIngestTemplateInstallationRequired(MetaData metaData) {
+        if (metaData.getTemplates().containsKey(INGEST_INDEX_TEMPLATE_NAME)) {
+            logger.trace("not installing ingest index template, because it already is installed");
+            return false;
+        }
+        return true;
+    }
+
+    void forkAndInstallIngestIndexTemplate() {
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try {
+                installIngestIndexTemplate();
+            } catch (IOException e) {
+                logger.debug("Failed to install .ingest index template", e);
+            }
+        });
+    }
+
+    void installIngestIndexTemplate() throws IOException {
+        logger.debug("installing .ingest index template...");
+        try (InputStream is = IngestBootstrapper.class.getResourceAsStream("/ingest.json")) {
+            final byte[] template;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                Streams.copy(is, out);
+                template = out.bytes().toBytes();
+            }
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(INGEST_INDEX_TEMPLATE_NAME);
+            request.source(template);
+            client.execute(PutIndexTemplateAction.INSTANCE, request).actionGet();
+            logger.debug(".ingest index template has been installed");
         }
     }
 
@@ -143,13 +194,19 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    void startPipelineStore() {
+    void startPipelineStore(MetaData metaData) {
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
             try {
+                // Before we start the pipeline store we check if the index template exists,
+                // if it doesn't we add it. If for some reason this fails we will try again later,
+                // but the pipeline store won't start before that happened
+                if (isIngestTemplateInstallationRequired(metaData)) {
+                    installIngestIndexTemplate();
+                }
                 pipelineStore.start();
             } catch (Exception e) {
                 logger.warn("pipeline store failed to start, retrying...", e);
-                startPipelineStore();
+                startPipelineStore(metaData);
             }
         });
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -107,7 +108,10 @@ public class IngestBootstrapperTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("pipeline store isn't ready yet"));
         }
 
-        bootstrapper.startPipelineStore();
+        MetaData metadata = MetaData.builder()
+            .put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME))
+            .build();
+        bootstrapper.startPipelineStore(metadata);
         assertBusy(() -> {
             assertThat(store.isStarted(), is(true));
             assertThat(store.get("1"), notNullValue());
@@ -123,7 +127,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         hits.add(new InternalSearchHit(0, "2", new Text("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
         );
-        bootstrapper.startPipelineStore();
+        bootstrapper.startPipelineStore(metadata);
         assertBusy(() -> {
             assertThat(store.isStarted(), is(true));
             assertThat(store.get("1"), notNullValue());
@@ -149,7 +153,10 @@ public class IngestBootstrapperTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         csBuilder.blocks(ClusterBlocks.builder()
             .addGlobalBlock(randomBoolean() ? DiscoverySettings.NO_MASTER_BLOCK_WRITES : DiscoverySettings.NO_MASTER_BLOCK_ALL));
-        ClusterState cs = csBuilder.metaData(MetaData.builder()).build();
+        ClusterState cs = csBuilder.metaData(
+            MetaData.builder()
+                .put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME))
+        ).build();
 
         // We're not started and there is a no master block, doing nothing:
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
@@ -165,7 +172,9 @@ public class IngestBootstrapperTests extends ESTestCase {
 
     public void testPipelineStoreBootstrappingNoIngestIndex() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        ClusterState cs = csBuilder.metaData(MetaData.builder()).build();
+        ClusterState cs = csBuilder.metaData(MetaData.builder()
+            .put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME)))
+            .build();
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, times(1)).start();
     }
@@ -174,6 +183,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         // .ingest index, but not all primary shards started:
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
+        metaDateBuilder.put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME));
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -206,6 +216,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         // .ingest index, but not all primary shards started:
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
+        metaDateBuilder.put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME));
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -238,6 +249,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         // .ingest index, but not all primary shards started:
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
+        metaDateBuilder.put(IndexTemplateMetaData.builder(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME));
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Settings settings = settings(Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

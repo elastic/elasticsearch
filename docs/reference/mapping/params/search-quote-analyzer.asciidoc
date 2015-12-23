@@ -1,0 +1,95 @@
+[[search-quote-analyzer]]
+=== `search_quote_analyzer`
+
+Specifying a `search_quote_analyzer` allows you to control the tokenization of 
+phrase queries at search time. This is particularly useful when dealing with disabling stemming and stop words for phrases.
+
+The `search_quote_analyzer` setting can be applied on a field with a stemming and stop words filter and pointed to an analyzer that generates zero tokens, effectively disabling the phrase query 
+whilst the same phrase query can be run on another field with an analyzer that does not have a stemming and stop words filter thus allowing for an exact match including stems and stopwords.
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+   "settings":{
+      "analysis":{
+         "analyzer":{
+            "my_analyzer":{
+               "type":"custom",
+               "tokenizer":"standard",
+               "filter":[
+                  "lowercase",
+                  "english_stop",
+                  "minimal_english"
+               ]
+            },
+            "disable_tokenization":{
+               "type":"pattern",
+               "pattern":"[^.]"
+            }
+         },
+         "filter":{
+            "english_stop":{
+               "type":"stop",
+               "stopwords":"_english_"
+            },
+            "minimal_english":{
+               "type":"stemmer",
+               "name":"minimal_english"
+            }
+         }
+      }
+   },
+   "mappings":{
+      "my_type":{
+         "properties":{
+            "title":{
+               "type":"string",
+               "analyzer":"my_analyzer",
+               "search_quote_analyzer":"disable_tokenization",
+               "fields":{
+                  "plain":{
+                     "type":"string"
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+PUT my_index/my_type/1
+{
+   "title":"The Quick Brown Fox"
+}
+
+PUT my_index/my_type/2
+{
+   "title":"A Quick Brown Fox"
+}
+
+GET my_index/my_type/_search
+{
+   "query":{
+      "query_string":{
+         "fields":["title*"],
+         "default_operator":"AND",
+         "query":"\"the quick brown fox\""
+      }
+   }
+}
+
+--------------------------------------------------
+// AUTOSENSE
+
+<1> Analysis setting to define the `my_analyzer` analyzer which filters stems and stop words
+<2> Analysis settings to define the `disable_tokenization` analyzer
+<3> The `title` field uses the `my_analyzer` analyzer at index time and the `disable_tokenization` analyzer 
+at search time but only when encountering a phrase otherwise it will use `my_analyzer` for term queries
+<4> The query looks in the fields `title` and `title.plain`, when the query  runs against `title` the `disable_tokenization` analyzer will kick in and return zero tokens ([]) since we only 
+want the phrase to run against `title.plain` which has the `standard` analyzer and does not filter stems and stop words. Mean while term queries will continue to run against `title`.
+Finally the document with the title `The Quick Brown Fox` will be returned, without the `search_quote_analyzer` both documents would be returned as `my_analyzer` would remove the stems and stop words at 
+search time resulting in tokens [`quick`, `brown`, `fox`] which are contained in both documents.
+
+
+

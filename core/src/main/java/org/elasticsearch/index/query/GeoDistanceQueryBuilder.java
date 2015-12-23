@@ -236,7 +236,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         }
 
         normDistance = GeoUtils.maxRadialDistance(center, normDistance);
-        return new GeoPointDistanceQuery(fieldType.names().fullName(), center.lon(), center.lat(), normDistance);
+        return new GeoPointDistanceQuery(fieldType.name(), center.lon(), center.lat(), normDistance);
     }
 
     @Override

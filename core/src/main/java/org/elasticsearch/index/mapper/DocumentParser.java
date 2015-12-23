@@ -26,10 +26,9 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -53,29 +52,21 @@ class DocumentParser implements Closeable {
     private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
         @Override
         protected ParseContext.InternalParseContext initialValue() {
-            return new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, new ContentPath(0));
+            return new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
         }
     };
 
-    private final Settings indexSettings;
+    private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
-    private final ReleasableLock parseLock;
 
-    public DocumentParser(Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
+    public DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
-        this.parseLock = parseLock;
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        try (ReleasableLock lock = parseLock.acquire()){
-            return innerParseDocument(source);
-        }
-    }
-
-    private ParsedDocument innerParseDocument(SourceToParse source) throws MapperParsingException {
         if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
@@ -132,7 +123,7 @@ class DocumentParser implements Closeable {
 
             // try to parse the next token, this should be null if the object is ended properly
             // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
-            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)
                 && source.parser() == null && parser != null) {
                 // only check for end of tokens if we created the parser here
                 token = parser.nextToken();

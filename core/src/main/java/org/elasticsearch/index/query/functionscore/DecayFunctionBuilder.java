@@ -374,7 +374,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
 
         @Override
         protected String getFieldName() {
-            return fieldData.getFieldNames().fullName();
+            return fieldData.getFieldName();
         }
 
         @Override
@@ -450,7 +450,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
 
         @Override
         protected String getFieldName() {
-            return fieldData.getFieldNames().fullName();
+            return fieldData.getFieldName();
         }
 
         @Override

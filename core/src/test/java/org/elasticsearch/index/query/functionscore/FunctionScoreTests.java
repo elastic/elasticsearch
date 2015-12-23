@@ -31,6 +31,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RandomApproximationQuery;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -46,6 +49,8 @@ import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -55,7 +60,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
@@ -81,8 +85,8 @@ public class FunctionScoreTests extends ESTestCase {
      */
     private static class IndexFieldDataStub implements IndexFieldData<AtomicFieldData> {
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
+        public String getFieldName() {
+            return "test";
         }
 
         @Override
@@ -166,8 +170,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
+        public String getFieldName() {
+            return "test";
         }
 
         @Override
@@ -558,5 +562,52 @@ public class FunctionScoreTests extends ESTestCase {
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;
         assertThat(score, equalTo(2.0f));
+    }
+
+    public void testMinScoreExplain() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Explanation queryExpl = searcher.explain(query, 0);
+
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f, null, Float.POSITIVE_INFINITY);
+        Explanation fsqExpl = searcher.explain(fsq, 0);
+        assertTrue(fsqExpl.isMatch());
+        assertEquals(queryExpl.getValue(), fsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getDescription(), fsqExpl.getDescription());
+
+        fsq = new FunctionScoreQuery(query, null, 10f, null, Float.POSITIVE_INFINITY);
+        fsqExpl = searcher.explain(fsq, 0);
+        assertFalse(fsqExpl.isMatch());
+        assertEquals("Score value is too low, expected at least 10.0 but got 1.0", fsqExpl.getDescription());
+
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 0f, CombineFunction.MULTIPLY);
+        Explanation ffsqExpl = searcher.explain(ffsq, 0);
+        assertTrue(ffsqExpl.isMatch());
+        assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
+
+        ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 10f, CombineFunction.MULTIPLY);
+        ffsqExpl = searcher.explain(ffsq, 0);
+        assertFalse(ffsqExpl.isMatch());
+        assertEquals("Score value is too low, expected at least 10.0 but got 1.0", ffsqExpl.getDescription());
+    }
+
+    public void testPropagatesApproximations() throws IOException {
+        Query query = new RandomApproximationQuery(new MatchAllDocsQuery(), random());
+        IndexSearcher searcher = newSearcher(reader);
+        searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
+
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null, null, Float.POSITIVE_INFINITY);
+        for (boolean needsScores : new boolean[] {true, false}) {
+            Weight weight = searcher.createWeight(fsq, needsScores);
+            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            assertNotNull(scorer.twoPhaseIterator());
+        }
+
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, null, CombineFunction.MULTIPLY);
+        for (boolean needsScores : new boolean[] {true, false}) {
+            Weight weight = searcher.createWeight(ffsq, needsScores);
+            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            assertNotNull(scorer.twoPhaseIterator());
+        }
     }
 }

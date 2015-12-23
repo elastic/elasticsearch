@@ -760,7 +760,7 @@ public class PercolatorService extends AbstractComponent {
                     hls = new ArrayList<>(topDocs.scoreDocs.length);
                 }
 
-                final MappedFieldType uidMapper = context.mapperService().smartNameFieldType(UidFieldMapper.NAME);
+                final MappedFieldType uidMapper = context.mapperService().fullName(UidFieldMapper.NAME);
                 final IndexFieldData<?> uidFieldData = context.fieldData().getForField(uidMapper);
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

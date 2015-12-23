@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -293,6 +294,11 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+    }
+
+    @Override
+    public RootObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        return (RootObjectMapper) super.updateFieldType(fullNameToFieldType);
     }
 
     @Override

@@ -44,6 +44,10 @@ public class CodecTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
+            if (v.onOrAfter(Version.V_2_0_0) == false) {
+                // no need to test, we don't support upgrading from these versions
+                continue;
+            }
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
@@ -67,6 +71,10 @@ public class CodecTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
+            if (v.onOrAfter(Version.V_2_0_0) == false) {
+                // no need to test, we don't support upgrading from these versions
+                continue;
+            }
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {

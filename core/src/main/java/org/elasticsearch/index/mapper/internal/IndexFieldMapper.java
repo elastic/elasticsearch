@@ -67,7 +67,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -223,7 +223,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -247,7 +247,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), context.index(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.index(), fieldType()));
     }
 
     @Override

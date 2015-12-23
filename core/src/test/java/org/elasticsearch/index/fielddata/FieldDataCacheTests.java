@@ -90,14 +90,12 @@ public class FieldDataCacheTests extends ESTestCase {
 
     private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
-        MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
-        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, names, new NoneCircuitBreakerService(), fieldDataType);
+        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(), fieldDataType);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
-        MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
-        return new PagedBytesIndexFieldData(createIndexSettings(), names, fieldDataType, indexFieldDataCache, new NoneCircuitBreakerService());
+        return new PagedBytesIndexFieldData(createIndexSettings(), fieldName, fieldDataType, indexFieldDataCache, new NoneCircuitBreakerService());
     }
 
     private IndexSettings createIndexSettings() {

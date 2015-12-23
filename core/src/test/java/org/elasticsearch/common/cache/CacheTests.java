@@ -492,7 +492,7 @@ public class CacheTests extends ESTestCase {
     }
 
     public void testComputeIfAbsentCallsOnce() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
         List<Thread> threads = new ArrayList<>();
         AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
@@ -558,7 +558,7 @@ public class CacheTests extends ESTestCase {
             }
         }
 
-        int numberOfThreads = randomIntBetween(2, 256);
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
         CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
@@ -626,7 +626,7 @@ public class CacheTests extends ESTestCase {
     }
 
     public void testCachePollution() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
         CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         List<Thread> threads = new ArrayList<>();
@@ -676,7 +676,7 @@ public class CacheTests extends ESTestCase {
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
     public void testTorture() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
                         .setMaximumWeight(1000)

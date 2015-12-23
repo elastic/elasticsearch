@@ -343,12 +343,10 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         }
     }
 
-    public abstract MappedFieldType smartNameFieldType(String name);
-
     /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
-    public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
+    public abstract MappedFieldType smartNameFieldType(String name);
 
     public abstract ObjectMapper getObjectMapper(String name);
 

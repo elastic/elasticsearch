@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
@@ -151,7 +150,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+            public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
                 if (wrap) {
                     assertEquals(new ShardId("test", 1), shardId);
                 } else {
@@ -161,7 +160,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+            public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
                 if (wrap) {
                     assertEquals(new ShardId("test", 1), shardId);
                 } else {
@@ -189,12 +188,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
                 @Override
-                public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+                public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
 
                 }
 
                 @Override
-                public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+                public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
 
                 }
             });
@@ -209,7 +208,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), cache, null, null);
-            ft.setNames(new Names("some_long"));
+            ft.setName("some_long");
             ft.setHasDocValues(true);
             ifds.getForField(ft); // no exception
             ft.setHasDocValues(false);

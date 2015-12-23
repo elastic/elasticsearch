@@ -118,7 +118,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            indexFieldName = fieldType.names().indexName();
+            indexFieldName = fieldType.name();
             valueBytes = fieldType.indexedValueForSearch(value);
         } else {
             indexFieldName = fieldName;

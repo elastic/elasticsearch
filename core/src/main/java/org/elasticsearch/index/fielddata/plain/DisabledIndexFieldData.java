@@ -27,7 +27,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -43,12 +42,12 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
         public IndexFieldData<AtomicFieldData> build(IndexSettings indexSettings, MappedFieldType fieldType,
                                                         IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            return new DisabledIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache);
+            return new DisabledIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache);
         }
     }
 
-    public DisabledIndexFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+    public DisabledIndexFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(indexSettings, fieldName, fieldDataType, cache);
     }
 
     @Override
@@ -67,7 +66,7 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
     }
 
     private IllegalStateException fail() {
-        return new IllegalStateException("Field data loading is forbidden on " + getFieldNames().fullName());
+        return new IllegalStateException("Field data loading is forbidden on " + getFieldName());
     }
 
 }

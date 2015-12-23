@@ -162,7 +162,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .field("completion", "suggestion")
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 1);
     }
 
@@ -181,7 +181,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .array("completion", "suggestion1", "suggestion2")
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 2);
     }
 
@@ -203,7 +203,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 1);
     }
 
@@ -225,7 +225,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 3);
     }
 
@@ -257,7 +257,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 3);
     }
 
@@ -289,7 +289,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 6);
     }
 

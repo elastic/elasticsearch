@@ -69,7 +69,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -175,7 +175,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (strict) {
                 FieldNamesFieldType other = (FieldNamesFieldType)fieldType;
                 if (isEnabled() != other.isEnabled()) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
                 }
             }
         }
@@ -216,7 +216,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             FieldNamesFieldType newFieldType = fieldType().clone();
             newFieldType.setEnabled(false);
             newFieldType.freeze();
-            fieldTypeRef.set(newFieldType);
+            this.fieldType = newFieldType;
         }
     }
 
@@ -290,7 +290,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
                     if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                        document.add(new Field(fieldType().names().indexName(), fieldName, fieldType()));
+                        document.add(new Field(fieldType().name(), fieldName, fieldType()));
                     }
                 }
             }

@@ -150,19 +150,17 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.getIndexSettings().getSettings();
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
 
-        DocumentMapper builderDocMapper = doc(settings, rootObject("person").add(
+        DocumentMapper builderDocMapper = doc(rootObject("person").add(
                 stringField("name").store(true)
                         .addMultiField(stringField("indexed").index(true).tokenized(true))
                         .addMultiField(stringField("not_indexed").index(false).store(true))
-        ), indexService.mapperService()).build(indexService.mapperService(), mapperParser);
+        ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
-        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
+        DocumentMapper docMapper = indexService.mapperService().documentMapperParser().parse("person", new CompressedXContent(builtMapping));
 
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));

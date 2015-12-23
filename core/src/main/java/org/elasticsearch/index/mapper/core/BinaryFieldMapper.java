@@ -170,14 +170,14 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(fieldType().names().indexName(), value, fieldType()));
+            fields.add(new Field(fieldType().name(), value, fieldType()));
         }
 
         if (fieldType().hasDocValues()) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().names().indexName());
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().names().indexName(), value);
-                context.doc().addWithKey(fieldType().names().indexName(), field);
+                field = new CustomBinaryDocValuesField(fieldType().name(), value);
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(value);
             }

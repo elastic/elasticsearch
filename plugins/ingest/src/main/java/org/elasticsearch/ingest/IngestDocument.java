@@ -165,8 +165,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(TemplateService.Template fieldPathTemplate) {
-        Map<String, Object> model = createTemplateModel();
-        removeField(fieldPathTemplate.execute(model));
+        removeField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -420,6 +419,10 @@ public final class IngestDocument {
             return clazz.cast(object);
         }
         throw new IllegalArgumentException("field [" + path + "] of type [" + object.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
+    }
+
+    public String renderTemplate(TemplateService.Template template) {
+        return template.execute(createTemplateModel());
     }
 
     private Map<String, Object> createTemplateModel() {

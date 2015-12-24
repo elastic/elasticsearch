@@ -3,3 +3,21 @@
 
 A char filter of type `html_strip` stripping out HTML elements from an
 analyzed text.
+
+Here is a sample configuration:
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "char_filter" : {
+                "my_mapping" : {
+                    "type" : "mapping",
+                    "char_filter": ["html_strip"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

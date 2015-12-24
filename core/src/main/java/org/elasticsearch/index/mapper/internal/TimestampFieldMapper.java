@@ -313,9 +313,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
-                context.ignoredValue(fieldType().names().indexName(), String.valueOf(timestamp));
-            }
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 fields.add(new LongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
             }

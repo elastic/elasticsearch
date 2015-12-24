@@ -206,11 +206,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
-                    context.ignoredValue(fieldType().names().indexName(), routing);
-                    return;
+                if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                    fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
                 }
-                fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
             }
         }
     }

@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.Mustache;
+import java.io.Reader;
+import java.lang.ref.SoftReference;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -33,9 +37,8 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.lang.ref.SoftReference;
-import java.util.Collections;
-import java.util.Map;
+import com.github.mustachejava.Mustache;
+import com.github.mustachejava.DefaultMustacheFactory;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -45,9 +48,12 @@ import java.util.Map;
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
-public class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "mustache";
+    static final String CONTENT_TYPE_PARAM = "content_type";
+    static final String JSON_CONTENT_TYPE = "application/json";
+    static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
 
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
     private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
@@ -82,8 +88,25 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
      * */
     @Override
     public Object compile(String template, Map<String, String> params) {
-        /** Factory to generate Mustache objects from. */
-        return (new JsonEscapingMustacheFactory()).compile(new FastStringReader(template), "query-template");
+        String contentType = params.get(CONTENT_TYPE_PARAM);
+        if (contentType == null) {
+            contentType = JSON_CONTENT_TYPE;
+        }
+
+        final DefaultMustacheFactory mustacheFactory;
+        switch (contentType){
+            case PLAIN_TEXT_CONTENT_TYPE:
+                mustacheFactory = new NoneEscapingMustacheFactory();
+                break;
+            case JSON_CONTENT_TYPE:
+            default:
+                // assume that the default is json encoding:
+                mustacheFactory = new JsonEscapingMustacheFactory();
+                break;
+        }
+        mustacheFactory.setObjectHandler(new CustomReflectionObjectHandler());
+        Reader reader = new FastStringReader(template);
+        return mustacheFactory.compile(reader, "query-template");
     }
 
     @Override

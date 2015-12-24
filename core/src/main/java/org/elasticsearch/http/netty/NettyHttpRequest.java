@@ -165,6 +165,7 @@ public class NettyHttpRequest extends HttpRequest {
 
     @Override
     public boolean hasParam(String key) {
+        this.consumedParams.add(key);
         return params.containsKey(key);
     }
 

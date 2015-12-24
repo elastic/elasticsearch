@@ -1,0 +1,13 @@
+Apache HTrace
+Copyright 2015 The Apache Software Foundation
+
+This product includes software developed at The Apache Software
+Foundation (http://www.apache.org/).
+
+In addition, this product includes software dependencies. See
+the accompanying LICENSE.txt for a listing of dependencies
+that are NOT Apache licensed (with pointers to their licensing)
+
+Apache HTrace includes an Apache Thrift connector to Zipkin. Zipkin
+is a distributed tracing system that is Apache 2.0 Licensed.
+Copyright 2012 Twitter, Inc.

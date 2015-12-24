@@ -18,12 +18,23 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.security.auth.Subject;
+
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.hadoop.fs.AbstractFileSystem;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
@@ -31,202 +42,118 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
+public final class HdfsRepository extends BlobStoreRepository {
 
-public class HdfsRepository extends BlobStoreRepository implements FileSystemFactory {
-
-    public final static String TYPE = "hdfs";
-
-    private final HdfsBlobStore blobStore;
-    private final BlobPath basePath;
+    private final BlobPath basePath = BlobPath.cleanPath();
+    private final RepositorySettings repositorySettings;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
-    private final RepositorySettings repositorySettings;
-    private FileSystem fs;
+
+    private HdfsBlobStore blobStore;
+
+    // buffer size passed to HDFS read/write methods
+    // TODO: why 100KB?
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, ThreadPool threadPool) throws IOException {
+    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
-
         this.repositorySettings = repositorySettings;
 
-        String path = repositorySettings.settings().get("path", settings.get("path"));
-        if (path == null) {
-            throw new IllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
-        }
-
-        // get configuration
-        fs = getFileSystem();
-        Path hdfsPath = SecurityUtils.execute(fs, new FsCallback<Path>() {
-            @Override
-            public Path doInHdfs(FileSystem fs) throws IOException {
-                return fs.makeQualified(new Path(path));
-            }
-        });
-        this.basePath = BlobPath.cleanPath();
-
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fs, fs.getUri(), hdfsPath);
-        blobStore = new HdfsBlobStore(settings, this, hdfsPath, threadPool);
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
-        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
+        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
+        this.compress = repositorySettings.settings().getAsBoolean("compress", false);
     }
 
-    // as the FileSystem is long-lived and might go away, make sure to check it before it's being used.
     @Override
-    public FileSystem getFileSystem() throws IOException {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
+    protected void doStart() {
+        String uriSetting = repositorySettings.settings().get("uri");
+        if (Strings.hasText(uriSetting) == false) {
+            throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
+        URI uri = URI.create(uriSetting);
+        if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
+            throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
+        }
+        if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
+        }
+
+        String pathSetting = repositorySettings.settings().get("path");
+        // get configuration
+        if (pathSetting == null) {
+            throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
+        }
+        
+        int bufferSize = repositorySettings.settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<FileSystem>() {
+            // initialize our filecontext
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
+            FileContext fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
                 @Override
-                public FileSystem run() throws IOException {
-                    return doGetFileSystem();
+                public FileContext run() {
+                    return createContext(uri, repositorySettings);
                 }
-            }, SecurityUtils.AccBridge.acc());
-        } catch (PrivilegedActionException pae) {
-            Throwable th = pae.getCause();
-            if (th instanceof Error) {
-                throw (Error) th;
-            }
-            if (th instanceof RuntimeException) {
-                throw (RuntimeException) th;
-            }
-            if (th instanceof IOException) {
-                throw (IOException) th;
-            }
-            throw new ElasticsearchException(pae);
+            });
+            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
+            logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
         }
+        super.doStart();
     }
-
-    private FileSystem doGetFileSystem() throws IOException {
-        // check if the fs is still alive
-        // make a cheap call that triggers little to no security checks
-        if (fs != null) {
-            try {
-                fs.isFile(fs.getWorkingDirectory());
-            } catch (IOException ex) {
-                if (ex.getMessage().contains("Filesystem closed")) {
-                    fs = null;
-                }
-                else {
-                    throw ex;
-                }
-            }
-        }
-        if (fs == null) {
-            Thread th = Thread.currentThread();
-            ClassLoader oldCL = th.getContextClassLoader();
-            try {
-                th.setContextClassLoader(getClass().getClassLoader());
-                return initFileSystem(repositorySettings);
-            } catch (IOException ex) {
-                throw ex;
-            } finally {
-                th.setContextClassLoader(oldCL);
-            }
-        }
-        return fs;
-    }
-
-    private FileSystem initFileSystem(RepositorySettings repositorySettings) throws IOException {
-
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", settings.getAsBoolean("load_defaults", true)));
-        cfg.setClassLoader(this.getClass().getClassLoader());
+    
+    // create hadoop filecontext
+    @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
+    private static FileContext createContext(URI uri, RepositorySettings repositorySettings)  {
+        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
+        cfg.setClassLoader(HdfsRepository.class.getClassLoader());
         cfg.reloadConfiguration();
-
-        String confLocation = repositorySettings.settings().get("conf_location", settings.get("conf_location"));
-        if (Strings.hasText(confLocation)) {
-            for (String entry : Strings.commaDelimitedListToStringArray(confLocation)) {
-                addConfigLocation(cfg, entry.trim());
-            }
-        }
 
         Map<String, String> map = repositorySettings.settings().getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }
 
+        // create a hadoop user. if we want some auth, it must be done different anyway, and tested.
+        Subject subject;
         try {
-            UserGroupInformation.setConfiguration(cfg);
-        } catch (Throwable th) {
-            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot initialize Hadoop"), th);
+            Class<?> clazz = Class.forName("org.apache.hadoop.security.User");
+            Constructor<?> ctor = clazz.getConstructor(String.class);
+            ctor.setAccessible(true);
+            Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
+            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
         }
 
-        String uri = repositorySettings.settings().get("uri", settings.get("uri"));
-        URI actualUri = (uri != null ? URI.create(uri) : FileSystem.getDefaultUri(cfg));
-        String user = repositorySettings.settings().get("user", settings.get("user"));
+        // disable FS cache
+        cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
-        try {
-            // disable FS cache
-            String disableFsCache = String.format(Locale.ROOT, "fs.%s.impl.disable.cache", actualUri.getScheme());
-            cfg.setBoolean(disableFsCache, true);
-
-            return (user != null ? FileSystem.get(actualUri, cfg, user) : FileSystem.get(actualUri, cfg));
-        } catch (Exception ex) {
-            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
-        }
-    }
-
-    @SuppressForbidden(reason = "pick up Hadoop config (which can be on HDFS)")
-    private void addConfigLocation(Configuration cfg, String confLocation) {
-        URL cfgURL = null;
-        // it's an URL
-        if (!confLocation.contains(":")) {
-            cfgURL = cfg.getClassLoader().getResource(confLocation);
-
-            // fall back to file
-            if (cfgURL == null) {
-                java.nio.file.Path path = PathUtils.get(confLocation);
-                if (!Files.isReadable(path)) {
-                    throw new IllegalArgumentException(
-                            String.format(Locale.ROOT,
-                                    "Cannot find classpath resource or file 'conf_location' [%s] defined for hdfs snapshot/restore",
-                                    confLocation));
+        // create the filecontext with our user
+        return Subject.doAs(subject, new PrivilegedAction<FileContext>() {
+            @Override
+            public FileContext run() {
+                try {
+                    AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
+                    return FileContext.getFileContext(fs, cfg);
+                } catch (UnsupportedFileSystemException e) {
+                    throw new RuntimeException(e);
                 }
-                String pathLocation = path.toUri().toString();
-                logger.debug("Adding path [{}] as file [{}]", confLocation, pathLocation);
-                confLocation = pathLocation;
             }
-            else {
-                logger.debug("Resolving path [{}] to classpath [{}]", confLocation, cfgURL);
-            }
-        }
-        else {
-            logger.debug("Adding path [{}] as URL", confLocation);
-        }
-
-        if (cfgURL == null) {
-            try {
-                cfgURL = new URL(confLocation);
-            } catch (MalformedURLException ex) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                        "Invalid 'conf_location' URL [%s] defined for hdfs snapshot/restore", confLocation), ex);
-            }
-        }
-
-        cfg.addResource(cfgURL);
+        });
     }
 
     @Override
@@ -247,13 +174,5 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
-        super.doClose();
-
-        IOUtils.closeStream(fs);
-        fs = null;
     }
 }

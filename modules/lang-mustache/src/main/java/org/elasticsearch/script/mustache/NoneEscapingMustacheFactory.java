@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.MustacheException;
 
@@ -26,14 +25,14 @@ import java.io.IOException;
 import java.io.Writer;
 
 /**
- * A MustacheFactory that does simple JSON escaping.
+ * A MustacheFactory that does no string escaping.
  */
-final class JsonEscapingMustacheFactory extends DefaultMustacheFactory {
+final class NoneEscapingMustacheFactory extends DefaultMustacheFactory {
 
     @Override
     public void encode(String value, Writer writer) {
         try {
-            writer.write(JsonStringEncoder.getInstance().quoteAsString(value));
+            writer.write(value);
         } catch (IOException e) {
             throw new MustacheException("Failed to encode value: " + value);
         }

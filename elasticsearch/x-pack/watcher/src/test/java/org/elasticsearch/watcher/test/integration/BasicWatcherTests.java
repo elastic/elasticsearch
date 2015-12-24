@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,10 +13,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
@@ -34,14 +32,9 @@ import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -56,6 +49,7 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.hourly;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
@@ -70,13 +64,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = new ArrayList<>();
-        types.addAll(super.pluginTypes());
-        types.add(MustachePlugin.class);
-        return types;
+    protected boolean timeWarped() {
+        return true;
     }
-    
+
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -89,17 +80,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
-                        .addAction("_logger", loggingAction("\n\n************\n" +
-                                        "total hits: {{ctx.payload.hits.total}}\n" +
-                                        "************\n")
+                        .addAction("_logger", loggingAction("_logging")
                                         .setCategory("_category")))
                 .get();
-
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
-
+        timeWarp().scheduler().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch().setId("_name").get();
@@ -116,12 +100,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .input(searchInput(searchRequest))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
-
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
-
+        timeWarp().scheduler().trigger("_name");
         // The watch's condition won't meet because there is no data that matches with the query
         assertWatchWithNoActionNeeded("_name", 1);
 
@@ -143,20 +122,11 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
         PutWatchResponse indexResponse = watcherClient.preparePutWatch("_name")
                 .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                        .trigger(schedule(cron("0/1 * * * * ? 2020")))
                         .input(searchInput(searchRequest))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
         assertThat(indexResponse.isCreated(), is(true));
-
-        if (!timeWarped()) {
-            // Although there is no added benefit in this test for waiting for the watch to fire, however
-            // we need to wait here because of a test timing issue. When we tear down a test we delete the watch and delete all
-            // indices, but there may still be inflight fired watches, which may trigger the watch history to be created again, before
-            // we finished the tear down phase.
-            assertWatchWithNoActionNeeded("_name", 1);
-        }
-
         DeleteWatchResponse deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
         assertThat(deleteWatchResponse, notNullValue());
         assertThat(deleteWatchResponse.isFound(), is(true));
@@ -217,22 +187,17 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(source.condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
+        timeWarp().clock().fastForwardSeconds(5);
+        timeWarp().scheduler().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
 
         watcherClient().preparePutWatch("_name")
                 .setSource(source.condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
+        timeWarp().clock().fastForwardSeconds(5);
+        timeWarp().scheduler().trigger("_name");
+        refresh();
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
 
         watcherClient().preparePutWatch("_name")
@@ -241,24 +206,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        } else {
-            Thread.sleep(1000);
-        }
-
+        timeWarp().clock().fastForwardSeconds(5);
+        timeWarp().scheduler().trigger("_name");
         long count =  findNumberOfPerformedActions("_name");
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        } else {
-            Thread.sleep(1000);
-        }
-
+        timeWarp().clock().fastForwardSeconds(5);
+        timeWarp().scheduler().trigger("_name");
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
     }
 
@@ -272,7 +225,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval("1s")))
                 .input(simpleInput("key", "value"))
                 .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
-                .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
+                .addAction("_id", loggingAction("_logging"));
         watcherClient().preparePutWatch("_name")
                 .setSource(source)
                 .get();
@@ -284,7 +237,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval("100s")))
                 .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
                 .input(simpleInput("key", "value"))
-                .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
+                .addAction("_id", loggingAction("_logging"));
         watcherClient().preparePutWatch("_name")
                 .setSource(source)
                 .get();
@@ -297,24 +250,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testConditionSearchWithSource() throws Exception {
-        String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
-                .must(matchQuery("level", "a"))
-                .must(rangeQuery("_timestamp")
-                        .from("{{" + variable + "}}||-30s")
-                        .to("{{" + variable + "}}")));
-
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder));
     }
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
-        String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
-                .must(matchQuery("level", "a"))
-                .must(rangeQuery("_timestamp")
-                        .from("{{" + variable + "}}||-30s")
-                        .to("{{" + variable + "}}")));
-
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
@@ -350,14 +291,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name1");
-            timeWarp().scheduler().trigger("_name2");
-            refresh();
-        } else {
-            Thread.sleep(5000);
-        }
-
+        timeWarp().scheduler().trigger("_name1");
+        timeWarp().scheduler().trigger("_name2");
         assertWatchWithMinimumPerformedActionsCount("_name1", 1);
         assertWatchWithNoActionNeeded("_name2", 1);
 
@@ -442,10 +377,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     }
 
     private void testConditionSearch(SearchRequest request) throws Exception {
-        if (timeWarped()) {
-            // reset, so we don't miss event docs when we filter over the _timestamp field.
-            timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
-        }
+        // reset, so we don't miss event docs when we filter over the _timestamp field.
+        timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
 
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
@@ -469,14 +402,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         refresh();
-
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger(watchName);
-            refresh();
-        } else {
-            Thread.sleep(5000);
-        }
+        timeWarp().scheduler().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
         client().prepareIndex("events", "event")
@@ -484,13 +410,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource("level", "b")
                 .get();
         refresh();
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger(watchName);
-            refresh();
-        } else {
-            Thread.sleep(5000);
-        }
+        timeWarp().scheduler().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
         client().prepareIndex("events", "event")
@@ -498,13 +418,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource("level", "a")
                 .get();
         refresh();
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().trigger(watchName);
-            refresh();
-        } else {
-            Thread.sleep(5000);
-        }
+        timeWarp().scheduler().trigger(watchName);
         assertWatchWithMinimumPerformedActionsCount(watchName, 1);
     }
 }

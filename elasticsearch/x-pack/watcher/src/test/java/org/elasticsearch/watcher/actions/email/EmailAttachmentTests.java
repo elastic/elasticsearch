@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.watcher.actions.email;
 
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment;
 import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
@@ -85,14 +83,6 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
     public void cleanup() throws Exception {
         server.stop();
         webServer.shutdown();
-    }
-
-    @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = new ArrayList<>();
-        types.addAll(super.pluginTypes());
-        types.add(MustachePlugin.class);
-        return types;
     }
 
     @Override

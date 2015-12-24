@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -441,12 +442,7 @@ public class SlackMessageTests extends ESTestCase {
         }
 
         // relies on the fact that all the templates we use are inline templates without param place holders
-        TextTemplateEngine engine = new TextTemplateEngine() {
-            @Override
-            public String render(TextTemplate template, Map<String, Object> model) {
-                return template.getTemplate();
-            }
-        };
+        TextTemplateEngine engine = new MockTextTemplateEngine();
 
         SlackMessage.Template template = templateBuilder.build();
 

@@ -12,13 +12,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
+import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,20 +37,18 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class TextTemplateTests extends ESTestCase {
+
     private ScriptServiceProxy proxy;
     private TextTemplateEngine engine;
     private ExecutableScript script;
-    private final String lang = "xmustache";
+    private final String lang = "mustache";
 
     @Before
     public void init() throws Exception {
         proxy = mock(ScriptServiceProxy.class);
         script = mock(ExecutableScript.class);
-        engine = new XMustacheTextTemplateEngine(Settings.EMPTY, proxy);
+        engine = new DefaultTextTemplateEngine(Settings.EMPTY, proxy);
     }
 
     public void testRender() throws Exception {
@@ -57,7 +60,9 @@ public class TextTemplateTests extends ESTestCase {
         merged = unmodifiableMap(merged);
         ScriptType type = randomFrom(ScriptType.values());
 
-        when(proxy.executable(new org.elasticsearch.script.Template(templateText, type, lang, null, merged))).thenReturn(script);
+        CompiledScript compiledScript = mock(CompiledScript.class);
+        when(proxy.compile(new Template(templateText, type, lang, null, merged), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = templateBuilder(type, templateText).params(params).build();
@@ -70,7 +75,9 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType scriptType = randomFrom(ScriptType.values());
 
-        when(proxy.executable(new org.elasticsearch.script.Template(templateText, scriptType, lang, null, model))).thenReturn(script);
+        CompiledScript compiledScript = mock(CompiledScript.class);
+        when(proxy.compile(new Template(templateText, scriptType, lang, null, model), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = templateBuilder(scriptType, templateText).params(params).build();
@@ -81,7 +88,9 @@ public class TextTemplateTests extends ESTestCase {
         String templateText = "_template";
         Map<String, Object> model = singletonMap("key", "model_val");
 
-        when(proxy.executable(new org.elasticsearch.script.Template(templateText, ScriptType.INLINE, lang, null, model))).thenReturn(script);
+        CompiledScript compiledScript = mock(CompiledScript.class);
+        when(proxy.compile(new Template(templateText, ScriptType.INLINE, lang, null, model), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = new TextTemplate(templateText);

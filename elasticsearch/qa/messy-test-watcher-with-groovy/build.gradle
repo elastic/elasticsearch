@@ -9,6 +9,4 @@ apply plugin: 'elasticsearch.messy-test'
 dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'testArtifacts')
   testCompile project(path: ':modules:lang-groovy', configuration: 'runtime')
-  // some tests depend on both groovy and mustache! this is really bad!
-  testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }

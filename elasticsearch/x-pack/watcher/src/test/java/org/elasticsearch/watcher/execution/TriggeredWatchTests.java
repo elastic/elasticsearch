@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testParser() throws Exception {
-        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);
+        Watch watch = WatcherTestUtils.createTestWatch("fired_test", watcherHttpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(DateTimeZone.UTC), DateTime.now(DateTimeZone.UTC));
         Wid wid = new Wid("_record", randomLong(), DateTime.now(DateTimeZone.UTC));
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);

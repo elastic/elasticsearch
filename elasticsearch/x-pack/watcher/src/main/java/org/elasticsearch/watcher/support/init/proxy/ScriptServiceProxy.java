@@ -45,12 +45,12 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
 
     public CompiledScript compile(Script script) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-            compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params())));
+            compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()), Collections.emptyMap()));
     }
 
-    public CompiledScript compile(org.elasticsearch.script.Script script) {
+    public CompiledScript compile(org.elasticsearch.script.Script script, Map<String, String> compileParams) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-                service.compile(script, WatcherScriptContext.CTX, Collections.emptyMap()));
+                service.compile(script, WatcherScriptContext.CTX, compileParams));
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {

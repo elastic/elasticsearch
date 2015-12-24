@@ -18,7 +18,6 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.text.xmustache.XMustacheScriptEngineService;
 import org.junit.Ignore;
 
 import java.util.Arrays;
@@ -34,15 +33,12 @@ public final class MessyTestUtils {
                 .put("script.indexed", "true")
                 .put("path.home", LuceneTestCase.createTempDir())
                 .build();
-        XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
-        engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Arrays.asList(
-                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.TYPES),
-                        new ScriptEngineRegistry.ScriptEngineRegistration(XMustacheScriptEngineService.class, XMustacheScriptEngineService.TYPES)
+                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.TYPES)
                 )
         );
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));

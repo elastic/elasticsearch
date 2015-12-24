@@ -47,7 +47,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
-                .path("{{ctx.payload.first.url}}")
+                .path("/" + index  + "/_search")
                 .body(jsonBuilder().startObject().field("size", 1).endObject())
                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null));
 

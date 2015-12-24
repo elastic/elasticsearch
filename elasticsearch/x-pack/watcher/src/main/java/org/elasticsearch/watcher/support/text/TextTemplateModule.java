@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support.text;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 
 /**
  *
@@ -15,7 +14,7 @@ public class TextTemplateModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(XMustacheTextTemplateEngine.class).asEagerSingleton();
-        bind(TextTemplateEngine.class).to(XMustacheTextTemplateEngine.class);
+        bind(DefaultTextTemplateEngine.class).asEagerSingleton();
+        bind(TextTemplateEngine.class).to(DefaultTextTemplateEngine.class);
     }
 }

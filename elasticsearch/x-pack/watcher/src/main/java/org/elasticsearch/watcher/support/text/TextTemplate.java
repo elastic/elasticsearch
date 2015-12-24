@@ -31,11 +31,11 @@ public class TextTemplate implements ToXContent {
     private final @Nullable ScriptType type;
     private final @Nullable Map<String, Object> params;
 
-    TextTemplate(String template) {
+    public TextTemplate(String template) {
         this(template, null, null, null);
     }
 
-    TextTemplate(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
+    public TextTemplate(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
         this.template = template;
         this.contentType = contentType;
         this.type = type;

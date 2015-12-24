@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -52,7 +51,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
         types.add(GroovyPlugin.class);
-        types.add(MustachePlugin.class);
         return types;
     }
 

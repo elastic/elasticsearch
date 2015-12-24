@@ -35,7 +35,6 @@ import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.HttpRequestTemplateTests;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
@@ -45,6 +44,7 @@ import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.joda.time.DateTime;
@@ -90,7 +90,7 @@ public class EmailActionTests extends ESTestCase {
 
     @Before
     public void addEmailAttachmentParsers() {
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, new HttpRequestTemplate.Parser(registry), new HttpRequestTemplateTests.MockTextTemplateEngine()));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, new HttpRequestTemplate.Parser(registry), new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
     }

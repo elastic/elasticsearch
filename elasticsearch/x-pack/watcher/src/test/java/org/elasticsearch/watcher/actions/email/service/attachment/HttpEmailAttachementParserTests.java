@@ -13,12 +13,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.HttpRequestTemplateTests;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -54,7 +54,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
     public void testSerializationWorks() throws Exception {
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, new HttpRequestTemplateTests.MockTextTemplateEngine()));
+        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, new MockTextTemplateEngine()));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         String id = "some-id";

@@ -21,12 +21,8 @@
  */
 
 // renames that took place:
-//  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/test/integration/BasicWatcherTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/BasicWatcherTests.java
-//  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/actions/email/EmailActionIntegrationTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/EmailActionIntegrationTests.java
-//  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/history/HistoryTemplateSearchInputMappingsTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/HistoryTemplateSearchInputMappingsTests.java
 //  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/input/search/SearchInputTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/SearchInputTests.java
 //  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/transform/search/SearchTransformTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/SearchTransformTests.java
 //  renamed:    x-pack/shield/src/test/java/org/elasticsearch/integration/ShieldCachePermissionTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/ShieldCachePermissionTests.java
-//  renamed:    x-pack/watcher/src/test/java/org/elasticsearch/watcher/actions/TimeThrottleIntegrationTests.java -> qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/TimeThrottleIntegrationTests.java
 
 package org.elasticsearch.messy.tests;

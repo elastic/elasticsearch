@@ -37,8 +37,9 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
+import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
@@ -50,7 +51,6 @@ import org.junit.Before;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -78,8 +78,6 @@ public class WebhookActionTests extends ESTestCase {
     static final String TEST_HOST = "test.com";
     static final int TEST_PORT = 8089;
 
-    private ThreadPool tp = null;
-    private ScriptServiceProxy scriptService;
     private TextTemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private TextTemplate testBody;
@@ -91,19 +89,11 @@ public class WebhookActionTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
-        Settings settings = Settings.EMPTY;
-        scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
-        templateEngine = new XMustacheTextTemplateEngine(settings, scriptService);
+        templateEngine = new MockTextTemplateEngine();
         SecretService secretService = mock(SecretService.class);
         testBody = TextTemplate.inline(TEST_BODY_STRING).build();
         testPath = TextTemplate.inline(TEST_PATH_STRING).build();
         authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
-    }
-
-    @After
-    public void cleanup() {
-        tp.shutdownNow();
     }
 
     public void testExecute() throws Exception {
@@ -236,56 +226,6 @@ public class WebhookActionTests extends ESTestCase {
         return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequestTemplate.Parser(authRegistry), templateEngine);
     }
 
-    public void testTemplatedHttpRequest() throws Exception {
-        HttpClient httpClient = ExecuteScenario.Success.client();
-
-        String body = "{{ctx.watch_id}}";
-        String host = "testhost";
-        String path = randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}");
-
-        Map<String, TextTemplate> params = new HashMap<>();
-        params.put("foo", TextTemplate.inline(randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}")).build());
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
-
-        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, TextTemplate.inline(path).build(), TextTemplate.inline(body).build(), params);
-
-        String watchId = "_watch";
-        String actionId = randomAsciiOfLength(5);
-
-        WebhookAction action = WebhookAction.builder(request).build();
-
-        ExecutableWebhookAction webhookAction = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
-
-        DateTime time = new DateTime(UTC);
-        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, time, new ScheduleTriggerEvent(watchId, time, time), timeValueSeconds(5));
-        Action.Result result = webhookAction.execute(actionId, ctx, Payload.EMPTY);
-
-        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
-        WebhookAction.Result.Success success = (WebhookAction.Result.Success) result;
-        assertThat(success.request().body(), equalTo(watchId));
-        assertThat(success.request().path(), equalTo(time.toString()));
-        assertThat(success.request().params().get("foo"), equalTo(time.toString()));
-
-    }
-
-    public void testValidUrls() throws Exception {
-        HttpClient httpClient = ExecuteScenario.Success.client();
-        HttpMethod method = HttpMethod.POST;
-        TextTemplate path = TextTemplate.defaultType("/test_{{ctx.watch_id}}").build();
-        String host = "test.host";
-        HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
-        WebhookAction action = new WebhookAction(requestTemplate);
-
-        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
-
-        String watchId = "test_url_encode" + randomAsciiOfLength(10);
-        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
-        Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
-        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
-    }
-
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
@@ -311,10 +251,30 @@ public class WebhookActionTests extends ESTestCase {
         }
     }
 
+    public void testValidUrls() throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        when(client.execute(any(HttpRequest.class)))
+                .thenReturn(new HttpResponse(randomIntBetween(200, 399)));
+        String watchId = "test_url_encode" + randomAsciiOfLength(10);
+
+        HttpMethod method = HttpMethod.POST;
+        TextTemplate path = TextTemplate.defaultType("/test_" + watchId).build();
+        String host = "test.host";
+        TextTemplate testBody = TextTemplate.inline("ERROR HAPPENED").build();
+        HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
+        WebhookAction action = new WebhookAction(requestTemplate);
+
+        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
+
+        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
+        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
+    }
+
     private Watch createWatch(String watchId, ClientProxy client, final String account) throws AddressException, IOException {
         return WatcherTestUtils.createTestWatch(watchId,
                 client,
-                scriptService,
                 ExecuteScenario.Success.client(),
                 new AbstractWatcherIntegrationTestCase.NoopEmailService() {
                     @Override

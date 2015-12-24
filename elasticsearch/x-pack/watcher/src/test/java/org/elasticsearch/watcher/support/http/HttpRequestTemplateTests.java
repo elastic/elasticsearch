@@ -5,27 +5,22 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -64,6 +59,21 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequest request = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
         assertThat(request.proxy().getHost(), is("localhost"));
         assertThat(request.proxy().getPort(), is(8080));
+    }
+
+    public void testRender() {
+        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
+                .body(TextTemplate.inline("_body"))
+                .path(TextTemplate.inline("_path"))
+                .putParam("_key1", TextTemplate.inline("_value1"))
+                .putHeader("_key2", TextTemplate.inline("_value2"))
+                .build();
+
+        HttpRequest result = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
+        assertThat(result.body(), equalTo("_body"));
+        assertThat(result.path(), equalTo("_path"));
+        assertThat(result.params(), equalTo(Collections.singletonMap("_key1", "_value1")));
+        assertThat(result.headers(), equalTo(Collections.singletonMap("_key2", "_value2")));
     }
 
     public void testProxyParsing() throws Exception {
@@ -169,10 +179,4 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThat(parsedTemplate, is(urlParsedTemplate));
     }
 
-    public static class MockTextTemplateEngine implements TextTemplateEngine {
-        @Override
-        public String render(TextTemplate template, Map<String, Object> model) {
-            return template.getTemplate();
-        }
-    }
 }

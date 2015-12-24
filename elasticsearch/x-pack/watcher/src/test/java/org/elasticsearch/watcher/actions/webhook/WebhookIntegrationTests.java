@@ -70,10 +70,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
-                .path(TextTemplate.inline("/test/{{ctx.watch_id}}"))
+                .path(TextTemplate.inline("/test/_id"))
                 .putParam("param1", TextTemplate.inline("value1"))
-                .putParam("watch_id", TextTemplate.inline("{{ctx.watch_id}}"))
-                .body(TextTemplate.inline("{{ctx.payload}}"));
+                .putParam("watch_id", TextTemplate.inline("_id"))
+                .body(TextTemplate.inline("_body"));
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -91,7 +91,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
 
         SearchResponse response = searchWatchRecords(new Callback<SearchRequestBuilder>() {
             @Override
@@ -114,10 +114,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(TextTemplate.inline("/test/{{ctx.watch_id}}").build())
+                .path(TextTemplate.inline("/test/_id").build())
                 .putParam("param1", TextTemplate.inline("value1").build())
-                .putParam("watch_id", TextTemplate.inline("{{ctx.watch_id}}").build())
-                .body(TextTemplate.inline("{{ctx.payload}}").build());
+                .putParam("watch_id", TextTemplate.inline("_id").build())
+                .body(TextTemplate.inline("_body").build());
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -135,7 +135,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
     }
 }

@@ -27,6 +27,7 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -57,12 +58,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",
-                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; ctx.payload.a1_transformed_value = ctx.vars.a1_transform_value; return ctx.payload;"),
+                        loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; ctx.payload.a2_transformed_value = ctx.vars.a2_transform_value; return ctx.payload;"),
+                        loggingAction("_text")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -99,12 +100,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 case "a1":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a1_transform_value=25"));
+                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
                     break;
                 case "a2":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a2_transform_value=35"));
+                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
                     break;
                 default:
                     fail("there should not be an action result for action with an id other than a1 or a2");
@@ -122,12 +123,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",
-                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; ctx.payload.a1_transformed_value = ctx.vars.a1_transform_value; return ctx.payload;"),
+                        loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; ctx.payload.a2_transformed_value = ctx.vars.a2_transform_value; return ctx.payload;"),
+                        loggingAction("_text")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -161,12 +162,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 case "a1":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a1_transform_value=25"));
+                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
                     break;
                 case "a2":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a2_transform_value=35"));
+                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
                     break;
                 default:
                     fail("there should not be an action result for action with an id other than a1 or a2");

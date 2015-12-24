@@ -456,19 +456,6 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIncludeInObjectBackcompat() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject().field("_all", "foo").endObject().bytes());
-
-        assertNull(doc.rootDoc().get("_all"));
-        AllField field = (AllField) doc.rootDoc().getField("_all");
-        // the backcompat behavior is actually ignoring directly specifying _all
-        assertFalse(field.getAllEntries().fields().iterator().hasNext());
-    }
-
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));

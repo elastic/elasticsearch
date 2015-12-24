@@ -85,7 +85,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         @Override
         public UidFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            fieldType.setHasDocValues(context.indexCreatedVersion().before(Version.V_2_0_0_beta1));
             return new UidFieldMapper(fieldType, defaultFieldType, context.indexSettings());
         }
     }
@@ -93,12 +92,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            parseField(builder, builder.name, node, parserContext);
-            return builder;
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -203,23 +197,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (indexCreatedBefore2x == false) {
-            return builder;
-        }
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // if defaults, don't output
-        if (!includeDefaults && hasCustomFieldDataSettings() == false) {
-            return builder;
-        }
-
-        builder.startObject(CONTENT_TYPE);
-
-        if (includeDefaults || hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
-        }
-
-        builder.endObject();
         return builder;
     }
 

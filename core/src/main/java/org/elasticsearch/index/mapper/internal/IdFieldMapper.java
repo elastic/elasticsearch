@@ -31,9 +31,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -51,11 +49,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -80,23 +75,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
-
-        public static final String PATH = null;
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, IdFieldMapper> {
-
-        private String path = Defaults.PATH;
 
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
-        public Builder path(String path) {
-            this.path = path;
-            return builder;
-        }
         // if we are indexed we use DOCS
         @Override
         protected IndexOptions getDefaultIndexOption() {
@@ -106,28 +93,14 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IdFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new IdFieldMapper(fieldType, path, context.indexSettings());
+            return new IdFieldMapper(fieldType, context.indexSettings());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            parseField(builder, builder.name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
-                    builder.path(fieldNode.toString());
-                    iterator.remove();
-                }
-            }
-            return builder;
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -229,31 +202,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final String path;
-
     private IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(idFieldType(indexSettings, existing), Defaults.PATH, indexSettings);
+        this(existing != null ? existing : Defaults.FIELD_TYPE, indexSettings);
     }
 
-    private IdFieldMapper(MappedFieldType fieldType, String path, Settings indexSettings) {
+    private IdFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
-        this.path = path;
-    }
-
-    private static MappedFieldType idFieldType(Settings indexSettings, MappedFieldType existing) {
-        if (existing != null) {
-            return existing.clone();
-        }
-        MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
-        boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
-        if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
-            fieldType.setTokenized(false);
-        }
-        return fieldType;
-    }
-
-    public String path() {
-        return this.path;
     }
 
     @Override
@@ -299,33 +253,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (indexCreatedBefore2x == false) {
-            return builder;
-        }
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // if all are defaults, no sense to write it at all
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored()
-                && fieldType().indexOptions() == Defaults.FIELD_TYPE.indexOptions()
-                && path == Defaults.PATH
-                && hasCustomFieldDataSettings() == false) {
-            return builder;
-        }
-        builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType().stored());
-        }
-        if (includeDefaults || fieldType().indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType().indexOptions() != IndexOptions.NONE, fieldType().tokenized()));
-        }
-        if (includeDefaults || path != Defaults.PATH) {
-            builder.field("path", path);
-        }
-
-        if (includeDefaults || hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
-        }
-        builder.endObject();
         return builder;
     }
 

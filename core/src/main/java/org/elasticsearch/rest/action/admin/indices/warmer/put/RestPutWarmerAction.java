@@ -33,6 +33,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -68,7 +69,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException, WrongParametersException {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
 
         BytesReference sourceBytes = RestActions.getRestContent(request);
@@ -80,6 +81,9 @@ public class RestPutWarmerAction extends BaseRestHandler {
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));
+
+        checkParameters(request);
+
         client.admin().indices().putWarmer(putWarmerRequest, new AcknowledgedRestListener<>(channel));
     }
 }

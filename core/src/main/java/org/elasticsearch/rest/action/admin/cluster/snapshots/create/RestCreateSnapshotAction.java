@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 
 import static org.elasticsearch.client.Requests.createSnapshotRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -44,11 +45,14 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws WrongParametersException {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
         createSnapshotRequest.source(request.content().toUtf8());
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
+
+        checkParameters(request);
+
         client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<CreateSnapshotResponse>(channel));
     }
 }

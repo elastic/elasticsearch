@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -44,12 +45,15 @@ public class RestDeleteWarmerAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws WrongParametersException {
         DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest(Strings.splitStringByCommaToArray(request.param("name")))
                 .indices(Strings.splitStringByCommaToArray(request.param("index")));
         deleteWarmerRequest.timeout(request.paramAsTime("timeout", deleteWarmerRequest.timeout()));
         deleteWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteWarmerRequest.masterNodeTimeout()));
         deleteWarmerRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteWarmerRequest.indicesOptions()));
+
+        checkParameters(request);
+
         client.admin().indices().deleteWarmer(deleteWarmerRequest, new AcknowledgedRestListener<DeleteWarmerResponse>(channel));
     }
 }

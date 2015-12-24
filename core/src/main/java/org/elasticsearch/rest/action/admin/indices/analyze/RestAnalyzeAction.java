@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws WrongParametersException {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
@@ -82,6 +83,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
             }
         }
 
+        checkParameters(request);
+        
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 

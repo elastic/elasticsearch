@@ -87,6 +87,8 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, null, allowExplicitIndex);
 
+        checkParameters(request);
+
         client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {

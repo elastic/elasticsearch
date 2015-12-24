@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 
 import java.util.Map;
 
@@ -79,9 +80,12 @@ public class RestUpgradeAction extends BaseRestHandler {
                 });
     }
 
-    void handlePost(final RestRequest request, RestChannel channel, Client client) {
+    void handlePost(final RestRequest request, RestChannel channel, Client client) throws WrongParametersException {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
+
+        checkParameters(request);
+
         client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
             @Override
             public RestResponse buildResponse(UpgradeResponse response, XContentBuilder builder) throws Exception {

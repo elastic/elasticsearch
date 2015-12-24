@@ -62,6 +62,8 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             clusterRerouteRequest.source(request.content());
         }
 
+        checkParameters(request);
+
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {

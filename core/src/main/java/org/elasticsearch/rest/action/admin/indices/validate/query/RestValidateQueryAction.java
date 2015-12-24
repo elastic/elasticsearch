@@ -86,6 +86,8 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
+        checkParameters(request);
+
         client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {

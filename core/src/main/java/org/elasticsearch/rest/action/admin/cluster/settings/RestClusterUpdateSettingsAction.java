@@ -60,6 +60,8 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
 
+        checkParameters(request);
+
         client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {

@@ -93,6 +93,9 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
         }
         renderSearchTemplateRequest = new RenderSearchTemplateRequest();
         renderSearchTemplateRequest.template(template);
+
+        checkParameters(request);
+
         client.admin().cluster().renderSearchTemplate(renderSearchTemplateRequest, new RestBuilderListener<RenderSearchTemplateResponse>(channel) {
 
             @Override

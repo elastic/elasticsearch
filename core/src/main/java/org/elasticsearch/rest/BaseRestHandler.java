@@ -25,6 +25,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 
 import java.util.Set;
 
@@ -81,6 +82,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             copyHeadersAndContext(request, restRequest, headers);
             super.doExecute(action, request, listener);
+        }
+    }
+
+    protected void checkParameters(RestRequest request) throws WrongParametersException {
+        if(!request.allParamsConsumed()){
+            throw WrongParametersException.INSTANCE;
         }
     }
 }

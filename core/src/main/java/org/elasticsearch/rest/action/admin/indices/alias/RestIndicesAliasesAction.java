@@ -130,6 +130,9 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                 }
             }
         }
+
+        checkParameters(request);
+
         client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

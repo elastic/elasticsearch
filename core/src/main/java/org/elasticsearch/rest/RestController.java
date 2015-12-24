@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.http.HttpException;
+import org.elasticsearch.rest.exceptions.WrongParametersException;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
@@ -82,7 +82,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     /**
      * Controls which REST headers get copied over from a {@link RestRequest} to
      * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     *
+     * <p>
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
     public synchronized void registerRelevantHeaders(String... headers) {
@@ -187,6 +187,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     /**
      * Checks the request parameters against enabled settings for error trace support
+     *
      * @return true if the request does not have any parameters that conflict with system settings
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {
@@ -194,7 +195,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         if (channel.detailedErrorsEnabled() == false && request.paramAsBoolean("error_trace", false)) {
             try {
                 XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error","error traces in responses are disabled.").endObject().string();
+                builder.startObject().field("error", "error traces in responses are disabled.").endObject().string();
                 RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
                 response.addHeader("Content-Type", "application/json");
                 channel.sendResponse(response);
@@ -210,10 +211,15 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     void executeHandler(RestRequest request, RestChannel channel) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
+            try {
+
                 handler.handleRequest(request, channel);
 
-            //Just validate params to READ operations
-            if(RestRequest.Method.GET.equals(request.method()) && !request.allParamsConsumed()){
+                //Just validate params to READ operations
+                if (RestRequest.Method.GET.equals(request.method()) && !request.allParamsConsumed()) {
+                    throw WrongParametersException.INSTANCE;
+                }
+            } catch (WrongParametersException e) {
                 channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "There are wrong parameters"));
             }
 

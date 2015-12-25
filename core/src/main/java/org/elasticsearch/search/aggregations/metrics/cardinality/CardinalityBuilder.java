@@ -31,6 +31,7 @@ public class CardinalityBuilder extends ValuesSourceMetricsAggregationBuilder<Ca
 
     private Long precisionThreshold;
     private Boolean rehash;
+    private Boolean isLocal;
 
     /**
      * Sole constructor.
@@ -57,6 +58,11 @@ public class CardinalityBuilder extends ValuesSourceMetricsAggregationBuilder<Ca
         return this;
     }
 
+    public CardinalityBuilder isLocal(Boolean isLocal) {
+        this.isLocal = isLocal;
+        return this;
+    }
+
     @Override
     protected void internalXContent(XContentBuilder builder, Params params) throws IOException {
         super.internalXContent(builder, params);
@@ -65,6 +71,9 @@ public class CardinalityBuilder extends ValuesSourceMetricsAggregationBuilder<Ca
         }
         if (rehash != null) {
             builder.field("rehash", rehash);
+        }
+        if(isLocal != null && isLocal.booleanValue()){
+            builder.field("isSumDirectly", isLocal);
         }
     }
 

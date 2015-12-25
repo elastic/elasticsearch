@@ -65,6 +65,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private Collector collector;
     private ValueFormatter formatter;
+    private boolean sumDirectly;
 
     public CardinalityAggregator(String name, ValuesSource valuesSource, boolean rehash, int precision, ValueFormatter formatter,
             AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -74,6 +75,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
         this.formatter = formatter;
+    }
+
+    public boolean isSumDirectly() {
+        return sumDirectly;
+    }
+
+    public void setSumDirectly(boolean sumDirectly) {
+        this.sumDirectly = sumDirectly;
     }
 
     @Override
@@ -157,12 +166,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, formatter, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, copy, formatter, pipelineAggregators(), metaData());
+        internalCardinality.setSumDirectly(sumDirectly);
+        return internalCardinality;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, formatter, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, null, formatter, pipelineAggregators(), metaData());
+        internalCardinality.setSumDirectly(sumDirectly);
+        return internalCardinality;
     }
 
     @Override

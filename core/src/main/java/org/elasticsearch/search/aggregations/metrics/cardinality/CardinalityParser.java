@@ -48,6 +48,7 @@ public class CardinalityParser implements Aggregator.Parser {
 
         long precisionThreshold = -1;
         Boolean rehash = null;
+        boolean isSumDirectly = false;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -61,6 +62,8 @@ public class CardinalityParser implements Aggregator.Parser {
                     rehash = parser.booleanValue();
                 } else if (context.parseFieldMatcher().match(currentFieldName, PRECISION_THRESHOLD)) {
                     precisionThreshold = parser.longValue();
+                } else if("isSumDirectly".equals(currentFieldName)){
+                    isSumDirectly = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName
                             + "].", parser.getTokenLocation());
@@ -77,8 +80,9 @@ public class CardinalityParser implements Aggregator.Parser {
         } else if (rehash == null) {
             rehash = true;
         }
-
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
+        final CardinalityAggregatorFactory cardinalityAggregatorFactory = new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
+        cardinalityAggregatorFactory.setSumDirectly(isSumDirectly);
+        return cardinalityAggregatorFactory;
 
     }
 

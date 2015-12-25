@@ -36,6 +36,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
 
     private final long precisionThreshold;
     private final boolean rehash;
+    private boolean sumDirectly ;
 
     CardinalityAggregatorFactory(String name, ValuesSourceConfig config, long precisionThreshold, boolean rehash) {
         super(name, InternalCardinality.TYPE.name(), config);
@@ -43,6 +44,15 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
         this.rehash = rehash;
     }
 
+    public boolean isSumDirectly() {
+        return sumDirectly;
+    }
+
+    public void setSumDirectly(boolean sumDirectly) {
+        this.sumDirectly = sumDirectly;
+    }
+
+    
     private int precision(Aggregator parent) {
         return precisionThreshold < 0 ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
@@ -50,7 +60,9 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     @Override
     protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
+        final CardinalityAggregator cardinalityAggregator = new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
+        cardinalityAggregator.setSumDirectly(sumDirectly);
+        return cardinalityAggregator;
     }
 
     @Override
@@ -59,8 +71,10 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, pipelineAggregators,
+        final CardinalityAggregator cardinalityAggregator = new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
+        cardinalityAggregator.setSumDirectly(sumDirectly);
+        return cardinalityAggregator;
     }
 
     /*

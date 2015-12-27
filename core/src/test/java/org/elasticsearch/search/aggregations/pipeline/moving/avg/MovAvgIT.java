@@ -236,7 +236,6 @@ public class MovAvgIT extends ESIntegTestCase {
      * Simple, unweighted moving average
      *
      * @param window Window of values to compute movavg for
-     * @return
      */
     private double simple(Collection<Double> window) {
         double movAvg = 0;
@@ -251,7 +250,6 @@ public class MovAvgIT extends ESIntegTestCase {
      * Linearly weighted moving avg
      *
      * @param window Window of values to compute movavg for
-     * @return
      */
     private double linear(Collection<Double> window) {
         double avg = 0;
@@ -270,7 +268,6 @@ public class MovAvgIT extends ESIntegTestCase {
      * Exponentionally weighted (EWMA, Single exponential) moving avg
      *
      * @param window Window of values to compute movavg for
-     * @return
      */
     private double ewma(Collection<Double> window) {
         double avg = 0;
@@ -290,7 +287,6 @@ public class MovAvgIT extends ESIntegTestCase {
     /**
      * Holt-Linear (Double exponential) moving avg
      * @param window Window of values to compute movavg for
-     * @return
      */
     private double holt(Collection<Double> window) {
         double s = 0;
@@ -324,7 +320,6 @@ public class MovAvgIT extends ESIntegTestCase {
     /**
      * Holt winters (triple exponential) moving avg
      * @param window Window of values to compute movavg for
-     * @return
      */
     private double holtWinters(Collection<Double> window) {
         // Smoothed value
@@ -1345,11 +1340,6 @@ public class MovAvgIT extends ESIntegTestCase {
      * Better floating point comparisons courtesy of https://github.com/brazzy/floating-point-gui.de
      *
      * Snippet adapted to use doubles instead of floats
-     *
-     * @param a
-     * @param b
-     * @param epsilon
-     * @return
      */
     private static boolean nearlyEqual(double a, double b, double epsilon) {
         final double absA = Math.abs(a);

@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for {@link LMDirichletSimilarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>mu</li>

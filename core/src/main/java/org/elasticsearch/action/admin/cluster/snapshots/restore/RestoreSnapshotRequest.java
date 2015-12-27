@@ -147,7 +147,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets the list of indices that should be restored from snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are not supported. An empty list or {"_all"} will restore all open
      * indices in the snapshot.
@@ -162,7 +162,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets the list of indices that should be restored from snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are not supported. An empty list or {"_all"} will restore all open
      * indices in the snapshot.
@@ -177,8 +177,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Returns list of indices that should be restored from snapshot
-     *
-     * @return
      */
     public String[] indices() {
         return indices;
@@ -208,7 +206,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets rename pattern that should be applied to restored indices.
-     * <p/>
+     * <p>
      * Indices that match the rename pattern will be renamed according to {@link #renameReplacement(String)}. The
      * rename pattern is applied according to the {@link java.util.regex.Matcher#appendReplacement(StringBuffer, String)}
      * The request will fail if two or more indices will be renamed into the same name.
@@ -232,11 +230,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets rename replacement
-     * <p/>
+     * <p>
      * See {@link #renamePattern(String)} for more information.
      *
      * @param renameReplacement rename replacement
-     * @return
      */
     public RestoreSnapshotRequest renameReplacement(String renameReplacement) {
         this.renameReplacement = renameReplacement;
@@ -294,7 +291,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets repository-specific restore settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -307,7 +304,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets repository-specific restore settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -320,7 +317,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets repository-specific restore settings in JSON, YAML or properties format
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -333,7 +330,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets repository-specific restore settings
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -384,7 +381,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * If set to true the restore procedure will restore global cluster state.
-     * <p/>
+     * <p>
      * The global cluster state includes persistent settings and index template definitions.
      *
      * @param includeGlobalState true if global state should be restored from the snapshot
@@ -548,7 +545,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Parses restore definition
-     * <p/>
+     * <p>
      * JSON, YAML and properties formats are supported
      *
      * @param source restore definition
@@ -567,7 +564,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Parses restore definition
-     * <p/>
+     * <p>
      * JSON, YAML and properties formats are supported
      *
      * @param source restore definition
@@ -579,7 +576,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Parses restore definition
-     * <p/>
+     * <p>
      * JSON, YAML and properties formats are supported
      *
      * @param source restore definition
@@ -600,7 +597,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Parses restore definition
-     * <p/>
+     * <p>
      * JSON, YAML and properties formats are supported
      *
      * @param source restore definition

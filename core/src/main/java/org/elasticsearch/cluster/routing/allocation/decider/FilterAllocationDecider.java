@@ -51,10 +51,8 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
  * <ol>
  * <li><tt>required</tt> - filters required allocations.
  * If any <tt>required</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>required</tt> to allocate on the filtered node</li>
- * <p/>
  * <li><tt>include</tt> - filters "allowed" allocations.
  * If any <tt>include</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>include</tt> filters for the filtered node</li>
- * <p/>
  * <li><tt>exclude</tt> - filters "prohibited" allocations.
  * If any <tt>exclude</tt> filters are set the allocation is denied if the index is in the set of <tt>exclude</tt> filters for the filtered node</li>
  * </ol>

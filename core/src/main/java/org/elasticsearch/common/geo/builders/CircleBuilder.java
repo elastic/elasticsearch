@@ -68,7 +68,7 @@ public class CircleBuilder extends ShapeBuilder {
 
     /**
      * Set the radius of the circle
-     * @param radius radius of the circle (see {@link DistanceUnit.Distance})
+     * @param radius radius of the circle (see {@link org.elasticsearch.common.unit.DistanceUnit.Distance})
      * @return this
      */
     public CircleBuilder radius(Distance radius) {

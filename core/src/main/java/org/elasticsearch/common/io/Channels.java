@@ -167,7 +167,6 @@ public final class Channels {
      * @param sourceIndex index in <i>source</i> to start copying from
      * @param length      how many bytes to copy
      * @param channel     target GatheringByteChannel
-     * @throws IOException
      */
     public static void writeToChannel(ChannelBuffer source, int sourceIndex, int length, GatheringByteChannel channel) throws IOException {
         while (length > 0) {
@@ -184,7 +183,6 @@ public final class Channels {
      *
      * @param source  byte array to copy from
      * @param channel target WritableByteChannel
-     * @throws IOException
      */
     public static void writeToChannel(byte[] source, WritableByteChannel channel) throws IOException {
         writeToChannel(source, 0, source.length, channel);
@@ -198,7 +196,6 @@ public final class Channels {
      * @param offset  start copying from this offset
      * @param length  how many bytes to copy
      * @param channel target WritableByteChannel
-     * @throws IOException
      */
     public static void writeToChannel(byte[] source, int offset, int length, WritableByteChannel channel) throws IOException {
         int toWrite = Math.min(length, WRITE_CHUNK_SIZE);
@@ -219,7 +216,6 @@ public final class Channels {
      *
      * @param byteBuffer source buffer
      * @param channel    channel to write to
-     * @throws IOException
      */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
         if (byteBuffer.isDirect() || (byteBuffer.remaining() <= WRITE_CHUNK_SIZE)) {

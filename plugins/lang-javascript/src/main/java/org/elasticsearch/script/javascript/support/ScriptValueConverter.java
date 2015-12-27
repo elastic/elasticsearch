@@ -41,7 +41,7 @@ public final class ScriptValueConverter {
     /**
      * Convert an object from a script wrapper value to a serializable value valid outside
      * of the Rhino script processor context.
-     * <p/>
+     * <p>
      * This includes converting JavaScript Array objects to Lists of valid objects.
      *
      * @param value Value to convert from script wrapper object to external object value.

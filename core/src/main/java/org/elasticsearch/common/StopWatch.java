@@ -30,14 +30,14 @@ import java.util.concurrent.TimeUnit;
 /**
  * Simple stop watch, allowing for timing of a number of tasks,
  * exposing total running time and running time for each named task.
- * <p/>
- * <p>Conceals use of <code>System.nanoTime()</code>, improving the
+ * <p>
+ * Conceals use of <code>System.nanoTime()</code>, improving the
  * readability of application code and reducing the likelihood of calculation errors.
- * <p/>
- * <p>Note that this object is not designed to be thread-safe and does not
+ * <p>
+ * Note that this object is not designed to be thread-safe and does not
  * use synchronization.
- * <p/>
- * <p>This class is normally used to verify performance during proof-of-concepts
+ * <p>
+ * This class is normally used to verify performance during proof-of-concepts
  * and in development, rather than as part of production applications.
  *
  *

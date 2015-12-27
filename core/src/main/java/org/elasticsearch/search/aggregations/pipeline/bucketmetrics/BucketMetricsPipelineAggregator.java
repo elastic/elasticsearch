@@ -96,7 +96,6 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      *            the pipeline aggregators to add to the resulting aggregation
      * @param metadata
      *            the metadata to add to the resulting aggregation
-     * @return
      */
     protected abstract InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 

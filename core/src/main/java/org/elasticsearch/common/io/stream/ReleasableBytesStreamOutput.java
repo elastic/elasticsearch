@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
  * expecting it to require releasing its content ({@link #bytes()}) once done.
- * <p/>
+ * <p>
  * Please note, its is the responsibility of the caller to make sure the bytes
  * reference do not "escape" and are released only once.
  */

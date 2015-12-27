@@ -66,8 +66,6 @@ import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZ
  * like synonyms to keep the complexity of the prefix intersection low for good
  * lookup performance. At index time, complex analyzers can safely be used.
  * </p>
- *
- * @lucene.experimental
  */
 public final class XFuzzySuggester extends XAnalyzingSuggester {
     private final int maxEdits;
@@ -115,7 +113,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     }
 
     /**
-     * Creates a {@link FuzzySuggester} instance with an index & a query analyzer initialized with default values.
+     * Creates a {@link FuzzySuggester} instance with an index &amp; a query analyzer initialized with default values.
      *
      * @param indexAnalyzer
      *           Analyzer that will be used for analyzing suggestions while building the index.
@@ -143,7 +141,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      * @param maxGraphExpansions Maximum number of graph paths
      *        to expand from the analyzed form.  Set this to -1 for
      *        no limit.
-     * @param maxEdits must be >= 0 and <= {@link org.apache.lucene.util.automaton.LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE} .
+     * @param maxEdits must be &gt;= 0 and &lt;= {@link org.apache.lucene.util.automaton.LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE} .
      * @param transpositions <code>true</code> if transpositions should be treated as a primitive
      *        edit operation. If this is false, comparisons will implement the classic
      *        Levenshtein algorithm.
@@ -250,7 +248,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
           // multiple paths: this is really scary! is it slow?
           // maybe we should not do this and throw UOE?
           Automaton a = Operations.union(subs);
-          // TODO: we could call toLevenshteinAutomata() before det? 
+          // TODO: we could call toLevenshteinAutomata() before det?
           // this only happens if you have multiple paths anyway (e.g. synonyms)
           return Operations.determinize(a, DEFAULT_MAX_DETERMINIZED_STATES);
         }

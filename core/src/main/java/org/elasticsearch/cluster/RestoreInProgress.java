@@ -270,7 +270,6 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          *
          * @param in stream input
          * @return restore status
-         * @throws IOException
          */
         public static ShardRestoreStatus readShardRestoreStatus(StreamInput in) throws IOException {
             ShardRestoreStatus shardSnapshotStatus = new ShardRestoreStatus();
@@ -282,7 +281,6 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          * Reads restore status from stream input
          *
          * @param in stream input
-         * @throws IOException
          */
         public void readFrom(StreamInput in) throws IOException {
             nodeId = in.readOptionalString();
@@ -294,7 +292,6 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          * Writes restore status to stream output
          *
          * @param out stream input
-         * @throws IOException
          */
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
@@ -471,7 +468,6 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      * @param entry   restore operation metadata
      * @param builder XContent builder
      * @param params  serialization parameters
-     * @throws IOException
      */
     public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();

@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
  * optional sub-query to prevent slow queries due to "common" terms like
- * stopwords. This query basically builds 2 queries off the {@link #add(Term)
+ * stopwords. This query basically builds 2 queries off the {@code #add(Term)
  * added} terms where low-frequency terms are added to a required boolean clause
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
@@ -40,7 +40,6 @@ import java.io.IOException;
  * significantly contribute to the document score unless at least one of the
  * low-frequency terms are matched such that this query can improve query
  * execution times significantly if applicable.
- * <p>
  */
 public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
 
@@ -123,7 +122,7 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
 
     /**
      * Sets the cutoff document frequency for high / low frequent terms. A value
-     * in [0..1] (or absolute number >=1) representing the maximum threshold of
+     * in [0..1] (or absolute number &gt;=1) representing the maximum threshold of
      * a terms document frequency to be considered a low frequency term.
      * Defaults to
      * <tt>{@value CommonTermsQueryParser#DEFAULT_MAX_TERM_DOC_FREQ}</tt>

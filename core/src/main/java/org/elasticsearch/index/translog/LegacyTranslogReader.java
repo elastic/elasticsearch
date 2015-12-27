@@ -32,9 +32,6 @@ public final class LegacyTranslogReader extends LegacyTranslogReaderBase {
     /**
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
-     *
-     * @param generation
-     * @param channelReference
      */
     LegacyTranslogReader(long generation, ChannelReference channelReference, long fileLength) {
         super(generation, channelReference, 0, fileLength);

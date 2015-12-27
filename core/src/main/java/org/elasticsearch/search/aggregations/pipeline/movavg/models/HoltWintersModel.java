@@ -134,7 +134,6 @@ public class HoltWintersModel extends MovAvgModel {
          *
          * @param in  the input stream
          * @return    SeasonalityType Enum
-         * @throws IOException
          */
         public static SeasonalityType readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();

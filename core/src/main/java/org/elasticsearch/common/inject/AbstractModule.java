@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,6 @@ import static com.google.common.base.Preconditions.checkState;
  * a more readable configuration. Simply extend this class, implement {@link
  * #configure()}, and call the inherited methods which mirror those found in
  * {@link Binder}. For example:
- * <p/>
  * <pre>
  * public class MyModule extends AbstractModule {
  *   protected void configure() {
@@ -71,6 +70,8 @@ public abstract class AbstractModule implements Module {
 
     /**
      * Gets direct access to the underlying {@code Binder}.
+     *
+     * @return The underlying {@link Binder}
      */
     protected Binder binder() {
         return binder;

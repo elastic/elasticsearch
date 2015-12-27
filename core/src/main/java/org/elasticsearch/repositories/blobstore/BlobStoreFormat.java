@@ -68,7 +68,6 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobContainer blob container
      * @param blobName blob name
      * @return parsed blob object
-     * @throws IOException
      */
     public abstract T readBlob(BlobContainer blobContainer, String blobName) throws IOException;
 
@@ -78,7 +77,6 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobContainer blob container
      * @param name          name to be translated into
      * @return parsed blob object
-     * @throws IOException
      */
     public T read(BlobContainer blobContainer, String name) throws IOException {
         String blobName = blobName(name);

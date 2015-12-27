@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,8 +64,8 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(new ProductionModule()).with(new TestModule());
      * </pre>
-     * <p/>
-     * <p>Prefer to write smaller modules that can be reused and tested without overrides.
+     * <p>
+     * Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
      */
@@ -81,8 +81,8 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(getProductionModules()).with(getTestModules());
      * </pre>
-     * <p/>
-     * <p>Prefer to write smaller modules that can be reused and tested without overrides.
+     * <p>
+     * Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
      */

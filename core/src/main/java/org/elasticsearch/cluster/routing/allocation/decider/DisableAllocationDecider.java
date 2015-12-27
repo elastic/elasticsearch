@@ -35,15 +35,12 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  * <code>true</code> no new shard-allocation are allowed. Note: this setting is
  * only applied if the allocated shard is a primary and it has not been
  * allocated before the this setting was applied.</li>
- * <p/>
  * <li><tt>cluster.routing.allocation.disable_allocation</tt> - if set to
  * <code>true</code> cluster wide allocations are disabled</li>
- * <p/>
  * <li><tt>cluster.routing.allocation.disable_replica_allocation</tt> - if set
  * to <code>true</code> cluster wide replica allocations are disabled while
  * primary shards can still be allocated</li>
  * </ul>
- * <p/>
  * <p>
  * Note: all of the above settings might be ignored if the allocation happens on
  * a shard that explicitly ignores disabled allocations via

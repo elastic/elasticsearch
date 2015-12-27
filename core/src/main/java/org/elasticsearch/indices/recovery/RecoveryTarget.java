@@ -62,8 +62,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
- * <p/>
- * <p>Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
+ * <p>
+ * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
 public class RecoveryTarget extends AbstractComponent {

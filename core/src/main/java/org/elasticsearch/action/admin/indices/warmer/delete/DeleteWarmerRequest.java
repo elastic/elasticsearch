@@ -48,7 +48,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     /**
      * Constructs a new delete warmer request for the specified name.
      *
-     * @param names: the name (or wildcard expression) of the warmer to match, null to delete all.
+     * @param names the name (or wildcard expression) of the warmer to match, null to delete all.
      */
     public DeleteWarmerRequest(String... names) {
         names(names);

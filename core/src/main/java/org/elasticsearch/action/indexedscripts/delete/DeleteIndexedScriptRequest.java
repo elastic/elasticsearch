@@ -35,8 +35,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete a script from the script index based on its scriptLang and id. Best created using
- * <p/>
- * <p>The operation requires the , {@link #scriptLang(String)} and {@link #id(String)} to
+ * <p>
+ * The operation requires the , {@link #scriptLang(String)} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteIndexedScriptResponse

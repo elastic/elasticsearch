@@ -27,8 +27,8 @@ import java.io.IOException;
 
 /**
  * An engine is already closed.
- * <p/>
- * <p>Note, the relationship between shard and engine indicates that engine closed is shard closed, and
+ * <p>
+ * Note, the relationship between shard and engine indicates that engine closed is shard closed, and
  * we might get something slipping through the the shard and into the engine while the shard is closing.
  *
  *

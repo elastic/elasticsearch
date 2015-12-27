@@ -31,7 +31,7 @@ import java.util.Map;
 
 /**
  * Service for looking up configured {@link SimilarityProvider} implementations by name.
- * <p/>
+ * <p>
  * The service instantiates the Providers through their Factories using configuration
  * values found with the {@link SimilarityModule#SIMILARITY_SETTINGS_PREFIX} prefix.
  */

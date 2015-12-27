@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +26,8 @@ import java.util.Set;
 
 /**
  * A variable that can be resolved by an injector.
- * <p/>
- * <p>Use {@link #get} to build a freestanding dependency, or {@link InjectionPoint} to build one
+ * <p>
+ * Use {@link #get} to build a freestanding dependency, or {@link InjectionPoint} to build one
  * that's attached to a constructor, method or field.
  *
  * @author crazybob@google.com (Bob Lee)

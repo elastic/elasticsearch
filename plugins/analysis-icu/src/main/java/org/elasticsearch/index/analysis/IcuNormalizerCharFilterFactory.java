@@ -33,7 +33,6 @@ import java.io.Reader;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter} to normalize character.
- * <p/>
  * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.</p>
  * <p>The <tt>mode</tt> can be used to provide 'compose' or 'decompose'. Default is compose.</p>
  */

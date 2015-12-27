@@ -148,7 +148,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     /**
      * Sets an explicit smoothing model used for this suggester. The default is
-     * {@link PhraseSuggester#StupidBackoff}.
+     * {@link PhraseSuggestionBuilder.StupidBackoff}.
      */
     public PhraseSuggestionBuilder smoothingModel(SmoothingModel model) {
         this.model = model;
@@ -318,8 +318,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         /**
          * Creates a Laplace smoothing model.
          *
-         * @param discount
-         *            the discount given to lower order ngrams if the higher order ngram doesn't exits
          */
         public Laplace(double alpha) {
             super("laplace");
@@ -430,10 +428,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         private Float minDocFreq;
 
         /**
-         * Sets from what field to fetch the candidate suggestions from. This is
-         * an required option and needs to be set via this setter or
-         * {@link org.elasticsearch.search.suggest.SuggestBuilder.TermSuggestionBuilder#setField(String)}
-         * method
+         * @param field Sets from what field to fetch the candidate suggestions from. 
          */
         public DirectCandidateGenerator(String field) {
             super("direct_generator");
@@ -463,7 +458,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * the original suggest text tokens. A value between 0 and 1 can be
          * specified. This value will be compared to the string distance result
          * of each candidate spelling correction.
-         * <p/>
+         * <p>
          * Default is <tt>0.5</tt>
          */
         public DirectCandidateGenerator accuracy(float accuracy) {
@@ -491,7 +486,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * <li><code>frequency</code> - Sort should first be based on document
          * frequency, then scotr and then the term itself.
          * </ol>
-         * <p/>
+         * <p>
          * What the score is depends on the suggester being used.
          */
         public DirectCandidateGenerator sort(String sort) {
@@ -548,7 +543,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * number (e.g 0.4) or an absolute number to represent document
          * frequencies. If an value higher than 1 is specified then fractional
          * can not be specified. Defaults to <tt>0.01</tt>.
-         * <p/>
+         * <p>
          * This can be used to exclude high frequency terms from being
          * suggested. High frequency terms are usually spelled correctly on top
          * of this this also improves the suggest performance.

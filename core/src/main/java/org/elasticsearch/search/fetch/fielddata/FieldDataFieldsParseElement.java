@@ -28,7 +28,6 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  * Parses field name values from the {@code fielddata_fields} parameter in a
  * search request.
- * <p/>
  * <pre>
  * {
  *   "query": {...},

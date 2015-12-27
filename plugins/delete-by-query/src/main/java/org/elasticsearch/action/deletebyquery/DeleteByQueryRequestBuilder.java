@@ -50,7 +50,7 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public DeleteByQueryRequestBuilder setIndicesOptions(IndicesOptions options) {

@@ -112,9 +112,6 @@ public class MovAvgBuilder extends PipelineAggregatorBuilder<MovAvgBuilder> {
     /**
      * The hash of settings that should be provided to the model when it is
      * instantiated
-     *
-     * @param settings
-     * @return
      */
     public MovAvgBuilder settings(Map<String, Object> settings) {
         this.settings = settings;

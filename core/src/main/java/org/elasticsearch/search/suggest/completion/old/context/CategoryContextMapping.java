@@ -58,7 +58,7 @@ public class CategoryContextMapping extends ContextMapping {
     private final String fieldName;
     private final Iterable<? extends CharSequence> defaultValues;
     private final FieldConfig defaultConfig;
-            
+
     /**
      * Create a new {@link CategoryContextMapping} with the default field
      * <code>[_type]</code>
@@ -104,7 +104,7 @@ public class CategoryContextMapping extends ContextMapping {
     public Iterable<? extends CharSequence> getDefaultValues() {
         return defaultValues;
     }
-    
+
     @Override
     public FieldConfig defaultConfig() {
         return defaultConfig;
@@ -112,8 +112,8 @@ public class CategoryContextMapping extends ContextMapping {
 
     /**
      * Load the specification of a {@link CategoryContextMapping}
-     * 
-     * @param field
+     *
+     * @param name
      *            name of the field to use. If <code>null</code> default field
      *            will be used
      * @return new {@link CategoryContextMapping}

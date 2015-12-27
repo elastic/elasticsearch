@@ -297,7 +297,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         }
 
         /**
-         * maximum replication factor across the indices. See {@link #getReplication
+         * maximum replication factor across the indices. See {@link #getReplication}
          */
         public double getMaxIndexReplication() {
             return this.maxIndexReplication;

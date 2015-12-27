@@ -41,7 +41,6 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be allocated
  *     <li> <code>ALL</code> - all shards are allowed to be allocated
  * </ul>
- * </p>
  *
  * <p>
  * Rebalancing settings can have the following values (non-casesensitive):
@@ -51,7 +50,6 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be balanced
  *     <li> <code>ALL</code> - all shards are allowed to be balanced
  * </ul>
- * </p>
  *
  * @see Rebalance
  * @see Allocation

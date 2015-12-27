@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 /**
- * Pseudo randomly generate a score for each {@link #score}.
+ * Pseudo randomly generate a score for each {@link LeafScoreFunction#score}.
  */
 public class RandomScoreFunction extends ScoreFunction {
 

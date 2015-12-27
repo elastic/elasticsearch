@@ -49,11 +49,11 @@ import java.util.Collections;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
- * @see FieldInfo.DocValuesType#SORTED_NUMERIC
+ * @see org.apache.lucene.index.DocValuesType#SORTED_NUMERIC
  */
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
-    
+
     public SortedNumericDVIndexFieldData(Index index, Names fieldNames, NumericType numericType, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
         Preconditions.checkArgument(numericType != null, "numericType must be non-null");
@@ -65,7 +65,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         switch (numericType) {
             case FLOAT:
                 return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DOUBLE: 
+            case DOUBLE:
                 return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
                 assert !numericType.isFloatingPoint();
@@ -77,7 +77,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     public NumericType getNumericType() {
         return numericType;
     }
-    
+
     @Override
     public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
@@ -87,7 +87,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     public AtomicNumericFieldData load(LeafReaderContext context) {
         final LeafReader reader = context.reader();
         final String field = fieldNames.indexName();
-        
+
         switch (numericType) {
             case FLOAT:
                 return new SortedNumericFloatFieldData(reader, field);
@@ -95,19 +95,19 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 return new SortedNumericDoubleFieldData(reader, field);
             default:
                 return new SortedNumericLongFieldData(reader, field);
-        } 
+        }
     }
-    
+
     /**
      * FieldData implementation for integral types.
      * <p>
-     * Order of values within a document is consistent with 
+     * Order of values within a document is consistent with
      * {@link Long#compareTo(Long)}.
      * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize 
+     * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
-     * the underlying single-valued NumericDocValues representation, and 
+     * the underlying single-valued NumericDocValues representation, and
      * {@link DocValues#unwrapSingletonBits(SortedNumericDocValues)} will return
      * a Bits matching documents that have a real value (as opposed to missing).
      */
@@ -135,28 +135,26 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             return Collections.emptyList();
         }
     }
-    
+
     /**
      * FieldData implementation for 32-bit float values.
      * <p>
      * Order of values within a document is consistent with
      * {@link Float#compareTo(Float)}, hence the following reversible
      * transformation is applied at both index and search:
-     * {code}
-     *   bits ^ (bits >> 31) & 0x7fffffff
-     * {code}
+     * {@code bits ^ (bits >> 31) & 0x7fffffff}
      * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize 
+     * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation, and 
+     * the underlying single-valued NumericDoubleValues representation, and
      * {@link FieldData#unwrapSingletonBits(SortedNumericDoubleValues)} will return
      * a Bits matching documents that have a real value (as opposed to missing).
      */
     static final class SortedNumericFloatFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;
         final String field;
-        
+
         SortedNumericFloatFieldData(LeafReader reader, String field) {
             super(0L);
             this.reader = reader;
@@ -167,7 +165,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                
+
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
                     return FieldData.singleton(new SingleFloatValues(single), DocValues.unwrapSingletonBits(raw));
@@ -178,19 +176,19 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 throw new IllegalStateException("Cannot load doc values", e);
             }
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
     }
-    
-    /** 
+
+    /**
      * Wraps a NumericDocValues and exposes a single 32-bit float per document.
      */
     static final class SingleFloatValues extends NumericDoubleValues {
         final NumericDocValues in;
-        
+
         SingleFloatValues(NumericDocValues in) {
             this.in = in;
         }
@@ -200,17 +198,17 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             return NumericUtils.sortableIntToFloat((int) in.get(docID));
         }
     }
-    
-    /** 
+
+    /**
      * Wraps a SortedNumericDocValues and exposes multiple 32-bit floats per document.
      */
     static final class MultiFloatValues extends SortedNumericDoubleValues {
         final SortedNumericDocValues in;
-        
+
         MultiFloatValues(SortedNumericDocValues in) {
             this.in = in;
         }
-        
+
         @Override
         public void setDocument(int doc) {
             in.setDocument(doc);
@@ -226,28 +224,26 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             return in.count();
         }
     }
-    
+
     /**
      * FieldData implementation for 64-bit double values.
      * <p>
      * Order of values within a document is consistent with
      * {@link Double#compareTo(Double)}, hence the following reversible
      * transformation is applied at both index and search:
-     * {code}
-     *   bits ^ (bits >> 63) & 0x7fffffffffffffffL
-     * {code}
+     * {@code bits ^ (bits >> 63) & 0x7fffffffffffffffL}
      * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize 
+     * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation, and 
+     * the underlying single-valued NumericDoubleValues representation, and
      * {@link FieldData#unwrapSingletonBits(SortedNumericDoubleValues)} will return
      * a Bits matching documents that have a real value (as opposed to missing).
      */
     static final class SortedNumericDoubleFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;
         final String field;
-        
+
         SortedNumericDoubleFieldData(LeafReader reader, String field) {
             super(0L);
             this.reader = reader;
@@ -263,7 +259,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 throw new IllegalStateException("Cannot load doc values", e);
             }
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.emptyList();

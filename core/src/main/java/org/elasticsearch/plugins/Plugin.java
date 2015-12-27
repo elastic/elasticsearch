@@ -29,7 +29,7 @@ import java.util.Collections;
 
 /**
  * An extension point allowing to plug in custom functionality.
- * <p/>
+ * <p>
  * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
  * and registering the extension with the given module.
  */

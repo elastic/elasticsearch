@@ -88,7 +88,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
      * on the {@link RegExp} class.
      *
-     * @see {@link RegExp#RegExp(String)}
+     * @see RegExp#RegExp(String)
      */
     public TermsBuilder include(String regex) {
         if (includeTerms != null) {
@@ -152,7 +152,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
      * expression is based on the {@link RegExp} class.
      *
-     * @see {@link RegExp#RegExp(String)}
+     * @see RegExp#RegExp(String)
      */
     public TermsBuilder exclude(String regex) {
         if (excludeTerms != null) {

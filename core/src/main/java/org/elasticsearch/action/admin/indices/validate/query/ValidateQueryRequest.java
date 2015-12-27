@@ -40,8 +40,8 @@ import java.util.Map;
 
 /**
  * A request to validate a specific query.
- * <p/>
- * <p>The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
+ * <p>
+ * The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
  * or {@link #source(byte[])}.
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {

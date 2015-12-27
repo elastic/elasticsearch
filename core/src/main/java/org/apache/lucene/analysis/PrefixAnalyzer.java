@@ -31,7 +31,7 @@ import java.util.Iterator;
  * underlying TokenStream. While these prefixes are iterated the position attribute
  * will not be incremented. Also each prefix will be separated from the other tokens
  * by a separator character.
- * NOTE: The sequence of prefixes needs to be not empty 
+ * NOTE: The sequence of prefixes needs to be not empty
  */
 public class PrefixAnalyzer extends Analyzer {
 
@@ -40,20 +40,22 @@ public class PrefixAnalyzer extends Analyzer {
     private final Analyzer analyzer;
 
     /**
-     * Create a new {@link PrefixAnalyzer}. The separator will be set to the DEFAULT_SEPARATOR.
-     * 
+     * Create a new {@link PrefixAnalyzer}.
+     *
      * @param analyzer {@link Analyzer} to wrap
-     * @param prefix Single prefix 
+     * @param separator Separator between each prefix and the other tokens
+     * @param prefix Single prefix
      */
     public PrefixAnalyzer(Analyzer analyzer, char separator, CharSequence prefix) {
         this(analyzer, separator, Collections.singleton(prefix));
     }
 
     /**
-     * Create a new {@link PrefixAnalyzer}. The separator will be set to the DEFAULT_SEPARATOR.
-     * 
+     * Create a new {@link PrefixAnalyzer}.
+     *
      * @param analyzer {@link Analyzer} to wrap
-     * @param prefix {@link Iterable} of {@link CharSequence} which keeps all prefixes 
+     * @param separator Separator between each prefix and the other tokens
+     * @param prefix {@link Iterable} of {@link CharSequence} which keeps all prefixes
      */
     public PrefixAnalyzer(Analyzer analyzer, char separator, Iterable<? extends CharSequence> prefix) {
         super();
@@ -85,10 +87,10 @@ public class PrefixAnalyzer extends Analyzer {
 
         /**
          * Create a new {@link PrefixTokenFilter}. The separator will be set to the DEFAULT_SEPARATOR.
-         * 
+         *
          * @param input {@link TokenStream} to wrap
          * @param separator Character used separate prefixes from other tokens
-         * @param prefixes {@link Iterable} of {@link CharSequence} which keeps all prefixes 
+         * @param prefixes {@link Iterable} of {@link CharSequence} which keeps all prefixes
          */
         public PrefixTokenFilter(TokenStream input, char separator, Iterable<? extends CharSequence> prefixes) {
             super(input);

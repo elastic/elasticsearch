@@ -219,7 +219,7 @@ public abstract class ExtensionPoint {
         }
 
         /**
-         * Registers a mapping from {@param key} to {@param value}
+         * Registers a mapping from {@code key} to {@code value}
          *
          * @throws IllegalArgumentException iff the key is already registered
          */

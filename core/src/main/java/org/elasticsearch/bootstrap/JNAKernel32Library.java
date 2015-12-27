@@ -68,7 +68,6 @@ final class JNAKernel32Library {
     /**
      * Adds a Console Ctrl Handler.
      *
-     * @param handler
      * @return true if the handler is correctly set
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
@@ -92,8 +91,6 @@ final class JNAKernel32Library {
     /**
      * Native call to the Kernel32 API to set a new Console Ctrl Handler.
      *
-     * @param handler
-     * @param add
      * @return true if the handler is correctly set
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
@@ -102,7 +99,7 @@ final class JNAKernel32Library {
 
     /**
      * Handles consoles event with WIN API
-     * <p/>
+     * <p>
      * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
      */
     class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {

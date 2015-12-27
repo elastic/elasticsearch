@@ -49,7 +49,7 @@ public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPerc
 
     /**
      * Specifies how to globally ignore indices that are not available and how to deal with wildcard indices expressions.
-     * <p/>
+     * <p>
      * Invoke this method before invoking {@link #add(PercolateRequestBuilder)}.
      */
     public MultiPercolateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {

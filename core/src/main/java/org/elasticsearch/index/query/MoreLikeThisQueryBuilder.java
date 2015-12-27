@@ -512,8 +512,8 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
 
     /**
      * Set the set of stopwords.
-     * <p/>
-     * <p>Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
+     * <p>
+     * Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
      * might want to tell the MoreLikeThis code to ignore them, as for the purposes of document similarity it seems
      * reasonable to assume that "a stop word is never interesting".
      */
@@ -604,7 +604,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     /**
      * Sets the documents from which the terms should not be selected from.
      *
-     * @Deprecated Use {@link #unlike(Item...)} instead
+     * @deprecated Use {@link #unlike(Item...)} instead
      */
     @Deprecated
     public MoreLikeThisQueryBuilder ignoreLike(Item... docs) {
@@ -614,7 +614,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     /**
      * Sets the text from which the terms should not be selected from.
      *
-     * @Deprecated Use {@link #unlike(String...)} instead.
+     * @deprecated Use {@link #unlike(String...)} instead.
      */
     @Deprecated
     public MoreLikeThisQueryBuilder ignoreLike(String... likeText) {

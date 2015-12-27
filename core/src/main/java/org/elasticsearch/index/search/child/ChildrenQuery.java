@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -54,11 +58,12 @@ import java.util.Set;
 /**
  * A query implementation that executes the wrapped child query and connects all the matching child docs to the related
  * parent documents using {@link ParentChildIndexFieldData}.
- * <p/>
- * This query is executed in two rounds. The first round resolves all the matching child documents and groups these
- * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
- * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
- * a score based on the aggregated child scores and score type.
+ * <p>
+ *     This query is executed in two rounds. The first round resolves all the matching child documents and groups these
+ *     documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
+ *     all parent documents having the same uid value that is collected in the first phase are emitted as hit including
+ *     a score based on the aggregated child scores and score type.
+ * </p>
  * @deprecated Use queries from lucene/join instead
  */
 @SuppressForbidden(reason="Old p/c queries still use filters")

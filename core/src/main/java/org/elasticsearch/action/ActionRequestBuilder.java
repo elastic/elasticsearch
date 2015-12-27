@@ -25,9 +25,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-/**
- *
- */
 public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
 
     protected final Action<Request, Response, RequestBuilder> action;
@@ -69,6 +66,8 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
 
     /**
      * Short version of execute().actionGet().
+     *
+     * @param timeout Timeout
      */
     public Response get(TimeValue timeout) {
         return execute().actionGet(timeout);
@@ -76,6 +75,8 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
 
     /**
      * Short version of execute().actionGet().
+     *
+     * @param timeout Timeout
      */
     public Response get(String timeout) {
         return execute().actionGet(timeout);
@@ -87,6 +88,8 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
 
     /**
      * A callback to additionally process the request before its executed
+     *
+     * @param request Request
      */
     protected Request beforeExecute(Request request) {
         return request;

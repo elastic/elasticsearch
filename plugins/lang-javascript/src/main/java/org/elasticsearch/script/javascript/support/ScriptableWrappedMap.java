@@ -32,7 +32,6 @@ import java.util.Set;
  * persisted directly to an underlying map supplied on construction. The class automatically
  * wraps/unwraps JS objects as they enter/leave the underlying map via the Scriptable interface
  * methods - objects are untouched if accessed via the usual Map interface methods.
- * <p/>
  * <p>Access should be by string key only - not integer index - unless you are sure the wrapped
  * map will maintain insertion order of the elements.
  *
@@ -46,9 +45,6 @@ public class ScriptableWrappedMap implements ScriptableMap, Wrapper {
 
     /**
      * Construction
-     *
-     * @param scope
-     * @param map
      * @return scriptable wrapped map
      */
     public static ScriptableWrappedMap wrap(Scriptable scope, Map<Object, Object> map) {
@@ -57,8 +53,6 @@ public class ScriptableWrappedMap implements ScriptableMap, Wrapper {
 
     /**
      * Construct
-     *
-     * @param map
      */
     public ScriptableWrappedMap(Map map) {
         this.map = map;
@@ -66,9 +60,6 @@ public class ScriptableWrappedMap implements ScriptableMap, Wrapper {
 
     /**
      * Construct
-     *
-     * @param scope
-     * @param map
      */
     public ScriptableWrappedMap(Scriptable scope, Map map) {
         this.parentScope = scope;

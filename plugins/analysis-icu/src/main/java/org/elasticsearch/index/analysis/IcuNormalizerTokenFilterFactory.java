@@ -29,7 +29,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
- * <p/>
  * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.
  *
  *

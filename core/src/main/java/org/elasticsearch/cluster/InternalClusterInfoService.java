@@ -314,7 +314,6 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
     /**
      * Refreshes the ClusterInfo in a blocking fashion
-     * @return
      */
     public final ClusterInfo refresh() {
         if (logger.isTraceEnabled()) {

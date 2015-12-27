@@ -37,11 +37,9 @@ import java.nio.file.Files;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
- * <p/>
  * <p>The first is simply specifying the locale (defaults to the default locale). The <tt>language</tt>
  * parameter is the lowercase two-letter ISO-639 code. An additional <tt>country</tt> and <tt>variant</tt>
  * can be provided.
- * <p/>
  * <p>The second option is to specify collation rules as defined in the <a href="http://www.icu-project.org/userguide/Collate_Customization.html">
  * Collation customization</a> chapter in icu docs. The <tt>rules</tt> parameter can either embed the rules definition
  * in the settings or refer to an external location (preferable located under the <tt>config</tt> location, relative to it).

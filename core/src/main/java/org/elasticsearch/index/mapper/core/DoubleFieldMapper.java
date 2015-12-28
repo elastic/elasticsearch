@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -243,7 +244,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Double objValue = fieldType().nullValue();

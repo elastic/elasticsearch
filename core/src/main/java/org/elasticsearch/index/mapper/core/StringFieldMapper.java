@@ -344,7 +344,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return new ValueAndBoost(nullValue, defaultBoost);
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
             XContentParser.Token token;
             String currentFieldName = null;
             String value = nullValue;

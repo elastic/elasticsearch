@@ -62,7 +62,7 @@ public class FunctionScoreQuery extends Query {
     public void setCombineFunction(CombineFunction combineFunction) {
         this.combineFunction = combineFunction;
     }
-    
+
     public void setMaxBoost(float maxBoost) {
         this.maxBoost = maxBoost;
     }
@@ -215,15 +215,20 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass())
+        if (this == o) {
+            return true;
+        }
+        if (super.equals(o) == false) {
             return false;
+        }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
-                && this.maxBoost == other.maxBoost;
+        return Objects.equals(this.subQuery, other.subQuery) && Objects.equals(this.function, other.function)
+            && Objects.equals(this.combineFunction, other.combineFunction)
+            && Objects.equals(this.minScore, other.minScore) && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
+        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
     }
 }

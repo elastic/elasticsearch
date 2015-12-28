@@ -19,6 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.VersionType.INTERNAL;
+
+import java.util.Objects;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -35,11 +40,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.Objects;
-
-import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
@@ -73,7 +73,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.source())) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
-                e.addValidationError("index-by-search cannot write into an index its reading from [" + target + ']');
+                e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
@@ -143,7 +143,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 index.routing(null);
                 break;
             default:
-                throw new UnsupportedOperationException("Unsupported routing command");
+                throw new IllegalArgumentException("Unsupported routing command");
             }
         }
 

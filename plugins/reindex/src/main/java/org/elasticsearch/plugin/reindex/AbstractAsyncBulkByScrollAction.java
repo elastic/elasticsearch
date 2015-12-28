@@ -19,6 +19,22 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static java.lang.Math.max;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestStatus.CONFLICT;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -39,21 +55,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static java.lang.Math.max;
-import static java.util.Collections.unmodifiableList;
-
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all
  * results.
@@ -61,7 +62,6 @@ import static java.util.Collections.unmodifiableList;
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
     protected final Request mainRequest;
 
-    private final AtomicLong total = new AtomicLong(-1);
     private final AtomicLong startTime = new AtomicLong(-1);
     private final AtomicLong updated = new AtomicLong(0);
     private final AtomicLong created = new AtomicLong(0);
@@ -70,7 +70,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
     private final List<Failure> failures = new CopyOnWriteArrayList<>();
-    private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ESLogger logger;
     private final Client client;
@@ -136,19 +136,20 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return unmodifiableList(failures);
     }
 
-    void initialSearch() {
+    private void initialSearch() {
         try {
             startTime.set(System.nanoTime());
             if (logger.isDebugEnabled()) {
                 logger.debug("executing initial scroll against {}{}",
-                        firstSearchRequest.indices() == null ? "all indices" : firstSearchRequest.indices(),
-                        firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? "" : firstSearchRequest.types());
+                        firstSearchRequest.indices() == null || firstSearchRequest.indices().length == 0 ? "all indices"
+                                : firstSearchRequest.indices(),
+                        firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? ""
+                                : firstSearchRequest.types());
             }
             client.search(firstSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
                     logger.debug("[{}] documents match query", response.getHits().getTotalHits());
-                    total.set(response.getHits().getTotalHits());
                     onScrollResponse(response);
                 }
 
@@ -178,10 +179,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 if (mainRequest.size() != -1) {
                     // Truncate the docs if we have more than the request size
                     long remaining = max(0, mainRequest.size() - successfullyProcessed());
-                    if (remaining <= docs.length) {
-                        if (remaining < docs.length) {
-                            docsIterable = docsIterable.subList(0, (int) remaining);
-                        }
+                    if (remaining < docs.length) {
+                        docsIterable = docsIterable.subList(0, (int) remaining);
                     }
                 }
                 BulkRequest request = buildBulk(docsIterable);
@@ -281,36 +280,33 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     private void recordFailure(Failure failure) {
-        switch (failure.getStatus()) {
-        case CONFLICT:
+        if (failure.getStatus() == CONFLICT) {
             versionConflicts.incrementAndGet();
-            if (mainRequest.abortOnVersionConflict()) {
-                failures.add(failure);
+            if (false == mainRequest.abortOnVersionConflict()) {
+                return;
             }
-            return;
-        default:
-            failures.add(failure);
         }
+        failures.add(failure);
     }
 
     void startNormalTermination() {
-        if (mainRequest.refresh()) {
-            RefreshRequest refresh = new RefreshRequest(mainRequest);
-            refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
-            client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
-                @Override
-                public void onResponse(RefreshResponse response) {
-                    finishHim(null);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    finishHim(e);
-                }
-            });
+        if (false == mainRequest.refresh()) {
+            finishHim(null);
             return;
         }
-        finishHim(null);
+        RefreshRequest refresh = new RefreshRequest(mainRequest);
+        refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
+        client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+            @Override
+            public void onResponse(RefreshResponse response) {
+                finishHim(null);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                finishHim(e);
+            }
+        });
     }
 
     /**
@@ -323,14 +319,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      *            list.
      */
     void finishHim(Throwable failure) {
-        String scroll = this.scroll.get();
-        if (Strings.hasLength(scroll)) {
+        String scrollId = scroll.get();
+        if (Strings.hasLength(scrollId)) {
             /*
              * Fire off the clear scroll but don't wait for it it return before
              * we send the use their response.
              */
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest(mainRequest);
-            clearScrollRequest.addScrollId(scroll);
+            clearScrollRequest.addScrollId(scrollId);
             client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                 @Override
                 public void onResponse(ClearScrollResponse response) {
@@ -339,7 +335,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.warn("Failed to clear scroll", e);
+                    logger.warn("Failed to clear scroll [" + scrollId + ']', e);
                 }
             });
         }

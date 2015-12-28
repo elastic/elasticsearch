@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.junit.Before;
-
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.junit.Before;
 
 /**
  * Tests that indexing from an index back into itself fails the request.
@@ -82,7 +82,7 @@ public class ReindexSameIndexTests extends ReindexTestCase {
             fail("Expected an exception");
         } catch (ActionRequestValidationException e) {
             assertThat(e.getMessage(),
-                    containsString("index-by-search cannot write into an index its reading from [target]"));
+                    containsString("reindex cannot write into an index its reading from [target]"));
         }
     }
 

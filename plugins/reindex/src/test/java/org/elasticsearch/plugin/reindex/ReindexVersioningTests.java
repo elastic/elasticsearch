@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.get.GetResponse;
-
 import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
+
+import org.elasticsearch.action.get.GetResponse;
 
 
 public class ReindexVersioningTests extends ReindexTestCase {
@@ -31,37 +31,37 @@ public class ReindexVersioningTests extends ReindexTestCase {
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;
 
-    public void testRefreshCreatesWhenAbsentAndSetsVersion() throws Exception {
+    public void testExternalVersioningCreatesWhenAbsentAndSetsVersion() throws Exception {
         setupSourceAbsent();
         assertThat(reindexExternal(), responseMatcher().created(1));
         assertDest("source", SOURCE_VERSION);
     }
 
-    public void testRefreshUpdatesOnOlderAndSetsVersion() throws Exception {
+    public void testExternalVersioningUpdatesOnOlderAndSetsVersion() throws Exception {
         setupDestOlder();
         assertThat(reindexExternal(), responseMatcher().updated(1));
         assertDest("source", SOURCE_VERSION);
     }
 
-    public void testRefreshVersionConflictsOnNewer() throws Exception {
+    public void testExternalVersioningVersionConflictsOnNewer() throws Exception {
         setupDestNewer();
         assertThat(reindexExternal(), responseMatcher().versionConflicts(1));
         assertDest("dest", NEWER_VERSION);
     }
 
-    public void testOverwriteCreatesWhenAbsent() throws Exception {
+    public void testInternalVersioningCreatesWhenAbsent() throws Exception {
         setupSourceAbsent();
         assertThat(reindexInternal(), responseMatcher().created(1));
         assertDest("source", 1);
     }
 
-    public void testOverwriteUpdatesOnOlder() throws Exception {
+    public void testInternalVersioningUpdatesOnOlder() throws Exception {
         setupDestOlder();
         assertThat(reindexInternal(), responseMatcher().updated(1));
         assertDest("source", OLDER_VERSION + 1);
     }
 
-    public void testOverwriteUpdatesOnNewer() throws Exception {
+    public void testInternalVersioningUpdatesOnNewer() throws Exception {
         setupDestNewer();
         assertThat(reindexInternal(), responseMatcher().updated(1));
         assertDest("source", NEWER_VERSION + 1);

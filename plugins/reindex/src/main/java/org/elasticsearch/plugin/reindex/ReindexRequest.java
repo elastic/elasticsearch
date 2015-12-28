@@ -97,7 +97,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("index-by-search from ");
+        b.append("reindex from ");
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
         if (destination.type() != null) {

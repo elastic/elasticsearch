@@ -6,7 +6,7 @@ The reindex plugin adds two APIs:
 * `_update_by_query` updates all documents matching a query in place.
 * `_reindex` copies documents from one index to another.
 
-These APIs are brothers so they live the same plugin. Both use
+These APIs are brothers so they live in the same plugin. Both use
 {ref}/search-request-scroll.html[Scroll] and {ref}/docs-bulk.html[Bulk] APIs
 to send an index request per document though they may not work that way in the
 future. Regardless of how they work internally they will always work **as**
@@ -71,16 +71,16 @@ document is changed and the version number is incremented.
 Version conflicts are just counted and not returned by default. To count them
 you must set `conflicts=abort` on the url or `"conflicts": "abort"` in the
 request body. If you do then the `failures` element will contain version
-conflict information. There is no `conflicts=record` because we the number of
+conflict information. There is no `conflicts=record` because we number of
 conflicts could grow without bounds so its either `abort` or nothing.
 
-Speaking of the `failures` element, it will contain an list of failures if
+Speaking of the `failures` element, it will contain a list of failures if
 there are any. The only "optional" sort of failures are version conflicts. All
 other failures always cause the operation to abort. While the first failure
-causes the abort, its possible to encounter lots of subsequent failures due to
+causes the abort, it's possible to encounter lots of subsequent failures due to
 batching so all failures are reported. Just in case you want them.
 
-Its important to remember that "abort" here doesn't mean "rollback". This
+It's important to remember that "abort" here doesn't mean "rollback". This
 operation isn't atomic. If it fails part way through then its changes have been
 made.
 
@@ -110,7 +110,7 @@ POST /twitter/_update_by_query
 // AUTOSENSE
 
 <1> The query must be passed as a value to the `query` key, in the same
-way as the {ref}/search-search.html[search api]. You can also use the `q`
+way as the {ref}/search-search.html[Search API]. You can also use the `q`
 parameter in the same way as the search api.
 
 So far we've only been touching documents. This is useful for picking up new
@@ -134,17 +134,17 @@ POST /twitter/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-Just as in update API you can set `ctx.op = "noop"` if your script decides that
-it doesn't have to make any changes. That will cause `_update_by_query` to omit
-that document from its updates. Setting `ctx.op` to anything else is an error.
-Setting any other field in `ctx` is an error.
+Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
+your script decides that it doesn't have to make any changes. That will cause
+`_update_by_query` to omit that document from its updates. Setting `ctx.op` to
+anything else is an error. Setting any other field in `ctx` is an error.
 
 This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
 from its original location.
 
-Its also possible to do this whole thing on multiple indexes and multiple types
-at once, just like the search API:
+It's also possible to do this whole thing on multiple indexes and multiple
+types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
@@ -219,7 +219,7 @@ POST /_reindex
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
 `version` from the source, create any documents that are missing, and update
-any documents that have an older version in the destination index then they do
+any documents that have an older version in the destination index than they do
 in the source index:
 
 [source,js]
@@ -299,15 +299,15 @@ POST /_reindex
 
 `index` and `type` in `src` can both be lists, allowing you to copy from lots
 of sources in one request. This will copy documents from the `tweet` and `post`
-types in the `twitter` and `blog` index. It'd included the `post` type in the
+types in the `twitter` and `blog` index. It'd include the `post` type in the
 `twitter` index and the `tweet` type in the `blog` index. If you want to be
 more specific you'll need to use the `query`. It also makes no effort to handle
-id collisions. The target index will remain valid but its not easy to predict
+id collisions. The target index will remain valid but it's not easy to predict
 which document will survive because the iteration order isn't well defined.
 Just avoid that situation, ok?
 [source,js]
 --------------------------------------------------
-POST /twitter,blog/_index_by_search
+POST /_reindex
 {
   "source": {
     "index": ["twitter", "blog"],
@@ -326,7 +326,7 @@ Its also possible to limit the number of processed documents by setting
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /_reindex
 {
   "size": 1,
   "src": {
@@ -341,12 +341,12 @@ POST /_index_by_search
 
 If you want a particular set of documents from the twitter index you'll
 need to sort. Sorting makes the scroll less efficient but in some contexts
-its worth it. If possible, prefer a more selective query to `size` and `sort`.
+it's worth it. If possible, prefer a more selective query to `size` and `sort`.
 This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /_reindex
 {
   "size": 10000,
   "src": {
@@ -366,7 +366,7 @@ document's metadata. This example bumps the version of the source document:
 
 [source,js]
 --------------------------------------------------
-POST /_index_by_search
+POST /_reindex
 {
   "src": {
     "index": "twitter",
@@ -382,7 +382,7 @@ POST /_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-Think of the posibilities! Just be careful! With great power.... Anyway! You
+Think of the possibilities! Just be careful! With great power.... Anyway! You
 can also change the "_type" and "_id" and even "_index" to change the
 destination as much as you need.
 
@@ -392,8 +392,8 @@ cause that document to be overwritten in the target index regardless of the
 versioning there.
 
 By default if `_reindex` sees a document with routing then the routing is
-preserved unless its changed by scripting. You can set `routing` on the `dest`
-request to changes this:
+preserved unless it's changed by scripting. You can set `routing` on the `dest`
+request to change this:
 
 `keep`::
 
@@ -443,10 +443,10 @@ Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
 parameter which causes just the shard that received the new data to be indexed.
 
-`consistency` controls how many copies of a shard must response to the write
-requests. `timeout` controls how long Elasticsearch waits for the shards to
-become available. `timeout` is per write request. Both work exactly how they
-work in the bulk request.
+`consistency` controls how many copies of a shard must respond to each write
+request. `timeout` controls how long each write request waits for unavailable
+shards to become available. Both work exactly how they work in the
+{ref}/docs-bulk.html[Bulk API].
 
 [float]
 === Response body
@@ -475,21 +475,22 @@ The number of documents that were successfully updated.
 
 `batches`::
 
-The number of bulk updates sent as part of the request.
+The number of scroll responses pulled back by the the `_reindex` or
+`_update_by_query`.
 
 `version_conflicts`::
 
-The number of version conflicts that the process hit.
+The number of version conflicts that the `_reindex_` or `_update_by_query` hit.
 
 `failures`::
 
 Array of all indexing failures. By default version conflicts are not included
-in this list. See above for how to get them included.
+in this list. See `conflicts` for how to get them included.
 
 `created`::
 
 The number of documents that were successfully created. This is not returned by
-`_update_by_query`. It isn't allowed to create documents!
+`_update_by_query` because it isn't allowed to create documents.
 
 [float]
 === Examples

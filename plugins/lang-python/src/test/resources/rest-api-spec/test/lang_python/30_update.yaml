@@ -18,9 +18,8 @@
             id: 1
             body:
                 script:
-                    script:
-                        inline: "ctx[\"_source\"][\"myfield\"]=\"bar\""
-                        lang: python
+                    inline: "ctx[\"_source\"][\"myfield\"]=\"bar\""
+                    lang: python
     - do:
         get:
             index: test
@@ -48,9 +47,8 @@
             id: 1
             body:
                 script:
-                    script:
-                        inline: "a=42; ctx[\"_source\"][\"myfield\"]=\"bar\""
-                        lang: python
+                    inline: "a=42; ctx[\"_source\"][\"myfield\"]=\"bar\""
+                    lang: python
     - do:
         get:
             index: test

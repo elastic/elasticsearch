@@ -194,7 +194,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract double doDoubleValue() throws IOException;
 
     @Override
-    public String textOrNull() throws IOException {
+    public final String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }

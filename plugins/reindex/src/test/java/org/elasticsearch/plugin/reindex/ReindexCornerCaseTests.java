@@ -24,6 +24,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 import org.elasticsearch.index.get.GetField;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -49,13 +52,13 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
 
     public void testTimestamp() throws Exception {
         copyDoc("{\"_timestamp\": {\"enabled\": true}}");
-        assertSearchHits(client().prepareSearch("dest").setQuery(existsQuery("_timestamp")).get(), "test");
+        assertSearchHits(client().prepareSearch("dest").setQuery(existsQuery(TimestampFieldMapper.NAME)).get(), "test");
         assertEquals(fetchTimestamp("source"), fetchTimestamp("dest"));
     }
 
     public void testTTL() throws Exception {
         copyDoc("{\"_ttl\": {\"enabled\": true, \"default\": \"20d\"}}");
-        assertNotNull(client().prepareGet("dest", "test", "test").get().getField("_ttl").getValue());
+        assertNotNull(client().prepareGet("dest", "test", "test").get().getField(TTLFieldMapper.NAME).getValue());
     }
 
     public void testRoutingCopiedByDefault() throws Exception {
@@ -92,7 +95,8 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         indexRandom(true,
                 client().prepareIndex("source", "test", "has_routing").setRouting("bar").setSource("foo", "bar"));
 
-        assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get().getField("_routing").getValue());
+        assertNotNull(client().prepareGet("source", "test", "has_routing").setRouting("bar").get()
+                .getField(RoutingFieldMapper.NAME).getValue());
 
         // Copy the child to a new type
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
@@ -102,7 +106,8 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         assertThat(copy.get(), responseMatcher().created(1));
 
         // Make sure routing is intact on the copy
-        GetField routing = client().prepareGet("dest", "test", "has_routing").setRouting(expectedRoutingAfterCopy).get().getField("_routing");
+        GetField routing = client().prepareGet("dest", "test", "has_routing").setRouting(expectedRoutingAfterCopy).get()
+                .getField(RoutingFieldMapper.NAME);
         if (expectedRoutingAfterCopy == null) {
             assertNull(expectedRoutingAfterCopy, routing);
         } else {
@@ -114,7 +119,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
     }
 
     public static Long fetchTimestamp(String indexName) {
-        GetField field = client().prepareGet(indexName, "test", "test").get().getField("_timestamp");
+        GetField field = client().prepareGet(indexName, "test", "test").get().getField(TimestampFieldMapper.NAME);
         return field == null ? null : (Long) field.getValue();
     }
 }

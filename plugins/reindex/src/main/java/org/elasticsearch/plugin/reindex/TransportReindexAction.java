@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,7 +182,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 index.version(Versions.MATCH_ANY).versionType(INTERNAL);
                 return;
             }
-            index.version(asLong(to, "_version"));
+            index.version(asLong(to, VersionFieldMapper.NAME));
         }
 
         @Override
@@ -206,7 +208,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 index.ttl(null);
                 return;
             }
-            index.ttl(asLong(to, "_ttl"));
+            index.ttl(asLong(to, TTLFieldMapper.NAME));
         }
 
         private long asLong(Object from, String name) {

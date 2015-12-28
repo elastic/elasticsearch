@@ -19,12 +19,26 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -32,11 +46,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Abstract base for scrolling across a search and executing bulk indexes on all
@@ -102,21 +111,21 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      * Copies the metadata from a hit to the index request.
      */
     protected void copyMetadata(IndexRequest index, SearchHit doc) {
-        index.parent(fieldValue(doc, "_parent"));
+        index.parent(fieldValue(doc, ParentFieldMapper.NAME));
         copyRouting(index, doc);
         // Comes back as a Long but needs to be a string
-        Long timestamp = fieldValue(doc, "_timestamp");
+        Long timestamp = fieldValue(doc, TimestampFieldMapper.NAME);
         if (timestamp != null) {
             index.timestamp(timestamp.toString());
         }
-        index.ttl(fieldValue(doc, "_ttl"));
+        index.ttl(fieldValue(doc, TTLFieldMapper.NAME));
     }
 
     /**
      * Part of copyMetadata but called out individual for easy overwriting.
      */
     protected void copyRouting(IndexRequest index, SearchHit doc) {
-        index.routing(fieldValue(doc, "_routing"));
+        index.routing(fieldValue(doc, RoutingFieldMapper.NAME));
     }
 
     protected <T> T fieldValue(SearchHit doc, String fieldName) {
@@ -134,20 +143,20 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (script == null) {
             return true;
         }
-        ctx.put("_index", doc.index());
-        ctx.put("_type", doc.type());
-        ctx.put("_id", doc.id());
+        ctx.put(IndexFieldMapper.NAME, doc.index());
+        ctx.put(TypeFieldMapper.NAME, doc.type());
+        ctx.put(IdFieldMapper.NAME, doc.id());
         Long oldVersion = doc.getVersion();
-        ctx.put("_version", oldVersion);
-        String oldParent = fieldValue(doc, "_parent");
-        ctx.put("_parent", oldParent);
-        String oldRouting = fieldValue(doc, "_routing");
-        ctx.put("_routing", oldRouting);
-        Long oldTimestamp = fieldValue(doc, "_timestamp");
-        ctx.put("_timestamp", oldTimestamp);
-        Long oldTtl = fieldValue(doc, "_ttl");
-        ctx.put("_ttl", oldTtl);
-        ctx.put("_source", index.sourceAsMap());
+        ctx.put(VersionFieldMapper.NAME, oldVersion);
+        String oldParent = fieldValue(doc, ParentFieldMapper.NAME);
+        ctx.put(ParentFieldMapper.NAME, oldParent);
+        String oldRouting = fieldValue(doc, RoutingFieldMapper.NAME);
+        ctx.put(RoutingFieldMapper.NAME, oldRouting);
+        Long oldTimestamp = fieldValue(doc, TimestampFieldMapper.NAME);
+        ctx.put(TimestampFieldMapper.NAME, oldTimestamp);
+        Long oldTtl = fieldValue(doc, TTLFieldMapper.NAME);
+        ctx.put(TTLFieldMapper.NAME, oldTtl);
+        ctx.put(SourceFieldMapper.NAME, index.sourceAsMap());
         ctx.put("op", "update");
         script.setNextVar("ctx", ctx);
         script.run();
@@ -169,25 +178,25 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          * modified but it isn't worth keeping two copies of it
          * around just to check!
          */
-        index.source((Map<String, Object>) resultCtx.remove("_source"));
+        index.source((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
 
-        Object newValue = ctx.remove("_index");
+        Object newValue = ctx.remove(IndexFieldMapper.NAME);
         if (false == doc.index().equals(newValue)) {
             scriptChangedIndex(index, newValue);
         }
-        newValue = ctx.remove("_type");
+        newValue = ctx.remove(TypeFieldMapper.NAME);
         if (false == doc.type().equals(newValue)) {
             scriptChangedType(index, newValue);
         }
-        newValue = ctx.remove("_id");
+        newValue = ctx.remove(IdFieldMapper.NAME);
         if (false == doc.id().equals(newValue)) {
             scriptChangedId(index, newValue);
         }
-        newValue = ctx.remove("_version");
+        newValue = ctx.remove(VersionFieldMapper.NAME);
         if (false == Objects.equals(oldVersion, newValue)) {
             scriptChangedVersion(index, newValue);
         }
-        newValue = ctx.remove("_parent");
+        newValue = ctx.remove(ParentFieldMapper.NAME);
         if (false == Objects.equals(oldParent, newValue)) {
             scriptChangedParent(index, newValue);
         }
@@ -195,15 +204,15 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
          * Its important that routing comes after parent in case you want to
          * change them both.
          */
-        newValue = ctx.remove("_routing");
+        newValue = ctx.remove(RoutingFieldMapper.NAME);
         if (false == Objects.equals(oldRouting, newValue)) {
             scriptChangedRouting(index, newValue);
         }
-        newValue = ctx.remove("_timestamp");
+        newValue = ctx.remove(TimestampFieldMapper.NAME);
         if (false == Objects.equals(oldTimestamp, newValue)) {
             scriptChangedTimestamp(index, newValue);
         }
-        newValue = ctx.remove("_ttl");
+        newValue = ctx.remove(TTLFieldMapper.NAME);
         if (false == Objects.equals(oldTtl, newValue)) {
             scriptChangedTtl(index, newValue);
         }
@@ -214,15 +223,15 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     }
 
     protected void scriptChangedIndex(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_index] not allowed");
+        throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedType(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_type] not allowed");
+        throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedId(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_id] not allowed");
+        throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedVersion(IndexRequest index, Object to) {
@@ -230,18 +239,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     }
 
     protected void scriptChangedRouting(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_routing] not allowed");
+        throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedParent(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_parent] not allowed");
+        throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedTimestamp(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_timestamp] not allowed");
+        throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
     }
 
     protected void scriptChangedTtl(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_ttl] not allowed");
+        throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
     }
 }

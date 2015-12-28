@@ -105,7 +105,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                String fieldName = parser.text();
+                String fieldName = parser.currentName();
                 if (fieldName != null) {
                     // for back compat with 1.x license metadata
                     if (fieldName.equals(Fields.TRIAL_LICENSES) || fieldName.equals(Fields.SIGNED_LICENCES)) {

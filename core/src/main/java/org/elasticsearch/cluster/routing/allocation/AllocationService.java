@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -181,7 +182,10 @@ public class AllocationService extends AbstractComponent {
         routingNodes.unassigned().shuffle();
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
-        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
+        // as failing primaries also fail associated replicas, we fail replicas first here so that their nodes are added to ignore list
+        List<FailedRerouteAllocation.FailedShard> orderedFailedShards = new ArrayList<>(failedShards);
+        orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.shard.primary()));
+        for (FailedRerouteAllocation.FailedShard failedShard : orderedFailedShards) {
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
                     System.nanoTime(), System.currentTimeMillis()));
         }

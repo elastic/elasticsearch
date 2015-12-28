@@ -43,7 +43,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testClusterConcurrentRebalance() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
                 .build());
 

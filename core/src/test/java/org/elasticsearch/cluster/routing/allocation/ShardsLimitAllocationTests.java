@@ -46,7 +46,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ShardsLimitAllocationTests.class);
 
     public void testIndexLevelShardsLimitAllocate() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -89,7 +89,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
     public void testClusterLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                 .build());
 
@@ -125,7 +125,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         // Bump the cluster total shards to 2
         strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
                 .build());
 
@@ -147,7 +147,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
     public void testIndexLevelShardsLimitRemain() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.balance.index", 0.0f)

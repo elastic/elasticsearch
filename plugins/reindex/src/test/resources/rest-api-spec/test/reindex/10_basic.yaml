@@ -120,7 +120,7 @@
   - match: {failures.0.index:  dest}
   - match: {failures.0.type:   foo}
   - match: {failures.0.id:     "1"}
-  - match: {failures.0.status: CONFLICT}
+  - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
   - match: {failures.0.cause.reason: "[foo][1]: version conflict, document already exists (current version [1])"}
   - match: {failures.0.cause.shard:  /\d+/}

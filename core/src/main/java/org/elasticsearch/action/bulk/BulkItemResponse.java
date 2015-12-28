@@ -148,7 +148,7 @@ public class BulkItemResponse implements Streamable {
             builder.startObject(CAUSE);
             ElasticsearchException.toXContent(builder, params, cause);
             builder.endObject();
-            builder.field(STATUS, status);
+            builder.field(STATUS, status.getStatus());
             return builder;
         }
     }

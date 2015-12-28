@@ -173,7 +173,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
         private final float indexBalance;
         private final float shardBalance;
-        private final float[] theta;
+        private final float theta0;
+        private final float theta1;
 
 
         public WeightFunction(float indexBalance, float shardBalance) {
@@ -181,7 +182,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
-            theta = new float[]{shardBalance / sum, indexBalance / sum};
+            theta0 = shardBalance / sum;
+            theta1 = indexBalance / sum;
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
         }
@@ -189,8 +191,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public float weight(Operation operation, Balancer balancer, ModelNode node, String index) {
             final float weightShard = (node.numShards() - balancer.avgShardsPerNode());
             final float weightIndex = (node.numShards(index) - balancer.avgShardsPerNode(index));
-            assert theta != null;
-            return theta[0] * weightShard + theta[1] * weightIndex;
+            return theta0 * weightShard + theta1 * weightIndex;
         }
 
     }

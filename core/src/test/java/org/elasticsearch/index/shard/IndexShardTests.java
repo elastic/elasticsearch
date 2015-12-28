@@ -984,7 +984,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper);
         try {
             // test global ordinals are evicted
-            MappedFieldType foo = newShard.mapperService().indexName("foo");
+            MappedFieldType foo = newShard.mapperService().fullName("foo");
             IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
             FieldDataStats before = shard.fieldData().stats("foo");
             assertThat(before.getMemorySizeInBytes(), equalTo(0l));

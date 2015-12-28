@@ -80,7 +80,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);

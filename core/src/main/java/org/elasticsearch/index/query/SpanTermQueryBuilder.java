@@ -73,7 +73,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         String fieldName = this.fieldName;
         MappedFieldType mapper = context.fieldMapper(fieldName);
         if (mapper != null) {
-            fieldName = mapper.names().indexName();
+            fieldName = mapper.name();
             valueBytes = mapper.indexedValueForSearch(value);
         }
         if (valueBytes == null) {

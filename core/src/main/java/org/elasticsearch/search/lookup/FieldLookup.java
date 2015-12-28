@@ -85,7 +85,7 @@ public class FieldLookup {
         }
         valueLoaded = true;
         value = null;
-        List<Object> values = fields.get(fieldType.names().indexName());
+        List<Object> values = fields.get(fieldType.name());
         return values != null ? value = values.get(0) : null;
     }
 
@@ -95,6 +95,6 @@ public class FieldLookup {
         }
         valuesLoaded = true;
         values.clear();
-        return values = fields().get(fieldType.names().indexName());
+        return values = fields().get(fieldType.name());
     }
 }

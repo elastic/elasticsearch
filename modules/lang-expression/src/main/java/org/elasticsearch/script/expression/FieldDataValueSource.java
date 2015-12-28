@@ -75,6 +75,6 @@ class FieldDataValueSource extends ValueSource {
 
     @Override
     public String description() {
-        return "field(" + fieldData.getFieldNames().toString() + ")";
+        return "field(" + fieldData.getFieldName() + ")";
     }
 }

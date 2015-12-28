@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +45,6 @@ import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
 public class DocumentMapperParser {
 
-    private final Settings indexSettings;
     final MapperService mapperService;
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
@@ -62,8 +60,7 @@ public class DocumentMapperParser {
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 SimilarityService similarityService, MapperRegistry mapperRegistry) {
-        this.indexSettings = indexSettings.getSettings();
-        this.parseFieldMatcher = new ParseFieldMatcher(this.indexSettings);
+        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings.getSettings());
         this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
@@ -110,7 +107,7 @@ public class DocumentMapperParser {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc(indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        DocumentMapper.Builder docBuilder = doc((RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {
@@ -137,7 +134,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService, this);
+        return docBuilder.build(mapperService);
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<String, Object> fieldNodeMap, Version indexVersionCreated) {

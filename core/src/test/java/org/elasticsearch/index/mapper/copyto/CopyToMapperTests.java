@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -127,6 +129,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
+        docMapper = index.mapperService().documentMapper("type1");
         fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
     }
@@ -308,27 +311,15 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapperBefore = parser.parse("type1", new CompressedXContent(mappingBefore));
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper docMapperBefore = mapperService.merge("type1", new CompressedXContent(mappingBefore), true, false);
 
-        List<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
+        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());
 
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0), equalTo("foo"));
-        assertThat(fields.get(1), equalTo("bar"));
+        DocumentMapper docMapperAfter = mapperService.merge("type1", new CompressedXContent(mappingAfter), false, false);
 
-
-        DocumentMapper docMapperAfter = parser.parse("type1", new CompressedXContent(mappingAfter));
-
-        docMapperBefore.merge(docMapperAfter.mapping(), true, false);
-
-        docMapperBefore.merge(docMapperAfter.mapping(), false, false);
-
-        fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
-
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0), equalTo("baz"));
-        assertThat(fields.get(1), equalTo("bar"));
+        assertEquals(Arrays.asList("baz", "bar"), docMapperAfter.mappers().getMapper("copy_test").copyTo().copyToFields());
+        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());
     }
 
     public void testCopyToNestedField() throws Exception {

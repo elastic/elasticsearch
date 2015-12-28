@@ -23,34 +23,22 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 
-import java.util.AbstractMap;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  *
  */
 public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
-    private final CopyOnWriteHashMap<String, Analyzer> analyzers;
-    private final Analyzer defaultAnalyzer;
+    private final Map<String, Analyzer> analyzers;
 
-    public FieldNameAnalyzer(Analyzer defaultAnalyzer) {
-        this(new CopyOnWriteHashMap<>(), defaultAnalyzer);
-    }
-
-    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+    public FieldNameAnalyzer(Map<String, Analyzer> analyzers) {
         super(Analyzer.PER_FIELD_REUSE_STRATEGY);
         this.analyzers = CopyOnWriteHashMap.copyOf(analyzers);
-        this.defaultAnalyzer = defaultAnalyzer;
     }
 
     public Map<String, Analyzer> analyzers() {
         return analyzers;
-    }
-
-    public Analyzer defaultAnalyzer() {
-        return defaultAnalyzer;
     }
 
     @Override
@@ -63,18 +51,4 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         // Fields need to be explicitly added
         throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
     }
-
-    /**
-     * Return a new instance that contains the union of this and of the provided analyzers.
-     */
-    public FieldNameAnalyzer copyAndAddAll(Stream<? extends Map.Entry<String, Analyzer>> mappers) {
-        CopyOnWriteHashMap<String, Analyzer> result = analyzers.copyAndPutAll(mappers.map((e) -> {
-            if (e.getValue() == null) {
-                return new AbstractMap.SimpleImmutableEntry<>(e.getKey(), defaultAnalyzer);
-            }
-            return e;
-        }));
-        return new FieldNameAnalyzer(result, defaultAnalyzer);
-    }
-
 }

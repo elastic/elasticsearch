@@ -326,15 +326,15 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             CompletionFieldType other = (CompletionFieldType)fieldType;
 
             if (preservePositionIncrements != other.preservePositionIncrements) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_position_increments] values");
+                conflicts.add("mapper [" + name() + "] has different [preserve_position_increments] values");
             }
             if (preserveSep != other.preserveSep) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_separators] values");
+                conflicts.add("mapper [" + name() + "] has different [preserve_separators] values");
             }
             if (hasContextMappings() != other.hasContextMappings()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [context_mappings] values");
+                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
             } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [context_mappings] values");
+                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
             }
         }
 
@@ -446,7 +446,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         Token token = parser.currentToken();
         Map<String, CompletionInputMetaData> inputMap = new HashMap<>(1);
         if (token == Token.VALUE_NULL) {
-            throw new MapperParsingException("completion field [" + fieldType().names().fullName() + "] does not support null values");
+            throw new MapperParsingException("completion field [" + fieldType().name() + "] does not support null values");
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -469,10 +469,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             CompletionInputMetaData metaData = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
-                fieldType().getContextMappings().addField(context.doc(), fieldType().names().indexName(),
+                fieldType().getContextMappings().addField(context.doc(), fieldType().name(),
                         input, metaData.weight, metaData.contexts);
             } else {
-                context.doc().add(new SuggestField(fieldType().names().indexName(), input, metaData.weight));
+                context.doc().add(new SuggestField(fieldType().name(), input, metaData.weight));
             }
         }
         multiFields.parse(this, context);
@@ -536,7 +536,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
                         if (fieldType().hasContextMappings() == false) {
-                            throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType().names().fullName() + "]");
+                            throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType().name() + "]");
                         }
                         ContextMappings contextMappings = fieldType().getContextMappings();
                         XContentParser.Token currentToken = parser.currentToken();

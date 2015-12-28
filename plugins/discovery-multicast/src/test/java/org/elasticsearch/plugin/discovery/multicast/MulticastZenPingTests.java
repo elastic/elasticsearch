@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,6 +46,7 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 
 public class MulticastZenPingTests extends ESTestCase {
+
     private Settings buildRandomMulticast(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
@@ -57,6 +59,7 @@ public class MulticastZenPingTests extends ESTestCase {
     }
 
     public void testSimplePings() throws InterruptedException {
+        assumeTrue("https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=193246", Constants.FREE_BSD == false);
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
         Thread.sleep(30000);
@@ -129,8 +132,16 @@ public class MulticastZenPingTests extends ESTestCase {
         }
     }
 
+    // This test is here because when running on FreeBSD, if no tests are
+    // executed for the 'multicast' project it will assume everything
+    // failed, so we need to have at least one test that runs.
+    public void testAlwaysRun() throws Exception {
+        assertTrue(true);
+    }
+
     @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     public void testExternalPing() throws Exception {
+        assumeTrue("https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=193246", Constants.FREE_BSD == false);
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
 

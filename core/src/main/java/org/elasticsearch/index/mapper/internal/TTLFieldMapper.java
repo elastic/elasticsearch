@@ -64,7 +64,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
             TTL_FIELD_TYPE.setIndexAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_64_BIT));
             TTL_FIELD_TYPE.setSearchAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
-            TTL_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            TTL_FIELD_TYPE.setName(NAME);
             TTL_FIELD_TYPE.freeze();
         }
 

@@ -249,7 +249,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             @Override
             public String toString(String s) {
                 final StringBuilder sb = new StringBuilder();
-                return sb.append(names().indexName()).append(':')
+                return sb.append(name()).append(':')
                     .append(includeLower ? '[' : '{')
                     .append((lowerTerm == null) ? "*" : lowerTerm.toString())
                     .append(" TO ")
@@ -306,13 +306,13 @@ public class DateFieldMapper extends NumberFieldMapper {
             if (strict) {
                 DateFieldType other = (DateFieldType)fieldType;
                 if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
                 }
                 if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
                 }
                 if (Objects.equals(timeUnit(), other.timeUnit()) == false) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [numeric_resolution] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [numeric_resolution] across all types.");
                 }
             }
         }
@@ -404,7 +404,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                 // not a time format
                 iSim =  fuzziness.asLong();
             }
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -424,7 +424,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 includeLower, includeUpper);
@@ -516,7 +516,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         Long value = null;
         if (dateAsString != null) {
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), dateAsString, boost);
+                context.allEntries().addText(fieldType().name(), dateAsString, boost);
             }
             value = fieldType().parseStringValue(dateAsString);
         }

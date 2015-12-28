@@ -101,7 +101,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (fieldNamesFieldType.isEnabled()) {
                 final String f;
                 if (fieldType != null) {
-                    f = fieldType.names().indexName();
+                    f = fieldType.name();
                 } else {
                     f = field;
                 }

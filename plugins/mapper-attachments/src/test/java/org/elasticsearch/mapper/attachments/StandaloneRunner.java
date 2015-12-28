@@ -135,7 +135,7 @@ public class StandaloneRunner extends CliTool {
         }
 
         private void printMetadataContent(ParseContext.Document doc, String field) {
-            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().names().indexName()));
+            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().name()));
         }
 
         public static byte[] copyToBytes(Path path) throws IOException {

@@ -40,13 +40,13 @@ import java.util.Collections;
  */
 public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
 
-    private final MappedFieldType.Names fieldNames;
+    private final String fieldName;
     private final FieldDataType fieldDataType;
     private final long memorySizeInBytes;
 
-    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, long memorySizeInBytes) {
+    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, long memorySizeInBytes) {
         super(indexSettings);
-        this.fieldNames = fieldNames;
+        this.fieldName = fieldName;
         this.fieldDataType = fieldDataType;
         this.memorySizeInBytes = memorySizeInBytes;
     }
@@ -67,8 +67,8 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public MappedFieldType.Names getFieldNames() {
-        return fieldNames;
+    public String getFieldName() {
+        return fieldName;
     }
 
     @Override

@@ -198,11 +198,19 @@ class BuildPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     static void configureConfigurations(Project project) {
+        // we are not shipping these jars, we act like dumb consumers of these things
+        if (project.path.startsWith(':test:fixtures')) {
+            return
+        }
         // fail on any conflicting dependency versions
         project.configurations.all({ Configuration configuration ->
             if (configuration.name.startsWith('_transitive_')) {
                 // don't force transitive configurations to not conflict with themselves, since
                 // we just have them to find *what* transitive deps exist
+                return
+            }
+            if (configuration.name.endsWith('Fixture')) {
+                // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
             }
             configuration.resolutionStrategy.failOnVersionConflict()

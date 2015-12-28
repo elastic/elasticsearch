@@ -548,18 +548,11 @@ public class TestSearchContext extends SearchContext {
         return null;
     }
 
+
     @Override
     public MappedFieldType smartNameFieldType(String name) {
         if (mapperService() != null) {
-            return mapperService().smartNameFieldType(name, types());
-        }
-        return null;
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        if (mapperService() != null) {
-            return mapperService().smartNameFieldType(name);
+            return mapperService().fullName(name);
         }
         return null;
     }
@@ -567,7 +560,7 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ObjectMapper getObjectMapper(String name) {
         if (mapperService() != null) {
-            return mapperService().getObjectMapper(name, types);
+            return mapperService().getObjectMapper(name);
         }
         return null;
     }

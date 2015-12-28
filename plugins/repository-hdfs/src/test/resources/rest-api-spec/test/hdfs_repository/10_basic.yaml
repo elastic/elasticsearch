@@ -2,7 +2,7 @@
 #
 # Check plugin is installed
 #
-"HDFS Repository loaded":
+"Plugin loaded":
     - do:
         cluster.state: {}
 
@@ -14,3 +14,18 @@
 
     - match:  { nodes.$master.plugins.0.name: repository-hdfs  }
     - match:  { nodes.$master.plugins.0.jvm: true  }
+---
+#
+# Check that we can't use file:// repositories or anything like that
+# We only test this plugin against hdfs://
+#
+"HDFS only":
+    - do:
+        catch: /Invalid scheme/
+        snapshot.create_repository:
+          repository: misconfigured_repository
+          body:
+            type: hdfs
+            settings:
+              uri: "file://bogus"
+              path: "foo/bar"

@@ -18,189 +18,138 @@
  */
 
 //apply plugin: 'nebula.provided-base'
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
  
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin'
-}
-
-configurations {
-    hadoop1
-    hadoop2
+  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
-  'hadoop1': '1.2.1',
   'hadoop2': '2.7.1'
 ]
 
-dependencies {
-  provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
-  provided "org.apache.hadoop:hadoop-core:${versions.hadoop1}"
-
-  // use Hadoop1 to compile and test things (a subset of Hadoop2)
-  testCompile "org.apache.hadoop:hadoop-core:${versions.hadoop1}"
-  testCompile "org.apache.hadoop:hadoop-test:${versions.hadoop1}"
-  // Hadoop dependencies
-  testCompile "commons-configuration:commons-configuration:1.6"
-  testCompile "commons-lang:commons-lang:${versions.commonslang}"
-  testCompile "commons-collections:commons-collections:3.2.2"
-  testCompile "commons-net:commons-net:1.4.1"
-  testCompile "org.mortbay.jetty:jetty:6.1.26"
-  testCompile "org.mortbay.jetty:jetty-util:6.1.26"
-  testCompile "org.mortbay.jetty:servlet-api:2.5-20081211"
-  testCompile "com.sun.jersey:jersey-core:1.8"
-  
-
-  hadoop1("org.apache.hadoop:hadoop-core:${versions.hadoop1}") {
-    exclude module: "commons-cli"
-    exclude group: "com.sun.jersey"
-    exclude group: "org.mortbay.jetty"
-    exclude group: "tomcat"
-    exclude module: "commons-el"
-    exclude module: "hsqldb"
-    exclude group: "org.eclipse.jdt"
-    exclude module: "commons-beanutils"
-    exclude module: "commons-beanutils-core"
-    exclude module: "junit"
-    // provided by ES itself
-    exclude group: "log4j"
-  }
-
-  hadoop2("org.apache.hadoop:hadoop-client:${versions.hadoop2}") {
-    exclude module: "commons-cli"
-    exclude group: "com.sun.jersey"
-    exclude group: "com.sun.jersey.contribs"
-    exclude group: "com.sun.jersey.jersey-test-framework"
-    exclude module: "guice"
-    exclude group: "org.mortbay.jetty"
-    exclude group: "tomcat"
-    exclude module: "commons-el"
-    exclude module: "hsqldb"
-    exclude group: "org.eclipse.jdt"
-    exclude module: "commons-beanutils"
-    exclude module: "commons-beanutils-core"
-    exclude module: "javax.servlet"
-    exclude module: "junit"
-    // provided by ES itself
-    exclude group: "log4j"
-  }
-
-  hadoop2("org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}") {
-    exclude module: "guava"
-    exclude module: "junit"
-    // provided by ES itself
-    exclude group: "log4j"
-  }
-} 
-
-configurations.all {
-    resolutionStrategy {
-        force "commons-codec:commons-codec:${versions.commonscodec}"
-        force "commons-logging:commons-logging:${versions.commonslogging}"
-        force "commons-lang:commons-lang:2.6"
-        force "commons-httpclient:commons-httpclient:3.0.1"
-        force "org.codehaus.jackson:jackson-core-asl:1.8.8"
-        force "org.codehaus.jackson:jackson-mapper-asl:1.8.8"
-        force "com.google.code.findbugs:jsr305:3.0.0"
-        force "com.google.guava:guava:16.0.1"
-        force "org.slf4j:slf4j-api:1.7.10"
-        force "org.slf4j:slf4j-log4j12:1.7.10"
-    }
+configurations {
+  hdfsFixture
 }
 
+dependencies {
+  compile "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
+  compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
+  compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
+  compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
+  compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
+  compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
+  compile 'com.google.guava:guava:16.0.1'
+  compile 'com.google.protobuf:protobuf-java:2.5.0'
+  compile 'commons-logging:commons-logging:1.1.3'
+  compile 'commons-collections:commons-collections:3.2.2'
+  compile 'commons-configuration:commons-configuration:1.6'
+  compile 'commons-io:commons-io:2.4'
+  compile 'commons-lang:commons-lang:2.6'
+  compile 'javax.servlet:servlet-api:2.5'
+  compile "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  hdfsFixture project(':test:fixtures:hdfs-fixture')
+}
 
 dependencyLicenses {
-  mapping from: /hadoop-core.*/, to: 'hadoop-1'
-  mapping from: /hadoop-.*/, to: 'hadoop-2'
+  mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
+  dependsOn project.configurations.hdfsFixture
+  executable = new File(project.javaHome, 'bin/java')
+  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+  args 'hdfs.MiniHDFS',
+       baseDir
+}
+
+integTest {
+  boolean fixtureSupported = false;
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    // hdfs fixture will not start without hadoop native libraries on windows
+    String nativePath = System.getenv("HADOOP_HOME")
+    if (nativePath != null) {
+      Path path = Paths.get(nativePath);
+      if (Files.isDirectory(path) &&
+          Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+          Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+          Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+        fixtureSupported = true
+      } else {
+        throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
+      }
+    }
+  } else {
+    fixtureSupported = true
+  }
+
+  if (fixtureSupported) {
+    dependsOn hdfsFixture
+  } else {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+    // just tests that the plugin loads
+    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+  }
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
 
-// main jar includes just the plugin classes
-jar {
-    include "org/elasticsearch/plugin/hadoop/hdfs/*"
-}
-
-// hadoop jar (which actually depend on Hadoop)
-task hadoopLinkedJar(type: Jar, dependsOn:jar) {
-    appendix "internal"
-    from sourceSets.main.output.classesDir
-    // exclude plugin
-    exclude "org/elasticsearch/plugin/hadoop/hdfs/*"
-}
-
-
-bundlePlugin.dependsOn hadoopLinkedJar
-
-// configure 'bundle' as being w/o Hadoop deps
-bundlePlugin {
-    into ("internal-libs") {
-        from hadoopLinkedJar.archivePath
-    }
-    
-    into ("hadoop-libs") {
-        from configurations.hadoop2.allArtifacts.files
-        from configurations.hadoop2
-    }
-}
-
-
-task distZipHadoop1(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        include "*"
-        include "internal-libs/**"
-    }
-    
-    description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
-    classifier = "hadoop1"
-
-    into ("hadoop-libs") {
-        from configurations.hadoop1.allArtifacts.files
-        from configurations.hadoop1
-    }
-}
-
-task distZipHadoop2(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        include "*"
-        include "internal-libs/**"
-    }
-        
-    description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
-    classifier = "hadoop2"
-
-    into ("hadoop-libs") {
-        from configurations.hadoop2.allArtifacts.files
-        from configurations.hadoop2
-    }
-}
-
-task distZipNoHadoop(type: Zip, dependsOn: [hadoopLinkedJar, jar]) { zipTask ->
-    from (zipTree(bundlePlugin.archivePath)) {
-        exclude "hadoop-libs/**"
-    }
-    
-    from sourceSets.main.output.resourcesDir
-
-    description = "Builds archive (without any Hadoop dependencies) suitable for download page."
-    classifier = "lite"
-}
-
-
-artifacts {
-    archives bundlePlugin
-    'default' bundlePlugin
-    archives distZipHadoop1
-    archives distZipHadoop2
-    archives distZipNoHadoop
-}
-
-integTest {
-    cluster {
-        plugin(pluginProperties.extension.name, zipTree(distZipHadoop2.archivePath))
-    }
-}
-
-// classes are missing, e.g. org.mockito.Mockito
 thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+  // note: the jersey ones may be bogus, see my bug report at forbidden-apis!
+  // internal java api: com.sun.jersey.server.impl.inject.AbstractHttpContextInjectable
+  // internal java api: com.sun.jersey.api.core.HttpContext
+  // internal java api: com.sun.jersey.core.spi.component.ComponentScope
+  // internal java api: com.sun.jersey.spi.inject.Injectable
+  // internal java api: com.sun.jersey.core.spi.component.ComponentContext
+  'org.apache.hadoop.hdfs.web.resources.UserProvider',
+
+  // internal java api: com.sun.jersey.spi.container.ResourceFilters
+  'org.apache.hadoop.hdfs.server.namenode.web.resources.NamenodeWebHdfsMethods',
+  // internal java api: com.sun.jersey.spi.container.servlet.ServletContainer
+  'org.apache.hadoop.http.HttpServer', 
+  'org.apache.hadoop.http.HttpServer2',
+
+  // internal java api: com.sun.jersey.api.ParamException
+  'org.apache.hadoop.hdfs.web.resources.ExceptionHandler',
+  'org.apache.hadoop.hdfs.server.datanode.web.webhdfs.ExceptionHandler',
+  'org.apache.hadoop.hdfs.web.ParamFilter',
+
+  // internal java api: com.sun.jersey.spi.container.ContainerRequestFilter
+  // internal java api: com.sun.jersey.spi.container.ContainerRequest
+  'org.apache.hadoop.hdfs.web.ParamFilter',
+  'org.apache.hadoop.hdfs.web.ParamFilter$1',
+
+  // internal java api: com.sun.jndi.ldap.LdapCtxFactory
+  'org.apache.hadoop.security.LdapGroupsMapping',
+
+  // internal java api: sun.net.dns.ResolverConfiguration
+  // internal java api: sun.net.util.IPAddressUtil
+  'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
+
+  // internal java api: sun.misc.Unsafe
+  'com.google.common.cache.Striped64',
+  'com.google.common.cache.Striped64$1',
+  'com.google.common.cache.Striped64$Cell',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+  'org.apache.hadoop.io.nativeio.NativeIO',
+  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+
+  // internal java api: sun.nio.ch.DirectBuffer
+  // internal java api: sun.misc.Cleaner
+  'org.apache.hadoop.io.nativeio.NativeIO$POSIX',
+  'org.apache.hadoop.crypto.CryptoStreamUtils',
+ 
+  // internal java api: sun.misc.SignalHandler
+  'org.apache.hadoop.util.SignalLogger$Handler',
+]

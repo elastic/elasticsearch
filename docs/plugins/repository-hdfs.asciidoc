@@ -8,29 +8,25 @@ The HDFS repository plugin adds support for using HDFS File System as a reposito
 [float]
 ==== Installation
 
-This plugin can be installed using the plugin manager using _one_ of the following packages:
+This plugin can be installed through the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
 sudo bin/plugin install repository-hdfs
-sudo bin/plugin install repository-hdfs-hadoop2
-sudo bin/plugin install repository-hdfs-lite
 ----------------------------------------------------------------
 
-The chosen plugin must be installed on every node in the cluster, and each node must
+The plugin must be installed on _every_ node in the cluster, and each node must
 be restarted after installation.
 
 [[repository-hdfs-remove]]
 [float]
 ==== Removal
 
-The plugin can be removed by specifying the _installed_ package using _one_ of the following commands:
+The plugin can be removed by specifying the _installed_ package:
 
 [source,sh]
 ----------------------------------------------------------------
 sudo bin/plugin remove repository-hdfs
-sudo bin/plugin remove repository-hdfs-hadoop2
-sudo bin/plugin remove repository-hdfs-lite
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -38,49 +34,14 @@ The node must be stopped before removing the plugin.
 [[repository-hdfs-usage]]
 ==== Getting started with HDFS
 
-The HDFS snapshot/restore plugin comes in three _flavors_:
+The HDFS snapshot/restore plugin is built against the latest Apache Hadoop 2.x (currently 2.7.1). If the distro you are using is not protocol
+compatible with Apache Hadoop, consider replacing the Hadoop libraries inside the plugin folder with your own (you might have to adjust the security permissions required).
 
-* Default / Hadoop 1.x::
-The default version contains the plugin jar alongside Apache Hadoop 1.x (stable) dependencies.
-* YARN / Hadoop 2.x::
-The `hadoop2` version contains the plugin jar plus the Apache Hadoop 2.x (also known as YARN) dependencies.
-* Lite::
-The `lite` version contains just the plugin jar, without any Hadoop dependencies. The user should provide these (read below).
+Even if Hadoop is already installed on the Elasticsearch nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
 
-[[repository-hdfs-flavor]]
-===== What version to use?
-
-It depends on whether Hadoop is locally installed or not and if not, whether it is compatible with Apache Hadoop clients.
-
-* Are you using Apache Hadoop (or a _compatible_ distro) and do not have installed on the Elasticsearch nodes?::
-+
-If the answer is yes, for Apache Hadoop 1 use the default `repository-hdfs` or `repository-hdfs-hadoop2` for Apache Hadoop 2.
-+
-* If you are have Hadoop installed locally on the Elasticsearch nodes or are using a certain distro::
-+
-Use the `lite` version and place your Hadoop _client_ jars and their dependencies in the plugin folder under `hadoop-libs`.
-For large deployments, it is recommended to package the libraries in the plugin zip and deploy it manually across nodes 
-(and thus avoiding having to do the libraries setup on each node).
-
-[[repository-hdfs-security]]
-==== Handling JVM Security and Permissions
-
-Out of the box, Elasticsearch runs in a JVM with the security manager turned _on_ to make sure that unsafe or sensitive actions
-are allowed only from trusted code. Hadoop however is not really designed to run under one; it does not rely on privileged blocks
-to execute sensitive code, of which it uses plenty.
-
-The `repository-hdfs` plugin provides the necessary permissions for both Apache Hadoop 1.x and 2.x (latest versions) to successfully
-run in a secured JVM as one can tell from the number of permissions required when installing the plugin.
-However using a certain Hadoop File-System (outside DFS), a certain distro or operating system (in particular Windows), might require 
-additional permissions which are not provided by the plugin.
-
-In this case there are several workarounds:
-* add the permission into `plugin-security.policy` (available in the plugin folder)
-
-* disable the security manager through `es.security.manager.enabled=false` configurations setting - NOT RECOMMENDED
-
-If you find yourself in such a situation, please let us know what Hadoop distro version and OS you are using and what permission is missing
-by raising an issue. Thank you!
+Windows Users::
+Using Apache Hadoop on Windows is problematic and thus it is not recommended. For those _really_ wanting to use it, make sure you place the elusive `winutils.exe` under the
+plugin folder and point `HADOOP_HOME` variable to it; this should minimize the amount of permissions Hadoop requires (though one would still have to add some more).
 
 [[repository-hdfs-config]]
 ==== Configuration Properties
@@ -92,8 +53,8 @@ Once installed, define the configuration for the `hdfs` repository through `elas
 ----
 repositories
   hdfs:
-    uri: "hdfs://<host>:<port>/"    \# optional - Hadoop file-system URI
-    path: "some/path"               \# required - path with the file-system where data is stored/loaded
+    uri: "hdfs://<host>:<port>/"    \# required - HDFS address only
+    path: "some/path"               \# required - path within the file-system where data is stored/loaded
     load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
     conf_location: "extra-cfg.xml"  \# optional - Hadoop configuration XML to be loaded (use commas for multi values)
     conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
@@ -102,17 +63,3 @@ repositories
     chunk_size: "10mb"              \# optional - chunk size (disabled by default)
     
 ----
-
-NOTE: Be careful when including a paths within the `uri` setting; Some implementations ignore them completely while
-others consider them. In general, we recommend keeping the `uri` to a minimum and using the `path` element instead.
-
-[[repository-hdfs-other-fs]]
-==== Plugging other file-systems
-
-Any HDFS-compatible file-systems (like Amazon `s3://` or Google `gs://`) can be used as long as the proper Hadoop
-configuration is passed to the Elasticsearch plugin. In practice, this means making sure the correct Hadoop configuration
-files (`core-site.xml` and `hdfs-site.xml`) and its jars are available in plugin classpath, just as you would with any
-other Hadoop client or job.
-
-Otherwise, the plugin will only read the _default_, vanilla configuration of Hadoop and will not be able to recognized
-the plugged-in file-system.

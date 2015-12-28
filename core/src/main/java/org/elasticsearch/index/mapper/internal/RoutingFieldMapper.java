@@ -62,7 +62,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -179,7 +179,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -205,11 +205,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
-                    context.ignoredValue(fieldType().names().indexName(), routing);
-                    return;
+                if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                    fields.add(new Field(fieldType().name(), routing, fieldType()));
                 }
-                fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
             }
         }
     }

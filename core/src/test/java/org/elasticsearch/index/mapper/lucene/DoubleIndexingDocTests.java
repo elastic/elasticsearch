@@ -59,6 +59,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+        mapper = index.mapperService().documentMapper("type");
 
         writer.addDocument(doc.rootDoc());
         writer.addDocument(doc.rootDoc());

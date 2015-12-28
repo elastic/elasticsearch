@@ -161,7 +161,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -171,7 +171,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             byte iValue = parseValue(value);
             byte iSim = fuzziness.asByte();
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -238,7 +238,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).byteValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Byte.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Byte.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -249,7 +249,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -278,7 +278,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
             } else {
                 value = (byte) parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

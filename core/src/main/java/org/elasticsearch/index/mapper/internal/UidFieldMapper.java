@@ -66,7 +66,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 
             NESTED_FIELD_TYPE = FIELD_TYPE.clone();
@@ -193,7 +193,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
     }
 
     public Term term(String uid) {
-        return new Term(fieldType().names().indexName(), fieldType().indexedValueForSearch(uid));
+        return new Term(fieldType().name(), fieldType().indexedValueForSearch(uid));
     }
 
     @Override

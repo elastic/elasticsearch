@@ -191,7 +191,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        MappedFieldType fieldType = context.smartNameFieldTypeFromAnyType(input.field);
+        MappedFieldType fieldType = context.smartNameFieldType(input.field);
         if (fieldType == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

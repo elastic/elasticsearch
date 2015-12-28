@@ -164,7 +164,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newDoubleRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
@@ -174,7 +174,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             double iValue = parseDoubleValue(value);
             double iSim = fuzziness.asDouble();
-            return NumericRangeQuery.newDoubleRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -230,7 +230,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).doubleValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Double.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Double.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -241,7 +241,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -270,7 +270,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.doubleValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

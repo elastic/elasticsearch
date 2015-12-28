@@ -51,7 +51,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
 
         static {
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();

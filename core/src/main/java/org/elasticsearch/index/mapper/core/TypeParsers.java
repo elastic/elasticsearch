@@ -241,10 +241,7 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
-            if (propName.equals("index_name") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                builder.indexName(propNode.toString());
-                iterator.remove();
-            } else if (propName.equals("store")) {
+            if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.toString()));
                 iterator.remove();
             } else if (propName.equals("index")) {

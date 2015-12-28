@@ -2,7 +2,7 @@
   "type": {
     "_all": {
       "store": false,
-      "enabled": false,
+      "enabled": true,
       "store_term_vectors": false,
       "store_term_vector_offsets": false,
       "store_term_vector_positions": false,

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.ByteFieldMapper;
@@ -41,8 +40,8 @@ public final class MapperBuilders {
 
     private MapperBuilders() {}
 
-    public static DocumentMapper.Builder doc(Settings settings, RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
-        return new DocumentMapper.Builder(settings, objectBuilder, mapperService);
+    public static DocumentMapper.Builder doc(RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
+        return new DocumentMapper.Builder(objectBuilder, mapperService);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -92,8 +91,8 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
         }
     }
 
-    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(indexSettings, fieldName, fieldDataType, cache);
     }
 
     @Override

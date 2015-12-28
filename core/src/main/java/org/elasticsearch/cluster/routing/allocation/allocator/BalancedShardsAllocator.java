@@ -820,8 +820,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     static class ModelNode implements Iterable<ModelIndex> {
         private final String id;
         private final Map<String, ModelIndex> indices = new HashMap<>();
-        /* cached stats - invalidated on add/remove and lazily calculated */
-        private int numShards = -1;
+        private int numShards = 0;
 
         public ModelNode(String id) {
             this.id = id;
@@ -836,13 +835,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public int numShards() {
-            if (numShards == -1) {
-                int sum = 0;
-                for (ModelIndex index : indices.values()) {
-                    sum += index.numShards();
-                }
-                numShards = sum;
-            }
             return numShards;
         }
 
@@ -860,17 +852,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public void addShard(ShardRouting shard, Decision decision) {
-            numShards = -1;
             ModelIndex index = indices.get(shard.index());
             if (index == null) {
                 index = new ModelIndex(shard.index());
                 indices.put(index.getIndexId(), index);
             }
             index.addShard(shard, decision);
+            numShards++;
         }
 
         public Decision removeShard(ShardRouting shard) {
-            numShards = -1;
             ModelIndex index = indices.get(shard.index());
             Decision removed = null;
             if (index != null) {
@@ -879,6 +870,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     indices.remove(shard.index());
                 }
             }
+            numShards--;
             return removed;
         }
 

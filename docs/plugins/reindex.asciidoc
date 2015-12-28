@@ -195,6 +195,9 @@ That will return something like this:
 }
 --------------------------------------------------
 
+The `src` parameter can also be specified as `source` for those that like that
+sort of thing.
+
 Just like `_update_by_query`, `_reindex` gets a snapshot of the source index
 but its target must be a **different** index so version conflicts are unlikely.
 The `dest` element can be configured like the index API to control optimistic

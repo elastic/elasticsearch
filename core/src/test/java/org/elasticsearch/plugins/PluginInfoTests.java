@@ -285,20 +285,31 @@ public class PluginInfoTests extends ESTestCase {
 
         int randomNumberOfThreads = randomIntBetween(2, 8);
         final int numberOfAttempts = randomIntBetween(2048, 4096);
-        final CountDownLatch latch = new CountDownLatch(1 + randomNumberOfThreads);
+        final CountDownLatch start = new CountDownLatch(1);
+        final CountDownLatch end = new CountDownLatch(randomNumberOfThreads);
         List<Thread> threads = new ArrayList<>(randomNumberOfThreads);
+        final AtomicBoolean interrupted = new AtomicBoolean();
         final AtomicBoolean cme = new AtomicBoolean();
         for (int i = 0; i < randomNumberOfThreads; i++) {
             Thread thread = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    latch.countDown();
-                    for (int j = 0; j < numberOfAttempts; j++) {
+                    try {
                         try {
-                            pluginsInfo.getInfos();
-                        } catch (ConcurrentModificationException e) {
-                            cme.set(true);
+                            start.await();
+                        } catch (InterruptedException e) {
+                            interrupted.set(true);
+                            return;
                         }
+                        for (int j = 0; j < numberOfAttempts; j++) {
+                            try {
+                                pluginsInfo.getInfos();
+                            } catch (ConcurrentModificationException e) {
+                                cme.set(true);
+                            }
+                        }
+                    } finally {
+                        end.countDown();
                     }
                 }
             });
@@ -306,11 +317,10 @@ public class PluginInfoTests extends ESTestCase {
             thread.start();
         }
 
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        start.countDown();
+        end.await();
 
+        assertFalse(interrupted.get());
         assertFalse(cme.get());
     }
 }

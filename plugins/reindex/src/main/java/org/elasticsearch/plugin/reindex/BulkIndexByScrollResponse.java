@@ -60,7 +60,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         this.batches = batches;
         this.versionConflicts = versionConflicts;
         this.noops = noops;
-        this.failures = failures;
+        this.failures = unmodifiableList(failures);
     }
 
     public long took() {

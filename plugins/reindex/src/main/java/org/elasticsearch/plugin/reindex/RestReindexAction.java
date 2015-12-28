@@ -128,7 +128,7 @@ public class RestReindexAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, Client client) throws IOException {
-        if (request.hasContent() == false) {
+        if (false == request.hasContent()) {
             badRequest(channel, "body required");
             return;
         }

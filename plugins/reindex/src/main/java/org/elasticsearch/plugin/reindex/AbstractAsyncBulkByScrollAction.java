@@ -243,11 +243,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 // Track the indexes we've seen so we can refresh them if requested
                 destinationIndicesThisBatch.add(item.getIndex());
             }
-            if (destinationIndicesThisBatch.isEmpty() == false) {
+            if (false == destinationIndicesThisBatch.isEmpty()) {
                 destinationIndices.addAll(destinationIndicesThisBatch);
             }
 
-            if (failures.isEmpty() == false) {
+            if (false == failures.isEmpty()) {
                 startNormalTermination();
                 return;
             }

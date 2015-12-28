@@ -28,6 +28,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +84,46 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Override
         protected BulkIndexByScrollResponse buildResponse(long took) {
             return new BulkIndexByScrollResponse(took, updated(), batches(), versionConflicts(), noops(), failures());
+        }
+
+        @Override
+        protected void scriptChangedIndex(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedType(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedId(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedVersion(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [_version] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedRouting(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedParent(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedTimestamp(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
+        }
+
+        @Override
+        protected void scriptChangedTtl(IndexRequest index, Object to) {
+            throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
         }
     }
 }

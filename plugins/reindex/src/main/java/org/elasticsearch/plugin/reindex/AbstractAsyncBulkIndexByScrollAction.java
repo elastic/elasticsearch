@@ -97,7 +97,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
                     executableScript = scriptService.executable(script, mainRequest.script().getParams());
                     scriptCtx = new HashMap<>(16);
                 }
-                if (applyScript(index, doc, executableScript, scriptCtx) == false) {
+                if (false == applyScript(index, doc, executableScript, scriptCtx)) {
                     continue;
                 }
             }
@@ -169,7 +169,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             noops.incrementAndGet();
             return false;
         }
-        if ("update".equals(newOp) == false) {
+        if (false == "update".equals(newOp)) {
             throw new IllegalArgumentException("Invalid op [" + newOp + ']');
         }
 
@@ -222,35 +222,19 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         return true;
     }
 
-    protected void scriptChangedIndex(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedIndex(IndexRequest index, Object to);
 
-    protected void scriptChangedType(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedType(IndexRequest index, Object to);
 
-    protected void scriptChangedId(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedId(IndexRequest index, Object to);
 
-    protected void scriptChangedVersion(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [_version] not allowed");
-    }
+    protected abstract void scriptChangedVersion(IndexRequest index, Object to);
 
-    protected void scriptChangedRouting(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedRouting(IndexRequest index, Object to);
 
-    protected void scriptChangedParent(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedParent(IndexRequest index, Object to);
 
-    protected void scriptChangedTimestamp(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedTimestamp(IndexRequest index, Object to);
 
-    protected void scriptChangedTtl(IndexRequest index, Object to) {
-        throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
-    }
+    protected abstract void scriptChangedTtl(IndexRequest index, Object to);
 }

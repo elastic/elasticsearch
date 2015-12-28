@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -336,12 +337,33 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (onlyAssign == false && changed == false && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
                 NodeSorter sorter = newNodeSorter();
                 if (nodes.size() > 1) { /* skip if we only have one node */
+                    AllocationDeciders deciders = allocation.deciders();
+                    final ModelNode[] modelNodes = sorter.modelNodes;
+                    final float[] weights = sorter.weights;
                     for (String index : buildWeightOrderedIndices(sorter)) {
-                        sorter.reset(index);
-                        final float[] weights = sorter.weights;
-                        final ModelNode[] modelNodes = sorter.modelNodes;
+                        IndexMetaData indexMetaData = metaData.index(index);
+
+                        // find nodes that have a shard of this index or where shards of this index are allowed to stay
+                        // move these nodes to the front of modelNodes so that we can only balance based on these nodes
+                        int relevantNodes = 0;
+                        for (int i = 0; i < modelNodes.length; i++) {
+                            ModelNode modelNode = modelNodes[i];
+                            if (modelNode.getIndex(index) != null
+                                || deciders.canAllocate(indexMetaData, routingNodes.node(modelNode.getNodeId()), allocation).type() != Type.NO) {
+                                // swap nodes at position i and relevantNodes
+                                modelNodes[i] = modelNodes[relevantNodes];
+                                modelNodes[relevantNodes] = modelNode;
+                                relevantNodes++;
+                            }
+                        }
+
+                        if (relevantNodes < 2) {
+                            continue;
+                        }
+
+                        sorter.reset(index, 0, relevantNodes);
                         int lowIdx = 0;
-                        int highIdx = weights.length - 1;
+                        int highIdx = relevantNodes - 1;
                         while (true) {
                             final ModelNode minNode = modelNodes[lowIdx];
                             final ModelNode maxNode = modelNodes[highIdx];
@@ -384,9 +406,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                      */
                                     weights[lowIdx] = sorter.weight(modelNodes[lowIdx]);
                                     weights[highIdx] = sorter.weight(modelNodes[highIdx]);
-                                    sorter.sort(0, weights.length);
+                                    sorter.sort(0, relevantNodes);
                                     lowIdx = 0;
-                                    highIdx = weights.length - 1;
+                                    highIdx = relevantNodes - 1;
                                     changed = true;
                                     continue;
                                 }
@@ -961,12 +983,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Resets the sorter, recalculates the weights per node and sorts the
          * nodes by weight, with minimal weight first.
          */
-        public void reset(String index) {
+        public void reset(String index, int from, int to) {
             this.index = index;
-            for (int i = 0; i < weights.length; i++) {
+            for (int i = from; i < to; i++) {
                 weights[i] = weight(modelNodes[i]);
             }
-            sort(0, modelNodes.length);
+            sort(from, to);
+        }
+
+        public void reset(String index) {
+            reset(index, 0, modelNodes.length);
         }
 
         public float weight(ModelNode node) {

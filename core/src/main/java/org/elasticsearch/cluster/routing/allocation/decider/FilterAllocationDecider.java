@@ -89,28 +89,36 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     @Override
+    public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetaData, node, allocation);
+    }
+
+    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return shouldFilter(shardRouting, node, allocation);
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (clusterRequireFilters != null) {
-            if (!clusterRequireFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global required filters [%s]", clusterRequireFilters);
-            }
-        }
-        if (clusterIncludeFilters != null) {
-            if (!clusterIncludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global include filters [%s]", clusterIncludeFilters);
-            }
-        }
-        if (clusterExcludeFilters != null) {
-            if (clusterExcludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node matches global exclude filters [%s]", clusterExcludeFilters);
-            }
-        }
+        Decision decision = shouldClusterFilter(node, allocation);
+        if (decision != null) return decision;
 
-        IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
+        decision = shouldIndexFilter(allocation.routingNodes().metaData().index(shardRouting.index()), node, allocation);
+        if (decision != null) return decision;
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
+    }
+
+    private Decision shouldFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = shouldClusterFilter(node, allocation);
+        if (decision != null) return decision;
+
+        decision = shouldIndexFilter(indexMd, node, allocation);
+        if (decision != null) return decision;
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
+    }
+
+    private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
         if (indexMd.requireFilters() != null) {
             if (!indexMd.requireFilters().match(node.node())) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index required filters [%s]", indexMd.requireFilters());
@@ -126,8 +134,26 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME, "node matches index exclude filters [%s]", indexMd.excludeFilters());
             }
         }
+        return null;
+    }
 
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
+    private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
+        if (clusterRequireFilters != null) {
+            if (!clusterRequireFilters.match(node.node())) {
+                return allocation.decision(Decision.NO, NAME, "node does not match global required filters [%s]", clusterRequireFilters);
+            }
+        }
+        if (clusterIncludeFilters != null) {
+            if (!clusterIncludeFilters.match(node.node())) {
+                return allocation.decision(Decision.NO, NAME, "node does not match global include filters [%s]", clusterIncludeFilters);
+            }
+        }
+        if (clusterExcludeFilters != null) {
+            if (clusterExcludeFilters.match(node.node())) {
+                return allocation.decision(Decision.NO, NAME, "node matches global exclude filters [%s]", clusterExcludeFilters);
+            }
+        }
+        return null;
     }
 
     private void setClusterRequireFilters(Settings settings) {

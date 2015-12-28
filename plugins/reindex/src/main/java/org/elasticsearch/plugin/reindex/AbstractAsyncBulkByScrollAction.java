@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.reindex;
 
 import static java.lang.Math.max;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 
 import java.util.Arrays;
@@ -176,7 +177,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 }
                 batches.incrementAndGet();
                 List<SearchHit> docsIterable = Arrays.asList(docs);
-                if (mainRequest.size() != -1) {
+                if (mainRequest.size() != SIZE_ALL_MATCHES) {
                     // Truncate the docs if we have more than the request size
                     long remaining = max(0, mainRequest.size() - successfullyProcessed());
                     if (remaining < docs.length) {

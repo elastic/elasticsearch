@@ -19,6 +19,12 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
+
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -29,14 +35,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import java.io.IOException;
-import java.util.Arrays;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
+    public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
     private static final int DEFAULT_SIZE = 100;
 
@@ -49,7 +50,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    private int size = -1;
+    private int size = SIZE_ALL_MATCHES;
 
     /**
      * Should version conflicts cause aborts? Defaults to false.

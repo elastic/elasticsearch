@@ -89,7 +89,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
     }
 
     /**
-     * Timeout to wait for the shards on to be available for each bulk request?
+     * Timeout to wait for the shards on to be available for each bulk request.
      */
     public Self timeout(TimeValue timeout) {
         request.timeout(timeout);

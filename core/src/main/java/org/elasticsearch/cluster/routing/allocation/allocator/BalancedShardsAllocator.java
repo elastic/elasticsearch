@@ -260,14 +260,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         /**
-         * Returns the global average of primaries per node
-         */
-        public float avgPrimariesPerNode() {
-            return ((float) metaData.numberOfShards()) / nodes.size();
-        }
-
-
-        /**
          * Returns a new {@link NodeSorter} that sorts the nodes based on their
          * current weight with respect to the index passed to the sorter. The
          * returned sorter is not sorted. Use {@link NodeSorter#reset(String)}

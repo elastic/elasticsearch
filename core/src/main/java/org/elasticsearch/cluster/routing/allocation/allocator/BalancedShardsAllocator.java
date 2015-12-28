@@ -332,7 +332,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (onlyAssign == false && changed == false && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
                 NodeSorter sorter = newNodeSorter();
                 if (nodes.size() > 1) { /* skip if we only have one node */
-                    for (String index : buildWeightOrderedIndidces(sorter)) {
+                    for (String index : buildWeightOrderedIndices(sorter)) {
                         sorter.reset(index);
                         final float[] weights = sorter.weights;
                         final ModelNode[] modelNodes = sorter.modelNodes;
@@ -423,7 +423,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * average. To re-balance we need to move shards back eventually likely
          * to the nodes we relocated them from.
          */
-        private String[] buildWeightOrderedIndidces(NodeSorter sorter) {
+        private String[] buildWeightOrderedIndices(NodeSorter sorter) {
             final String[] indices = this.indices.toArray(new String[this.indices.size()]);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {

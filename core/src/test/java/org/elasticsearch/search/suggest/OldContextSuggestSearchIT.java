@@ -233,7 +233,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
                 { "pizza - treptow", "pizza", "food" } };
 
         for (int i = 0; i < locations.length; i++) {
-            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).startArray("input").value(input[i]).endArray()
+            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).field("input", input[i])
                     .startObject("context").field("st", locations[i]).endObject().field("payload", locations[i]).endObject().endObject();
             client().prepareIndex(INDEX, TYPE, "" + i).setSource(source).execute().actionGet();
         }
@@ -262,7 +262,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
-            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).startArray("input").value(HEROS[i]).endArray()
+            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).field("input", HEROS[i])
                     .startObject("context").field("st", i%3).endObject()
                     .startObject("payload").field("group", i % 3).field("id", i).endObject()
                     .endObject().endObject();
@@ -366,8 +366,8 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
         for (int i = 0; i < HEROS.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(
-                            jsonBuilder().startObject().field("category", Integer.toString(i % 3)).startObject(FIELD).startArray("input")
-                                    .value(HEROS[i]).endArray().startObject("context").endObject().field("payload", Integer.toString(i % 3))
+                            jsonBuilder().startObject().field("category", Integer.toString(i % 3)).startObject(FIELD).array("input", HEROS[i])
+                                    .startObject("context").endObject().field("payload", Integer.toString(i % 3))
                                     .endObject().endObject()).execute().actionGet();
         }
 
@@ -424,7 +424,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(
                             jsonBuilder().startObject().startArray("category").value(Integer.toString(i % 3)).value("other").endArray()
-                                    .startObject(FIELD).startArray("input").value(HEROS[i]).endArray().startObject("context").endObject()
+                                    .startObject(FIELD).array("input", HEROS[i]).startObject("context").endObject()
                                     .field("payload", Integer.toString(i % 3)).endObject().endObject()).execute().actionGet();
         }
 
@@ -451,7 +451,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(
                             jsonBuilder().startObject().field("categoryA").value("" + (char) ('0' + (i % 3))).field("categoryB")
-                                    .value("" + (char) ('A' + (i % 3))).startObject(FIELD).startArray("input").value(HEROS[i]).endArray()
+                                    .value("" + (char) ('A' + (i % 3))).startObject(FIELD).array("input", HEROS[i])
                                     .startObject("context").endObject().field("payload", ((char) ('0' + (i % 3))) + "" + (char) ('A' + (i % 3)))
                                     .endObject().endObject()).execute().actionGet();
         }
@@ -516,7 +516,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
             String type = types[i % types.length];
             client().prepareIndex(INDEX, type, "" + i)
                     .setSource(
-                            jsonBuilder().startObject().startObject(FIELD).startArray("input").value(HEROS[i]).endArray()
+                            jsonBuilder().startObject().startObject(FIELD).field("input", HEROS[i])
                                     .startObject("context").endObject().field("payload", type).endObject().endObject()).execute().actionGet();
         }
 

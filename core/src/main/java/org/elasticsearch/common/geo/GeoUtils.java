@@ -365,7 +365,7 @@ public class GeoUtils {
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
                 if(parser.currentToken() == Token.FIELD_NAME) {
-                    String field = parser.text();
+                    String field = parser.currentName();
                     if(LATITUDE.equals(field)) {
                         parser.nextToken();
                         switch (parser.currentToken()) {

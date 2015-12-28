@@ -368,7 +368,7 @@ public class OldCompletionFieldMapper extends FieldMapper {
                     
                     if (token == Token.START_OBJECT) {
                         while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                            String name = parser.text();
+                            String name = parser.currentName();
                             ContextMapping mapping = fieldType().getContextMapping().get(name);
                             if (mapping == null) {
                                 throw new ElasticsearchParseException("context [{}] is not defined", name);

@@ -343,7 +343,7 @@ public class GeolocationContextMapping extends ContextMapping {
             int[] precision = null;
             
             while (parser.nextToken() != Token.END_OBJECT) {
-                final String fieldName = parser.text();
+                final String fieldName = parser.currentName();
                 if("lat".equals(fieldName)) {
                     if(point == null) {
                         parser.nextToken();

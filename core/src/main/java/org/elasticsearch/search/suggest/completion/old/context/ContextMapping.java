@@ -293,7 +293,7 @@ public abstract class ContextMapping implements ToXContent {
             Token token = parser.currentToken();
             if(token == Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                    String name = parser.text();
+                    String name = parser.currentName();
                     ContextMapping mapping = mappings.get(name);
                     if (mapping == null) {
                         throw new ElasticsearchParseException("no mapping defined for [{}]", name);

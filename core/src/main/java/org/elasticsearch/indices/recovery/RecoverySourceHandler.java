@@ -66,6 +66,12 @@ import java.util.stream.StreamSupport;
  * RecoverySourceHandler handles the three phases of shard recovery, which is
  * everything relating to copying the segment files as well as sending translog
  * operations across the wire once the segments have been copied.
+ *
+ * Note: There is always one source handler per recovery that handles all the
+ * file and translog transfer. This handler is completely isolated from other recoveries
+ * while the {@link RateLimiter} passed via {@link RecoverySettings} is shared across recoveries
+ * originating from this nodes to throttle the number bytes send during file transfer. The transaction log
+ * phase bypasses the rate limiter entirely.
  */
 public class RecoverySourceHandler {
 
@@ -455,10 +461,6 @@ public class RecoverySourceHandler {
                 // index docs to replicas while the index files are recovered
                 // the lock can potentially be removed, in which case, it might
                 // make sense to re-enable throttling in this phase
-//                if (recoverySettings.rateLimiter() != null) {
-//                    recoverySettings.rateLimiter().pause(size);
-//                }
-
                 cancellableThreads.execute(() -> {
                     final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
                             request.recoveryId(), request.shardId(), operations, snapshot.estimatedTotalOperations());
@@ -551,6 +553,7 @@ public class RecoverySourceHandler {
             cancellableThreads.execute(() -> {
                 // Pause using the rate limiter, if desired, to throttle the recovery
                 final long throttleTimeInNanos;
+                // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
                 final RateLimiter rl = recoverySettings.rateLimiter();
                 if (rl != null) {
                     long bytes = bytesSinceLastPause.addAndGet(content.length());
@@ -592,7 +595,7 @@ public class RecoverySourceHandler {
             for (int i = 0; i < files.length; i++) {
                 final StoreFileMetaData md = files[i];
                 try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                    // it's fine that we are only having the indexInput int he try/with block. The copy methods handles
+                    // it's fine that we are only having the indexInput in the try/with block. The copy methods handles
                     // exceptions during close correctly and doesn't hide the original exception.
                     Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
                 } catch (Throwable t) {

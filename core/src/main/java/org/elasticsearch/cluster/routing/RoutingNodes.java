@@ -857,28 +857,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     }
                 }
             }
-//            if (outgoing != value.outgoing) {
-//                incoming = 0;
-//                outgoing = 0;
-//                for (ShardRouting routing : routingNode) {
-//                    if (routing.initializing()) {
-//                        incoming++;
-//                    } else if (routing.relocating()) {
-//                        outgoing++;
-//                    }
-//                    if (routing.primary() && (routing.initializing() && routing.relocatingNodeId() != null) == false) { // we don't count the initialization end of the primary relocation
-//                        List<ShardRouting> shardRoutings = routingNodes.assignedShards.get(routing.shardId());
-//                        for (ShardRouting assigned : shardRoutings) {
-//                            if (assigned.primary() == false && assigned.initializing() && assigned.relocatingNodeId() == null) {
-//                                outgoing++;
-//                            }
-//                        }
-//                    }
-//                }
-//            }
             assert incoming == value.incoming : incoming + " != " + value.incoming;
             assert outgoing == value.outgoing : outgoing + " != " + value.outgoing + " node: " + routingNode;
-
         }
 
 

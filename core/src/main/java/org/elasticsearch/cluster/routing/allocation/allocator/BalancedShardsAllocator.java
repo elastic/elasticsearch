@@ -892,7 +892,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     static final class ModelIndex {
         private final String id;
         private final Map<ShardRouting, Decision> shards = new HashMap<>();
-        private int numPrimaries = -1;
         private int highestPrimary = -1;
 
         public ModelIndex(String id) {
@@ -924,26 +923,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return shards.keySet();
         }
 
-        public int numPrimaries() {
-            if (numPrimaries == -1) {
-                int num = 0;
-                for (ShardRouting shard : shards.keySet()) {
-                    if (shard.primary()) {
-                        num++;
-                    }
-                }
-                return numPrimaries = num;
-            }
-            return numPrimaries;
-        }
-
         public Decision removeShard(ShardRouting shard) {
-            highestPrimary = numPrimaries = -1;
+            highestPrimary = -1;
             return shards.remove(shard);
         }
 
         public void addShard(ShardRouting shard, Decision decision) {
-            highestPrimary = numPrimaries = -1;
+            highestPrimary = -1;
             assert decision != null;
             assert !shards.containsKey(shard) : "Shard already allocated on current node: " + shards.get(shard) + " " + shard;
             shards.put(shard, decision);

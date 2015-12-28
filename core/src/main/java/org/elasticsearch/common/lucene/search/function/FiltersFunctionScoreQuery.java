@@ -369,12 +369,13 @@ public class FiltersFunctionScoreQuery extends Query {
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
         return Objects.equals(this.subQuery, other.subQuery) && this.maxBoost == other.maxBoost &&
-                Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
-                Arrays.equals(this.filterFunctions, other.filterFunctions);
+            Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
+            Objects.equals(this.scoreMode, other.scoreMode) &&
+            Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, filterFunctions);
+        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
     }
 }

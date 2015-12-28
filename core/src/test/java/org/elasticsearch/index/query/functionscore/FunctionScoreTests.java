@@ -29,7 +29,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.function.*;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -336,11 +343,11 @@ public class FunctionScoreTests extends ESTestCase {
 
         // now test all together
         functionExplanation = getFiltersFunctionScoreExplanation(searcher
-                , RANDOM_SCORE_FUNCTION
-                , FIELD_VALUE_FACTOR_FUNCTION
-                , GAUSS_DECAY_FUNCTION
-                , EXP_DECAY_FUNCTION
-                , LIN_DECAY_FUNCTION
+            , RANDOM_SCORE_FUNCTION
+            , FIELD_VALUE_FACTOR_FUNCTION
+            , GAUSS_DECAY_FUNCTION
+            , EXP_DECAY_FUNCTION
+            , LIN_DECAY_FUNCTION
         );
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)", 0);
@@ -376,7 +383,7 @@ public class FunctionScoreTests extends ESTestCase {
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[scoreFunctions.length];
         for (int i = 0; i < scoreFunctions.length; i++) {
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(
-                    new TermQuery(TERM), scoreFunctions[i]);
+                new TermQuery(TERM), scoreFunctions[i]);
         }
         return new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, Float.MAX_VALUE * -1);
     }
@@ -450,8 +457,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         FiltersFunctionScoreQuery filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
-                FiltersFunctionScoreQuery.ScoreMode.Multiply
-                , weightFunctionStubs
+            FiltersFunctionScoreQuery.ScoreMode.Multiply
+            , weightFunctionStubs
         );
         filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
@@ -466,8 +473,8 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
-                FiltersFunctionScoreQuery.ScoreMode.Sum
-                , weightFunctionStubs
+            FiltersFunctionScoreQuery.ScoreMode.Sum
+            , weightFunctionStubs
         );
         filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
@@ -482,8 +489,8 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
-                FiltersFunctionScoreQuery.ScoreMode.Avg
-                , weightFunctionStubs
+            FiltersFunctionScoreQuery.ScoreMode.Avg
+            , weightFunctionStubs
         );
         filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
@@ -500,8 +507,8 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
-                FiltersFunctionScoreQuery.ScoreMode.Min
-                , weightFunctionStubs
+            FiltersFunctionScoreQuery.ScoreMode.Min
+            , weightFunctionStubs
         );
         filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
@@ -516,8 +523,8 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
-                FiltersFunctionScoreQuery.ScoreMode.Max
-                , weightFunctionStubs
+            FiltersFunctionScoreQuery.ScoreMode.Max
+            , weightFunctionStubs
         );
         filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
@@ -539,5 +546,118 @@ public class FunctionScoreTests extends ESTestCase {
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;
         assertThat(score, equalTo(2.0f));
+    }
+
+    public void testFunctionScoreHashCodeAndEquals() {
+        Float minScore = randomBoolean() ? null : 1.0f;
+        CombineFunction combineFunction = randomFrom(CombineFunction.values());
+        ScoreFunction function = randomBoolean() ? null : new ScoreFunction(combineFunction) {
+            @Override
+            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+        };
+
+        FunctionScoreQuery q = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore);
+        FunctionScoreQuery q1 = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore);
+        assertEquals(q, q);
+        assertEquals(q.hashCode(), q.hashCode());
+        assertEquals(q, q1);
+        assertEquals(q.hashCode(), q1.hashCode());
+
+        FunctionScoreQuery diffQuery = new FunctionScoreQuery(new TermQuery(new Term("foo", "baz")), function, minScore);
+        FunctionScoreQuery diffMinScore = new FunctionScoreQuery(q.getSubQuery(), function, minScore == null ? 1.0f : null);
+        ScoreFunction otherFunciton = function == null ? new ScoreFunction(combineFunction) {
+            @Override
+            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+
+        } : null;
+        FunctionScoreQuery diffFunction = new FunctionScoreQuery(q.getSubQuery(), otherFunciton, minScore);
+        q1.setMaxBoost(1.0f);
+        FunctionScoreQuery[] queries = new FunctionScoreQuery[] {
+            diffFunction,
+            diffMinScore,
+            diffQuery,
+            q,
+            q1
+        };
+        final int numIters = randomIntBetween(20, 100);
+        for (int i = 0; i < numIters; i++) {
+            FunctionScoreQuery left = randomFrom(queries);
+            FunctionScoreQuery right = randomFrom(queries);
+            if (left == right) {
+                assertEquals(left, right);
+                assertEquals(left.hashCode(), right.hashCode());
+            } else {
+                assertNotEquals(left + " == " + right, left, right);
+            }
+        }
+
+    }
+
+    public void testFilterFunctionScoreHashCodeAndEquals() {
+        FiltersFunctionScoreQuery.ScoreMode mode = randomFrom(FiltersFunctionScoreQuery.ScoreMode.values());
+        CombineFunction combineFunction = randomFrom(CombineFunction.values());
+        ScoreFunction scoreFunction = new ScoreFunction(combineFunction) {
+            @Override
+            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+        };
+        Float minScore = randomBoolean() ? null : 1.0f;
+        Float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
+
+        FiltersFunctionScoreQuery.FilterFunction function = new FiltersFunctionScoreQuery.FilterFunction(new TermQuery(new Term("filter", "query")), scoreFunction);
+        FiltersFunctionScoreQuery q = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost, minScore);
+        FiltersFunctionScoreQuery q1 = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost, minScore);
+        assertEquals(q, q);
+        assertEquals(q.hashCode(), q.hashCode());
+        assertEquals(q, q1);
+        assertEquals(q.hashCode(), q1.hashCode());
+        FiltersFunctionScoreQuery diffQuery = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "baz")), mode, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost, minScore);
+        FiltersFunctionScoreQuery diffMode = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode == FiltersFunctionScoreQuery.ScoreMode.Avg ? FiltersFunctionScoreQuery.ScoreMode.First : FiltersFunctionScoreQuery.ScoreMode.Avg, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost, minScore);
+        FiltersFunctionScoreQuery diffMaxBoost = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost == 1.0f ? 0.9f : 1.0f, minScore);
+        FiltersFunctionScoreQuery diffMinScore = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, new FiltersFunctionScoreQuery.FilterFunction[] {function}, maxBoost, minScore == null ? 0.9f : null);
+        FiltersFunctionScoreQuery.FilterFunction otherFunc = new FiltersFunctionScoreQuery.FilterFunction(new TermQuery(new Term("filter", "other_query")), scoreFunction);
+        FiltersFunctionScoreQuery diffFunc = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, randomBoolean() ? new FiltersFunctionScoreQuery.FilterFunction[] {function, otherFunc} : new FiltersFunctionScoreQuery.FilterFunction[] {otherFunc}, maxBoost, minScore);
+        q1.setBoost(3.0f);
+
+        FiltersFunctionScoreQuery[] queries = new FiltersFunctionScoreQuery[] {
+            diffQuery,
+            diffMaxBoost,
+            diffMinScore,
+            diffMode,
+            diffFunc,
+            q,
+            q1
+        };
+        final int numIters = randomIntBetween(20, 100);
+        for (int i = 0; i < numIters; i++) {
+            FiltersFunctionScoreQuery left = randomFrom(queries);
+            FiltersFunctionScoreQuery right = randomFrom(queries);
+            if (left == right) {
+                assertEquals(left, right);
+                assertEquals(left.hashCode(), right.hashCode());
+            } else {
+                assertNotEquals(left + " == " + right, left, right);
+            }
+        }
     }
 }

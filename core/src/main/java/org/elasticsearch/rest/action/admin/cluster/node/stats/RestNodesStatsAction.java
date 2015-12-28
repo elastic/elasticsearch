@@ -25,11 +25,9 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -42,19 +40,17 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *
  */
 public class RestNodesStatsAction extends BaseRestHandler {
+    public RestNodesStatsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_nodes/stats", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 
-    @Inject
-    public RestNodesStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_nodes/stats", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
+        context.getController().registerHandler(GET, "/_nodes/stats/{metric}", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
+        context.getController().registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
-
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
     }
 
     @Override

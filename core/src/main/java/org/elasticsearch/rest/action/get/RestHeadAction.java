@@ -23,12 +23,10 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -41,12 +39,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestHeadAction extends BaseRestHandler {
-
-    @Inject
-    public RestHeadAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
+    public RestHeadAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(HEAD, "/{index}/{type}/{id}", this);
+        context.getController().registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }
 
     @Override

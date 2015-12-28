@@ -31,13 +31,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -47,12 +45,10 @@ import org.elasticsearch.rest.action.support.RestTable;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-
-    @Inject
-    public RestShardsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/shards", this);
-        controller.registerHandler(GET, "/_cat/shards/{index}", this);
+    public RestShardsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/shards", this);
+        context.getController().registerHandler(GET, "/_cat/shards/{index}", this);
     }
 
     @Override

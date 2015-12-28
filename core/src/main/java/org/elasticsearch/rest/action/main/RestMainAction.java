@@ -24,13 +24,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -46,14 +44,13 @@ public class RestMainAction extends BaseRestHandler {
     private final ClusterName clusterName;
     private final ClusterService clusterService;
 
-    @Inject
-    public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
+    public RestMainAction(RestGlobalContext context, Version version, ClusterName clusterName, ClusterService clusterService) {
+        super(context);
         this.version = version;
         this.clusterName = clusterName;
         this.clusterService = clusterService;
-        controller.registerHandler(GET, "/", this);
-        controller.registerHandler(HEAD, "/", this);
+        context.getController().registerHandler(GET, "/", this);
+        context.getController().registerHandler(HEAD, "/", this);
     }
 
     @Override

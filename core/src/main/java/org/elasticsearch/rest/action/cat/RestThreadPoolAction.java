@@ -32,11 +32,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -111,10 +109,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
         }
     }
 
-    @Inject
-    public RestThreadPoolAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/thread_pool", this);
+    public RestThreadPoolAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/thread_pool", this);
     }
 
     @Override

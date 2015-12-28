@@ -22,11 +22,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -35,12 +33,10 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  */
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
-
-    @Inject
-    public RestIndexDeleteAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
-        controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
+    public RestIndexDeleteAliasesAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(DELETE, "/{index}/_alias/{name}", this);
+        context.getController().registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }
 
     @Override

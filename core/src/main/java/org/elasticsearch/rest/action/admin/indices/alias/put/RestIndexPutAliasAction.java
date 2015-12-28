@@ -24,13 +24,11 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -42,22 +40,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  */
 public class RestIndexPutAliasAction extends BaseRestHandler {
+    public RestIndexPutAliasAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(PUT, "/{index}/_alias/{name}", this);
+        context.getController().registerHandler(PUT, "/_alias/{name}", this);
+        context.getController().registerHandler(PUT, "/{index}/_aliases/{name}", this);
+        context.getController().registerHandler(PUT, "/_aliases/{name}", this);
+        context.getController().registerHandler(PUT, "/{index}/_alias", this);
+        context.getController().registerHandler(PUT, "/_alias", this);
 
-    @Inject
-    public RestIndexPutAliasAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
-        controller.registerHandler(PUT, "/_alias/{name}", this);
-        controller.registerHandler(PUT, "/{index}/_aliases/{name}", this);
-        controller.registerHandler(PUT, "/_aliases/{name}", this);
-        controller.registerHandler(PUT, "/{index}/_alias", this);
-        controller.registerHandler(PUT, "/_alias", this);
-
-        controller.registerHandler(POST, "/{index}/_alias/{name}", this);
-        controller.registerHandler(POST, "/_alias/{name}", this);
-        controller.registerHandler(POST, "/{index}/_aliases/{name}", this);
-        controller.registerHandler(POST, "/_aliases/{name}", this);
-        controller.registerHandler(PUT, "/{index}/_aliases", this);
+        context.getController().registerHandler(POST, "/{index}/_alias/{name}", this);
+        context.getController().registerHandler(POST, "/_alias/{name}", this);
+        context.getController().registerHandler(POST, "/{index}/_aliases/{name}", this);
+        context.getController().registerHandler(POST, "/_aliases/{name}", this);
+        context.getController().registerHandler(PUT, "/{index}/_aliases", this);
         //we cannot add POST for "/_aliases" because this is the _aliases api already defined in RestIndicesAliasesAction
     }
 

@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
 import org.elasticsearch.script.Template;
@@ -33,11 +30,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *
  */
 public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
-
-    @Inject
-    public RestGetSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, false, client);
-        controller.registerHandler(GET, "/_search/template/{id}", this);
+    public RestGetSearchTemplateAction(RestGlobalContext context) {
+        super(context, false);
+        context.getController().registerHandler(GET, "/_search/template/{id}", this);
     }
 
     @Override

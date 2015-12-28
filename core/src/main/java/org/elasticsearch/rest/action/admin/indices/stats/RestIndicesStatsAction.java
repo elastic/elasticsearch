@@ -24,13 +24,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -44,15 +42,13 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  */
 public class RestIndicesStatsAction extends BaseRestHandler {
-
-    @Inject
-    public RestIndicesStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_stats", this);
-        controller.registerHandler(GET, "/_stats/{metric}", this);
-        controller.registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);
-        controller.registerHandler(GET, "/{index}/_stats", this);
-        controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
+    public RestIndicesStatsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_stats", this);
+        context.getController().registerHandler(GET, "/_stats/{metric}", this);
+        context.getController().registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);
+        context.getController().registerHandler(GET, "/{index}/_stats", this);
+        context.getController().registerHandler(GET, "/{index}/_stats/{metric}", this);
     }
 
     @Override

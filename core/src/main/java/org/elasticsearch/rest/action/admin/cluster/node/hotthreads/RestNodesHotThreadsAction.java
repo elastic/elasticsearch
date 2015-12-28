@@ -24,13 +24,11 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -40,19 +38,17 @@ import org.elasticsearch.rest.action.support.RestResponseListener;
 /**
  */
 public class RestNodesHotThreadsAction extends BaseRestHandler {
+    public RestNodesHotThreadsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hot_threads", this);
 
-    @Inject
-    public RestNodesHotThreadsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hot_threads", this);
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hot_threads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/hotthreads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/hot_threads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hotthreads", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hot_threads", this);
     }
 
     @Override

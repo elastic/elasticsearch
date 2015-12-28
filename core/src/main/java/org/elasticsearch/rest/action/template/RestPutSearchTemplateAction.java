@@ -19,11 +19,9 @@
 package org.elasticsearch.rest.action.template;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
 import org.elasticsearch.script.Template;
@@ -35,22 +33,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  *
  */
 public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
+    public RestPutSearchTemplateAction(RestGlobalContext context) {
+        super(context, false);
 
-    @Inject
-    public RestPutSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, false, client);
+        //context.getController().registerHandler(GET, "/template", this);
+        context.getController().registerHandler(POST, "/_search/template/{id}", this);
+        context.getController().registerHandler(PUT, "/_search/template/{id}", this);
 
-        //controller.registerHandler(GET, "/template", this);
-        controller.registerHandler(POST, "/_search/template/{id}", this);
-        controller.registerHandler(PUT, "/_search/template/{id}", this);
-
-        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
-        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
+        context.getController().registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(context));
+        context.getController().registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(context));
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        protected CreateHandler(RestGlobalContext context) {
+            super(context);
         }
 
         @Override

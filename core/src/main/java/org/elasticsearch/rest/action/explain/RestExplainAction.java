@@ -25,8 +25,6 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
@@ -35,7 +33,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -56,12 +54,11 @@ public class RestExplainAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
-    @Inject
-    public RestExplainAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
+    public RestExplainAction(RestGlobalContext context) {
+        super(context);
+        this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
+        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override

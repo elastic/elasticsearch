@@ -23,14 +23,12 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -47,13 +45,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
+    public RestGetIndexTemplateAction(RestGlobalContext context) {
+        super(context);
 
-    @Inject
-    public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-
-        controller.registerHandler(GET, "/_template", this);
-        controller.registerHandler(GET, "/_template/{name}", this);
+        context.getController().registerHandler(GET, "/_template", this);
+        context.getController().registerHandler(GET, "/_template/{name}", this);
     }
 
     @Override

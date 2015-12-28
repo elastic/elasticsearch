@@ -30,11 +30,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -47,12 +45,10 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
-
-    @Inject
-    public RestSegmentsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/segments", this);
-        controller.registerHandler(GET, "/_cat/segments/{index}", this);
+    public RestSegmentsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/segments", this);
+        context.getController().registerHandler(GET, "/_cat/segments/{index}", this);
     }
 
     @Override

@@ -46,6 +46,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     private final Client client;
     protected final ParseFieldMatcher parseFieldMatcher;
 
+    protected BaseRestHandler(RestGlobalContext context) {
+        this(context.getSettings(), context.getController(), context.getClient());
+    }
+
     protected BaseRestHandler(Settings settings, RestController controller, Client client) {
         super(settings);
         this.controller = controller;

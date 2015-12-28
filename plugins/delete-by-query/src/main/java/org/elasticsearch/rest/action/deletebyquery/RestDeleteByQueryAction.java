@@ -19,22 +19,20 @@
 
 package org.elasticsearch.rest.action.deletebyquery;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-
-import java.io.IOException;
 
 import static org.elasticsearch.action.deletebyquery.DeleteByQueryAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -43,16 +41,13 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * @see DeleteByQueryRequest
  */
 public class RestDeleteByQueryAction extends BaseRestHandler {
-
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
-    @Inject
-    public RestDeleteByQueryAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        controller.registerHandler(DELETE, "/{index}/_query", this);
-        controller.registerHandler(DELETE, "/{index}/{type}/_query", this);
+    public RestDeleteByQueryAction(RestGlobalContext context) {
+        super(context);
+        this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
+        context.getController().registerHandler(DELETE, "/{index}/_query", this);
+        context.getController().registerHandler(DELETE, "/{index}/{type}/_query", this);
     }
 
     @Override

@@ -26,12 +26,10 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -41,13 +39,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  */
 public class RestAliasesExistAction extends BaseRestHandler {
-
-    @Inject
-    public RestAliasesExistAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(HEAD, "/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias", this);
+    public RestAliasesExistAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(HEAD, "/_alias/{name}", this);
+        context.getController().registerHandler(HEAD, "/{index}/_alias/{name}", this);
+        context.getController().registerHandler(HEAD, "/{index}/_alias", this);
     }
 
     @Override

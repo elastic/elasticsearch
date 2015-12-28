@@ -26,13 +26,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -48,15 +46,13 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  *
  */
 public class RestClearIndicesCacheAction extends BaseRestHandler {
+    public RestClearIndicesCacheAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_cache/clear", this);
+        context.getController().registerHandler(POST, "/{index}/_cache/clear", this);
 
-    @Inject
-    public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_cache/clear", this);
-        controller.registerHandler(POST, "/{index}/_cache/clear", this);
-
-        controller.registerHandler(GET, "/_cache/clear", this);
-        controller.registerHandler(GET, "/{index}/_cache/clear", this);
+        context.getController().registerHandler(GET, "/_cache/clear", this);
+        context.getController().registerHandler(GET, "/{index}/_cache/clear", this);
     }
 
     @Override

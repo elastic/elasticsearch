@@ -23,11 +23,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -38,13 +36,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns status of currently running snapshot
  */
 public class RestSnapshotsStatusAction extends BaseRestHandler {
-
-    @Inject
-    public RestSnapshotsStatusAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}/_status", this);
-        controller.registerHandler(GET, "/_snapshot/{repository}/_status", this);
-        controller.registerHandler(GET, "/_snapshot/_status", this);
+    public RestSnapshotsStatusAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_snapshot/{repository}/{snapshot}/_status", this);
+        context.getController().registerHandler(GET, "/_snapshot/{repository}/_status", this);
+        context.getController().registerHandler(GET, "/_snapshot/_status", this);
     }
 
     @Override

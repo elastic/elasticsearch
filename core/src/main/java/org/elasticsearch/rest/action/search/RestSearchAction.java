@@ -26,8 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,7 +34,7 @@ import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -63,22 +61,21 @@ public class RestSearchAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry queryRegistry;
 
-    @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry) {
-        super(settings, controller, client);
-        this.queryRegistry = queryRegistry;
-        controller.registerHandler(GET, "/_search", this);
-        controller.registerHandler(POST, "/_search", this);
-        controller.registerHandler(GET, "/{index}/_search", this);
-        controller.registerHandler(POST, "/{index}/_search", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search", this);
-        controller.registerHandler(GET, "/_search/template", this);
-        controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET, "/{index}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/_search/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
+    public RestSearchAction(RestGlobalContext context) {
+        super(context);
+        this.queryRegistry = context.getIndicesQueriesRegistry();
+        context.getController().registerHandler(GET, "/_search", this);
+        context.getController().registerHandler(POST, "/_search", this);
+        context.getController().registerHandler(GET, "/{index}/_search", this);
+        context.getController().registerHandler(POST, "/{index}/_search", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_search", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_search", this);
+        context.getController().registerHandler(GET, "/_search/template", this);
+        context.getController().registerHandler(POST, "/_search/template", this);
+        context.getController().registerHandler(GET, "/{index}/_search/template", this);
+        context.getController().registerHandler(POST, "/{index}/_search/template", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_search/template", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override

@@ -22,14 +22,12 @@ package org.elasticsearch.rest.action.index;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -44,21 +42,19 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  *
  */
 public class RestIndexAction extends BaseRestHandler {
-
-    @Inject
-    public RestIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
-        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings, controller, client);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
+    public RestIndexAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/{index}/{type}", this); // auto id creation
+        context.getController().registerHandler(PUT, "/{index}/{type}/{id}", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}", this);
+        CreateHandler createHandler = new CreateHandler(context);
+        context.getController().registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        protected CreateHandler(RestGlobalContext context) {
+            super(context);
         }
 
         @Override

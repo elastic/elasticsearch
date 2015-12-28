@@ -24,14 +24,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -59,13 +57,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
     }
 
-    @Inject
-    public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_analyze", this);
-        controller.registerHandler(GET, "/{index}/_analyze", this);
-        controller.registerHandler(POST, "/_analyze", this);
-        controller.registerHandler(POST, "/{index}/_analyze", this);
+    public RestAnalyzeAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_analyze", this);
+        context.getController().registerHandler(GET, "/{index}/_analyze", this);
+        context.getController().registerHandler(POST, "/_analyze", this);
+        context.getController().registerHandler(POST, "/{index}/_analyze", this);
     }
 
     @Override

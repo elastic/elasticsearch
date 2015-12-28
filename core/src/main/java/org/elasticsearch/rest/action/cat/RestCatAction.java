@@ -20,12 +20,10 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -39,10 +37,9 @@ public class RestCatAction extends BaseRestHandler {
     private static final String CAT_NL = CAT + "\n";
     private final String HELP;
 
-    @Inject
-    public RestCatAction(Settings settings, RestController controller, Set<AbstractCatAction> catActions, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat", this);
+    public RestCatAction(RestGlobalContext context, Set<AbstractCatAction> catActions) {
+        super(context.getSettings(), context.getController(), context.getClient());
+        context.getController().registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();
         sb.append(CAT_NL);
         for (AbstractCatAction catAction : catActions) {

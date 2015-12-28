@@ -23,11 +23,10 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -51,11 +50,10 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "ignore_unavailable",
             "allow_no_indices"));
 
-    @Inject
-    public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
+    public RestUpdateSettingsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
+        context.getController().registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }
 
     @Override

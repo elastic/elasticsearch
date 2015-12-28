@@ -22,11 +22,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -37,9 +36,8 @@ import static org.elasticsearch.rest.action.support.RestTable.pad;
  *
  */
 public abstract class AbstractCatAction extends BaseRestHandler {
-
-    public AbstractCatAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public AbstractCatAction(RestGlobalContext context) {
+        super(context);
     }
 
     protected abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);

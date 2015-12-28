@@ -25,14 +25,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -47,11 +45,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
-    @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
-        this.settingsFilter = settingsFilter;
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
+    public RestClusterRerouteAction(RestGlobalContext context) {
+        super(context);
+        this.settingsFilter = context.getSettingsFilter();
+        context.getController().registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
     @Override

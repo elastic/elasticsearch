@@ -24,11 +24,9 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -40,31 +38,28 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  *
  */
 public class RestPutMappingAction extends BaseRestHandler {
+    public RestPutMappingAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(PUT, "/{index}/_mapping/", this);
+        context.getController().registerHandler(PUT, "/{index}/{type}/_mapping", this);
+        context.getController().registerHandler(PUT, "/{index}/_mapping/{type}", this);
+        context.getController().registerHandler(PUT, "/_mapping/{type}", this);
 
-
-    @Inject
-    public RestPutMappingAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(PUT, "/_mapping/{type}", this);
-
-        controller.registerHandler(POST, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(POST, "/_mapping/{type}", this);
+        context.getController().registerHandler(POST, "/{index}/_mapping/", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_mapping", this);
+        context.getController().registerHandler(POST, "/{index}/_mapping/{type}", this);
+        context.getController().registerHandler(POST, "/_mapping/{type}", this);
 
         //register the same paths, but with plural form _mappings
-        controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(PUT, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(PUT, "/_mappings/{type}", this);
+        context.getController().registerHandler(PUT, "/{index}/_mappings/", this);
+        context.getController().registerHandler(PUT, "/{index}/{type}/_mappings", this);
+        context.getController().registerHandler(PUT, "/{index}/_mappings/{type}", this);
+        context.getController().registerHandler(PUT, "/_mappings/{type}", this);
 
-        controller.registerHandler(POST, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(POST, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(POST, "/_mappings/{type}", this);
+        context.getController().registerHandler(POST, "/{index}/_mappings/", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_mappings", this);
+        context.getController().registerHandler(POST, "/{index}/_mappings/{type}", this);
+        context.getController().registerHandler(POST, "/_mappings/{type}", this);
     }
 
     @Override

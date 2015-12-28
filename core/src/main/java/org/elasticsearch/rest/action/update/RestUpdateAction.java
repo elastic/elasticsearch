@@ -24,12 +24,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -45,11 +43,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  */
 public class RestUpdateAction extends BaseRestHandler {
-
-    @Inject
-    public RestUpdateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+    public RestUpdateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
     @Override

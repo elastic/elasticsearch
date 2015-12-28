@@ -21,15 +21,13 @@ package org.elasticsearch.rest.action.script;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -41,16 +39,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *
  */
 public class RestGetIndexedScriptAction extends BaseRestHandler {
-
-    @Inject
-    public RestGetIndexedScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestGetIndexedScriptAction(RestGlobalContext context) {
+        this(context, true);
     }
 
-    protected RestGetIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+    protected RestGetIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
+        super(context);
         if (registerDefaultHandlers) {
-            controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+            context.getController().registerHandler(GET, "/_scripts/{lang}/{id}", this);
         }
     }
 

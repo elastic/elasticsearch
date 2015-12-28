@@ -24,11 +24,9 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -37,16 +35,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
-
-    @Inject
-    public RestMultiTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_mtermvectors", this);
-        controller.registerHandler(POST, "/_mtermvectors", this);
-        controller.registerHandler(GET, "/{index}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/_mtermvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
+    public RestMultiTermVectorsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_mtermvectors", this);
+        context.getController().registerHandler(POST, "/_mtermvectors", this);
+        context.getController().registerHandler(GET, "/{index}/_mtermvectors", this);
+        context.getController().registerHandler(POST, "/{index}/_mtermvectors", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
     }
 
     @Override

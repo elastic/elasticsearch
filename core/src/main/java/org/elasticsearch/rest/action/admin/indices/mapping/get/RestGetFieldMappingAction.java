@@ -25,13 +25,11 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -48,15 +46,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestGetFieldMappingAction extends BaseRestHandler {
-
-    @Inject
-    public RestGetFieldMappingAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
+    public RestGetFieldMappingAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_mapping/field/{fields}", this);
+        context.getController().registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
+        context.getController().registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
+        context.getController().registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
     }
 
     @Override

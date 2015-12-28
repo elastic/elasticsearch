@@ -21,15 +21,13 @@ package org.elasticsearch.rest.action.script;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -40,16 +38,14 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteIndexedScriptAction extends BaseRestHandler {
-
-    @Inject
-    public RestDeleteIndexedScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestDeleteIndexedScriptAction(RestGlobalContext context) {
+        this(context, true);
     }
 
-    protected RestDeleteIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+    protected RestDeleteIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
+        super(context);
         if (registerDefaultHandlers) {
-            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
+            context.getController().registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
         }
     }
 

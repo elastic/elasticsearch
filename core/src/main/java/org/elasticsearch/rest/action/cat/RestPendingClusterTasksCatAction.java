@@ -24,10 +24,8 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -35,11 +33,10 @@ import org.elasticsearch.rest.action.support.RestTable;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestPendingClusterTasksAction extends AbstractCatAction {
-    @Inject
-    public RestPendingClusterTasksAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/pending_tasks", this);
+public class RestPendingClusterTasksCatAction extends AbstractCatAction {
+    public RestPendingClusterTasksCatAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/pending_tasks", this);
     }
 
     @Override

@@ -22,11 +22,9 @@ package org.elasticsearch.rest.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -38,12 +36,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Creates a new snapshot
  */
 public class RestCreateSnapshotAction extends BaseRestHandler {
-
-    @Inject
-    public RestCreateSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
-        controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
+    public RestCreateSnapshotAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
+        context.getController().registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
     }
 
     @Override

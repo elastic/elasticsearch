@@ -26,15 +26,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -47,17 +45,15 @@ import java.util.EnumSet;
  *
  */
 public class RestClusterStateAction extends BaseRestHandler {
-
     private final SettingsFilter settingsFilter;
 
-    @Inject
-    public RestClusterStateAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
+    public RestClusterStateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
 
-        this.settingsFilter = settingsFilter;
+        this.settingsFilter = context.getSettingsFilter();
     }
 
     @Override

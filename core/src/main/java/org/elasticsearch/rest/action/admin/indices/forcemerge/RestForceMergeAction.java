@@ -24,13 +24,11 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -43,12 +41,10 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  *
  */
 public class RestForceMergeAction extends BaseRestHandler {
-
-    @Inject
-    public RestForceMergeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_forcemerge", this);
-        controller.registerHandler(POST, "/{index}/_forcemerge", this);
+    public RestForceMergeAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_forcemerge", this);
+        context.getController().registerHandler(POST, "/{index}/_forcemerge", this);
     }
 
     @Override

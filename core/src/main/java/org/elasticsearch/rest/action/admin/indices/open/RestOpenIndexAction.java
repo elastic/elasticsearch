@@ -24,11 +24,9 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -36,12 +34,10 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
  *
  */
 public class RestOpenIndexAction extends BaseRestHandler {
-
-    @Inject
-    public RestOpenIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.POST, "/_open", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
+    public RestOpenIndexAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.POST, "/_open", this);
+        context.getController().registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }
 
     @Override

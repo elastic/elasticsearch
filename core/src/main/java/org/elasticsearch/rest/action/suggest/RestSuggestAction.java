@@ -24,13 +24,11 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -46,14 +44,12 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  *
  */
 public class RestSuggestAction extends BaseRestHandler {
-
-    @Inject
-    public RestSuggestAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_suggest", this);
-        controller.registerHandler(GET, "/_suggest", this);
-        controller.registerHandler(POST, "/{index}/_suggest", this);
-        controller.registerHandler(GET, "/{index}/_suggest", this);
+    public RestSuggestAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_suggest", this);
+        context.getController().registerHandler(GET, "/_suggest", this);
+        context.getController().registerHandler(POST, "/{index}/_suggest", this);
+        context.getController().registerHandler(GET, "/{index}/_suggest", this);
     }
 
     @Override

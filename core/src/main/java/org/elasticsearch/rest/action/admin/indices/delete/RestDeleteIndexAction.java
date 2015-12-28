@@ -24,11 +24,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -36,12 +34,10 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
  *
  */
 public class RestDeleteIndexAction extends BaseRestHandler {
-
-    @Inject
-    public RestDeleteIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.DELETE, "/", this);
-        controller.registerHandler(RestRequest.Method.DELETE, "/{index}", this);
+    public RestDeleteIndexAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.DELETE, "/", this);
+        context.getController().registerHandler(RestRequest.Method.DELETE, "/{index}", this);
     }
 
     @Override

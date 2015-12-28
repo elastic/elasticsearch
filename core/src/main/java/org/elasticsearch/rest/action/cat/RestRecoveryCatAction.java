@@ -26,11 +26,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -47,13 +45,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
  */
-public class RestRecoveryAction extends AbstractCatAction {
-
-    @Inject
-    public RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
-        super(settings, controller, client);
-        restController.registerHandler(GET, "/_cat/recovery", this);
-        restController.registerHandler(GET, "/_cat/recovery/{index}", this);
+public class RestRecoveryCatAction extends AbstractCatAction {
+    public RestRecoveryCatAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/recovery", this);
+        context.getController().registerHandler(GET, "/_cat/recovery/{index}", this);
     }
 
     @Override

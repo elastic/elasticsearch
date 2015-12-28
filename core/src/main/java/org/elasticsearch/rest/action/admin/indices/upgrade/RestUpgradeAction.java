@@ -26,13 +26,11 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -46,15 +44,13 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 
 
 public class RestUpgradeAction extends BaseRestHandler {
+    public RestUpgradeAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_upgrade", this);
+        context.getController().registerHandler(POST, "/{index}/_upgrade", this);
 
-    @Inject
-    public RestUpgradeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_upgrade", this);
-        controller.registerHandler(POST, "/{index}/_upgrade", this);
-
-        controller.registerHandler(GET, "/_upgrade", this);
-        controller.registerHandler(GET, "/{index}/_upgrade", this);
+        context.getController().registerHandler(GET, "/_upgrade", this);
+        context.getController().registerHandler(GET, "/{index}/_upgrade", this);
     }
 
     @Override

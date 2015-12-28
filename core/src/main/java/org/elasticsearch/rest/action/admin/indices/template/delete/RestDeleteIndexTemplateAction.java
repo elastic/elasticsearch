@@ -21,11 +21,9 @@ package org.elasticsearch.rest.action.admin.indices.template.delete;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -33,11 +31,9 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
  *
  */
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
-
-    @Inject
-    public RestDeleteIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
+    public RestDeleteIndexTemplateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
     }
 
     @Override

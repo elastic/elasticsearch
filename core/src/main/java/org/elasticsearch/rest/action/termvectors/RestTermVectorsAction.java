@@ -23,14 +23,12 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -46,20 +44,18 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-
-    @Inject
-    public RestTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
+    public RestTermVectorsAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/{index}/{type}/_termvectors", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_termvectors", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
 
         // we keep usage of _termvector as alias for now
-        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_termvector", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_termvector", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
     }
 
     @Override

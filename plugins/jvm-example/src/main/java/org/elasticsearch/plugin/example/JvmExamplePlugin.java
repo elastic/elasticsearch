@@ -19,28 +19,27 @@
 
 package org.elasticsearch.plugin.example;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.rest.RestGlobalContext;
+import org.elasticsearch.rest.RestModule;
+
+import java.util.ArrayList;
+import java.util.Collection;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Example of a plugin.
  */
 public class JvmExamplePlugin extends Plugin {
-
-    private final Settings settings;
+    private final ConfiguredExampleModule configuredModule = new ConfiguredExampleModule();
 
     public JvmExamplePlugin(Settings settings) {
-        this.settings = settings;
     }
 
     @Override
@@ -55,7 +54,7 @@ public class JvmExamplePlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new ConfiguredExampleModule());
+        return singletonList((Module) configuredModule);
     }
 
     @Override
@@ -70,7 +69,8 @@ public class JvmExamplePlugin extends Plugin {
         return Settings.EMPTY;
     }
 
-    public void onModule(RepositoriesModule repositoriesModule) {
+    public void onModule(RestModule module) {
+        module.add(ExampleCatAction.class, configuredModule::exampleCatAction);
     }
 
     /**
@@ -78,11 +78,20 @@ public class JvmExamplePlugin extends Plugin {
      * it.
      */
     public static class ConfiguredExampleModule extends AbstractModule {
+        private ExamplePluginConfiguration config;
+
         @Override
         protected void configure() {
-          bind(ExamplePluginConfiguration.class).asEagerSingleton();
-          Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
-          catActionMultibinder.addBinding().to(ExampleCatAction.class).asEagerSingleton();
+            bind(ExamplePluginConfiguration.class).asEagerSingleton();
+        }
+
+        @Inject
+        public void config(ExamplePluginConfiguration config) {
+            this.config = config;
+        }
+
+        public ExampleCatAction exampleCatAction(RestGlobalContext context) {
+            return new ExampleCatAction(context, config);
         }
     }
 }

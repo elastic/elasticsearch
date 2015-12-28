@@ -24,15 +24,13 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -46,11 +44,10 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private final ClusterSettings clusterSettings;
 
-    @Inject
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings) {
-        super(settings, controller, client);
+    public RestClusterGetSettingsAction(RestGlobalContext context, ClusterSettings clusterSettings) {
+        super(context);
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
+        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
     }
 
     @Override

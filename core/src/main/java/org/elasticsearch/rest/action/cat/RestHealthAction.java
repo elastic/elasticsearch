@@ -23,10 +23,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -40,11 +38,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
-
-    @Inject
-    public RestHealthAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/health", this);
+    public RestHealthAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/health", this);
     }
 
     @Override

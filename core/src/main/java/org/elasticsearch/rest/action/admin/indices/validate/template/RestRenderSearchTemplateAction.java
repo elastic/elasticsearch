@@ -24,8 +24,6 @@ import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemp
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -49,14 +47,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestRenderSearchTemplateAction extends BaseRestHandler {
-
-    @Inject
-    public RestRenderSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_render/template", this);
-        controller.registerHandler(POST, "/_render/template", this);
-        controller.registerHandler(GET, "/_render/template/{id}", this);
-        controller.registerHandler(POST, "/_render/template/{id}", this);
+    public RestRenderSearchTemplateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_render/template", this);
+        context.getController().registerHandler(POST, "/_render/template", this);
+        context.getController().registerHandler(GET, "/_render/template/{id}", this);
+        context.getController().registerHandler(POST, "/_render/template/{id}", this);
     }
 
     @Override

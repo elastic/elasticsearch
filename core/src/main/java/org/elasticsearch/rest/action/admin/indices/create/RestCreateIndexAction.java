@@ -22,11 +22,9 @@ package org.elasticsearch.rest.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -34,12 +32,10 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
  *
  */
 public class RestCreateIndexAction extends BaseRestHandler {
-
-    @Inject
-    public RestCreateIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
+    public RestCreateIndexAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(RestRequest.Method.PUT, "/{index}", this);
+        context.getController().registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
     @SuppressWarnings({"unchecked"})

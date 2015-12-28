@@ -23,8 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -48,15 +46,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *
  */
 public class RestSearchScrollAction extends BaseRestHandler {
+    public RestSearchScrollAction(RestGlobalContext context) {
+        super(context);
 
-    @Inject
-    public RestSearchScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-
-        controller.registerHandler(GET, "/_search/scroll", this);
-        controller.registerHandler(POST, "/_search/scroll", this);
-        controller.registerHandler(GET, "/_search/scroll/{scroll_id}", this);
-        controller.registerHandler(POST, "/_search/scroll/{scroll_id}", this);
+        context.getController().registerHandler(GET, "/_search/scroll", this);
+        context.getController().registerHandler(POST, "/_search/scroll", this);
+        context.getController().registerHandler(GET, "/_search/scroll/{scroll_id}", this);
+        context.getController().registerHandler(POST, "/_search/scroll/{scroll_id}", this);
     }
 
     @Override

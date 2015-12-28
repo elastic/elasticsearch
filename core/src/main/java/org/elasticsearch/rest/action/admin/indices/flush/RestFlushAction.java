@@ -24,13 +24,11 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -44,15 +42,13 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  *
  */
 public class RestFlushAction extends BaseRestHandler {
+    public RestFlushAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_flush", this);
+        context.getController().registerHandler(POST, "/{index}/_flush", this);
 
-    @Inject
-    public RestFlushAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_flush", this);
-        controller.registerHandler(POST, "/{index}/_flush", this);
-
-        controller.registerHandler(GET, "/_flush", this);
-        controller.registerHandler(GET, "/{index}/_flush", this);
+        context.getController().registerHandler(GET, "/_flush", this);
+        context.getController().registerHandler(GET, "/{index}/_flush", this);
     }
 
     @Override

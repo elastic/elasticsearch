@@ -23,11 +23,9 @@ import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -42,16 +40,15 @@ public class RestMultiPercolateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
-    public RestMultiPercolateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_mpercolate", this);
-        controller.registerHandler(POST, "/{index}/_mpercolate", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);
+    public RestMultiPercolateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_mpercolate", this);
+        context.getController().registerHandler(POST, "/{index}/_mpercolate", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_mpercolate", this);
 
-        controller.registerHandler(GET, "/_mpercolate", this);
-        controller.registerHandler(GET, "/{index}/_mpercolate", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mpercolate", this);
+        context.getController().registerHandler(GET, "/_mpercolate", this);
+        context.getController().registerHandler(GET, "/{index}/_mpercolate", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_mpercolate", this);
 
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }

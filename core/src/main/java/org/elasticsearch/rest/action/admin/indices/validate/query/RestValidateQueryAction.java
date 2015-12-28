@@ -26,8 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -35,7 +33,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -55,16 +53,15 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
-    @Inject
-    public RestValidateQueryAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_validate/query", this);
-        controller.registerHandler(POST, "/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+    public RestValidateQueryAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_validate/query", this);
+        context.getController().registerHandler(POST, "/_validate/query", this);
+        context.getController().registerHandler(GET, "/{index}/_validate/query", this);
+        context.getController().registerHandler(POST, "/{index}/_validate/query", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_validate/query", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_validate/query", this);
+        this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
     }
 
     @Override

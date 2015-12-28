@@ -22,11 +22,9 @@ package org.elasticsearch.rest.action.admin.cluster.snapshots.delete;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -37,11 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Deletes a snapshot
  */
 public class RestDeleteSnapshotAction extends BaseRestHandler {
-
-    @Inject
-    public RestDeleteSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(DELETE, "/_snapshot/{repository}/{snapshot}", this);
+    public RestDeleteSnapshotAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(DELETE, "/_snapshot/{repository}/{snapshot}", this);
     }
 
     @Override

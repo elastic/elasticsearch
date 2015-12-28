@@ -19,6 +19,7 @@
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -27,15 +28,13 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -48,12 +47,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 @Deprecated
 public class RestGetIndicesAliasesAction extends BaseRestHandler {
-
-    @Inject
-    public RestGetIndicesAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/{index}/_aliases/{name}", this);
-        controller.registerHandler(GET, "/_aliases/{name}", this);
+    public RestGetIndicesAliasesAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/{index}/_aliases/{name}", this);
+        context.getController().registerHandler(GET, "/_aliases/{name}", this);
     }
 
     @Override

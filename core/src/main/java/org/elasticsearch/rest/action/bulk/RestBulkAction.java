@@ -27,14 +27,12 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -56,16 +54,15 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
-    public RestBulkAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestBulkAction(RestGlobalContext context) {
+        super(context);
 
-        controller.registerHandler(POST, "/_bulk", this);
-        controller.registerHandler(PUT, "/_bulk", this);
-        controller.registerHandler(POST, "/{index}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_bulk", this);
-        controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
+        context.getController().registerHandler(POST, "/_bulk", this);
+        context.getController().registerHandler(PUT, "/_bulk", this);
+        context.getController().registerHandler(POST, "/{index}/_bulk", this);
+        context.getController().registerHandler(PUT, "/{index}/_bulk", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_bulk", this);
+        context.getController().registerHandler(PUT, "/{index}/{type}/_bulk", this);
 
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }

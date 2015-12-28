@@ -21,12 +21,10 @@ package org.elasticsearch.rest.action.admin.indices.template.head;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -39,12 +37,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestHeadIndexTemplateAction extends BaseRestHandler {
-
-    @Inject
-    public RestHeadIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-
-        controller.registerHandler(HEAD, "/_template/{name}", this);
+    public RestHeadIndexTemplateAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(HEAD, "/_template/{name}", this);
     }
 
     @Override

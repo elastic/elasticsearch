@@ -22,12 +22,10 @@ package org.elasticsearch.rest.action.delete;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -38,11 +36,9 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  *
  */
 public class RestDeleteAction extends BaseRestHandler {
-
-    @Inject
-    public RestDeleteAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
+    public RestDeleteAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 
     @Override

@@ -36,10 +36,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -56,12 +54,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Inject
-    public RestIndicesAction(Settings settings, RestController controller, Client client, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, controller, client);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        controller.registerHandler(GET, "/_cat/indices", this);
-        controller.registerHandler(GET, "/_cat/indices/{index}", this);
+    public RestIndicesAction(RestGlobalContext context) {
+        super(context);
+        this.indexNameExpressionResolver = context.getIndexNameExpressionResolver();
+        context.getController().registerHandler(GET, "/_cat/indices", this);
+        context.getController().registerHandler(GET, "/_cat/indices/{index}", this);
     }
 
     @Override

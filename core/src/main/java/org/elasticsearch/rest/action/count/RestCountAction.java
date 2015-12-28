@@ -25,15 +25,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -49,19 +47,17 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  *
  */
 public class RestCountAction extends BaseRestHandler {
-
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
-    @Inject
-    public RestCountAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        controller.registerHandler(POST, "/_count", this);
-        controller.registerHandler(GET, "/_count", this);
-        controller.registerHandler(POST, "/{index}/_count", this);
-        controller.registerHandler(GET, "/{index}/_count", this);
-        controller.registerHandler(POST, "/{index}/{type}/_count", this);
-        controller.registerHandler(GET, "/{index}/{type}/_count", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+    public RestCountAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(POST, "/_count", this);
+        context.getController().registerHandler(GET, "/_count", this);
+        context.getController().registerHandler(POST, "/{index}/_count", this);
+        context.getController().registerHandler(GET, "/{index}/_count", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_count", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_count", this);
+        this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
     }
 
     @Override

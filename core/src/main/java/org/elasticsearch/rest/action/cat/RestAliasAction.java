@@ -19,16 +19,15 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -42,12 +41,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *
  */
 public class RestAliasAction extends AbstractCatAction {
-
-    @Inject
-    public RestAliasAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/aliases", this);
-        controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
+    public RestAliasAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/aliases", this);
+        context.getController().registerHandler(GET, "/_cat/aliases/{alias}", this);
     }
 
 

@@ -22,15 +22,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -48,26 +46,24 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestPutIndexedScriptAction extends BaseRestHandler {
-
-    @Inject
-    public RestPutIndexedScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestPutIndexedScriptAction(RestGlobalContext context) {
+        this(context, true);
     }
 
-    protected RestPutIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+    protected RestPutIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
+        super(context);
         if (registerDefaultHandlers) {
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
+            context.getController().registerHandler(POST, "/_scripts/{lang}/{id}", this);
+            context.getController().registerHandler(PUT, "/_scripts/{lang}/{id}", this);
 
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
+            context.getController().registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(context));
+            context.getController().registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(context));
         }
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        protected CreateHandler(RestGlobalContext context) {
+            super(context);
         }
 
         @Override

@@ -27,8 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +35,7 @@ import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -59,27 +57,25 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
+    public RestMultiSearchAction(RestGlobalContext context) {
+        super(context);
 
-    @Inject
-    public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+        context.getController().registerHandler(GET, "/_msearch", this);
+        context.getController().registerHandler(POST, "/_msearch", this);
+        context.getController().registerHandler(GET, "/{index}/_msearch", this);
+        context.getController().registerHandler(POST, "/{index}/_msearch", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_msearch", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_msearch", this);
 
-        controller.registerHandler(GET, "/_msearch", this);
-        controller.registerHandler(POST, "/_msearch", this);
-        controller.registerHandler(GET, "/{index}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/_msearch", this);
-        controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
-
-        controller.registerHandler(GET, "/_msearch/template", this);
-        controller.registerHandler(POST, "/_msearch/template", this);
-        controller.registerHandler(GET, "/{index}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/_msearch/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
+        context.getController().registerHandler(GET, "/_msearch/template", this);
+        context.getController().registerHandler(POST, "/_msearch/template", this);
+        context.getController().registerHandler(GET, "/{index}/_msearch/template", this);
+        context.getController().registerHandler(POST, "/{index}/_msearch/template", this);
+        context.getController().registerHandler(GET, "/{index}/{type}/_msearch/template", this);
+        context.getController().registerHandler(POST, "/{index}/{type}/_msearch/template", this);
 
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
     }
 
     @Override

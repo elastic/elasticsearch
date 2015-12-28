@@ -23,15 +23,13 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -50,17 +48,16 @@ public class RestNodesInfoAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport");
 
-    @Inject
-    public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_nodes", this);
+    public RestNodesInfoAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
-        controller.registerHandler(GET, "/_nodes/{nodeId}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
         // added this endpoint to be aligned with stats
-        controller.registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
+        context.getController().registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
 
-        this.settingsFilter = settingsFilter;
+        this.settingsFilter = context.getSettingsFilter();
     }
 
     @Override

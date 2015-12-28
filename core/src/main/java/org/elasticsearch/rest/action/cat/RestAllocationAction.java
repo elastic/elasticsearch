@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.ObjectIntScatterMap;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -31,11 +32,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -46,12 +45,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestAllocationAction extends AbstractCatAction {
-
-    @Inject
-    public RestAllocationAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_cat/allocation", this);
-        controller.registerHandler(GET, "/_cat/allocation/{nodes}", this);
+    public RestAllocationAction(RestGlobalContext context) {
+        super(context);
+        context.getController().registerHandler(GET, "/_cat/allocation", this);
+        context.getController().registerHandler(GET, "/_cat/allocation/{nodes}", this);
     }
 
     @Override

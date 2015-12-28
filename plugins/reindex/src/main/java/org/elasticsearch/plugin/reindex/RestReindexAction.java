@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -58,30 +57,24 @@ public class RestReindexAction extends BaseRestHandler {
     private static final ObjectParser<ReindexRequest, QueryParseContext> PARSER = new ObjectParser<>("reindex");
     static {
         ObjectParser.Parser<SearchRequest, QueryParseContext> sourceParser = (parser, search, context) -> {
-            try {
-                /*
-                 * Extract the parameters that we need from the parser. We could
-                 * do away with this hack when search source has an
-                 * ObjectParser.
-                 */
-                Map<String, Object> source = parser.map();
-                String[] indices = extractStringArray(source, "index");
-                if (indices != null) {
-                    search.indices(indices);
-                }
-                String[] types = extractStringArray(source, "type");
-                if (types != null) {
-                    search.types(types);
-                }
-                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                builder.map(source);
-                parser = parser.contentType().xContent().createParser(builder.bytes());
-                context.reset(parser);
-                search.source().parseXContent(parser, context);
-            } catch (IOException e) {
-                // TODO throw a better exception
-                throw new ElasticsearchException(e);
+            /*
+             * Extract the parameters that we need from the parser. We could do
+             * away with this hack when search source has an ObjectParser.
+             */
+            Map<String, Object> source = parser.map();
+            String[] indices = extractStringArray(source, "index");
+            if (indices != null) {
+                search.indices(indices);
             }
+            String[] types = extractStringArray(source, "type");
+            if (types != null) {
+                search.types(types);
+            }
+            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            builder.map(source);
+            parser = parser.contentType().xContent().createParser(builder.bytes());
+            context.reset(parser);
+            search.source().parseXContent(parser, context);
         };
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");

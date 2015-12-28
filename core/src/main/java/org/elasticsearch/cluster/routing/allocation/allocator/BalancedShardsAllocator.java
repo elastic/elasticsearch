@@ -860,14 +860,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return index == null ? 0 : index.numShards();
         }
 
-        public Collection<ShardRouting> shards() {
-            Collection<ShardRouting> result = new ArrayList<>();
-            for (ModelIndex index : indices.values()) {
-                result.addAll(index.getAllShards());
-            }
-            return result;
-        }
-
         public int highestPrimary(String index) {
             ModelIndex idx = indices.get(index);
             if (idx != null) {
@@ -943,10 +935,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
         public String getIndexId() {
             return id;
-        }
-
-        public Decision getDecicion(ShardRouting shard) {
-            return shards.get(shard);
         }
 
         public int numShards() {

@@ -228,6 +228,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
         private final float threshold;
         private final MetaData metaData;
+        private final float avgShardsPerNode;
 
         private final Predicate<ShardRouting> assignedFilter = shard -> shard.assignedToNode();
 
@@ -241,6 +242,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 nodes.put(node.nodeId(), new ModelNode(node.nodeId()));
             }
             metaData = routingNodes.metaData();
+            avgShardsPerNode = ((float) metaData.totalNumberOfShards()) / nodes.size();
         }
 
         /**
@@ -261,7 +263,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Returns the global average of shards per node
          */
         public float avgShardsPerNode() {
-            return ((float) metaData.totalNumberOfShards()) / nodes.size();
+            return avgShardsPerNode;
         }
 
         /**

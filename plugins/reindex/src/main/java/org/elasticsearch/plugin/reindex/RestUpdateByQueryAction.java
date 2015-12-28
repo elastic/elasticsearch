@@ -105,9 +105,9 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         }
         parseCommon(internalRequest, request);
 
-        // TODO allow the user to modify the batch size? Or pick something better than just a default.
         internalRequest.size(internalRequest.source().source().size());
         internalRequest.source().source().size(batchSize);
+        internalRequest.source().source().size(request.paramAsInt("scroll_size", batchSize));
 
         client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));
     }

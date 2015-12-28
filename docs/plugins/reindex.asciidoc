@@ -156,10 +156,18 @@ And `routing` works, on the off chance that you need it:
 
 [source,js]
 --------------------------------------------------
-POST /twitter//_update_by_query?routing=1
+POST /twitter/_update_by_query?routing=1
 --------------------------------------------------
 // AUTOSENSE
 
+By default `_update_by_query` uses scroll batches of 100. You can change the
+batch size with the `scroll_size` URL parameter:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?scroll_size=1000
+--------------------------------------------------
+// AUTOSENSE
 
 [[reindex-usage]]
 ==== Using `_reindex`

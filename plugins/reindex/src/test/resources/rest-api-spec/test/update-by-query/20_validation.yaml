@@ -11,3 +11,17 @@
       update-by-query:
         index: test
         conflicts: cat
+
+---
+"invalid scroll_size fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /Failed to parse int parameter \[scroll_size\] with value \[cat\]/
+      update-by-query:
+        index: test
+        scroll_size: cat

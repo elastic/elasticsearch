@@ -180,6 +180,11 @@
           "type" : "enum",
           "options" : ["one", "quorum", "all"],
           "description" : "Explicit write consistency setting for the operation"
+        },
+        "scroll_size": {
+          "type": "integer",
+          "defaut_value": 100,
+          "description": "Size on the scroll request powering the update-by-query"
         }
       }
     },

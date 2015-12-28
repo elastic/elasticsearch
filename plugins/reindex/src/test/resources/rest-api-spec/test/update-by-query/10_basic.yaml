@@ -150,3 +150,38 @@
   - match: {batches: 1}
   - match: {failures: []}
   - is_true: took
+
+---
+"Can override scroll_size":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      index:
+        index:   test
+        type:    foo
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update-by-query:
+        index: test
+        scroll_size: 1
+  - match: {batches: 3}

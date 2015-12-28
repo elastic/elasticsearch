@@ -9,7 +9,9 @@
               properties:
                 name:
                   type: string
-
+  - do:
+      cluster.health:
+          wait_for_status: yellow
   - do:
       index:
         index:   test

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,14 +51,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-
 /**
  * Expose IndexBySearchRequest over rest.
  */
@@ -65,29 +65,13 @@ public class RestReindexAction extends BaseRestHandler {
                  * ObjectParser.
                  */
                 Map<String, Object> source = parser.map();
-                Object index = source.remove("index");
-                if (index != null) {
-                    if (index instanceof List) {
-                        @SuppressWarnings("unchecked")
-                        List<String> list = (List<String>) index;
-                        search.indices(list.toArray(new String[list.size()]));
-                    } else if (index instanceof String) {
-                        search.indices((String) index);
-                    } else {
-                        throw new IllegalArgumentException("Expected index to be a list of a string but was [" + index + ']');
-                    }
+                String[] indices = extractStringArray(source, "index");
+                if (indices != null) {
+                    search.indices(indices);
                 }
-                Object type = source.remove("type");
-                if (type != null) {
-                    if (type instanceof List) {
-                        @SuppressWarnings("unchecked")
-                        List<String> list = (List<String>) type;
-                        search.types(list.toArray(new String[list.size()]));
-                    } else if (type instanceof String) {
-                        search.types((String) type);
-                    } else {
-                        throw new IllegalArgumentException("Expected index to be a type of a string but was [" + type + ']');
-                    }
+                String[] types = extractStringArray(source, "type");
+                if (types != null) {
+                    search.types(types);
                 }
                 XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
                 builder.map(source);
@@ -162,6 +146,26 @@ public class RestReindexAction extends BaseRestHandler {
         String consistency = request.param("consistency");
         if (consistency != null) {
             internalRequest.consistency(WriteConsistencyLevel.fromString(consistency));
+        }
+    }
+
+    /**
+     * Yank a string array from a map. Emulates XContent's permissive String to
+     * String array conversions.
+     */
+    private static String[] extractStringArray(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<String> list = (List<String>) value;
+            return list.toArray(new String[list.size()]);
+        } else if (value instanceof String) {
+            return new String[] {(String) value};
+        } else {
+            throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
         }
     }
 }

@@ -39,7 +39,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
-    private static final int DEFAULT_BATCH_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 100;
 
     /**
      * The search to be executed.
@@ -83,7 +83,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         source.source(new SearchSourceBuilder());
         source.source().version(true);
         source.source().sort(fieldSort("_doc"));
-        source.source().size(DEFAULT_BATCH_SIZE);
+        source.source().size(DEFAULT_SCROLL_SIZE);
     }
 
     /**

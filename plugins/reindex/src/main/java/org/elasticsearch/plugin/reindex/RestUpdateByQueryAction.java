@@ -65,7 +65,7 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
          * defaults. Then the parse can override them.
          */
         UpdateByQueryRequest internalRequest = new UpdateByQueryRequest(new SearchRequest());
-        int batchSize = internalRequest.source().source().size();
+        int scrollSize = internalRequest.source().source().size();
         internalRequest.source().source().size(SIZE_ALL_MATCHES);
         /*
          * We can't send parseSearchRequest REST content that it doesn't support
@@ -106,8 +106,8 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         parseCommon(internalRequest, request);
 
         internalRequest.size(internalRequest.source().source().size());
-        internalRequest.source().source().size(batchSize);
-        internalRequest.source().source().size(request.paramAsInt("scroll_size", batchSize));
+        internalRequest.source().source().size(scrollSize);
+        internalRequest.source().source().size(request.paramAsInt("scroll_size", scrollSize));
 
         client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));
     }

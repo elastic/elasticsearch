@@ -19,17 +19,17 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
+import static org.elasticsearch.plugin.reindex.ReindexResponse.Fields.CREATED;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.CREATED;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 public class ReindexResponse extends BulkIndexByScrollResponse {
     private long created;
@@ -48,7 +48,6 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // NOCOMMIT need a round trip test for this
         super.writeTo(out);
         out.writeVLong(created);
     }
@@ -73,7 +72,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("IndexBySearchResponse[");
+        builder.append("ReindexResponse[");
         builder.append("took=").append(took());
         builder.append(",created=").append(created);
         builder.append(",updated=").append(updated());

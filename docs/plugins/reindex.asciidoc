@@ -312,7 +312,7 @@ Just avoid that situation, ok?
 --------------------------------------------------
 POST /_reindex
 {
-  "source": {
+  "src": {
     "index": ["twitter", "blog"],
     "type": ["tweet", "post"]
   },
@@ -586,7 +586,7 @@ curl -XPOST 'localhost:9200/test/test/1?refresh&pretty' -d '{
 
 curl -XDELETE localhost:9200/test2?pretty
 curl -XPOST localhost:9200/_reindex?pretty  -d '{
-  "source": {
+  "src": {
     "index": "test"
   },
   "dest": {

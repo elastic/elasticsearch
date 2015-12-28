@@ -19,18 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import static java.lang.Math.min;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.BATCHES;
@@ -39,6 +27,18 @@ import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.
 import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.TOOK;
 import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.UPDATED;
 import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.VERSION_CONFLICTS;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -92,7 +92,6 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // NOCOMMIT need a round trip test for this
         super.writeTo(out);
         out.writeVLong(took);
         out.writeVLong(updated);
@@ -125,7 +124,6 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
 
     static final class Fields {
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
         static final XContentBuilderString UPDATED = new XContentBuilderString("updated");
         static final XContentBuilderString BATCHES = new XContentBuilderString("batches");
         static final XContentBuilderString VERSION_CONFLICTS = new XContentBuilderString("versionConflicts");

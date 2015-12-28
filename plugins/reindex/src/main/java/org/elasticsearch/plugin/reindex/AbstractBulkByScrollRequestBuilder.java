@@ -97,7 +97,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
     }
 
     /**
-     * Timeout to wait for the shards on to be available for each bulk request?
+     * Consistency level for write requests.
      */
     public Self consistency(WriteConsistencyLevel consistency) {
         request.consistency(consistency);

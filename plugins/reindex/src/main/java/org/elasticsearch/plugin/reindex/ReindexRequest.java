@@ -65,8 +65,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             e = addValidationError("index must be specified", e);
             return e;
         }
-        if (false == (destination.routing() == null || destination.routing().startsWith("=") ||
-                "keep".equals(destination.routing()) || "discard".equals(destination.routing()))) {
+        if (false == routingIsValid()) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
         if (destination.versionType() == INTERNAL) {
@@ -75,6 +74,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         }
         return e;
+    }
+
+    private boolean routingIsValid() {
+        if (destination.routing() == null || destination.routing().startsWith("=")) {
+            return true;
+        }
+        switch (destination.routing()) {
+        case "keep":
+        case "discard":
+            return true;
+        default:
+            return false;
+        }
     }
 
     public IndexRequest destination() {

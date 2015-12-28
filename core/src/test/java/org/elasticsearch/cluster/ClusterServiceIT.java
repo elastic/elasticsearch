@@ -854,33 +854,40 @@ public class ClusterServiceIT extends ESIntegTestCase {
             counts.put(executor, counts.get(executor) + 1);
         }
 
-        final CountDownLatch startingGun = new CountDownLatch(1 + numberOfThreads);
-        List<Thread> threads = new ArrayList<>();
+        final CountDownLatch startGate = new CountDownLatch(1);
+        final CountDownLatch endGate = new CountDownLatch(numberOfThreads);
+        final AtomicBoolean interrupted = new AtomicBoolean();
         for (int i = 0; i < numberOfThreads; i++) {
             final int index = i;
             Thread thread = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    startingGun.countDown();
-                    for (int j = 0; j < tasksSubmittedPerThread; j++) {
-                        ClusterStateTaskExecutor<Task> executor = assignments.get(index * tasksSubmittedPerThread + j);
-                        clusterService.submitStateUpdateTask(
-                            Thread.currentThread().getName(),
-                            new Task(),
-                            BasicClusterStateTaskConfig.create(randomFrom(Priority.values())),
-                            executor,
-                            listener);
+                    try {
+                        try {
+                            startGate.await();
+                        } catch (InterruptedException e) {
+                            interrupted.set(true);
+                            return;
+                        }
+                        for (int j = 0; j < tasksSubmittedPerThread; j++) {
+                            ClusterStateTaskExecutor<Task> executor = assignments.get(index * tasksSubmittedPerThread + j);
+                            clusterService.submitStateUpdateTask(
+                                Thread.currentThread().getName(),
+                                new Task(),
+                                BasicClusterStateTaskConfig.create(randomFrom(Priority.values())),
+                                executor,
+                                listener);
+                        }
+                    } finally {
+                        endGate.countDown();
                     }
                 }
             });
-            threads.add(thread);
             thread.start();
         }
 
-        startingGun.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startGate.countDown();
+        endGate.await();
 
         // wait until all the cluster state updates have been processed
         updateLatch.await();

@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -340,19 +341,20 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass())
-            return false;
-        FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
-        if (this.getBoost() != other.getBoost())
-            return false;
-        if (!this.subQuery.equals(other.subQuery)) {
+        if (this == o) {
+            return true;
+        }
+        if (super.equals(o) == false) {
             return false;
         }
-        return Arrays.equals(this.filterFunctions, other.filterFunctions);
+        FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
+        return Objects.equals(this.subQuery, other.subQuery) && this.maxBoost == other.maxBoost &&
+            Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
+            Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
+        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, filterFunctions);
     }
 }

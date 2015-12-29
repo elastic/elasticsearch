@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -786,5 +788,33 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         for(int i=0; i<numHashes; ++i) {
             assertEquals("dr5regy6rc6y".substring(0, numHashes-i), hashes.get(i));
         }
+    }
+
+    public void testMultiField() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+            .field("type", "geo_point").startObject("fields")
+            .startObject("geohash").field("type", "geo_point").field("geohash_precision", 12).field("geohash_prefix", true).endObject()
+            .startObject("latlon").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
+            .addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+
+        // create index and add random test points
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        for (int i=0; i<numDocs; ++i) {
+            final GeoPoint pt = RandomGeoGenerator.randomPoint(random());
+            client().prepareIndex("test", "pin").setSource(jsonBuilder().startObject().startObject("location").field("lat", pt.lat())
+                .field("lon", pt.lon()).endObject().endObject()).setRefresh(true).execute().actionGet();
+        }
+
+        // query by geohash subfield
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        assertEquals(numDocs, searchResponse.getHits().totalHits());
+
+        // query by latlon subfield
+        searchResponse = client().prepareSearch().addField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
+        assertEquals(numDocs, searchResponse.getHits().totalHits());
     }
 }

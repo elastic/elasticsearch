@@ -19,17 +19,17 @@
 
 package org.elasticsearch.plugin.example;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 
-import java.io.IOException;
-import java.nio.file.Path;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.Files.newBufferedReader;
+
 import static org.elasticsearch.common.io.Streams.copyToString;
 
 /**
@@ -38,7 +38,6 @@ import static org.elasticsearch.common.io.Streams.copyToString;
 public class ExamplePluginConfiguration {
     private String test = "not set in config";
 
-    @Inject
     public ExamplePluginConfiguration(Environment env) throws IOException {
         // The directory part of the location matches the artifactId of this plugin
         Path configFile = env.configFile().resolve("jvm-example/example.yaml");

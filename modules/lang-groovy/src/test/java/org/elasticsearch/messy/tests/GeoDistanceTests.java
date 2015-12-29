@@ -19,6 +19,7 @@
 
 package org.elasticsearch.messy.tests;
 
+import org.apache.lucene.util.GeoDistanceUtils;
 import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -767,7 +768,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             if (version.before(Version.V_2_2_0)) {
                 distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
             } else {
-                final double maxRadius = GeoUtils.maxRadialDistance(origin);
+                final double maxRadius = GeoDistanceUtils.maxRadialDistanceMeters(origin.lon(), origin.lat());
                 distance = DistanceUnit.METERS.toString(randomInt((int)maxRadius));
             }
             // test geodistance methods

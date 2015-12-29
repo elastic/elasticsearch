@@ -61,6 +61,11 @@ public class UpgradeIT extends ESBackcompatTestCase {
         return 2;
     }
 
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return Math.max(0, Math.min(backwardsCluster().numBackwardsDataNodes(), backwardsCluster().numNewDataNodes()) - 1);
+    }
+
     public void testUpgrade() throws Exception {
         // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
         Settings.Builder builder = Settings.builder();

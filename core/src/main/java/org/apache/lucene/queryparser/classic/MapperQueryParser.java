@@ -23,7 +23,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -35,7 +42,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -54,7 +66,6 @@ public class MapperQueryParser extends QueryParser {
     static {
         Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
         fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
-        fieldQueryExtensions.put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension());
         FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
     }
 
@@ -215,7 +226,7 @@ public class MapperQueryParser extends QueryParser {
                         }
                     }
                     if (query == null) {
-                        query = super.getFieldQuery(currentFieldType.names().indexName(), queryText, quoted);
+                        query = super.getFieldQuery(currentFieldType.name(), queryText, quoted);
                     }
                     return query;
                 }
@@ -455,7 +466,7 @@ public class MapperQueryParser extends QueryParser {
                     query = currentFieldType.prefixQuery(termStr, multiTermRewriteMethod, context);
                 }
                 if (query == null) {
-                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.names().indexName(), termStr);
+                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
                 }
                 return query;
             }
@@ -581,7 +592,7 @@ public class MapperQueryParser extends QueryParser {
                 if (!settings.forceAnalyzer()) {
                     setAnalyzer(context.getSearchAnalyzer(currentFieldType));
                 }
-                indexedNameField = currentFieldType.names().indexName();
+                indexedNameField = currentFieldType.name();
                 return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
             }
             return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);

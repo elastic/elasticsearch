@@ -24,7 +24,11 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This class defines an official elasticsearch extension point. It registers
@@ -123,7 +127,7 @@ public abstract class ExtensionPoint {
     public static final class SelectedType<T> extends ClassMap<T> {
 
         public SelectedType(String name, Class<T> extensionClass) {
-            super(name, extensionClass, Collections.EMPTY_SET);
+            super(name, extensionClass, Collections.emptySet());
         }
 
         /**

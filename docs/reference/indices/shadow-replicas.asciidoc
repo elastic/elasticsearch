@@ -104,9 +104,8 @@ settings API:
 
 `index.shared_filesystem.recover_on_any_node`::
     Boolean value indicating whether the primary shards for the index should be
-    allowed to recover on any node in the cluster, regardless of the number of
-    replicas or whether the node has previously had the shard allocated to it
-    before. Defaults to `false`.
+    allowed to recover on any node in the cluster. If a node holding a copy of
+    the shard is found, recovery prefers that node. Defaults to `false`.
 
 === Node level settings related to shadow replicas
 

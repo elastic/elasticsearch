@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.carrotsearch.hppc.DoubleArrayList;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;

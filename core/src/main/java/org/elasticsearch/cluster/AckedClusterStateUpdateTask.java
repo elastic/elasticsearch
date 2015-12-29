@@ -22,18 +22,24 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask {
+public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
 
     private final ActionListener<Response> listener;
     private final AckedRequest request;
 
     protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<Response> listener) {
+        this(Priority.NORMAL, request, listener);
+    }
+
+    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request, ActionListener<Response> listener) {
+        super(priority);
         this.listener = listener;
         this.request = request;
     }

@@ -134,6 +134,26 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             public ParseFieldMatcher parseFieldMatcher() {
                 return parseFieldMatcher;
             }
+
+            public boolean isWithinMultiField() { return false; }
+
+            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
+
+            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
+
+            public ParserContext createMultiFieldContext(ParserContext in) {
+                return new MultiFieldParserContext(in) {
+                    @Override
+                    public boolean isWithinMultiField() { return true; }
+                };
+            }
+
+            static class MultiFieldParserContext extends ParserContext {
+                MultiFieldParserContext(ParserContext in) {
+                    super(in.type(), in.analysisService, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher());
+                }
+            }
+
         }
 
         Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
@@ -154,5 +174,14 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
     public abstract String name();
 
-    public abstract void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
+    /** Return the merge of {@code mergeWith} into this.
+     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
+    public abstract Mapper merge(Mapper mergeWith, boolean updateAllTypes);
+
+    /**
+     * Update the field type of this mapper. This is necessary because some mapping updates
+     * can modify mappings across several types. This method must return a copy of the mapper
+     * so that the current mapper is not modified.
+     */
+    public abstract Mapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType);
 }

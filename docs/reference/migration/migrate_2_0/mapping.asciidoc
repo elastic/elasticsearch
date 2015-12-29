@@ -429,3 +429,11 @@ to use the old default of 0. This was done to prevent phrase queries from
 matching across different values of the same term unexpectedly. Specifically,
 100 was chosen to cause phrase queries with slops up to 99 to match only within
 a single value of a field.
+
+==== copy_to and multi fields
+
+A <<copy-to,copy_to>> within a <<multi-fields,multi field>> is ignored from version 2.0 on. With any version after
+2.1 or 2.0.1 creating a mapping that has a copy_to within a multi field will result 
+in an exception.
+
+

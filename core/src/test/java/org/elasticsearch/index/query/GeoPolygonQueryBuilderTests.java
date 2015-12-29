@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -329,15 +328,15 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"geo_polygon\" : {\n" + 
-                "    \"person.location\" : {\n" + 
-                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" + 
-                "    },\n" + 
-                "    \"coerce\" : false,\n" + 
-                "    \"ignore_malformed\" : false,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
+                "    },\n" +
+                "    \"coerce\" : false,\n" +
+                "    \"ignore_malformed\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

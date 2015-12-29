@@ -184,13 +184,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * The parent id is used for the upsert request and also implicitely sets the routing if not already set.
+     * The parent id is used for the upsert request.
      */
     public UpdateRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 

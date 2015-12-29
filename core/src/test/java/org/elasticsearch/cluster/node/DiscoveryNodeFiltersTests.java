@@ -246,7 +246,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.settingsBuilder();
         List<String> keys = new ArrayList<>(source.getAsMap().keySet());
-        Collections.shuffle(keys, getRandom());
+        Collections.shuffle(keys, random());
         for (String o : keys) {
             settings.put(o, source.getAsMap().get(o));
         }

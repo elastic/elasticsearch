@@ -70,7 +70,6 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -805,32 +804,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(existsQuery("obj1")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
-
-        searchResponse = client().prepareSearch().setQuery(missingQuery("field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(missingQuery("field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(missingQuery("field1"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("_missing_:field1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        // wildcard check
-        searchResponse = client().prepareSearch().setQuery(missingQuery("x*")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
-
-        // object check
-        searchResponse = client().prepareSearch().setQuery(missingQuery("obj1")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "3", "4");
     }
 
     public void testPassQueryOrFilterAsJSONString() throws Exception {
@@ -1043,6 +1016,59 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("1"));
+        // Min should match > # optional clauses returns no docs.
+        multiMatchQuery = multiMatchQuery("value1 value2 value3", "field1", "field2");
+        multiMatchQuery.minimumShouldMatch("4");
+        searchResponse = client().prepareSearch().setQuery(multiMatchQuery).get();
+        assertHitCount(searchResponse, 0l);
+    }
+
+    public void testBoolQueryMinShouldMatchBiggerThanNumberOfShouldClauses() throws IOException {
+        createIndex("test");
+        client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
+        refresh();
+
+        BoolQueryBuilder boolQuery = boolQuery()
+            .must(termQuery("field1", "value1"))
+            .should(boolQuery()
+                .should(termQuery("field1", "value1"))
+                .should(termQuery("field1", "value2"))
+                .minimumNumberShouldMatch(3));
+        SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("1"));
+
+        boolQuery = boolQuery()
+            .must(termQuery("field1", "value1"))
+            .should(boolQuery()
+                .should(termQuery("field1", "value1"))
+                .should(termQuery("field1", "value2"))
+                .minimumNumberShouldMatch(1))
+            // Only one should clause is defined, returns no docs.
+            .minimumNumberShouldMatch(2);
+        searchResponse = client().prepareSearch().setQuery(boolQuery).get();
+        assertHitCount(searchResponse, 0l);
+
+        boolQuery = boolQuery()
+            .should(termQuery("field1", "value1"))
+            .should(boolQuery()
+                .should(termQuery("field1", "value1"))
+                .should(termQuery("field1", "value2"))
+                .minimumNumberShouldMatch(3))
+            .minimumNumberShouldMatch(1);
+        searchResponse = client().prepareSearch().setQuery(boolQuery).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("1"));
+
+        boolQuery = boolQuery()
+            .must(termQuery("field1", "value1"))
+            .must(boolQuery()
+                .should(termQuery("field1", "value1"))
+                .should(termQuery("field1", "value2"))
+                .minimumNumberShouldMatch(3));
+        searchResponse = client().prepareSearch().setQuery(boolQuery).get();
+        assertHitCount(searchResponse, 0l);
     }
 
     public void testFuzzyQueryString() {

@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public class MovAvgModelStreams {
 
-    private static Map<String, Stream> STREAMS = Collections.EMPTY_MAP;
+    private static Map<String, Stream> STREAMS = Collections.emptyMap();
 
     static {
         HashMap<String, Stream> map = new HashMap<>();

@@ -24,6 +24,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -41,9 +44,11 @@ import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -69,6 +74,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(LongFieldMapper.class));
 
@@ -93,6 +99,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
 
+        defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(StringFieldMapper.class));
 
@@ -109,7 +116,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -143,7 +150,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -180,7 +187,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = parser.parse(mapping);
+            DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
             //Test numbers passed as strings
             String invalidJsonNumberAsString="1";
@@ -280,7 +287,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -316,7 +323,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -348,7 +355,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .field("date_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -398,7 +405,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -468,7 +475,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -509,5 +516,63 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         TokenStream ts = field.tokenStream(null, null);
         assertThat(ts, instanceOf(NumericTokenStream.class));
         assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
+    }
+
+    public void testTermVectorsBackCompat() throws Exception {
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            doTestTermVectorsBackCompat(type);
+        }
+    }
+
+    private void doTestTermVectorsBackCompat(String type) throws Exception {
+        DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+        String mappingWithTV = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .field("term_vector", "yes")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        try {
+            parser.parse("type", new CompressedXContent(mappingWithTV));
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [term_vector : yes]"));
+        }
+
+        Settings oldIndexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
+                .build();
+        parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
+        parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
+    }
+
+    public void testAnalyzerBackCompat() throws Exception {
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            doTestAnalyzerBackCompat(type);
+        }
+    }
+
+    private void doTestAnalyzerBackCompat(String type) throws Exception {
+        DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+        String mappingWithTV = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .field("analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        try {
+            parser.parse("type", new CompressedXContent(mappingWithTV));
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [analyzer : keyword]"));
+        }
+
+        Settings oldIndexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
+                .build();
+        parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
+        parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
     }
 }

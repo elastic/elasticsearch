@@ -45,7 +45,7 @@ subprojects {
           }
         }
       }
-    }  
+    }
     extraArchive {
       javadoc = true
       tests = false
@@ -86,8 +86,8 @@ subprojects {
     tasks.withType(Jar) {
       into('META-INF') {
         from project.rootProject.rootDir
-        include 'LICENSE.txt'   
-        include 'NOTICE.txt'   
+        include 'LICENSE.txt'
+        include 'NOTICE.txt'
       }
     }
     // ignore missing javadocs
@@ -97,16 +97,24 @@ subprojects {
       // the "value" -quiet is added, separated by a space. This is ok since the javadoc
       // command already adds -quiet, so we are just duplicating it
       // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+      javadoc.options.encoding='UTF8'
       javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
     }
   }
 
+  /* Sets up the dependencies that we build as part of this project but
+    register as thought they were external to resolve internally. We register
+    them as external dependencies so the build plugin that we use can be used
+    to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
-    "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.test:framework:${version}": ':test:framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar'
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
@@ -123,8 +131,8 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test-framework') {
-      // :test-framework:test cannot run before and after :core:test
+    if (project.path == ':test:framework') {
+      // :test:framework:test cannot run before and after :core:test
       return
     }
     configurations.all {
@@ -161,6 +169,30 @@ gradle.projectsEvaluated {
 // intellij configuration
 allprojects {
   apply plugin: 'idea'
+
+  idea {
+    module {
+      // same as for the IntelliJ Gradle tooling integration
+      inheritOutputDirs = false
+      outputDir = file('build/classes/main')
+      testOutputDir = file('build/classes/test')
+
+      iml {
+        // fix so that Gradle idea plugin properly generates support for resource folders
+        // see also https://issues.gradle.org/browse/GRADLE-2975
+        withXml {
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-resource')
+          }
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-test-resource')
+          }
+        }
+      }
+    }
+  }
 }
 
 idea {
@@ -177,6 +209,12 @@ tasks.idea.doLast {
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
   throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
 }
+// add buildSrc itself as a groovy project
+task buildSrcIdea(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanIdea', 'ideaModule']
+}
+tasks.idea.dependsOn(buildSrcIdea)
 
 
 // eclipse configuration
@@ -226,7 +264,7 @@ class Run extends DefaultTask {
   )
   public void setDebug(boolean enabled) {
     project.project(':distribution').run.clusterConfig.debug = enabled
-  } 
+  }
 }
 task run(type: Run) {
   dependsOn ':distribution:run'
@@ -234,4 +272,3 @@ task run(type: Run) {
   group = 'Verification'
   impliesSubProjects = true
 }
-

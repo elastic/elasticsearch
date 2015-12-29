@@ -31,8 +31,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
@@ -64,7 +62,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -79,7 +77,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         private String path = Defaults.PATH;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
         public Builder required(boolean required) {
@@ -181,7 +179,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -207,11 +205,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
-                    context.ignoredValue(fieldType().names().indexName(), routing);
-                    return;
+                if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                    fields.add(new Field(fieldType().name(), routing, fieldType()));
                 }
-                fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
             }
         }
     }
@@ -250,7 +246,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // do nothing here, no merging, but also no exception
     }
 }

@@ -76,8 +76,6 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
     private static final long RESPONSE_TIMEOUT = 10000L;
     private static final long CONNECTION_TIMEOUT = 10000L;
     private static final String CONTENT_TYPE_TEXT = "text/plain; charset=UTF-8";
-    // TODO make me random
-    private static final InetSocketAddress HOST_ADDR = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9080);
     private static final String PATH1 = "/1";
     private static final String PATH2 = "/2";
     private static final String SOME_RESPONSE_TEXT = "some response for ";
@@ -89,6 +87,8 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
     private final List<String> responses = new ArrayList<>(2);
 
     private HashedWheelTimer timer;
+
+    private InetSocketAddress boundAddress;
 
     @Before
     public void startBootstraps() {
@@ -118,7 +118,8 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
             }
         });
 
-        serverBootstrap.bind(HOST_ADDR);
+        Channel channel = serverBootstrap.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+        boundAddress = (InetSocketAddress) channel.getLocalAddress();
 
         timer = new HashedWheelTimer();
     }
@@ -137,7 +138,7 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
         responsesIn = new CountDownLatch(1);
         responses.clear();
 
-        final ChannelFuture connectionFuture = clientBootstrap.connect(HOST_ADDR);
+        final ChannelFuture connectionFuture = clientBootstrap.connect(boundAddress);
 
         assertTrue(connectionFuture.await(CONNECTION_TIMEOUT));
         final Channel clientChannel = connectionFuture.getChannel();
@@ -145,11 +146,11 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
         // NetworkAddress.formatAddress makes a proper HOST header.
         final HttpRequest request1 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH1);
-        request1.headers().add(HOST, NetworkAddress.formatAddress(HOST_ADDR));
+        request1.headers().add(HOST, NetworkAddress.formatAddress(boundAddress));
 
         final HttpRequest request2 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH2);
-        request2.headers().add(HOST, NetworkAddress.formatAddress(HOST_ADDR));
+        request2.headers().add(HOST, NetworkAddress.formatAddress(boundAddress));
 
         clientChannel.write(request1);
         clientChannel.write(request2);

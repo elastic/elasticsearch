@@ -22,8 +22,8 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
@@ -31,7 +31,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
@@ -59,6 +58,7 @@ import static org.hamcrest.Matchers.not;
 
 @ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
+
     public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -148,8 +148,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             client().admin().indices().preparePutMapping("test").setType("type")
                     .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}").execute().actionGet();
             fail("Expected MergeMappingException");
-        } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] of different type"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [string], merged_type [integer]"));
         }
     }
 
@@ -162,7 +162,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                     .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}").execute()
                     .actionGet();
             fail("Expected MergeMappingException");
-        } catch (MergeMappingException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] has different [omit_norms]"));
         }
     }

@@ -78,7 +78,7 @@ curl -XGET localhost:9200/shirts/_search -d '
   },
   "aggs": {
     "colors": {
-      "terms": { "field": "color" }, <2>
+      "terms": { "field": "color" } <2>
     },
     "color_red": {
       "filter": {

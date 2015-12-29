@@ -32,8 +32,7 @@ import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +77,6 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -120,7 +118,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public Settings nodeSettings(int ord) {
         return Settings.builder()
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 30) // speed up recoveries
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
                 .build();
     }
 
@@ -271,53 +270,13 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public void testOldIndexes() throws Exception {
         setupCluster();
 
-        Collections.shuffle(indexes, getRandom());
+        Collections.shuffle(indexes, random());
         for (String index : indexes) {
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
             assertOldIndexWorks(index);
             logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
         }
-    }
-
-    public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
-        setupCluster();
-        Collections.shuffle(unsupportedIndexes, getRandom());
-        for (String index : unsupportedIndexes) {
-            assertUnsupportedIndexHandling(index);
-        }
-    }
-
-    /**
-     * Waits for the index to show up in the cluster state in closed state
-     */
-    void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(() -> {
-                            ClusterState state = client().admin().cluster().prepareState().get().getState();
-                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-                        }
-                )
-        );
-    }
-
-    /**
-     * Checks that the given index cannot be opened due to incompatible version
-     */
-    void assertUnsupportedIndexHandling(String index) throws Exception {
-        long startTime = System.currentTimeMillis();
-        logger.info("--> Testing old index " + index);
-        String indexName = loadIndex(index);
-        // force reloading dangling indices with a cluster state republish
-        client().admin().cluster().prepareReroute().get();
-        ensureClosed(indexName);
-        try {
-            client().admin().indices().prepareOpen(indexName).get();
-            fail("Shouldn't be able to open an old index");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("was created before v2.0.0.beta1 and wasn't upgraded"));
-        }
-        unloadIndex(indexName);
-        logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
     }
 
     void assertOldIndexWorks(String index) throws Exception {
@@ -381,13 +340,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
-
-        logger.info("--> testing missing filter");
-        // the field for the missing filter here needs to be different than the exists filter above, to avoid being found in the cache
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.missingQuery("long_sort"));
-        searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertEquals(0, searchRsp.getHits().getTotalHits());
     }
 
     void assertBasicAggregationWorks(String indexName) {

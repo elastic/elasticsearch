@@ -52,13 +52,19 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.CollectorResult;
+import org.elasticsearch.search.profile.InternalProfileCollector;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
+import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +130,11 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
+
+        if (searchContext.getProfilers() != null) {
+            List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+            searchContext.queryResult().profileResults(shardResults);
+        }
     }
 
     private static boolean returnsDocsInOrder(Query query, Sort sort) {
@@ -147,6 +158,7 @@ public class QueryPhase implements SearchPhase {
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
 
+        final boolean doProfile = searchContext.getProfilers() != null;
         final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
         try {
@@ -162,9 +174,13 @@ public class QueryPhase implements SearchPhase {
             Callable<TopDocs> topDocsCallable;
 
             assert query == searcher.rewrite(query); // already rewritten
+
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;
+                if (searchContext.getProfilers() != null) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_COUNT, Collections.emptyList());
+                }
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -219,6 +235,9 @@ public class QueryPhase implements SearchPhase {
                     topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
                 }
                 collector = topDocsCollector;
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TOP_HITS, Collections.emptyList());
+                }
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -254,27 +273,57 @@ public class QueryPhase implements SearchPhase {
 
             final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
             if (terminateAfterSet) {
+                final Collector child = collector;
                 // throws Lucene.EarlyTerminationException when given count is reached
                 collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             if (searchContext.parsedPostFilter() != null) {
+                final Collector child = collector;
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
                 final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
                 collector = new FilteredCollector(collector, filterWeight);
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_POST_FILTER,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             // plug in additional collectors, like aggregations
-            List<Collector> allCollectors = new ArrayList<>();
-            allCollectors.add(collector);
-            allCollectors.addAll(searchContext.queryCollectors().values());
-            collector = MultiCollector.wrap(allCollectors);
+            final List<Collector> subCollectors = new ArrayList<>();
+            subCollectors.add(collector);
+            subCollectors.addAll(searchContext.queryCollectors().values());
+            collector = MultiCollector.wrap(subCollectors);
+            if (doProfile && collector instanceof InternalProfileCollector == false) {
+                // When there is a single collector to wrap, MultiCollector returns it
+                // directly, so only wrap in the case that there are several sub collectors
+                final List<InternalProfileCollector> children = new AbstractList<InternalProfileCollector>() {
+                    @Override
+                    public InternalProfileCollector get(int index) {
+                        return (InternalProfileCollector) subCollectors.get(index);
+                    }
+                    @Override
+                    public int size() {
+                        return subCollectors.size();
+                    }
+                };
+                collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_MULTI, children);
+            }
 
             // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
+                final Collector child = collector;
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_MIN_SCORE,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             if (collector.getClass() == TotalHitCountCollector.class) {
@@ -319,13 +368,21 @@ public class QueryPhase implements SearchPhase {
 
             final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
             if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
+                final Collector child = collector;
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
                 collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             try {
                 if (collector != null) {
+                    if (doProfile) {
+                        searchContext.getProfilers().getCurrent().setCollector((InternalProfileCollector) collector);
+                    }
                     searcher.search(query, collector);
                 }
             } catch (TimeLimitingCollector.TimeExceededException e) {
@@ -343,7 +400,13 @@ public class QueryPhase implements SearchPhase {
 
             queryResult.topDocs(topDocsCallable.call());
 
+            if (searchContext.getProfilers() != null) {
+                List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+                searchContext.queryResult().profileResults(shardResults);
+            }
+
             return rescore;
+
         } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }

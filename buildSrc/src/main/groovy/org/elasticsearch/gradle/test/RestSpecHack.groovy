@@ -28,12 +28,12 @@ import org.gradle.api.tasks.Copy
  * currently must be available on the local filesystem. This class encapsulates
  * setting up tasks to copy the rest spec api to test resources.
  */
-class RestSpecHack {
+public class RestSpecHack {
     /**
      * Sets dependencies needed to copy the rest spec.
      * @param project The project to add rest spec dependency to
      */
-    static void configureDependencies(Project project) {
+    public static void configureDependencies(Project project) {
         project.configurations {
             restSpec
         }
@@ -48,7 +48,7 @@ class RestSpecHack {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    static Task configureTask(Project project, boolean includePackagedTests) {
+    public static Task configureTask(Project project, boolean includePackagedTests) {
         Map copyRestSpecProps = [
                 name     : 'copyRestSpec',
                 type     : Copy,
@@ -65,7 +65,6 @@ class RestSpecHack {
         project.idea {
             module {
                 if (scopes.TEST != null) {
-                    // TODO: need to add the TEST scope somehow for rest test plugin...
                     scopes.TEST.plus.add(project.configurations.restSpec)
                 }
             }

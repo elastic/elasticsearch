@@ -22,12 +22,10 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -54,7 +53,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -135,13 +133,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         //noinspection unchecked
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }
 
 
-    public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
+    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting("cluster.blocks.read_only", false, true, Setting.Scope.CLUSTER);
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
@@ -442,13 +440,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
+            if (routing ==  null) {
+                return parent;
+            }
             return routing;
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
+            if (routing == null) {
+                return parent;
+            }
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -462,17 +466,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
-            routing = aliasMd.indexRouting();
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
         }
-        if (routing != null) {
-            if (routing.indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
-            }
+        if (routing == null) {
+            return parent;
         }
         return routing;
     }
@@ -640,9 +646,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            indices = DiffableUtils.diff(before.indices, after.indices);
-            templates = DiffableUtils.diff(before.templates, after.templates);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
@@ -650,16 +656,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData.PROTO);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData.PROTO);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
+                public Custom read(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readDiffFrom(in);
                 }
             });
@@ -745,26 +752,23 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** All known byte-sized cluster settings. */
     public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
-        RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC));
+        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(),
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
 
     /** All known time cluster settings. */
     public static final Set<String> CLUSTER_TIME_SETTINGS = unmodifiableSet(newHashSet(
-                                    IndicesTTLService.INDICES_TTL_INTERVAL,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK,
-                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT,
-                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT,
-                                    DiscoverySettings.PUBLISH_TIMEOUT,
-                                    InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD));
+                                    IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
+                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
+                                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
+                                    InternalClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey()));
 
     /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
      *  specify a unit. */
@@ -1029,12 +1033,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex.Alias aliasOrIndex = (AliasOrIndex.Alias) aliasAndIndexLookup.get(aliasMetaData.getAlias());
+                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
                     if (aliasOrIndex == null) {
                         aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
+                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                        alias.addIndex(indexMetaData);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
+                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index [" + index.getIndex().getIndex() + "] have the same name");
                     } else {
-                        aliasOrIndex.addIndex(indexMetaData);
+                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }
                 }
             }

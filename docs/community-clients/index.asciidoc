@@ -144,9 +144,6 @@ Also see the {client}/php-api/current/index.html[official Elasticsearch PHP clie
 
 Also see the {client}/python-api/current/index.html[official Elasticsearch Python client].
 
-* http://github.com/elasticsearch/elasticsearch-dsl-py[elasticsearch-dsl-py]
-  chainable query and filter construction built on top of official client.
-
 * http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
   Python client.
 

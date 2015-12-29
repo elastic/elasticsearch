@@ -42,7 +42,7 @@
                 \d+         \s+                                 # total_bytes
                 \d+         \s+                                 # translog
                 -?\d+\.\d+% \s+                                 # translog_percent
-                -?\d+       \s+                                 # total_translog
+                -?\d+                                           # total_translog
                 \n
               )+
               $/

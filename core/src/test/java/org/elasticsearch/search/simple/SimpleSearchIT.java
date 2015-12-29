@@ -333,9 +333,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        createIndex("idx");
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("num", 34));
-        
+        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        ensureGreen("idx");
+
         try {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");

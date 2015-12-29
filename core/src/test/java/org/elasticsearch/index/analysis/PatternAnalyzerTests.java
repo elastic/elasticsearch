@@ -19,13 +19,13 @@ package org.elasticsearch.index.analysis;
  * under the License.
  */
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.regex.Pattern;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.regex.Pattern;
 
 /**
  * Verifies the behavior of PatternAnalyzer.
@@ -38,13 +38,13 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   public void testNonWordPattern() throws IOException {
     // Split on non-letter pattern, do not lowercase, no stopwords
     PatternAnalyzer a = new PatternAnalyzer(Pattern.compile("\\W+"), false, null);
-    assertAnalyzesTo(a, "The quick brown Fox,the abcd1234 (56.78) dc.", 
+    assertAnalyzesTo(a, "The quick brown Fox,the abcd1234 (56.78) dc.",
                         new String[] { "The", "quick", "brown", "Fox", "the", "abcd1234", "56", "78", "dc" });
 
     // split on non-letter pattern, lowercase, english stopwords
-    PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\W+"), true, 
+    PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\W+"), true,
                                             StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-    assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.", 
+    assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.",
                          new String[] { "quick", "brown", "fox", "abcd1234", "56", "78", "dc" });
   }
 
@@ -55,13 +55,13 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   public void testWhitespacePattern() throws IOException {
     // Split on whitespace patterns, do not lowercase, no stopwords
     PatternAnalyzer a = new PatternAnalyzer(Pattern.compile("\\s+"), false, null);
-    assertAnalyzesTo(a, "The quick brown Fox,the abcd1234 (56.78) dc.", 
+    assertAnalyzesTo(a, "The quick brown Fox,the abcd1234 (56.78) dc.",
                         new String[] { "The", "quick", "brown", "Fox,the", "abcd1234", "(56.78)", "dc." });
 
     // Split on whitespace patterns, lowercase, english stopwords
-    PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\s+"), true, 
+    PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\s+"), true,
                                             StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-    assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.", 
+    assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.",
                          new String[] { "quick", "brown", "fox,the", "abcd1234", "(56.78)", "dc." });
   }
 
@@ -72,13 +72,13 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   public void testCustomPattern() throws IOException {
     // Split on comma, do not lowercase, no stopwords
     PatternAnalyzer a = new PatternAnalyzer(Pattern.compile(","), false, null);
-    assertAnalyzesTo(a, "Here,Are,some,Comma,separated,words,", 
+    assertAnalyzesTo(a, "Here,Are,some,Comma,separated,words,",
                          new String[] { "Here", "Are", "some", "Comma", "separated", "words" });
 
     // split on comma, lowercase, english stopwords
     PatternAnalyzer b = new PatternAnalyzer(Pattern.compile(","), true,
                                              StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-    assertAnalyzesTo(b, "Here,Are,some,Comma,separated,words,", 
+    assertAnalyzesTo(b, "Here,Are,some,Comma,separated,words,",
                          new String[] { "here", "some", "comma", "separated", "words" });
   }
 
@@ -102,10 +102,10 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
 
     // Split on whitespace patterns, do not lowercase, no stopwords
     PatternAnalyzer a = new PatternAnalyzer(Pattern.compile("\\s+"), false, null);
-    assertAnalyzesTo(a, document.toString(), 
+    assertAnalyzesTo(a, document.toString(),
                          new String[] { new String(largeWord), new String(largeWord2) });
   }
-  
+
   /** blast some random strings through the analyzer */
   public void testRandomStrings() throws Exception {
     Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);

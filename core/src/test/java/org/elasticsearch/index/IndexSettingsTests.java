@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -95,7 +96,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testSettingsConsistency() {
         Version version = VersionUtils.getPreviousVersion();
         IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build());
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY, Collections.EMPTY_LIST);
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
         try {
@@ -106,7 +107,7 @@ public class IndexSettingsTests extends ESTestCase {
         }
 
         metaData = newIndexMeta("index", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build());
-        settings = new IndexSettings(metaData, Settings.EMPTY, Collections.EMPTY_LIST);
+        settings = new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("index.test.setting.int", 42).build()));
             fail("uuid missing/change");
@@ -155,6 +156,24 @@ public class IndexSettingsTests extends ESTestCase {
                 .build();
         IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
         return metaData;
+    }
+
+
+    public void testUpdateDurability() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, "async")
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
+        assertEquals(Translog.Durability.ASYNC, settings.getTranslogDurability());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, "request").build()));
+        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability());
+
+        metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
+        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability()); // test default
     }
 
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.indexedscripts.put;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;

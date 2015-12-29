@@ -43,9 +43,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -131,7 +132,7 @@ public class Requests {
     public static SuggestRequest suggestRequest(String... indices) {
         return new SuggestRequest(indices);
     }
-    
+
     /**
      * Creates a search request against one or more indices. Note, the search source must be set either using the
      * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.
@@ -263,6 +264,17 @@ public class Requests {
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
+    }
+
+    /**
+     * Creates a synced flush indices request.
+     *
+     * @param indices The indices to sync flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The synced flush request
+     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
+     */
+    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
+        return new SyncedFlushRequest(indices);
     }
 
     /**

@@ -65,8 +65,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -294,7 +292,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         if (readOnly()) {
             throw new RepositoryException(this.repositoryName, "cannot delete snapshot from a readonly repository");
         }
-        List<String> indices = Collections.EMPTY_LIST;
+        List<String> indices = Collections.emptyList();
         Snapshot snapshot = null;
         try {
             snapshot = readSnapshot(snapshotId);

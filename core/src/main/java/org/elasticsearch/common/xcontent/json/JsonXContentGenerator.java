@@ -26,13 +26,19 @@ import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentString;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,11 +64,14 @@ public class JsonXContentGenerator implements XContentGenerator {
      */
     private final FilteringGeneratorDelegate filter;
 
+    private final OutputStream os;
+
     private boolean writeLineFeedAtEnd;
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
+    private boolean prettyPrint = false;
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, String... filters) {
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
         } else {
@@ -76,6 +85,8 @@ public class JsonXContentGenerator implements XContentGenerator {
             this.filter = new FilteringGeneratorDelegate(jsonGenerator, new FilterPathBasedFilter(filters), true, true);
             this.generator = this.filter;
         }
+
+        this.os = os;
     }
 
     @Override
@@ -86,6 +97,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public final void usePrettyPrint() {
         generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER));
+        prettyPrint = true;
     }
 
     @Override
@@ -323,22 +335,16 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        writeRawField(fieldName, new BytesArray(content), bos);
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        writeRawField(fieldName, new BytesArray(content, offset, length), bos);
-    }
-
-    @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos, XContentType contentType) throws IOException {
-        if (isFiltered() || (contentType != contentType())) {
-            // When the current generator is filtered (ie filter != null)
-            // or the content is in a different format than the current generator,
-            // we need to copy the whole structure so that it will be correctly
-            // filtered or converted
+    public void writeRawField(String fieldName, InputStream content) throws IOException {
+        if (content.markSupported() == false) {
+            // needed for the XContentFactory.xContentType call
+            content = new BufferedInputStream(content);
+        }
+        XContentType contentType = XContentFactory.xContentType(content);
+        if (contentType == null) {
+            throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
+        }
+        if (mayWriteRawData(contentType) == false) {
             try (XContentParser parser = XContentFactory.xContent(contentType).createParser(content)) {
                 parser.nextToken();
                 writeFieldName(fieldName);
@@ -347,58 +353,65 @@ public class JsonXContentGenerator implements XContentGenerator {
         } else {
             writeStartRaw(fieldName);
             flush();
-            Streams.copy(content, bos);
+            Streams.copy(content, os);
             writeEndRaw();
         }
     }
 
     @Override
-    public final void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+    public final void writeRawField(String fieldName, BytesReference content) throws IOException {
         XContentType contentType = XContentFactory.xContentType(content);
-        if (contentType != null) {
-            if (isFiltered() || (contentType != contentType())) {
-                // When the current generator is filtered (ie filter != null)
-                // or the content is in a different format than the current generator,
-                // we need to copy the whole structure so that it will be correctly
-                // filtered or converted
-                copyRawField(fieldName, content, contentType.xContent());
-            } else {
-                // Otherwise, the generator is not filtered and has the same type: we can potentially optimize the write
-                writeObjectRaw(fieldName, content, bos);
-            }
-        } else {
+        if (contentType == null) {
+            throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
+        }
+        if (mayWriteRawData(contentType) == false) {
             writeFieldName(fieldName);
-            // we could potentially optimize this to not rely on exception logic...
-            String sValue = content.toUtf8();
-            try {
-                writeNumber(Long.parseLong(sValue));
-            } catch (NumberFormatException e) {
-                try {
-                    writeNumber(Double.parseDouble(sValue));
-                } catch (NumberFormatException e1) {
-                    writeString(sValue);
-                }
-            }
+            copyRawValue(content, contentType.xContent());
+        } else {
+            writeStartRaw(fieldName);
+            flush();
+            content.writeTo(os);
+            writeEndRaw();
         }
     }
 
-    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        writeStartRaw(fieldName);
-        flush();
-        content.writeTo(bos);
-        writeEndRaw();
+    public final void writeRawValue(BytesReference content) throws IOException {
+        XContentType contentType = XContentFactory.xContentType(content);
+        if (contentType == null) {
+            throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
+        }
+        if (mayWriteRawData(contentType) == false) {
+            copyRawValue(content, contentType.xContent());
+        } else {
+            flush();
+            content.writeTo(os);
+            writeEndRaw();
+        }
     }
 
-    protected void copyRawField(String fieldName, BytesReference content, XContent xContent) throws IOException {
+    private boolean mayWriteRawData(XContentType contentType) {
+        // When the current generator is filtered (ie filter != null)
+        // or the content is in a different format than the current generator,
+        // we need to copy the whole structure so that it will be correctly
+        // filtered or converted
+        return supportsRawWrites()
+                && isFiltered() == false
+                && contentType == contentType()
+                && prettyPrint == false;
+    }
+
+    /** Whether this generator supports writing raw data directly */
+    protected boolean supportsRawWrites() {
+        return true;
+    }
+
+    protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
         XContentParser parser = null;
         try {
             if (content.hasArray()) {
                 parser = xContent.createParser(content.array(), content.arrayOffset(), content.length());
             } else {
                 parser = xContent.createParser(content.streamInput());
-            }
-            if (fieldName != null) {
-                writeFieldName(fieldName);
             }
             copyCurrentStructure(parser);
         } finally {

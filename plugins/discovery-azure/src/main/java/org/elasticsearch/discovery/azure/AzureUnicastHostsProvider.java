@@ -19,8 +19,11 @@
 
 package org.elasticsearch.discovery.azure;
 
-import com.microsoft.windowsazure.management.compute.models.*;
-
+import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
+import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
+import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
+import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
@@ -41,8 +44,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 
 /**
  *

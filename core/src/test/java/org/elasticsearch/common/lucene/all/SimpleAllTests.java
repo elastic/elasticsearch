@@ -220,6 +220,41 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
+    public void testTermMissingFromOneSegment() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+
+        Document doc = new Document();
+        doc.add(new Field("_id", "1", StoredField.TYPE));
+        AllEntries allEntries = new AllEntries();
+        allEntries.addText("field", "something", 2.0f);
+        allEntries.reset();
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+
+        indexWriter.addDocument(doc);
+        indexWriter.commit();
+
+        doc = new Document();
+        doc.add(new Field("_id", "2", StoredField.TYPE));
+        allEntries = new AllEntries();
+        allEntries.addText("field", "else", 1.0f);
+        allEntries.reset();
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+
+        indexWriter.addDocument(doc);
+
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        assertEquals(2, reader.leaves().size());
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        // "something" only appears in the first segment:
+        Query query = new AllTermQuery(new Term("_all", "something"));
+        TopDocs docs = searcher.search(query, 10);
+        assertEquals(1, docs.totalHits);
+
+        indexWriter.close();
+    }
+
     public void testMultipleTokensAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));

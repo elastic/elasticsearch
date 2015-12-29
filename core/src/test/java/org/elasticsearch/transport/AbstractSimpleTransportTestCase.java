@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,12 +70,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
         serviceA = build(
-                Settings.builder().put("name", "TS_A", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                Settings.builder().put("name", "TS_A", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
                 version0, new NamedWriteableRegistry()
         );
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
         serviceB = build(
-                Settings.builder().put("name", "TS_B", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                Settings.builder().put("name", "TS_B", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
                 version1, new NamedWriteableRegistry()
         );
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
@@ -650,9 +651,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             includeSettings = "test";
             excludeSettings = "DOESN'T_MATCH";
         }
-
-        serviceA.applySettings(Settings.builder()
-                .put(TransportService.SETTING_TRACE_LOG_INCLUDE, includeSettings, TransportService.SETTING_TRACE_LOG_EXCLUDE, excludeSettings)
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        serviceA.setDynamicSettings(service);
+        service.applySettings(Settings.builder()
+                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings, TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
                 .build());
 
         tracer.reset(4);

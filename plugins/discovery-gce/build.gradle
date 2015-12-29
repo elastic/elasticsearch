@@ -31,3 +31,6 @@ test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 
 }
+
+// classes are missing, e.g. org.apache.log.Logger
+thirdPartyAudit.missingClasses = true

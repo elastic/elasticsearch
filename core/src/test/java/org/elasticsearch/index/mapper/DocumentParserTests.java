@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -31,7 +32,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .field("enabled", false).endObject().endObject().string();
-        DocumentMapper mapper = mapperParser.parse(mapping);
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject().startObject("foo")
@@ -48,7 +49,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .startObject("foo").field("enabled", false).endObject()
             .startObject("bar").field("type", "integer").endObject()
             .endObject().endObject().endObject().string();
-        DocumentMapper mapper = mapperParser.parse(mapping);
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject()

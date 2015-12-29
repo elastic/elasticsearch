@@ -33,7 +33,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -50,7 +55,11 @@ import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
@@ -65,7 +74,11 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -247,7 +260,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } else {
                 final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
-                indexSettings = new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
+                indexSettings = new IndexSettings(metaData, settings, Collections.emptyList());
                 indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
             }
             try {
@@ -351,7 +364,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we only create / update here
                 continue;
             }
-            List<String> typesToRefresh = new ArrayList<>();
+            boolean requireRefresh = false;
             String index = indexMetaData.getIndex();
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -360,31 +373,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             try {
                 MapperService mapperService = indexService.mapperService();
-                // first, go over and update the _default_ mapping (if exists)
-                if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                    boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
-                    if (requireRefresh) {
-                        typesToRefresh.add(MapperService.DEFAULT_MAPPING);
-                    }
-                }
-
                 // go over and add the relevant mappings (or update them)
                 for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                     MappingMetaData mappingMd = cursor.value;
                     String mappingType = mappingMd.type();
                     CompressedXContent mappingSource = mappingMd.source();
-                    if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
-                        continue;
-                    }
-                    boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
-                    if (requireRefresh) {
-                        typesToRefresh.add(mappingType);
-                    }
+                    requireRefresh |= processMapping(index, mapperService, mappingType, mappingSource);
                 }
-                if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
+                if (requireRefresh && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.getIndexUUID(),
-                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
+                                    event.state().nodes().localNodeId())
                     );
                 }
             } catch (Throwable t) {
@@ -400,50 +399,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedXContent mappingSource) throws Throwable {
-        if (!seenMappings.containsKey(new Tuple<>(index, mappingType))) {
-            seenMappings.put(new Tuple<>(index, mappingType), true);
-        }
-
-        // refresh mapping can happen for 2 reasons. The first is less urgent, and happens when the mapping on this
-        // node is ahead of what there is in the cluster state (yet an update-mapping has been sent to it already,
-        // it just hasn't been processed yet and published). Eventually, the mappings will converge, and the refresh
-        // mapping sent is more of a safe keeping (assuming the update mapping failed to reach the master, ...)
-        // the second case is where the parsing/merging of the mapping from the metadata doesn't result in the same
+        // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
         // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
         // merge version of it, which it does when refreshing the mappings), and warn log it.
         boolean requiresRefresh = false;
         try {
-            if (!mapperService.hasMapping(mappingType)) {
+            DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+
+            if (existingMapper == null || mappingSource.equals(existingMapper.mappingSource()) == false) {
+                String op = existingMapper == null ? "adding" : "updating";
                 if (logger.isDebugEnabled() && mappingSource.compressed().length < 512) {
-                    logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                    logger.debug("[{}] {} mapping [{}], source [{}]", index, op, mappingType, mappingSource.string());
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                    logger.trace("[{}] {} mapping [{}], source [{}]", index, op, mappingType, mappingSource.string());
                 } else {
-                    logger.debug("[{}] adding mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
+                    logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, op, mappingType);
                 }
                 // we don't apply default, since it has been applied when the mappings were parsed initially
                 mapperService.merge(mappingType, mappingSource, false, true);
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
-                }
-            } else {
-                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
-                if (!mappingSource.equals(existingMapper.mappingSource())) {
-                    // mapping changed, update it
-                    if (logger.isDebugEnabled() && mappingSource.compressed().length < 512) {
-                        logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
-                    } else if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
-                    } else {
-                        logger.debug("[{}] updating mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
-                    }
-                    // we don't apply default, since it has been applied when the mappings were parsed initially
-                    mapperService.merge(mappingType, mappingSource, false, true);
-                    if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-                        requiresRefresh = true;
-                        logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
-                    }
                 }
             }
         } catch (Throwable e) {
@@ -783,17 +759,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } catch (Throwable e) {
             logger.warn("failed to clean index ({})", e, reason);
         }
-        clearSeenMappings(index);
 
-    }
-
-    private void clearSeenMappings(String index) {
-        // clear seen mappings as well
-        for (Tuple<String, String> tuple : seenMappings.keySet()) {
-            if (tuple.v1().equals(index)) {
-                seenMappings.remove(tuple);
-            }
-        }
     }
 
     private void deleteIndex(String index, String reason) {
@@ -802,8 +768,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } catch (Throwable e) {
             logger.warn("failed to delete index ({})", e, reason);
         }
-        // clear seen mappings as well
-        clearSeenMappings(index);
 
     }
 

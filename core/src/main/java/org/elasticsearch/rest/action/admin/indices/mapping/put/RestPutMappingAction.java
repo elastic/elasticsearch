@@ -26,7 +26,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -51,7 +54,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
         controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
         controller.registerHandler(POST, "/_mapping/{type}", this);
-        
+
         //register the same paths, but with plural form _mappings
         controller.registerHandler(PUT, "/{index}/_mappings/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);

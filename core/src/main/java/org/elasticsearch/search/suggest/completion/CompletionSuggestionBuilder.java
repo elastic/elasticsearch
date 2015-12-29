@@ -30,15 +30,19 @@ import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
-import java.util.*;
-
-import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Defines a suggest command based on a prefix, typically to provide "auto-complete" functionality
  * for users as they type search terms. The implementation of the completion service uses FSTs that
- * are created at index-time and so must be defined in the mapping with the type "completion" before 
- * indexing.  
+ * are created at index-time and so must be defined in the mapping with the type "completion" before
+ * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;

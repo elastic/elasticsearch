@@ -5,8 +5,21 @@ import com.carrotsearch.ant.tasks.junit4.Pluralize
 import com.carrotsearch.ant.tasks.junit4.TestsSummaryEventListener
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Strings
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe
-import com.carrotsearch.ant.tasks.junit4.events.*
-import com.carrotsearch.ant.tasks.junit4.events.aggregated.*
+import com.carrotsearch.ant.tasks.junit4.events.EventType
+import com.carrotsearch.ant.tasks.junit4.events.IEvent
+import com.carrotsearch.ant.tasks.junit4.events.IStreamEvent
+import com.carrotsearch.ant.tasks.junit4.events.SuiteStartedEvent
+import com.carrotsearch.ant.tasks.junit4.events.TestFinishedEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedQuitEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteStartedEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedTestResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.ChildBootstrap
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.HeartBeatEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.PartialOutputEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus
 import com.carrotsearch.ant.tasks.junit4.events.mirrors.FailureMirror
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import com.carrotsearch.ant.tasks.junit4.listeners.StackTraceFilter
@@ -15,9 +28,17 @@ import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger
 import org.junit.runner.Description
 
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.Clip
+import javax.sound.sampled.Line
+import javax.sound.sampled.LineEvent
+import javax.sound.sampled.LineListener
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDescription
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatTime
 import static com.carrotsearch.gradle.junit4.TestLoggingConfiguration.OutputMode
 
 class TestReportLogger extends TestsSummaryEventListener implements AggregatedEventListener {
@@ -47,9 +68,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     /** Format line for JVM ID string. */
     String jvmIdFormat
-
-    /** Summarize the first N failures at the end. */
-    int showNumFailuresAtEnd = 3
 
     /** Output stream that logs messages to the given logger */
     LoggingOutputStream outStream
@@ -105,18 +123,45 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
                 formatTime(e.getCurrentTime()) + ", stalled for " +
                 formatDurationInSeconds(e.getNoEventDuration()) + " at: " +
                 (e.getDescription() == null ? "<unknown>" : formatDescription(e.getDescription())))
+        try {
+            playBeat();
+        } catch (Exception nosound) { /* handling exceptions with style */ }
         slowTestsFound = true
+    }
+
+    void playBeat() throws Exception {
+        Clip clip = (Clip)AudioSystem.getLine(new Line.Info(Clip.class));
+        final AtomicBoolean stop = new AtomicBoolean();
+        clip.addLineListener(new LineListener() {
+            @Override
+            public void update(LineEvent event) {
+                if (event.getType() == LineEvent.Type.STOP) {
+                    stop.set(true);
+                }
+            }
+        });
+        InputStream stream = getClass().getResourceAsStream("/beat.wav");
+        try {
+            clip.open(AudioSystem.getAudioInputStream(stream));
+            clip.start();
+            while (!stop.get()) {
+                Thread.sleep(20);
+            }
+            clip.close();
+        } finally {
+            stream.close();
+        }
     }
 
     @Subscribe
     void onQuit(AggregatedQuitEvent e) throws IOException {
-        if (showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
+        if (config.showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
             List<Description> sublist = this.failedTests
             StringBuilder b = new StringBuilder()
             b.append('Tests with failures')
-            if (sublist.size() > showNumFailuresAtEnd) {
-                sublist = sublist.subList(0, showNumFailuresAtEnd)
-                b.append(" (first " + showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
+            if (sublist.size() > config.showNumFailuresAtEnd) {
+                sublist = sublist.subList(0, config.showNumFailuresAtEnd)
+                b.append(" (first " + config.showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
             }
             b.append(':\n')
             for (Description description : sublist) {

@@ -22,7 +22,11 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,7 +39,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -136,7 +145,8 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     private String parent;
     @Nullable
     private String timestamp;
-    private long ttl = -1;
+    @Nullable
+    private TimeValue ttl;
 
     private BytesReference source;
 
@@ -229,6 +239,12 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
+
+        if (ttl != null) {
+            if (ttl.millis() < 0) {
+                validationException = addValidationError("ttl must not be negative", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -296,14 +312,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the parent id of this document. If routing is not set, automatically set it as the
-     * routing as well.
+     * Sets the parent id of this document.
      */
     public IndexRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 
@@ -324,22 +336,33 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the relative ttl value. It musts be &gt; 0 as it makes little sense otherwise. Setting it
-     * to <tt>null</tt> will reset to have no ttl.
+     * Sets the ttl value as a time value expression.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
-        if (ttl == null) {
-            this.ttl = -1;
-            return this;
-        }
-        if (ttl <= 0) {
-            throw new IllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
-        }
+    public IndexRequest ttl(String ttl) {
+        this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
+        return this;
+    }
+
+    /**
+     * Sets the ttl as a {@link TimeValue} instance.
+     */
+    public IndexRequest ttl(TimeValue ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public long ttl() {
+    /**
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
+     */
+    public IndexRequest ttl(long ttl) {
+        this.ttl = new TimeValue(ttl);
+        return this;
+    }
+
+    /**
+     * Returns the ttl as a {@link TimeValue}
+     */
+    public TimeValue ttl() {
         return this.ttl;
     }
 
@@ -574,7 +597,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveIndexRouting(parent, routing, index));
 
         // resolve timestamp if provided externally
         if (timestamp != null) {
@@ -665,7 +688,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         timestamp = in.readOptionalString();
-        ttl = in.readLong();
+        ttl = in.readBoolean() ? TimeValue.readTimeValue(in) : null;
         source = in.readBytesReference();
 
         opType = OpType.fromId(in.readByte());
@@ -682,7 +705,12 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         out.writeOptionalString(timestamp);
-        out.writeLong(ttl);
+        if (ttl == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            ttl.writeTo(out);
+        }
         out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);

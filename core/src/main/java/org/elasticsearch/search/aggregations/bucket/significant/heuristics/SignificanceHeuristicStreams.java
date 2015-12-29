@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public class SignificanceHeuristicStreams {
 
-    private static Map<String, Stream> STREAMS = Collections.EMPTY_MAP;
+    private static Map<String, Stream> STREAMS = Collections.emptyMap();
 
     static {
         HashMap<String, Stream> map = new HashMap<>();

@@ -51,6 +51,6 @@ public class AnalysisTestsHelper {
         }
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         Environment environment = new Environment(settings);
-        return new AnalysisRegistry(new HunspellService(settings, environment, Collections.EMPTY_MAP), environment).build(idxSettings);
+        return new AnalysisRegistry(new HunspellService(settings, environment, Collections.emptyMap()), environment).build(idxSettings);
     }
 }

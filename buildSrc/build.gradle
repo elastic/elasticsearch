@@ -63,6 +63,7 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'de.thetaphi:forbiddenapis:2.0'
   compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  compile 'org.apache.rat:apache-rat:0.11'
 }
 
 processResources {
@@ -80,3 +81,13 @@ eclipse {
     defaultOutputDir = new File(file('build'), 'eclipse')
   }
 }
+
+task copyEclipseSettings(type: Copy) {
+  from project.file('src/main/resources/eclipse.settings')
+  into '.settings'
+}
+// otherwise .settings is not nuked entirely
+tasks.cleanEclipse {
+  delete '.settings'
+}
+tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)

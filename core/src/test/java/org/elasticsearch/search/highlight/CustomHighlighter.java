@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.highlight;
 
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -52,12 +51,12 @@ public class CustomHighlighter implements Highlighter {
         }
 
         List<Text> responses = new ArrayList<>();
-        responses.add(new StringText(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
+        responses.add(new Text(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
                 cacheEntry.position)));
 
         if (field.fieldOptions().options() != null) {
             for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet()) {
-                responses.add(new StringText("field:" + entry.getKey() + ":" + entry.getValue()));
+                responses.add(new Text("field:" + entry.getKey() + ":" + entry.getValue()));
             }
         }
 

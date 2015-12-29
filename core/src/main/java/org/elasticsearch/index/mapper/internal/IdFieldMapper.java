@@ -44,8 +44,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
@@ -79,7 +77,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -91,7 +89,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         private String path = Defaults.PATH;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
@@ -287,10 +285,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
         } // else we are in the pre/post parse phase
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().names().indexName(), context.id(), fieldType()));
+            fields.add(new Field(fieldType().name(), context.id(), fieldType()));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new BinaryDocValuesField(fieldType().names().indexName(), new BytesRef(context.id())));
+            fields.add(new BinaryDocValuesField(fieldType().name(), new BytesRef(context.id())));
         }
     }
 
@@ -332,7 +330,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // do nothing here, no merging, but also no exception
     }
 }

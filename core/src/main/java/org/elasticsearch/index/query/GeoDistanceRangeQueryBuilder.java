@@ -273,7 +273,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                     indexFieldData, optimizeBbox);
         }
 
-        return new GeoPointDistanceRangeQuery(fieldType.names().fullName(), point.lon(), point.lat(),
+        return new GeoPointDistanceRangeQuery(fieldType.name(), point.lon(), point.lat(),
                 (includeLower) ? fromValue : fromValue + TOLERANCE,
                 (includeUpper) ? toValue : toValue - TOLERANCE);
     }

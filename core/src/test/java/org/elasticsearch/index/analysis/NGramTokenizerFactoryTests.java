@@ -22,7 +22,12 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ngram.*;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
+import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -237,7 +242,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
 
 
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = Version.class.getDeclaredFields();
+        Field[] declaredFields = Version.class.getFields();
         List<Field> versionFields = new ArrayList<>();
         for (Field field : declaredFields) {
             if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {

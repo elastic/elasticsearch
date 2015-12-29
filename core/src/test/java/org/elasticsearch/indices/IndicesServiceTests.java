@@ -72,12 +72,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getIndicesService();
         IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
                 1).build();
-        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
         IndexService test = createIndex("test");
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", 0), meta));
+        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
     }
 
     public void testDeleteIndexStore() throws Exception {

@@ -29,8 +29,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.contains;
 
 public class AzureStorageSettingsFilterTest extends ESTestCase {
     final static Settings settings = Settings.builder()
@@ -52,7 +51,7 @@ public class AzureStorageSettingsFilterTest extends ESTestCase {
 
         // Test using direct filtering
         Settings filteredSettings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), settings);
-        assertThat(filteredSettings.getAsMap().keySet(), is(empty()));
+        assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();
@@ -63,7 +62,7 @@ public class AzureStorageSettingsFilterTest extends ESTestCase {
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString).build();
-        assertThat(filteredSettings.getAsMap().keySet(), is(empty()));
+        assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
     }
 
 }

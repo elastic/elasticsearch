@@ -24,8 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -111,7 +114,7 @@ public class TranslogRecoveryPerformer {
         if (currentUpdate == null) {
             recoveredTypes.put(type, update);
         } else {
-            MapperUtils.merge(currentUpdate, update);
+            currentUpdate = currentUpdate.merge(update, false);
         }
     }
 
@@ -142,9 +145,8 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
-                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false);
-                    engine.delete(engineDelete);
+                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
                     break;
                 default:
                     throw new IllegalStateException("No operation defined for [" + operation + "]");
@@ -185,5 +187,4 @@ public class TranslogRecoveryPerformer {
     public Map<String, Mapping> getRecoveredTypes() {
         return recoveredTypes;
     }
-
 }

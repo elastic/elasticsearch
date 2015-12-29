@@ -28,7 +28,11 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -38,10 +42,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.EMPTY_MAP;
+    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
     private final MapperService mapperService;
     private final IndexFieldDataService indexFieldDataService;
-    private Set<String> payloadFields = Collections.EMPTY_SET;
+    private Set<String> payloadFields = Collections.emptySet();
 
     CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         super(suggester);

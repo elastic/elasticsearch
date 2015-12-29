@@ -54,7 +54,7 @@ final class QueriesLoaderCollector extends SimpleCollector {
     QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         this.percolator = percolator;
         this.logger = logger;
-        final MappedFieldType uidMapper = mapperService.smartNameFieldType(UidFieldMapper.NAME);
+        final MappedFieldType uidMapper = mapperService.fullName(UidFieldMapper.NAME);
         this.uidFieldData = indexFieldDataService.getForField(uidMapper);
     }
 

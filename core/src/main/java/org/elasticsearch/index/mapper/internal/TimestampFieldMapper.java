@@ -33,14 +33,13 @@ import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER);
             FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Defaults.PRECISION_STEP_64_BIT));
             FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Integer.MAX_VALUE));
@@ -96,8 +95,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         private boolean explicitStore = false;
         private Boolean ignoreMissing = null;
 
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+        public Builder(MappedFieldType existing, Settings settings) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, chooseFieldType(settings, null));
             if (existing != null) {
                 // if there is an existing type, always use that store value (only matters for < 2.0)
                 explicitStore = true;
@@ -168,7 +167,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.mapperService().getIndexSettings().getSettings());
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
             }
@@ -261,7 +260,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     private final Boolean ignoreMissing;
 
     private TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
+        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null).clone(), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
     }
 
     private TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,
@@ -313,14 +312,11 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
-                context.ignoredValue(fieldType().names().indexName(), String.valueOf(timestamp));
-            }
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 fields.add(new LongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
             }
             if (fieldType().hasDocValues()) {
-                fields.add(new NumericDocValuesField(fieldType().names().indexName(), timestamp));
+                fields.add(new NumericDocValuesField(fieldType().name(), timestamp));
             }
         }
     }
@@ -380,31 +376,32 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         TimestampFieldMapper timestampFieldMapperMergeWith = (TimestampFieldMapper) mergeWith;
-        super.merge(mergeWith, mergeResult);
-        if (!mergeResult.simulate()) {
-            if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
-                this.enabledState = timestampFieldMapperMergeWith.enabledState;
+        super.doMerge(mergeWith, updateAllTypes);
+        if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
+            this.enabledState = timestampFieldMapperMergeWith.enabledState;
+        }
+        if (timestampFieldMapperMergeWith.defaultTimestamp() == null && defaultTimestamp == null) {
+            return;
+        }
+        List<String> conflicts = new ArrayList<>();
+        if (defaultTimestamp == null) {
+            conflicts.add("Cannot update default in _timestamp value. Value is null now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+        } else if (timestampFieldMapperMergeWith.defaultTimestamp() == null) {
+            conflicts.add("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
+        } else if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
+            conflicts.add("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+        }
+        if (this.path != null) {
+            if (path.equals(timestampFieldMapperMergeWith.path()) == false) {
+                conflicts.add("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
             }
-        } else {
-            if (timestampFieldMapperMergeWith.defaultTimestamp() == null && defaultTimestamp == null) {
-                return;
-            }
-            if (defaultTimestamp == null) {
-                mergeResult.addConflict("Cannot update default in _timestamp value. Value is null now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
-            } else if (timestampFieldMapperMergeWith.defaultTimestamp() == null) {
-                mergeResult.addConflict("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
-            } else if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
-                mergeResult.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
-            }
-            if (this.path != null) {
-                if (path.equals(timestampFieldMapperMergeWith.path()) == false) {
-                    mergeResult.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
-                }
-            } else if (timestampFieldMapperMergeWith.path() != null) {
-                mergeResult.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
-            }
+        } else if (timestampFieldMapperMergeWith.path() != null) {
+            conflicts.add("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
+        }
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Conflicts: " + conflicts);
         }
     }
 }

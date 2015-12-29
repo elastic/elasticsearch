@@ -14,6 +14,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_cache_concurrency>>
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
+* <<breaking_30_allocation>>
 
 [[breaking_30_search_changes]]
 === Search changes
@@ -89,6 +90,9 @@ The search exists api has been removed in favour of using the search api with
 
 The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
 endpoint should be used in lieu of optimize.
+
+The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
+`POST` HTTP verb.
 
 ==== Deprecated queries removed
 
@@ -180,12 +184,66 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
+
+==== Recovery settings
+
+Recovery settings deprecated in 1.x have been removed:
+
+ * `index.shard.recovery.translog_size` is superseded by `indices.recovery.translog_size`
+ * `index.shard.recovery.translog_ops` is superseded by `indices.recovery.translog_ops`
+ * `index.shard.recovery.file_chunk_size` is superseded by `indices.recovery.file_chunk_size`
+ * `index.shard.recovery.concurrent_streams` is superseded by `indices.recovery.concurrent_streams`
+ * `index.shard.recovery.concurrent_small_file_streams` is superseded by `indices.recovery.concurrent_small_file_streams`
+ * `indices.recovery.max_size_per_sec` is superseded by `indices.recovery.max_bytes_per_sec`
+
+If you are using any of these settings please take the time and review their purpose. All of the settings above are considered
+_expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
+cluster settings please use the settings update API and set their superseded keys accordingly.
+
+The following settings have been removed without replacement
+
+ * `indices.recovery.concurrent_small_file_streams` - recoveries are now single threaded. The number of concurrent outgoing recoveries are throttled via allocation deciders
+ * `indices.recovery.concurrent_file_streams` - recoveries are now single threaded. The number of concurrent outgoing recoveries are throttled via allocation deciders
+
+==== Translog settings
+
+The `index.translog.flush_threshold_ops` setting is not supported anymore. In order to control flushes based on the transaction log
+growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
+anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
+
+==== Request Cache Settings
+
+The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
+`index.requests.cache.enable` and `indices.requests.cache.size` respectively.
+
+==== Allocation settings
+
+Allocation settings deprecated in 1.x have been removed:
+
+ * `cluster.routing.allocation.concurrent_recoveries` is superseded by `cluster.routing.allocation.node_concurrent_recoveries`
+
+Please change the setting in your configuration files or in the clusterstate to use the new settings instead.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
+
+==== Default number mappings
+
+When a floating-point number is encountered, it is now dynamically mapped as a
+float by default instead of a double. The reasoning is that floats should be
+more than enough for most cases but would decrease storage requirements
+significantly.
+
+==== `_source`'s `format` option
+
+The `_source` mapping does not support the `format` option anymore. This option
+will still be accepted for indices created before the upgrade to 3.0 for backward
+compatibility, but it will have no effect. Indices created on or after 3.0 will
+reject this option.
 
 [[breaking_30_plugins]]
 === Plugin changes
@@ -217,6 +275,15 @@ Cloud AWS plugin has been split in two plugins:
 
 * {plugins}/discovery-ec2.html[Discovery EC2 plugin]
 * {plugins}/repository-s3.html[Repository S3 plugin]
+
+Proxy settings for both plugins have been renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
 
 ==== Cloud Azure plugin changes
 
@@ -392,9 +459,9 @@ Use the `field(String, float)` method instead.
 
 ==== MissingQueryBuilder
 
-The two individual setters for existence() and nullValue() were removed in favour of
-optional constructor settings in order to better capture and validate their interdependent
-settings at construction time.
+The MissingQueryBuilder which was deprecated in 2.2.0 is removed. As a replacement use ExistsQueryBuilder
+inside a mustNot() clause. So instead of using `new ExistsQueryBuilder(name)` now use
+`new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(name))`.
 
 ==== NotQueryBuilder
 
@@ -468,6 +535,31 @@ response is output by default.
 Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
 value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
 from `OsStats.Cpu#getPercent`.
+
+=== Fields option
+Only stored fields are retrievable with this option.
+The fields option won't be able to load non stored fields from _source anymore.
+
+[[breaking_30_allocation]]
+=== Primary shard allocation
+
+Previously, primary shards were only assigned if a quorum of shard copies were found (configurable using
+`index.recovery.initial_shards`, now deprecated). In case where a primary had only a single replica, quorum was defined
+to be a single shard. This meant that any shard copy of an index with replication factor 1 could become primary, even it
+was a stale copy of the data on disk. This is now fixed by using allocation IDs.
+
+Allocation IDs assign unique identifiers to shard copies. This allows the cluster to differentiate between multiple
+copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
+containing only the most recent data can become primaries.
+
+==== `index.shared_filesystem.recover_on_any_node` changes
+
+The behavior of `index.shared_filesystem.recover_on_any_node = true` has been changed. Previously, in the case where no
+shard copies could be found, an arbitrary node was chosen by potentially ignoring allocation deciders. Now, we take
+balancing into account but don't assign the shard if the allocation deciders are not satisfied. The behavior has also changed
+in the case where shard copies can be found. Previously, a node not holding the shard copy was chosen if none of the nodes
+holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
+even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
 === Percolator
 

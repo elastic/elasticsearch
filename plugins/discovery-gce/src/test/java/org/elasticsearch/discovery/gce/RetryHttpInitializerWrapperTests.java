@@ -34,7 +34,6 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -97,7 +96,7 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
 
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
         MockSleeper mockSleeper = new MockSleeper();
 
@@ -122,7 +121,7 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, maxRetryTimes);
         JsonFactory jsonFactory = new JacksonFactory();
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
 
         MockSleeper oneTimeSleeper = new MockSleeper() {
@@ -155,7 +154,7 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 1, true);
 
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
         MockSleeper mockSleeper = new MockSleeper();
         RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper, 500);

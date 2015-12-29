@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.nested;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -36,7 +37,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .startObject("nested1").field("type", "nested").endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -62,7 +63,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .startObject("nested1").field("type", "nested").endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -111,7 +112,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -162,7 +163,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -213,7 +214,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -264,7 +265,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -315,7 +316,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");

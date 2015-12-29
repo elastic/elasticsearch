@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -52,17 +51,6 @@ import java.util.Set;
  */
 public class HighlighterParseElement implements SearchParseElement {
 
-    private static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
-    private static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
-
-    private static final String[] STYLED_PRE_TAG = {
-            "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
-            "<em class=\"hlt4\">", "<em class=\"hlt5\">", "<em class=\"hlt6\">",
-            "<em class=\"hlt7\">", "<em class=\"hlt8\">", "<em class=\"hlt9\">",
-            "<em class=\"hlt10\">"
-    };
-    private static final String[] STYLED_POST_TAGS = {"</em>"};
-
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         try {
@@ -77,12 +65,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String topLevelFieldName = null;
         final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = new ArrayList<>();
 
-        final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
-                .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
-                .requireFieldMatch(true).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
-                .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
-                .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
-                .noMatchSize(0).phraseLimit(256);
+        final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = HighlightBuilder.defaultFieldOptions();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -125,8 +108,8 @@ public class HighlighterParseElement implements SearchParseElement {
                 } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
                     String schema = parser.text();
                     if ("styled".equals(schema)) {
-                        globalOptionsBuilder.preTags(STYLED_PRE_TAG);
-                        globalOptionsBuilder.postTags(STYLED_POST_TAGS);
+                        globalOptionsBuilder.preTags(HighlightBuilder.DEFAULT_STYLED_PRE_TAG);
+                        globalOptionsBuilder.postTags(HighlightBuilder.DEFAULT_STYLED_POST_TAGS);
                     }
                 } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
                     globalOptionsBuilder.highlightFilter(parser.booleanValue());
@@ -189,7 +172,7 @@ public class HighlighterParseElement implements SearchParseElement {
         return new SearchContextHighlight(fields);
     }
 
-    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+    private static SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
 
         final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();

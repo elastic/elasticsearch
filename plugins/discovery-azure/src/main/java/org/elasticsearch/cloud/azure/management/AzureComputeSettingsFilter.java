@@ -24,7 +24,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.*;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID;
 
 public class AzureComputeSettingsFilter extends AbstractComponent {
 

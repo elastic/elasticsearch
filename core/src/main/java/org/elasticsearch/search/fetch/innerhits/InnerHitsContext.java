@@ -23,7 +23,19 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -209,10 +221,11 @@ public final class InnerHitsContext {
                             return null;
                         }
 
-                        final DocIdSetIterator childrenIterator = childWeight.scorer(context);
-                        if (childrenIterator == null) {
+                        final Scorer childrenScorer = childWeight.scorer(context);
+                        if (childrenScorer == null) {
                             return null;
                         }
+                        DocIdSetIterator childrenIterator = childrenScorer.iterator();
                         final DocIdSetIterator it = new DocIdSetIterator() {
 
                             int doc = -1;

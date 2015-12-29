@@ -111,6 +111,8 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.binFile().toString(), "read,readlink"), permissions);
         // lib file: ro
         assertExactPermissions(new FilePermission(environment.libFile().toString(), "read,readlink"), permissions);
+        // modules file: ro
+        assertExactPermissions(new FilePermission(environment.modulesFile().toString(), "read,readlink"), permissions);
         // config file: ro
         assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
         // scripts file: ro

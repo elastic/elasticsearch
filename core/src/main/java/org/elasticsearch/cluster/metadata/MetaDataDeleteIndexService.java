@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,7 +70,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         Collection<String> indices = Arrays.asList(request.indices);
         final DeleteIndexListener listener = new DeleteIndexListener(userListener);
 
-        clusterService.submitStateUpdateTask("delete-index " + indices, Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index " + indices, new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {

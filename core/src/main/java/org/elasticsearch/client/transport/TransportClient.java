@@ -32,7 +32,6 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -43,19 +42,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -69,7 +64,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  * <p>
- * The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
  */
 public class TransportClient extends AbstractClient {
@@ -125,7 +120,7 @@ public class TransportClient extends AbstractClient {
                     .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                     .build();
 
-            PluginsService pluginsService = new PluginsService(settings, null, pluginClasses);
+            PluginsService pluginsService = new PluginsService(settings, null, null, pluginClasses);
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
@@ -143,10 +138,9 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService));
+                modules.add(new NetworkModule(networkService, this.settings, true));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new TransportModule(this.settings));
                 modules.add(new SearchModule() {
                     @Override
                     protected void configure() {
@@ -154,7 +148,6 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(true));
-                modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
 
                 pluginsService.processModules(modules);

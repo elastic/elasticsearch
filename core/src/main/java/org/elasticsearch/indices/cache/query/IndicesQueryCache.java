@@ -150,18 +150,23 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
             protected void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
                 assert Thread.holdsLock(this);
                 super.onDocIdSetEviction(readerCoreKey, numEntries, sumRamBytesUsed);
-                // We can't use ShardCoreKeyMap here because its core closed
-                // listener is called before the listener of the cache which
-                // triggers this eviction. So instead we use use stats2 that
-                // we only evict when nothing is cached anymore on the segment
-                // instead of relying on close listeners
-                final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
-                final Stats shardStats = statsAndCount.stats;
-                shardStats.cacheSize -= numEntries;
-                shardStats.ramBytesUsed -= sumRamBytesUsed;
-                statsAndCount.count -= numEntries;
-                if (statsAndCount.count == 0) {
-                    stats2.remove(readerCoreKey);
+                // onDocIdSetEviction might sometimes be called with a number
+                // of entries equal to zero if the cache for the given segment
+                // was already empty when the close listener was called
+                if (numEntries > 0) {
+                    // We can't use ShardCoreKeyMap here because its core closed
+                    // listener is called before the listener of the cache which
+                    // triggers this eviction. So instead we use use stats2 that
+                    // we only evict when nothing is cached anymore on the segment
+                    // instead of relying on close listeners
+                    final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                    final Stats shardStats = statsAndCount.stats;
+                    shardStats.cacheSize -= numEntries;
+                    shardStats.ramBytesUsed -= sumRamBytesUsed;
+                    statsAndCount.count -= numEntries;
+                    if (statsAndCount.count == 0) {
+                        stats2.remove(readerCoreKey);
+                    }
                 }
             }
 

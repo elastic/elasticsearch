@@ -26,7 +26,11 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 
 /**
  *
@@ -35,7 +39,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     private final Map<String, Suggester> parsers;
 
     public Suggesters() {
-        this(Collections.EMPTY_MAP);
+        this(Collections.emptyMap());
     }
 
     public Suggesters(Map<String, Suggester> suggesters) {

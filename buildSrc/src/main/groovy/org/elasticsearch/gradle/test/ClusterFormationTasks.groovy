@@ -23,7 +23,12 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.*
+import org.gradle.api.AntBuilder
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
@@ -40,8 +45,10 @@ class ClusterFormationTasks {
 
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
+     *
+     * Returns an object that will resolve at execution time of the given task to a uri for the cluster.
      */
-    static void setup(Project project, Task task, ClusterConfiguration config) {
+    static Object setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
             // no need to add cluster formation tasks if the task won't run!
             return
@@ -57,12 +64,20 @@ class ClusterFormationTasks {
 
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
         task.dependsOn(wait)
+
+        // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
+        return "${-> nodes[0].transportUri()}"
     }
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
+        String packaging = distro
+        if (distro == 'tar') {
+            packaging = 'tar.gz'
+        } else if (distro == 'integ-test-zip') {
+            packaging = 'zip'
+        }
         project.configurations {
             elasticsearchDistro
         }
@@ -105,6 +120,12 @@ class ClusterFormationTasks {
         setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
+        // install modules
+        for (Project module : node.config.modules) {
+            String actionName = pluginTaskName('install', module.name, 'Module')
+            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+        }
+
         // install plugins
         for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
@@ -132,8 +153,15 @@ class ClusterFormationTasks {
     /** Adds a task to extract the elasticsearch distribution */
     static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node) {
         List extractDependsOn = [project.configurations.elasticsearchDistro, setup]
+        /* project.configurations.elasticsearchDistro.singleFile will be an
+          external artifact if this is being run by a plugin not living in the
+          elasticsearch source tree. If this is a plugin built in the
+          elasticsearch source tree or this is a distro in the elasticsearch
+          source tree then this should be the version of elasticsearch built
+          by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
+            case 'integ-test-zip':
             case 'zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }
@@ -148,6 +176,33 @@ class ClusterFormationTasks {
                     into node.baseDir
                 }
                 break;
+            case 'rpm':
+                File rpmDatabase = new File(node.baseDir, 'rpm-database')
+                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
+                /* Delay reading the location of the rpm file until task execution */
+                Object rpm = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
+                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
+                        '--dbpath', rpmDatabase,
+                        '--relocate', "/=${rpmExtracted}",
+                        '-i', rpm
+                    doFirst {
+                        rpmDatabase.deleteDir()
+                        rpmExtracted.deleteDir()
+                    }
+                }
+                break;
+            case 'deb':
+                /* Delay reading the location of the deb file until task execution */
+                File debExtracted = new File(node.baseDir, 'deb-extracted')
+                Object deb = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
+                    commandLine 'dpkg-deb', '-x', deb, debExtracted
+                    doFirst {
+                        debExtracted.deleteDir()
+                    }
+                }
+                break;
             default:
                 throw new InvalidUserDataException("Unknown distribution: ${node.config.distribution}")
         }
@@ -157,22 +212,29 @@ class ClusterFormationTasks {
     /** Adds a task to write elasticsearch.yml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node) {
         Map esConfig = [
-            'cluster.name'                    : node.clusterName,
-            'http.port'                       : node.httpPort(),
-            'transport.tcp.port'              : node.transportPort(),
-            'pidfile'                         : node.pidFile,
-            'discovery.zen.ping.unicast.hosts': (0..<node.config.numNodes).collect{"127.0.0.1:${node.config.baseTransportPort + it}"}.join(','),
-            'path.repo'                       : "${node.homeDir}/repo",
-            'path.shared_data'                : "${node.homeDir}/../",
-            // Define a node attribute so we can test that it exists
-            'node.testattr'                   : 'test',
-            'repositories.url.allowed_urls'   : 'http://snapshot.test*'
+                'cluster.name'                 : node.clusterName,
+                'pidfile'                      : node.pidFile,
+                'path.repo'                    : "${node.homeDir}/repo",
+                'path.shared_data'             : "${node.homeDir}/../",
+                // Define a node attribute so we can test that it exists
+                'node.testattr'                : 'test',
+                'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
+        if (node.config.numNodes == 1) {
+            esConfig['http.port'] = node.config.httpPort
+            esConfig['transport.tcp.port'] =  node.config.transportPort
+        } else {
+            // TODO: fix multi node so it doesn't use hardcoded prots
+            esConfig['http.port'] = 9400 + node.nodeNum
+            esConfig['transport.tcp.port'] =  9500 + node.nodeNum
+            esConfig['discovery.zen.ping.unicast.hosts'] = (0..<node.config.numNodes).collect{"localhost:${9500 + it}"}.join(',')
+
+        }
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
+            File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
@@ -185,7 +247,8 @@ class ClusterFormationTasks {
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
-            Closure delayedSrc = {
+            copyConfig.doFirst {
+                // make sure the copy won't be a no-op or act on a directory
                 File srcConfigFile = project.file(extraConfigFile.getValue())
                 if (srcConfigFile.isDirectory()) {
                     throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
@@ -193,11 +256,10 @@ class ClusterFormationTasks {
                 if (srcConfigFile.exists() == false) {
                     throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
                 }
-                return srcConfigFile
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
-            copyConfig.from(delayedSrc)
-                      .into(destConfigFile.canonicalFile.parentFile)
+            copyConfig.into(destConfigFile.canonicalFile.parentFile)
+                      .from({ extraConfigFile.getValue() }) // wrap in closure to delay resolution to execution time
                       .rename { destConfigFile.name }
         }
         return copyConfig
@@ -255,6 +317,20 @@ class ClusterFormationTasks {
         return copyPlugins
     }
 
+    static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+        }
+        if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+        }
+        Copy installModule = project.tasks.create(name, Copy.class)
+        installModule.dependsOn(setup)
+        installModule.into(new File(node.homeDir, "modules/${module.name}"))
+        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        return installModule
+    }
+
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
         FileCollection pluginZip
         if (plugin instanceof Project) {
@@ -284,18 +360,27 @@ class ClusterFormationTasks {
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-        String executable
-        List<String> esArgs = []
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'cmd'
-            esArgs.add('/C')
-            esArgs.add('call')
-        } else {
-            executable = 'sh'
-        }
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+                node.env.each { key, value -> env(key: key, value: value) }
+                node.args.each { arg(value: it) }
+            }
+        }
+
+        // this closure is the actual code to run elasticsearch
+        Closure elasticsearchRunner = {
+            // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
+            // process executed. To work around this, when spawning, we wrap the elasticsearch start
+            // command inside another shell script, which simply internally redirects the output
+            // of the real elasticsearch script. This allows ant to keep the streams open with the
+            // dummy process, but us to have the output available if there is an error in the
+            // elasticsearch start script
+            if (node.config.daemonize) {
+                node.writeWrapperScript()
+            }
+
             // we must add debug options inside the closure so the config is read at execution time, as
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
@@ -303,37 +388,6 @@ class ClusterFormationTasks {
                 node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
-            // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
-            // process executed. To work around this, when spawning, we wrap the elasticsearch start
-            // command inside another shell script, which simply internally redirects the output
-            // of the real elasticsearch script. This allows ant to keep the streams open with the
-            // dummy process, but us to have the output available if there is an error in the
-            // elasticsearch start script
-            String script = node.esScript
-            if (node.config.daemonize) {
-                String scriptName = 'run'
-                String argsPasser = '"$@"'
-                String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
-                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                    scriptName += '.bat'
-                    argsPasser = '%*'
-                    exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
-                }
-                File wrapperScript = new File(node.cwd, scriptName)
-                wrapperScript.setText("\"${script}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
-                script = wrapperScript.toString()
-            }
-
-            ant.exec(executable: executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
-                node.env.each { key, value -> env(key: key, value: value) }
-                arg(value: script)
-                node.args.each { arg(value: it) }
-            }
-
-        }
-
-        // this closure is the actual code to run elasticsearch
-        Closure elasticsearchRunner = {
             node.getCommandString().eachLine { line -> logger.info(line) }
 
             if (logger.isInfoEnabled() || node.config.daemonize == false) {
@@ -365,7 +419,12 @@ class ClusterFormationTasks {
                             resourceexists {
                                 file(file: node.pidFile.toString())
                             }
-                            socket(server: '127.0.0.1', port: node.httpPort())
+                            resourceexists {
+                                file(file: node.httpPortsFile.toString())
+                            }
+                            resourceexists {
+                                file(file: node.transportPortsFile.toString())
+                            }
                         }
                     }
                 }
@@ -405,14 +464,21 @@ class ClusterFormationTasks {
                 // We already log the command at info level. No need to do it twice.
                 node.getCommandString().eachLine { line -> logger.error(line) }
             }
-            // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
-            logger.error("Node ${node.nodeNum} ant output:")
-            node.buffer.toString('UTF-8').eachLine { line -> logger.error(line) }
+            logger.error("Node ${node.nodeNum} output:")
+            logger.error("|-----------------------------------------")
+            logger.error("|  failure marker exists: ${node.failedMarker.exists()}")
+            logger.error("|  pid file exists: ${node.pidFile.exists()}")
+            logger.error("|  http ports file exists: ${node.httpPortsFile.exists()}")
+            logger.error("|  transport ports file exists: ${node.transportPortsFile.exists()}")
+            // the waitfor failed, so dump any output we got (if info logging this goes directly to stdout)
+            logger.error("|\n|  [ant output]")
+            node.buffer.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
             // also dump the log file for the startup script (which will include ES logging output to stdout)
             if (node.startLog.exists()) {
-                logger.error("Node ${node.nodeNum} log:")
-                node.startLog.eachLine { line -> logger.error(line) }
+                logger.error("|\n|  [log]")
+                node.startLog.eachLine { line -> logger.error("|    ${line}") }
             }
+            logger.error("|-----------------------------------------")
         }
         throw new GradleException(msg)
     }
@@ -485,7 +551,7 @@ class ClusterFormationTasks {
         }
     }
 
-    static String pluginTaskName(String action, String name, String suffix) {
+    public static String pluginTaskName(String action, String name, String suffix) {
         // replace every dash followed by a character with just the uppercase character
         String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
         return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix

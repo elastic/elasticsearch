@@ -26,13 +26,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.nio.file.Path;
 import java.util.Arrays;
 
 public class RoutingBackwardCompatibilityTests extends ESTestCase {
@@ -55,6 +53,10 @@ public class RoutingBackwardCompatibilityTests extends ESTestCase {
 
                 OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, null);
                 for (Version version : VersionUtils.allVersions()) {
+                    if (version.onOrAfter(Version.V_2_0_0) == false) {
+                        // unsupported version, no need to test
+                        continue;
+                    }
                     final Settings settings = settings(version).build();
                     IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
                     MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);

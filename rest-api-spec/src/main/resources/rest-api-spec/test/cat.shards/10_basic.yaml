@@ -108,7 +108,7 @@
         h: index,state,sync_id
   - match:
       $body: |
-               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\s+\n){5}$/
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\n){5}$/
 
   - do:
       indices.delete:

@@ -22,18 +22,26 @@ package org.elasticsearch.mapper.attachments;
 import org.apache.tika.io.IOUtils;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.*;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.AUTHOR;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_LENGTH;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.CONTENT_TYPE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.DATE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.KEYWORDS;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.LANGUAGE;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.NAME;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.TITLE;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -48,10 +56,10 @@ public class VariousDocTests extends AttachmentUnitTestCase {
 
     @Before
     public void createMapper() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
-        docMapper = mapperParser.parse(mapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
     }
 
     /**
@@ -93,7 +101,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
         assertParseable("text-in-english.txt");
         testMapper("text-in-english.txt", false);
     }
-    
+
     /**
      * Test for .epub
      */
@@ -129,7 +137,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     protected void assertParseable(String filename) throws Exception {
         try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);  
+            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
         }
@@ -148,8 +156,8 @@ public class VariousDocTests extends AttachmentUnitTestCase {
 
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         if (!errorExpected) {
-            assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), not(isEmptyOrNullString()));
-            logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().getMapper("file").fieldType().names().indexName()));
+            assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), not(isEmptyOrNullString()));
+            logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().getMapper("file").fieldType().name()));
             logger.debug("-> extracted metadata:");
             printMetadataContent(doc, AUTHOR);
             printMetadataContent(doc, CONTENT_LENGTH);
@@ -163,6 +171,6 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     }
 
     private void printMetadataContent(ParseContext.Document doc, String field) {
-        logger.debug("- [{}]: [{}]", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().names().indexName()));
+        logger.debug("- [{}]: [{}]", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().name()));
     }
 }

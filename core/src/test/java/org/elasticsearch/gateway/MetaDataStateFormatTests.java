@@ -349,7 +349,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         }
         List<Path> dirList = Arrays.asList(dirs);
-        Collections.shuffle(dirList, getRandom());
+        Collections.shuffle(dirList, random());
         MetaData loadedMetaData = format.loadLatestState(logger, dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));

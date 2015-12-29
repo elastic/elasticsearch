@@ -23,7 +23,16 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.search.spell.*;
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
+import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.search.spell.SuggestWord;
+import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
+import org.apache.lucene.search.spell.SuggestWordQueue;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
@@ -48,13 +57,13 @@ import java.util.Locale;
 public final class SuggestUtils {
     public static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
     public static final Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
-    
+
     private SuggestUtils() {
         // utils!!
     }
-    
+
     public static DirectSpellChecker getDirectSpellChecker(DirectSpellcheckerSettings suggestion) {
-        
+
         DirectSpellChecker directSpellChecker = new DirectSpellChecker();
         directSpellChecker.setAccuracy(suggestion.accuracy());
         Comparator<SuggestWord> comparator;
@@ -79,7 +88,7 @@ public final class SuggestUtils {
         directSpellChecker.setLowerCaseTerms(false);
         return directSpellChecker;
     }
-    
+
     public static BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
         result.clear();
         for (int i = 0; i < toJoin.length - 1; i++) {
@@ -89,40 +98,40 @@ public final class SuggestUtils {
         result.append(toJoin[toJoin.length-1]);
         return result.get();
     }
-    
+
     public static abstract class TokenConsumer {
         protected CharTermAttribute charTermAttr;
         protected PositionIncrementAttribute posIncAttr;
         protected OffsetAttribute offsetAttr;
-        
+
         public void reset(TokenStream stream) {
             charTermAttr = stream.addAttribute(CharTermAttribute.class);
             posIncAttr = stream.addAttribute(PositionIncrementAttribute.class);
             offsetAttr = stream.addAttribute(OffsetAttribute.class);
         }
-        
+
         protected BytesRef fillBytesRef(BytesRefBuilder spare) {
             spare.copyChars(charTermAttr);
             return spare.get();
         }
-        
+
         public abstract void nextToken() throws IOException;
 
         public void end() {}
     }
-    
+
     public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare) throws IOException {
         spare.copyUTF8Bytes(toAnalyze);
         return analyze(analyzer, spare.get(), field, consumer);
     }
-    
+
     public static int analyze(Analyzer analyzer, CharsRef toAnalyze, String field, TokenConsumer consumer) throws IOException {
         try (TokenStream ts = analyzer.tokenStream(
                                   field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length))) {
              return analyze(ts, consumer);
         }
     }
-    
+
     /** NOTE: this method closes the TokenStream, even on exception, which is awkward
      *  because really the caller who called {@link Analyzer#tokenStream} should close it,
      *  but when trying that there are recursion issues when we try to use the same
@@ -147,7 +156,7 @@ public final class SuggestUtils {
         }
         return numTokens;
     }
-    
+
     public static SuggestMode resolveSuggestMode(String suggestMode) {
         suggestMode = suggestMode.toLowerCase(Locale.US);
         if ("missing".equals(suggestMode)) {
@@ -178,7 +187,7 @@ public final class SuggestUtils {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
             return new LevensteinDistance();
-          //TODO Jaro and Winkler are 2 people - so apply same naming logic as damerau_levenshtein  
+          //TODO Jaro and Winkler are 2 people - so apply same naming logic as damerau_levenshtein
         } else if ("jarowinkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {
@@ -187,7 +196,7 @@ public final class SuggestUtils {
             throw new IllegalArgumentException("Illegal distance option " + distanceVal);
         }
     }
-    
+
     public static class Fields {
         public static final ParseField STRING_DISTANCE = new ParseField("string_distance");
         public static final ParseField SUGGEST_MODE = new ParseField("suggest_mode");
@@ -201,8 +210,8 @@ public final class SuggestUtils {
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
         public static final ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         public static final ParseField SHARD_SIZE = new ParseField("shard_size");
-   }      
-    
+   }
+
     public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
                 DirectSpellcheckerSettings suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
             if ("accuracy".equals(fieldName)) {
@@ -233,10 +242,10 @@ public final class SuggestUtils {
             }
             return true;
     }
-    
+
     public static boolean parseSuggestContext(XContentParser parser, MapperService mapperService, String fieldName,
             SuggestionSearchContext.SuggestionContext suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        
+
         if ("analyzer".equals(fieldName)) {
             String analyzerName = parser.text();
             Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
@@ -254,10 +263,10 @@ public final class SuggestUtils {
            return false;
         }
         return true;
-        
+
     }
-    
-    
+
+
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults
         if (suggestion.getField() == null) {
@@ -276,8 +285,8 @@ public final class SuggestUtils {
             suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
         }
     }
-    
-    
+
+
     public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer)analyzer).analyzer();

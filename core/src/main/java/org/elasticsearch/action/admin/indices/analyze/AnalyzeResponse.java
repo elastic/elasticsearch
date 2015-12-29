@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,28 +31,32 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContent {
 
-    public static class AnalyzeToken implements Streamable {
+    public static class AnalyzeToken implements Streamable, ToXContent {
         private String term;
         private int startOffset;
         private int endOffset;
         private int position;
+        private Map<String, Object> attributes;
         private String type;
 
         AnalyzeToken() {
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, String type) {
+        public AnalyzeToken(String term, int position, int startOffset, int endOffset, String type,
+                            Map<String, Object> attributes) {
             this.term = term;
             this.position = position;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
             this.type = type;
+            this.attributes = attributes;
         }
 
         public String getTerm() {
@@ -74,6 +79,27 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return this.type;
         }
 
+        public Map<String, Object> getAttributes(){
+            return this.attributes;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields.TOKEN, term);
+            builder.field(Fields.START_OFFSET, startOffset);
+            builder.field(Fields.END_OFFSET, endOffset);
+            builder.field(Fields.TYPE, type);
+            builder.field(Fields.POSITION, position);
+            if (attributes != null && !attributes.isEmpty()) {
+                for (Map.Entry<String, Object> entity : attributes.entrySet()) {
+                    builder.field(entity.getKey(), entity.getValue());
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+
         public static AnalyzeToken readAnalyzeToken(StreamInput in) throws IOException {
             AnalyzeToken analyzeToken = new AnalyzeToken();
             analyzeToken.readFrom(in);
@@ -87,6 +113,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             endOffset = in.readInt();
             position = in.readVInt();
             type = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+                attributes = (Map<String, Object>) in.readGenericValue();
+            }
         }
 
         @Override
@@ -96,20 +125,30 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(endOffset);
             out.writeVInt(position);
             out.writeOptionalString(type);
+            if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+                out.writeGenericValue(attributes);
+            }
         }
     }
+
+    private DetailAnalyzeResponse detail;
 
     private List<AnalyzeToken> tokens;
 
     AnalyzeResponse() {
     }
 
-    public AnalyzeResponse(List<AnalyzeToken> tokens) {
+    public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
         this.tokens = tokens;
+        this.detail = detail;
     }
 
     public List<AnalyzeToken> getTokens() {
         return this.tokens;
+    }
+
+    public DetailAnalyzeResponse detail() {
+        return this.detail;
     }
 
     @Override
@@ -119,17 +158,19 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(Fields.TOKENS);
-        for (AnalyzeToken token : tokens) {
-            builder.startObject();
-            builder.field(Fields.TOKEN, token.getTerm());
-            builder.field(Fields.START_OFFSET, token.getStartOffset());
-            builder.field(Fields.END_OFFSET, token.getEndOffset());
-            builder.field(Fields.TYPE, token.getType());
-            builder.field(Fields.POSITION, token.getPosition());
+        if (tokens != null) {
+            builder.startArray(Fields.TOKENS);
+            for (AnalyzeToken token : tokens) {
+                token.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        if (detail != null) {
+            builder.startObject(Fields.DETAIL);
+            detail.toXContent(builder, params);
             builder.endObject();
         }
-        builder.endArray();
         return builder;
     }
 
@@ -141,14 +182,24 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         for (int i = 0; i < size; i++) {
             tokens.add(AnalyzeToken.readAnalyzeToken(in));
         }
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(tokens.size());
-        for (AnalyzeToken token : tokens) {
-            token.writeTo(out);
+        if (tokens != null) {
+            out.writeVInt(tokens.size());
+            for (AnalyzeToken token : tokens) {
+                token.writeTo(out);
+            }
+        } else {
+            out.writeVInt(0);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeOptionalStreamable(detail);
         }
     }
 
@@ -159,5 +210,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
         static final XContentBuilderString TYPE = new XContentBuilderString("type");
         static final XContentBuilderString POSITION = new XContentBuilderString("position");
+        static final XContentBuilderString DETAIL = new XContentBuilderString("detail");
     }
 }

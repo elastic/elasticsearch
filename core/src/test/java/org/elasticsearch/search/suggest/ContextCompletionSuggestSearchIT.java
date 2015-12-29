@@ -19,9 +19,8 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -30,11 +29,23 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.context.*;
+import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
+import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
+import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
+import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -560,6 +571,65 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .geoContexts("geo", GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build());
 
         assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
+    }
+
+    public void testGeoField() throws Exception {
+
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject(TYPE);
+        mapping.startObject("properties");
+        mapping.startObject("pin");
+        mapping.field("type", "geo_point");
+        mapping.endObject();
+        mapping.startObject(FIELD);
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        ensureYellow();
+
+        XContentBuilder source1 = jsonBuilder()
+                .startObject()
+                .latlon("pin", 52.529172, 13.407333)
+                .startObject(FIELD)
+                .array("input", "Hotel Amsterdam in Berlin")
+                .endObject()
+                .endObject();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+
+        XContentBuilder source2 = jsonBuilder()
+                .startObject()
+                .latlon("pin", 52.363389, 4.888695)
+                .startObject(FIELD)
+                .array("input", "Hotel Berlin in Amsterdam")
+                .endObject()
+                .endObject();
+        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
+
+        refresh();
+
+        String suggestionName = randomAsciiOfLength(10);
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
+                .geoContexts("st", GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build());
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(context).get();
+
+        assertEquals(suggestResponse.getSuggest().size(), 1);
+        assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
 
     public void assertSuggestions(String suggestionName, SuggestBuilder.SuggestionBuilder suggestBuilder, String... suggestions) {

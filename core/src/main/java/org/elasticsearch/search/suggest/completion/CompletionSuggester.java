@@ -28,9 +28,9 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,7 +40,13 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
@@ -57,7 +63,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
+        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
         TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
         suggest(searcher, suggestionContext.toQuery(), collector);
@@ -78,7 +84,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 final LeafReaderContext subReaderContext = leaves.get(readerIndex);
                 final int subDocId = suggestDoc.doc - subReaderContext.docBase;
                 for (String field : payloadFields) {
-                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().smartNameFieldType(field);
+                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
                     if (payloadFieldType != null) {
                         final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType).load(subReaderContext);
                         final ScriptDocValues scriptValues = data.getScriptValues();
@@ -91,7 +97,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
             if (numResult++ < suggestionContext.getSize()) {
                 CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
-                        new StringText(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
+                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
                 completionSuggestEntry.addOption(option);
             } else {
                 break;

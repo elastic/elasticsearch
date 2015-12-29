@@ -1,5 +1,6 @@
 package com.carrotsearch.gradle.junit4
 
+import org.gradle.api.tasks.Input
 import org.gradle.util.ConfigureUtil
 
 class TestLoggingConfiguration {
@@ -20,6 +21,10 @@ class TestLoggingConfiguration {
     SlowTestsConfiguration slowTests = new SlowTestsConfiguration()
     StackTraceFiltersConfiguration stackTraceFilters = new StackTraceFiltersConfiguration()
 
+    /** Summarize the first N failures at the end of the test. */
+    @Input
+    int showNumFailuresAtEnd = 3 // match TextReport default
+
     void slowTests(Closure closure) {
         ConfigureUtil.configure(closure, slowTests)
     }
@@ -30,5 +35,9 @@ class TestLoggingConfiguration {
 
     void outputMode(String mode) {
         outputMode = mode.toUpperCase() as OutputMode
+    }
+
+    void showNumFailuresAtEnd(int n) {
+        showNumFailuresAtEnd = n
     }
 }

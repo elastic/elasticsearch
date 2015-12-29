@@ -31,7 +31,6 @@ import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +44,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
@@ -72,7 +70,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, BinaryFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -172,14 +170,14 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(fieldType().names().indexName(), value, fieldType()));
+            fields.add(new Field(fieldType().name(), value, fieldType()));
         }
 
         if (fieldType().hasDocValues()) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().names().indexName());
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().names().indexName(), value);
-                context.doc().addWithKey(fieldType().names().indexName(), field);
+                field = new CustomBinaryDocValuesField(fieldType().name(), value);
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(value);
             }

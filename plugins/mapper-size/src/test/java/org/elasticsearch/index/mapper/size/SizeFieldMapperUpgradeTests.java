@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
@@ -48,8 +50,9 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         return Collections.singleton(MapperSizePlugin.class);
     }
 
-    public void testUpgradeOldMapping() throws IOException {
+    public void testUpgradeOldMapping() throws IOException, ExecutionException, InterruptedException {
         final String indexName = "index-mapper-size-2.0.0";
+        InternalTestCluster.Async<String> master = internalCluster().startNodeAsync();
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
         Path backwardsIndex = getBwcIndicesPath().resolve(indexName + ".zip");
@@ -62,15 +65,17 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put("path.data", dataPath)
                 .build();
-        final String node = internalCluster().startNode(settings);
+        final String node = internalCluster().startDataOnlyNode(settings); // workaround for dangling index loading issue when node is master
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         dataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
-
-        ensureYellow();
+        master.get();
+        // force reloading dangling indices with a cluster state republish
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen(indexName);
         final SearchResponse countResponse = client().prepareSearch(indexName).setSize(0).get();
         ElasticsearchAssertions.assertHitCount(countResponse, 3L);
 

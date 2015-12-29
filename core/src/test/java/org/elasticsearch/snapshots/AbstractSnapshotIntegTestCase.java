@@ -61,7 +61,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
@@ -208,7 +208,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         private void addBlock() {
             // We should block after this task - add blocking cluster state update task
-            clusterService.submitStateUpdateTask("test_block", passThroughPriority, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("test_block", new ClusterStateUpdateTask(passThroughPriority) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     while(System.currentTimeMillis() < stopWaitingAt) {

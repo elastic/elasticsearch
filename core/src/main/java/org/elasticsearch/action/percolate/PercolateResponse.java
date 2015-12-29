@@ -35,7 +35,11 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Encapsulates the response of a percolator request.

@@ -27,8 +27,9 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,6 +39,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
@@ -47,6 +52,11 @@ import java.util.Iterator;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
+    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder();
+
+    private static final Coordinate[][] EMPTY = new Coordinate[0][];
+
+    private Orientation orientation = Orientation.RIGHT;
 
     // line string defining the shell of the polygon
     private LineStringBuilder shell;
@@ -55,7 +65,7 @@ public class PolygonBuilder extends ShapeBuilder {
     private final ArrayList<LineStringBuilder> holes = new ArrayList<>();
 
     public PolygonBuilder() {
-        this(new ArrayList<Coordinate>(), Orientation.RIGHT);
+        this(Orientation.RIGHT);
     }
 
     public PolygonBuilder(Orientation orientation) {
@@ -63,8 +73,12 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     public PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
-        super(orientation);
+        this.orientation = orientation;
         this.shell = new LineStringBuilder().points(points);
+    }
+
+    public Orientation orientation() {
+        return this.orientation;
     }
 
     public PolygonBuilder point(double longitude, double latitude) {
@@ -100,6 +114,20 @@ public class PolygonBuilder extends ShapeBuilder {
     public PolygonBuilder hole(LineStringBuilder hole) {
         holes.add(hole);
         return this;
+    }
+
+    /**
+     * @return the list of holes defined for this polygon
+     */
+    public List<LineStringBuilder> holes() {
+        return this.holes;
+    }
+
+    /**
+     * @return the list of points of the shell for this polygon
+     */
+    public LineStringBuilder shell() {
+        return this.shell;
     }
 
     /**
@@ -141,9 +169,10 @@ public class PolygonBuilder extends ShapeBuilder {
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-        int offset = createEdges(0, orientation, shell, null, edges, 0);
+        final AtomicBoolean translated = new AtomicBoolean(false);
+        int offset = createEdges(0, orientation, shell, null, edges, 0, translated);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset, translated);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -173,6 +202,7 @@ public class PolygonBuilder extends ShapeBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
+        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_COORDINATES);
         coordinatesArray(builder, params);
         builder.endArray();
@@ -355,8 +385,6 @@ public class PolygonBuilder extends ShapeBuilder {
         return result;
     }
 
-    private static final Coordinate[][] EMPTY = new Coordinate[0][];
-
     private static Coordinate[][] holes(Edge[] holes, int numHoles) {
         if (numHoles == 0) {
             return EMPTY;
@@ -508,14 +536,197 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     private static int createEdges(int component, Orientation orientation, LineStringBuilder shell,
-                                   LineStringBuilder hole,
-                                   Edge[] edges, int offset) {
+                                   LineStringBuilder hole, Edge[] edges, int offset, final AtomicBoolean translated) {
         // inner rings (holes) have an opposite direction than the outer rings
         // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
         boolean direction = (component == 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
+        ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1, translated);
         return points.length-1;
+    }
+
+    /**
+     * Create a connected list of a list of coordinates
+     *
+     * @param points
+     *            array of point
+     * @param offset
+     *            index of the first point
+     * @param length
+     *            number of points
+     * @return Array of edges
+     */
+    private static Edge[] ring(int component, boolean direction, boolean handedness, LineStringBuilder shell,
+                                 Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
+        // calculate the direction of the points:
+        // find the point a the top of the set and check its
+        // neighbors orientation. So direction is equivalent
+        // to clockwise/counterclockwise
+        final int top = top(points, offset, length);
+        final int prev = (offset + ((top + length - 1) % length));
+        final int next = (offset + ((top + 1) % length));
+        boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+        // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
+        // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
+        // thus if orientation is computed as cw, the logic will translate points across dateline
+        // and convert to a right handed system
+
+        // compute the bounding box and calculate range
+        double[] range = range(points, offset, length);
+        final double rng = range[1] - range[0];
+        // translate the points if the following is true
+        //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
+        //       (translation would result in a collapsed poly)
+        //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
+        boolean incorrectOrientation = component == 0 && handedness != orientation;
+        if ( (incorrectOrientation && (rng > DATELINE && rng != 2*DATELINE)) || (translated.get() && component != 0)) {
+            translate(points);
+            // flip the translation bit if the shell is being translated
+            if (component == 0) {
+                translated.set(true);
+            }
+            // correct the orientation post translation (ccw for shell, cw for holes)
+            if (component == 0 || (component != 0 && handedness == orientation)) {
+                orientation = !orientation;
+            }
+        }
+        return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
+    }
+
+    private static final int top(Coordinate[] points, int offset, int length) {
+        int top = 0; // we start at 1 here since top points to 0
+        for (int i = 1; i < length; i++) {
+            if (points[offset + i].y < points[offset + top].y) {
+                top = i;
+            } else if (points[offset + i].y == points[offset + top].y) {
+                if (points[offset + i].x < points[offset + top].x) {
+                    top = i;
+                }
+            }
+        }
+        return top;
+    }
+
+    private static final double[] range(Coordinate[] points, int offset, int length) {
+        double minX = points[0].x;
+        double maxX = points[0].x;
+        double minY = points[0].y;
+        double maxY = points[0].y;
+        // compute the bounding coordinates (@todo: cleanup brute force)
+        for (int i = 1; i < length; ++i) {
+            if (points[offset + i].x < minX) {
+                minX = points[offset + i].x;
+            }
+            if (points[offset + i].x > maxX) {
+                maxX = points[offset + i].x;
+            }
+            if (points[offset + i].y < minY) {
+                minY = points[offset + i].y;
+            }
+            if (points[offset + i].y > maxY) {
+                maxY = points[offset + i].y;
+            }
+        }
+        return new double[] {minX, maxX, minY, maxY};
+    }
+
+    /**
+     * Concatenate a set of points to a polygon
+     *
+     * @param component
+     *            component id of the polygon
+     * @param direction
+     *            direction of the ring
+     * @param points
+     *            list of points to concatenate
+     * @param pointOffset
+     *            index of the first point
+     * @param edges
+     *            Array of edges to write the result to
+     * @param edgeOffset
+     *            index of the first edge in the result
+     * @param length
+     *            number of points to use
+     * @return the edges creates
+     */
+    private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges, final int edgeOffset,
+            int length) {
+        assert edges.length >= length+edgeOffset;
+        assert points.length >= length+pointOffset;
+        edges[edgeOffset] = new Edge(points[pointOffset], null);
+        for (int i = 1; i < length; i++) {
+            if (direction) {
+                edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);
+                edges[edgeOffset + i].component = component;
+            } else if(!edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i])) {
+                edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);
+                edges[edgeOffset + i - 1].component = component;
+            } else {
+                throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + points[pointOffset + i]);
+            }
+        }
+
+        if (direction) {
+            edges[edgeOffset].setNext(edges[edgeOffset + length - 1]);
+            edges[edgeOffset].component = component;
+        } else {
+            edges[edgeOffset + length - 1].setNext(edges[edgeOffset]);
+            edges[edgeOffset + length - 1].component = component;
+        }
+
+        return edges;
+    }
+
+    /**
+     * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range
+     */
+    private static void translate(Coordinate[] points) {
+        for (Coordinate c : points) {
+            if (c.x < 0) {
+                c.x += 2*DATELINE;
+            }
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shell, holes, orientation);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PolygonBuilder other = (PolygonBuilder) obj;
+        return Objects.equals(shell, other.shell) &&
+                Objects.equals(holes, other.holes) &&
+                Objects.equals(orientation,  other.orientation);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        orientation.writeTo(out);
+        shell.writeTo(out);
+        out.writeVInt(holes.size());
+        for (LineStringBuilder hole : holes) {
+            hole.writeTo(out);
+        }
+    }
+
+    @Override
+    public PolygonBuilder readFrom(StreamInput in) throws IOException {
+        PolygonBuilder polyBuilder = new PolygonBuilder(Orientation.readFrom(in));
+        polyBuilder.shell = LineStringBuilder.PROTOTYPE.readFrom(in);
+        int holes = in.readVInt();
+        for (int i = 0; i < holes; i++) {
+            polyBuilder.hole(LineStringBuilder.PROTOTYPE.readFrom(in));
+        }
+        return polyBuilder;
     }
 }

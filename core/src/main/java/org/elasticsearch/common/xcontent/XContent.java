@@ -21,7 +21,10 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.bytes.BytesReference;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
@@ -44,11 +47,6 @@ public interface XContent {
      * Creates a new generator using the provided output stream and some filters.
      */
     XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException;
-
-    /**
-     * Creates a new generator using the provided writer.
-     */
-    XContentGenerator createGenerator(Writer writer) throws IOException;
 
     /**
      * Creates a parser over the provided string content.

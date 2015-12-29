@@ -36,7 +36,13 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a
@@ -295,14 +301,14 @@ public class GeoContextMapping extends ContextMapping {
 
         private int precision = DEFAULT_PRECISION;
         private String fieldName = null;
-        
+
         protected Builder(String name) {
             super(name);
         }
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param precision
          *            precision as distance with {@link DistanceUnit}. Default:
          *            meters
@@ -314,7 +320,7 @@ public class GeoContextMapping extends ContextMapping {
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param precision
          *            precision value
          * @param unit
@@ -327,23 +333,23 @@ public class GeoContextMapping extends ContextMapping {
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param meters
          *            precision as distance in meters
          * @return this
          */
         public Builder precision(double meters) {
             int level = GeoUtils.geoHashLevelsForPrecision(meters);
-            // Ceiling precision: we might return more results 
+            // Ceiling precision: we might return more results
             if (GeoUtils.geoHashCellSize(level) < meters) {
-               level = Math.max(1, level - 1); 
+               level = Math.max(1, level - 1);
             }
             return precision(level);
         }
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param level
          *            maximum length of geohashes
          * @return this

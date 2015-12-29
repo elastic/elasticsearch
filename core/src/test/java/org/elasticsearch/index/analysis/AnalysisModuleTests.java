@@ -53,7 +53,10 @@ import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -72,7 +75,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
     public AnalysisRegistry getNewRegistry(Settings settings) {
        return new AnalysisRegistry(null, new Environment(settings),
-                Collections.EMPTY_MAP, Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+                Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.emptyMap(), Collections.emptyMap());
     }
 
     private Settings loadFromClasspath(String path) {

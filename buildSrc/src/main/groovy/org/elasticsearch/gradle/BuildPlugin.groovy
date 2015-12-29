@@ -18,21 +18,29 @@
  */
 package org.elasticsearch.gradle
 
-import org.gradle.process.ExecResult
-
-import java.time.ZonedDateTime
-import java.time.ZoneOffset
-
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.*
-import org.gradle.api.artifacts.*
+import org.gradle.api.GradleException
+import org.gradle.api.JavaVersion
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.XmlProvider
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.ModuleDependency
+import org.gradle.api.artifacts.ModuleVersionIdentifier
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.maven.MavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
+import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
+
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -62,7 +70,7 @@ class BuildPlugin implements Plugin<Project> {
         configureCompile(project)
 
         configureTest(project)
-        PrecommitTasks.configure(project)
+        configurePrecommit(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -190,6 +198,10 @@ class BuildPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     static void configureConfigurations(Project project) {
+        // we are not shipping these jars, we act like dumb consumers of these things
+        if (project.path.startsWith(':test:fixtures')) {
+            return
+        }
         // fail on any conflicting dependency versions
         project.configurations.all({ Configuration configuration ->
             if (configuration.name.startsWith('_transitive_')) {
@@ -197,12 +209,16 @@ class BuildPlugin implements Plugin<Project> {
                 // we just have them to find *what* transitive deps exist
                 return
             }
+            if (configuration.name.endsWith('Fixture')) {
+                // just a self contained test-fixture configuration, likely transitive and hellacious
+                return
+            }
             configuration.resolutionStrategy.failOnVersionConflict()
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
         Closure disableTransitiveDeps = { ModuleDependency dep ->
-            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -283,17 +299,26 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
+        project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.memoryMaximumSize = "1g"
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  */
+                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                // compile with compact 3 profile by default
+                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                if (project.compactProfile != 'full') {
+                    options.compilerArgs << '-profile' << project.compactProfile
+                }
                 options.encoding = 'UTF-8'
+                //options.incremental = true
             }
         }
     }
@@ -363,6 +388,7 @@ class BuildPlugin implements Plugin<Project> {
             enableSystemAssertions false
 
             testLogging {
+                showNumFailuresAtEnd 25
                 slowTests {
                     heartbeat 10
                     summarySize 5
@@ -406,5 +432,12 @@ class BuildPlugin implements Plugin<Project> {
             include '**/*Tests.class'
         }
         return test
+    }
+
+    private static configurePrecommit(Project project) {
+        Task precommit = PrecommitTasks.create(project, true)
+        project.check.dependsOn(precommit)
+        project.test.mustRunAfter(precommit)
+        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
@@ -159,16 +160,22 @@ public class SourceToParse {
         return this.ttl;
     }
 
+    public SourceToParse ttl(TimeValue ttl) {
+        if (ttl == null) {
+            this.ttl = -1;
+            return this;
+        }
+        this.ttl = ttl.millis();
+        return this;
+    }
+
     public SourceToParse ttl(long ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public static enum Origin {
-
+    public enum Origin {
         PRIMARY,
         REPLICA
-
     }
-
 }

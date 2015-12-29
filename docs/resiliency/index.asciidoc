@@ -56,7 +56,7 @@ If you encounter an issue, https://github.com/elasticsearch/elasticsearch/issues
 We are committed to tracking down and fixing all the issues that are posted.
 
 [float]
-=== Use two phase commit for Cluster State publishing (STATUS: ONGOING)
+=== Use two phase commit for Cluster State publishing (STATUS: ONGOING, v3.0.0)
 
 A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#fault-detection[monitors the cluster nodes]
 and removes any node from the cluster that doesn't respond to its pings in a timely
@@ -104,58 +104,15 @@ Further issues remain with the retry mechanism:
 See {GIT}9967[#9967]. (STATUS: ONGOING)
 
 [float]
-=== Wait on incoming joins before electing local node as master (STATUS: ONGOING)
-
-During master election each node pings in order to discover other nodes and validate the liveness of existing
-nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
-(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
-elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
-a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
-node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough
-nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
-{GIT}12161[#12161]
-
-
-[float]
-=== Write index metadata on data nodes where shards allocated (STATUS: ONGOING)
-
-Today, index metadata is written only on nodes that are master-eligible, not on
-data-only nodes.  This is not a problem when running with multiple master nodes,
-as recommended, as the loss of all but one master node is still recoverable.
-However, users running with a single master node are at risk of losing
-their index metadata if the master fails.  Instead, this metadata should
-also be written on any node where a shard is allocated. {GIT}8823[#8823]
-
-[float]
-=== Better file distribution with multiple data paths (STATUS: ONGOING)
-
-Today, a node configured with multiple data paths distributes writes across
-all paths by writing one file to each path in turn.  This can mean that the
-failure of a single disk corrupts many shards at once.  Instead, by allocating
-an entire shard to a single data path, the extent of the damage can be limited
-to just the shards on that disk. {GIT}9498[#9498]
-
-[float]
 === OOM resiliency (STATUS: ONGOING)
 
 The family of circuit breakers has greatly reduced the occurrence of OOM
 exceptions, but it is still possible to cause a node to run out of heap
 space.  The following issues have been identified:
 
-* Set a hard limit on `from`/`size` parameters {GIT}9311[#9311]. (STATUS: ONGOING)
+* Set a hard limit on `from`/`size` parameters {GIT}9311[#9311]. (STATUS: DONE, v2.1.0)
 * Prevent combinatorial explosion in aggregations from causing OOM {GIT}8081[#8081]. (STATUS: ONGOING)
 * Add the byte size of each hit to the request circuit breaker {GIT}9310[#9310]. (STATUS: ONGOING)
-
-[float]
-=== Mapping changes should be applied synchronously (STATUS: ONGOING)
-
-When introducing new fields using dynamic mapping, it is possible that the same
-field can be added to different shards with different data types.  Each shard
-will operate with its local data type but, if the shard is relocated, the
-data type from the cluster state will be applied to the new shard, which
-can result in a corrupt shard.  To prevent this, new fields should not
-be added to a shard's mapping until confirmed by the master.
-{GIT}8688[#8688] (STATUS: DONE)
 
 [float]
 === Loss of documents during network partition (STATUS: ONGOING)
@@ -167,26 +124,6 @@ If the node hosts a primary shard at the moment of partition, and ends up being 
 A test to replicate this condition was added in {GIT}7493[#7493].
 
 [float]
-=== Lucene checksums phase 3 (STATUS:ONGOING)
-
-Almost all files in Elasticsearch now have checksums which are validated before use.  A few changes remain:
-
-* {GIT}7586[#7586] adds checksums for cluster and index state files. (STATUS: DONE, Fixed in v1.5.0)
-* {GIT}9183[#9183] supports validating the checksums on all files when starting a node. (STATUS: DONE, Fixed in v2.0.0)
-* {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges. (STATUS: DONE, Fixed in v2.0.0)
-* {GIT}8403[#8403] to add validation of checksums on Lucene `segments_N` files. (STATUS: NOT STARTED)
-
-[float]
-=== Add per-segment and per-commit ID to help replication (STATUS: ONGOING)
-
-{JIRA}5895[LUCENE-5895] adds a unique ID for each segment and each commit point. File-based replication (as performed by snapshot/restore) can use this ID to know whether the segment/commit on the source and destination machines are the same.  Fixed in Lucene 5.0.
-
-[float]
-=== Report shard-level statuses on write operations (STATUS: ONGOING)
-
-Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7994[#7994]. (STATUS: DONE, v2.0.0)
-
-[float]
 === Jepsen Test Failures (STATUS: ONGOING)
 
 We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class], where we will add more tests as time progresses.
@@ -196,23 +133,95 @@ We have increased our test coverage to include scenarios tested by Jepsen. We ma
 
 This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
 
-
-[float]
-=== Take filter cache key size into account (STATUS: ONGOING)
-
-Commonly used filters are cached in Elasticsearch. That cache is limited in size (10% of node's memory by default) and is being evicted based on a least recently used policy. The amount of memory used by the cache depends on two primary components - the values it stores and the keys associated with them. Calculating the memory footprint of the values is easy enough but the keys accounting is trickier to achieve as they are, by default, raw Lucene objects. This is largely not a problem as the keys are dominated by the values. However, recent optimizations in Lucene have changed the balance causing the filter cache to grow beyond it's size.
-
-While we are working on a longer term solution ({GIT}9176[#9176]), we introduced a minimum weight of 1k for each cache entry. This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in v1.4.0)
-
 [float]
 === Do not allow stale shards to automatically be promoted to primary (STATUS: ONGOING)
 
-In some scenarios, after loss of all valid copies, a stale replica shard can be assigned as a primary. This can lead to
+In some scenarios, after the loss of all valid copies, a stale replica shard can be assigned as a primary. This can lead to
 a loss of acknowledged writes if the valid copies are not lost but are rather temporarily isolated. Work is underway
 ({GIT}14671[#14671]) to prevent the automatic promotion of a stale primary and only allow such promotion to occur when
 a system operator manually intervenes.
 
 == Completed
+
+[float]
+=== Wait on incoming joins before electing local node as master (STATUS: DONE, v2.0.0)
+
+During master election each node pings in order to discover other nodes and validate the liveness of existing
+nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
+(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
+elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
+a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
+node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough
+nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
+{GIT}12161[#12161]
+
+[float]
+=== Mapping changes should be applied synchronously (STATUS: DONE, v2.0.0)
+
+When introducing new fields using dynamic mapping, it is possible that the same
+field can be added to different shards with different data types.  Each shard
+will operate with its local data type but, if the shard is relocated, the
+data type from the cluster state will be applied to the new shard, which
+can result in a corrupt shard.  To prevent this, new fields should not
+be added to a shard's mapping until confirmed by the master.
+{GIT}8688[#8688] (STATUS: DONE)
+
+[float]
+=== Add per-segment and per-commit ID to help replication (STATUS: DONE, v2.0.0)
+
+{JIRA}5895[LUCENE-5895] adds a unique ID for each segment and each commit point. File-based replication (as performed by snapshot/restore) can use this ID to know whether the segment/commit on the source and destination machines are the same.  Fixed in Lucene 5.0.
+
+[float]
+=== Write index metadata on data nodes where shards allocated (STATUS: DONE, v2.0.0)
+
+Today, index metadata is written only on nodes that are master-eligible, not on
+data-only nodes.  This is not a problem when running with multiple master nodes,
+as recommended, as the loss of all but one master node is still recoverable.
+However, users running with a single master node are at risk of losing
+their index metadata if the master fails.  Instead, this metadata should
+also be written on any node where a shard is allocated. {GIT}8823[#8823], {GIT}9952[#9952]
+
+[float]
+=== Better file distribution with multiple data paths (STATUS: DONE, v2.0.0)
+
+Today, a node configured with multiple data paths distributes writes across
+all paths by writing one file to each path in turn.  This can mean that the
+failure of a single disk corrupts many shards at once.  Instead, by allocating
+an entire shard to a single data path, the extent of the damage can be limited
+to just the shards on that disk. {GIT}9498[#9498]
+
+[float]
+=== Lucene checksums phase 3 (STATUS: DONE, v2.0.0)
+
+Almost all files in Elasticsearch now have checksums which are validated before use.  A few changes remain:
+
+* {GIT}7586[#7586] adds checksums for cluster and index state files. (STATUS: DONE, Fixed in v1.5.0)
+* {GIT}9183[#9183] supports validating the checksums on all files when starting a node. (STATUS: DONE, Fixed in v2.0.0)
+* {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges. (STATUS: DONE, Fixed in v2.0.0)
+* {GIT}8403[#8403] to add validation of checksums on Lucene `segments_N` files. (STATUS: DONE, v2.0.0)
+
+[float]
+=== Report shard-level statuses on write operations (STATUS: DONE, v2.0.0)
+
+Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7994[#7994]. (STATUS: DONE, v2.0.0)
+
+[float]
+=== Take filter cache key size into account (STATUS: DONE, v2.0.0)
+
+Commonly used filters are cached in Elasticsearch. That cache is limited in size
+(10% of node's memory by default) and is being evicted based on a least recently
+used policy. The amount of memory used by the cache depends on two primary
+components - the values it stores and the keys associated with them. Calculating
+the memory footprint of the values is easy enough but the keys accounting is
+trickier to achieve as they are, by default, raw Lucene objects. This is largely
+not a problem as the keys are dominated by the values. However, recent
+optimizations in Lucene have changed the balance causing the filter cache to
+grow beyond it's size.
+
+As a temporary solution, we introduced a minimum weight of 1k for each cache entry.
+This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in v1.4.0)
+
+The issue has been completely solved by the move to Lucene's query cache. See {GIT}10897[#10897]
 
 [float]
 === Ensure shard state ID is incremental (STATUS: DONE, v1.5.1)
@@ -491,4 +500,3 @@ At Elasticsearch, we live the philosophy that we can miss a bug once, but never 
 === Lucene Loses Data On File Descriptors Failure (STATUS: DONE, v0.90.0)
 
 When a process runs out of file descriptors, Lucene can causes an index to be completely deleted. This issue was fixed in Lucene ({JIRA}4870[version 4.2.1]) and fixed in an early version of Elasticsearch. See issue {GIT}2812[#2812].
-

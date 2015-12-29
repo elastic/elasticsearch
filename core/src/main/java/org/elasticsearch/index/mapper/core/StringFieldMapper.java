@@ -35,8 +35,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
@@ -47,8 +45,8 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
@@ -100,7 +98,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -151,8 +149,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             StringFieldMapper fieldMapper = new StringFieldMapper(
                     name, fieldType, defaultFieldType, positionIncrementGap, ignoreAbove,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -160,7 +157,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
-            parseField(builder, name, node, parserContext);
+            parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -251,29 +248,48 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
-            throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
+            throw new MapperParsingException("Field [" + fieldType.name() + "] cannot be analyzed and have doc values");
         }
         this.positionIncrementGap = positionIncrementGap;
         this.ignoreAbove = ignoreAbove;
     }
 
     @Override
-    public void includeInAll(Boolean includeInAll) {
+    protected StringFieldMapper clone() {
+        return (StringFieldMapper) super.clone();
+    }
+
+    @Override
+    public StringFieldMapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
-            this.includeInAll = includeInAll;
+            StringFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void includeInAllIfNotSet(Boolean includeInAll) {
+    public StringFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
-            this.includeInAll = includeInAll;
+            StringFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void unsetIncludeInAll() {
-        includeInAll = null;
+    public StringFieldMapper unsetIncludeInAll() {
+        if (includeInAll != null) {
+            StringFieldMapper clone = clone();
+            clone.includeInAll = null;
+            return clone;
+        } else {
+            return this;
+        }
     }
 
     @Override
@@ -299,19 +315,16 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().names().fullName(), valueAndBoost.value(), valueAndBoost.boost());
+            context.allEntries().addText(fieldType().name(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), valueAndBoost.value(), fieldType());
+            Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(valueAndBoost.value())));
-        }
-        if (fields.isEmpty()) {
-            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(valueAndBoost.value())));
         }
     }
 
@@ -360,15 +373,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
-            this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
+        this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
     }
 
     @Override

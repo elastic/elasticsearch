@@ -36,7 +36,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
@@ -49,7 +53,7 @@ import java.util.List;
 public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static class Defaults {
-        
+
         public static final int PRECISION_STEP_8_BIT  = Integer.MAX_VALUE; // 1tpv: 256 terms at most, not useful
         public static final int PRECISION_STEP_16_BIT = 8;                 // 2tpv
         public static final int PRECISION_STEP_32_BIT = 8;                 // 4tpv
@@ -64,9 +68,9 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         private Boolean ignoreMalformed;
 
         private Boolean coerce;
-        
+
         public Builder(String name, MappedFieldType fieldType, int defaultPrecisionStep) {
-            super(name, fieldType);
+            super(name, fieldType, fieldType);
             this.fieldType.setNumericPrecisionStep(defaultPrecisionStep);
         }
 
@@ -89,7 +93,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             }
             return Defaults.IGNORE_MALFORMED;
         }
-        
+
         public T coerce(boolean coerce) {
             this.coerce = coerce;
             return builder;
@@ -135,6 +139,15 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             super(ref);
         }
 
+        @Override
+        public void checkCompatibility(MappedFieldType other,
+                List<String> conflicts, boolean strict) {
+            super.checkCompatibility(other, conflicts, strict);
+            if (numericPrecisionStep() != other.numericPrecisionStep()) {
+                conflicts.add("mapper [" + name() + "] has different [precision_step] values");
+            }
+        }
+
         public abstract NumberFieldType clone();
 
         @Override
@@ -164,7 +177,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     protected Explicit<Boolean> ignoreMalformed;
 
     protected Explicit<Boolean> coerce;
-    
+
     protected NumberFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
@@ -174,22 +187,41 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void includeInAll(Boolean includeInAll) {
+    protected NumberFieldMapper clone() {
+        return (NumberFieldMapper) super.clone();
+    }
+
+    @Override
+    public Mapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
-            this.includeInAll = includeInAll;
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void includeInAllIfNotSet(Boolean includeInAll) {
+    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
-            this.includeInAll = includeInAll;
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
         }
     }
 
     @Override
-    public void unsetIncludeInAll() {
-        includeInAll = null;
+    public Mapper unsetIncludeInAll() {
+        if (includeInAll != null) {
+            NumberFieldMapper clone = clone();
+            clone.includeInAll = null;
+            return clone;
+        } else {
+            return this;
+        }
     }
 
     @Override
@@ -211,7 +243,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
-        fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value));
+        fields.add(new SortedNumericDocValuesField(fieldType().name(), value));
     }
 
     /**
@@ -245,26 +277,16 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-        if (this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false) {
-            if (fieldType().numericPrecisionStep() != nfmMergeWith.fieldType().numericPrecisionStep()) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] is used by multiple types. Set update_all_types to true to update precision_step across all types.");
-            }
-        }
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            this.includeInAll = nfmMergeWith.includeInAll;
-            if (nfmMergeWith.ignoreMalformed.explicit()) {
-                this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
-            }
-            if (nfmMergeWith.coerce.explicit()) {
-                this.coerce = nfmMergeWith.coerce;
-            }
+        this.includeInAll = nfmMergeWith.includeInAll;
+        if (nfmMergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
+        }
+        if (nfmMergeWith.coerce.explicit()) {
+            this.coerce = nfmMergeWith.coerce;
         }
     }
 
@@ -307,7 +329,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         };
 
         public CustomNumericField(Number value, MappedFieldType fieldType) {
-            super(fieldType.names().indexName(), fieldType);
+            super(fieldType.name(), fieldType);
             if (value != null) {
                 this.fieldsData = value;
             }

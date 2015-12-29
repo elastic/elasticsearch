@@ -56,5 +56,6 @@ These community plugins appear to have been abandoned:
 
 * https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
 
+* https://github.com/etsy/es-restlog[REST Request Logging Plugin] (by Etsy/Shikhar Bhushan)
 
 include::delete-by-query.asciidoc[]

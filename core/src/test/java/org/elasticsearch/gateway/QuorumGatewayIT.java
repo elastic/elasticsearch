@@ -20,10 +20,10 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -32,14 +32,10 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -51,72 +47,12 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         return 2;
     }
 
-    public void testChangeInitialShardsRecovery() throws Exception {
-        logger.info("--> starting 3 nodes");
-        final String[] nodes = internalCluster().startNodesAsync(3).get().toArray(new String[0]);
-
-        createIndex("test");
-        ensureGreen();
-        NumShards test = getNumShards("test");
-
-        logger.info("--> indexing...");
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
-        //We don't check for failures in the flush response: if we do we might get the following:
-        // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
-        flush();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
-        refresh();
-
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2l);
-        }
-
-        final String nodeToRemove = nodes[between(0,2)];
-        logger.info("--> restarting 1 nodes -- kill 2");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return Settings.EMPTY;
-            }
-
-            @Override
-            public boolean doRestart(String nodeName) {
-                return nodeToRemove.equals(nodeName);
-            }
-        });
-        if (randomBoolean()) {
-            Thread.sleep(between(1, 400)); // wait a bit and give is a chance to try to allocate
-        }
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.RED));  // nothing allocated yet
-        assertTrue(awaitBusy(() -> {
-            ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
-            return clusterStateResponse.getState() != null && clusterStateResponse.getState().routingTable().index("test") != null;
-        })); // wait until we get a cluster state - could be null if we quick enough.
-        final ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
-        assertThat(clusterStateResponse.getState(), notNullValue());
-        assertThat(clusterStateResponse.getState().routingTable().index("test"), notNullValue());
-        assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), is(false));
-        logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
-
-        logger.info("--> running cluster_health (wait for the shards to startup), primaries only since we only have 1 node");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(test.numPrimaries)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2l);
-        }
-    }
-
     public void testQuorumRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
-        setMinimumMasterNodes(2);
+        internalCluster().startNodesAsync(3,
+                Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build()).get();
+
 
         createIndex("test");
         ensureGreen();

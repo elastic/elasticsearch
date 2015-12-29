@@ -33,6 +33,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+
 public class TransportRenderSearchTemplateAction extends HandledTransportAction<RenderSearchTemplateRequest, RenderSearchTemplateResponse> {
 
     private final ScriptService scriptService;
@@ -55,7 +57,7 @@ public class TransportRenderSearchTemplateAction extends HandledTransportAction<
 
             @Override
             protected void doRun() throws Exception {
-                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, request);
+                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, request, Collections.emptyMap());
                 BytesReference processedTemplate = (BytesReference) executable.run();
                 RenderSearchTemplateResponse response = new RenderSearchTemplateResponse();
                 response.source(processedTemplate);

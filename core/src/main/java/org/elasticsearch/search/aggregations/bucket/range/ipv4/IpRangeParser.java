@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;

@@ -96,14 +96,6 @@ The `exists` filter has been replaced by the <<query-dsl-exists-query>>.  It beh
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
-[role="exclude",id="query-dsl-missing-filter"]
-=== Missing Filter
-
-The `missing` filter has been replaced by the <<query-dsl-missing-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-
 [role="exclude",id="query-dsl-geo-bounding-box-filter"]
 === Geo Bounding Box Filter
 
@@ -451,4 +443,3 @@ The `not` query has been replaced by using a `mustNot` clause in a Boolean query
 === Nested type
 
 The docs for the `nested` field datatype have moved to <<nested>>.
-

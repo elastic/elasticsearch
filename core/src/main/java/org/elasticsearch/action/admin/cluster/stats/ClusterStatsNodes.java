@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -74,7 +74,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             versions.add(nodeResponse.nodeInfo().getVersion());
             process.addNodeStats(nodeResponse.nodeStats());
             jvm.addNodeInfoStats(nodeResponse.nodeInfo(), nodeResponse.nodeStats());
-            plugins.addAll(nodeResponse.nodeInfo().getPlugins().getInfos());
+            plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getTransport().address().publishAddress();

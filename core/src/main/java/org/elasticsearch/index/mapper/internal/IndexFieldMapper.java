@@ -34,8 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -69,7 +67,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -81,7 +79,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
@@ -225,7 +223,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -249,7 +247,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), context.index(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.index(), fieldType()));
     }
 
     @Override
@@ -280,12 +278,10 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         IndexFieldMapper indexFieldMapperMergeWith = (IndexFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            if (indexFieldMapperMergeWith.enabledState != enabledState && !indexFieldMapperMergeWith.enabledState.unset()) {
-                this.enabledState = indexFieldMapperMergeWith.enabledState;
-            }
+        if (indexFieldMapperMergeWith.enabledState != enabledState && !indexFieldMapperMergeWith.enabledState.unset()) {
+            this.enabledState = indexFieldMapperMergeWith.enabledState;
         }
     }
 

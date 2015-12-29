@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.GeoHashUtils;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -100,7 +99,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         if (shardSize < 0) {
-            //Use default heuristic to avoid any wrong-ranking caused by distributed counting            
+            //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
         }
 

@@ -36,7 +36,13 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Service responsible for submitting index templates updates
@@ -56,7 +62,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {
@@ -143,7 +149,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]",
+                new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {
@@ -216,6 +223,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         for (Alias alias : request.aliases) {
             //we validate the alias only partially, as we don't know yet to which index it'll get applied to
             aliasValidator.validateAliasStandalone(alias);
+            if (request.template.equals(alias.name())) {
+                throw new IllegalArgumentException("Alias [" + alias.name() + "] cannot be the same as the template pattern [" + request.template + "]");
+            }
         }
     }
 

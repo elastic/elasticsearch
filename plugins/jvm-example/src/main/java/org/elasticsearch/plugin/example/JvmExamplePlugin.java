@@ -19,17 +19,19 @@
 
 package org.elasticsearch.plugin.example;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestModule;
-
-import java.util.ArrayList;
-import java.util.Collection;
 
 import static java.util.Collections.singletonList;
 
@@ -82,12 +84,12 @@ public class JvmExamplePlugin extends Plugin {
 
         @Override
         protected void configure() {
-            bind(ExamplePluginConfiguration.class).asEagerSingleton();
+            binder().requestInjection(this);
         }
 
         @Inject
-        public void config(ExamplePluginConfiguration config) {
-            this.config = config;
+        public void config(Environment env) throws IOException {
+            this.config = new ExamplePluginConfiguration(env);
         }
 
         public ExampleCatAction exampleCatAction(RestGlobalContext context) {

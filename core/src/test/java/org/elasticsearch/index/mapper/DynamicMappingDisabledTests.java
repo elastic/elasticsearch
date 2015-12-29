@@ -42,6 +42,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
@@ -56,29 +57,6 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     private AutoCreateIndex autoCreateIndex;
     private Settings settings;
 
-    private class DynamicMappingDisabledTestActionListener implements ActionListener<IndexResponse> {
-        boolean onFailureCalled = false;
-        public boolean getOnFailureCalled() {
-            return onFailureCalled;
-        }
-
-        public void setOnFailureCalled(boolean onFailureCalled) {
-            this.onFailureCalled = onFailureCalled;
-        }
-
-        @Override
-        public void onResponse(IndexResponse indexResponse) {
-            fail("Indexing request should have failed");
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            setOnFailureCalled(true);
-            assert(e instanceof IndexNotFoundException);
-            assertEquals(e.getMessage(), "no such index");
-        }
-    }
-
     @BeforeClass
     public static void createThreadPool() {
         THREAD_POOL = new ThreadPool("DynamicMappingDisabledTests");
@@ -88,7 +66,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, "false")
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, false)
             .build();
         clusterService = new TestClusterService(THREAD_POOL);
         transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry());
@@ -113,10 +91,22 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
-        DynamicMappingDisabledTestActionListener listener = new DynamicMappingDisabledTestActionListener();
+        final AtomicBoolean onFailureCalled = new AtomicBoolean(false);
 
-        action.execute(request, listener);
+        action.execute(request, new ActionListener<IndexResponse>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                fail("Indexing request should have failed");
+            }
 
-        assert(listener.getOnFailureCalled());
+            @Override
+            public void onFailure(Throwable e) {
+                onFailureCalled.set(true);
+                assertTrue(e instanceof IndexNotFoundException);
+                assertEquals(e.getMessage(), "no such index");
+            }
+        });
+
+        assertTrue(onFailureCalled.get());
     }
 }

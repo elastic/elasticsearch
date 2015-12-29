@@ -1233,10 +1233,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @see #waitForRelocation()
      */
-    protected final RefreshResponse refresh() {
+    protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
         // TODO RANDOMIZE with flush?
-        RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
+        RefreshResponse actionGet = client().admin().indices().prepareRefresh(indices).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1246,7 +1246,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final void flushAndRefresh(String... indices) {
         flush(indices);
-        refresh();
+        refresh(indices);
     }
 
     /**

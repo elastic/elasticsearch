@@ -430,7 +430,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             latMapper.parse(context.createExternalValueContext(point.lat()));
             lonMapper.parse(context.createExternalValueContext(point.lon()));
         }
-        multiFields.parse(this, context);
+        multiFields.parse(this, context.createExternalValueContext(point));
     }
 
     @Override

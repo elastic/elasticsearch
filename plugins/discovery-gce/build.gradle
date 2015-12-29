@@ -32,5 +32,13 @@ test {
   systemProperty 'tests.artifact', project.name 
 }
 
-// classes are missing, e.g. org.apache.log.Logger
-thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'com.google.common.base.Splitter', 
+  'com.google.common.collect.Lists', 
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger',
+]

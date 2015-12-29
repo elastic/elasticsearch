@@ -34,7 +34,6 @@ grant {
   permission org.elasticsearch.script.ClassPermission "<<STANDARD>>";
   // groovy runtime (TODO: clean these up if possible)
   permission org.elasticsearch.script.ClassPermission "groovy.grape.GrabAnnotationTransformation";
-  permission org.elasticsearch.script.ClassPermission "groovy.json.JsonOutput";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Binding";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.GroovyObject";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.GString";

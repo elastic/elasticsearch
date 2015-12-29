@@ -119,6 +119,14 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // NOTE: for now, just set the location mode in case it is different;
         // only one mode per storage account can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
+
+        // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
+        try {
+            int timeout = (int) azureStorageSettings.getTimeout().getMillis();
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Can not cast [" + azureStorageSettings.getTimeout() + "] to int.");
+        }
         return client;
     }
 

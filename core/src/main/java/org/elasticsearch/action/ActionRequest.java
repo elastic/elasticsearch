@@ -38,7 +38,7 @@ public abstract class ActionRequest<T extends ActionRequest> extends TransportRe
         super(request);
         // this does not set the listenerThreaded API, if needed, its up to the caller to set it
         // since most times, we actually want it to not be threaded...
-        //this.listenerThreaded = request.listenerThreaded();
+        // this.listenerThreaded = request.listenerThreaded();
     }
 
     public abstract ActionRequestValidationException validate();

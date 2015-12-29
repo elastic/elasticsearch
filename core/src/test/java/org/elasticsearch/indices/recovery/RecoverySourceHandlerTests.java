@@ -108,7 +108,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertEquals(0, recoveryDiff.missing.size());
         IndexReader reader = DirectoryReader.open(targetStore.directory());
         assertEquals(numDocs, reader.maxDoc());
-        IOUtils.close(reader, writer, store, targetStore, recoverySettings);
+        IOUtils.close(reader, writer, store, targetStore);
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -170,7 +170,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertNotNull(ExceptionsHelper.unwrapCorruption(ex));
         }
         assertTrue(failedEngine.get());
-        IOUtils.close(store, targetStore, recoverySettings);
+        IOUtils.close(store, targetStore);
     }
 
 
@@ -231,7 +231,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             fail("not expected here");
         }
         assertFalse(failedEngine.get());
-        IOUtils.close(store, targetStore, recoverySettings);
+        IOUtils.close(store, targetStore);
     }
 
     private Store newStore(Path path) throws IOException {

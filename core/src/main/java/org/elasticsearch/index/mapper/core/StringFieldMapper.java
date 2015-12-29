@@ -326,9 +326,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(valueAndBoost.value())));
         }
-        if (fields.isEmpty()) {
-            context.ignoredValue(fieldType().name(), valueAndBoost.value());
-        }
     }
 
     /**

@@ -32,18 +32,6 @@ public class RecoverySettingsTests extends ESSingleNodeTestCase {
     }
 
     public void testAllSettingsAreDynamicallyUpdatable() {
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS_SETTING.getKey(), randomIntBetween(1, 200), new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.concurrentStreamPool().getMaximumPoolSize());
-            }
-        });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING.getKey(), randomIntBetween(1, 200), new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.concurrentSmallFileStreamPool().getMaximumPoolSize());
-            }
-        });
         innerTestSettings(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {

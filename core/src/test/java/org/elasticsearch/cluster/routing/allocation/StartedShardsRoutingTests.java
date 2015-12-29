@@ -51,9 +51,9 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
-        final ShardRouting initShard = TestShardRouting.newShardRouting("test", 0, "node1", randomBoolean(), ShardRoutingState.INITIALIZING, 1);
-        final ShardRouting startedShard = TestShardRouting.newShardRouting("test", 1, "node2", randomBoolean(), ShardRoutingState.STARTED, 1);
-        final ShardRouting relocatingShard = TestShardRouting.newShardRouting("test", 2, "node1", "node2", randomBoolean(), ShardRoutingState.RELOCATING, 1);
+        final ShardRouting initShard = TestShardRouting.newShardRouting("test", 0, "node1", true, ShardRoutingState.INITIALIZING, 1);
+        final ShardRouting startedShard = TestShardRouting.newShardRouting("test", 1, "node2", true, ShardRoutingState.STARTED, 1);
+        final ShardRouting relocatingShard = TestShardRouting.newShardRouting("test", 2, "node1", "node2", true, ShardRoutingState.RELOCATING, 1);
         stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder("test")
                 .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
                 .addIndexShard(new IndexShardRoutingTable.Builder(startedShard.shardId()).addShard(startedShard).build())

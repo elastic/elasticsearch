@@ -89,7 +89,7 @@ GET my_index/my_type/_search
 encountering a phrase otherwise it will use `my_analyzer` for term queries
 <4> The `plain` field that has the default `standard` analyzer that does not stem or remove stop words
 <5> The query looks in the fields `title` and `title.plain`, when the query runs against `title` the `standard` analyzer will kick in and return 
-the following tokens ['the', 'quick', 'brown', 'fox']. Mean while term queries will continue to run against `title`. Finally the document with the 
+the following tokens [`the`, `quick`, `brown`, `fox`]. Mean while term queries will continue to run against `title`. Finally the document with the 
 title `The Quick Brown Fox` will be returned. Without the `search_quote_analyzer` both documents would be returned as `my_analyzer` would remove the 
 stems and stop words at search time resulting in tokens [`quick`, `brown`, `fox`] which are contained in both documents.
 
@@ -118,4 +118,4 @@ GET my_index/my_type/_search
 }
 --------------------------------------------------
 Notice the document with the title `I bought two guard dogs` is returned, if stemming was not disabled at query time for phrases both documents would 
-be returned because each document contains the following tokens in the default field ['guard', 'dog'].
+be returned because each document contains the following tokens in the default field [`guard`, `dog`].

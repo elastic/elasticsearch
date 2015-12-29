@@ -82,12 +82,12 @@ import static org.hamcrest.Matchers.nullValue;
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
 public class SuggestSearchTests extends ESIntegTestCase {
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MustachePlugin.class);
     }
-    
+
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
         createIndex("test");
@@ -618,7 +618,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // Check the name this time because we're repeating it which is funky
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
     }
-    
+
     private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
         return Files.readAllLines(PathUtils.get(Suggest.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
     }
@@ -1166,11 +1166,12 @@ public class SuggestSearchTests extends ESIntegTestCase {
         String filterString = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("match_phrase")
-                            .field("title", "{{suggestion}}")
+                            .field("{{field}}", "{{suggestion}}")
                         .endObject()
                     .endObject()
                 .string();
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
+        filteredQuerySuggest.collateParams(Collections.singletonMap("field", "title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 

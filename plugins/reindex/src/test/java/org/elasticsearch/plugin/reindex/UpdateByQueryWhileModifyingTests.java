@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Mutates a document while update-by-query-ing it and asserts that the mutation
  * always sticks. Update-by-query should never revert.
  */
-public class UpdateByQueryWhileModifyingTest extends UpdateByQueryTestCase {
+public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
     private static final int MAX_MUTATIONS = 50;
     private static final int MAX_ATTEMPTS = 10;
 
@@ -45,17 +45,13 @@ public class UpdateByQueryWhileModifyingTest extends UpdateByQueryTestCase {
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
-        Thread updater = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (keepUpdating.get()) {
-                    try {
-                        assertThat(request().source("test").refresh(true).get(),
-                                responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
-                                        .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
-                    } catch (Throwable t) {
-                        failure.set(t);
-                    }
+        Thread updater = new Thread(() -> {
+            while (keepUpdating.get()) {
+                try {
+                    assertThat(request().source("test").refresh(true).get(), responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
+                            .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
+                } catch (Throwable t) {
+                    failure.set(t);
                 }
             }
         });

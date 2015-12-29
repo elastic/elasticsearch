@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -88,7 +88,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
      *            if non-null then routing is specified as this on the
      *            index-by-search request
      * @param expectedRoutingAfterCopy
-     *            should the index-by-search request result in the routing being
+     *            should the reindex request result in the routing being
      *            copied (true) or stripped (false)
      */
     private void routingTestCase(String specification, String expectedRoutingAfterCopy) throws Exception {
@@ -109,7 +109,7 @@ public class ReindexCornerCaseTests extends ReindexTestCase {
         GetField routing = client().prepareGet("dest", "test", "has_routing").setRouting(expectedRoutingAfterCopy).get()
                 .getField(RoutingFieldMapper.NAME);
         if (expectedRoutingAfterCopy == null) {
-            assertNull(expectedRoutingAfterCopy, routing);
+            assertNull("Expected routing to be cleared but wasn't", routing);
         } else {
             assertEquals(expectedRoutingAfterCopy, routing.getValue());
         }

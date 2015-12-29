@@ -31,7 +31,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
-public class ReindexTestCase extends ESIntegTestCase {
+public abstract class ReindexTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);

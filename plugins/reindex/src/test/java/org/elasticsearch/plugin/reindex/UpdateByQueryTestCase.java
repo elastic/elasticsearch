@@ -19,20 +19,16 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-
-import java.util.Collection;
-
-import org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse;
-import org.elasticsearch.plugin.reindex.ReindexPlugin;
-import org.elasticsearch.plugin.reindex.UpdateByQueryAction;
-import org.elasticsearch.plugin.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Collection;
+
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
-public class UpdateByQueryTestCase extends ESIntegTestCase {
+public abstract class UpdateByQueryTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);

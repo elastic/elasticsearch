@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests failure capturing and abort-on-failure behavior of index-by-search.

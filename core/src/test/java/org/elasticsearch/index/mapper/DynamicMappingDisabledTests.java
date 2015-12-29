@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -37,13 +38,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
-    private static ThreadPool threadPool;
+    private static ThreadPool THREAD_POOL;
     private TestClusterService clusterService;
     private LocalTransport transport;
     private TransportService transportService;
@@ -52,49 +54,69 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     private ActionFilters actionFilters;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private AutoCreateIndex autoCreateIndex;
+    private Settings settings;
+
+    private class DynamicMappingDisabledTestActionListener implements ActionListener<IndexResponse> {
+        boolean onFailureCalled = false;
+        public boolean getOnFailureCalled() {
+            return onFailureCalled;
+        }
+
+        public void setOnFailureCalled(boolean onFailureCalled) {
+            this.onFailureCalled = onFailureCalled;
+        }
+
+        @Override
+        public void onResponse(IndexResponse indexResponse) {
+            fail("Indexing request should have failed");
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            setOnFailureCalled(true);
+            assert(e instanceof IndexNotFoundException);
+            assertEquals(e.getMessage(), "no such index");
+        }
+    }
+
+    @BeforeClass
+    public static void createThreadPool() {
+        THREAD_POOL = new ThreadPool("DynamicMappingDisabledTests");
+    }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new ThreadPool("DynamicMappingDisabledTests");
-        clusterService = new TestClusterService(threadPool);
-        transport = new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry());
-        transportService = new TransportService(transport, threadPool);
+        settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, "false")
+            .build();
+        clusterService = new TestClusterService(THREAD_POOL);
+        transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry());
+        transportService = new TransportService(transport, THREAD_POOL);
         indicesService = getInstanceFromNode(IndicesService.class);
-        shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
-        actionFilters = new ActionFilters(new HashSet<>());
-        indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
-        autoCreateIndex = new AutoCreateIndex(Settings.EMPTY, indexNameExpressionResolver);
+        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null);
+        actionFilters = new ActionFilters(Collections.emptySet());
+        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        autoCreateIndex = new AutoCreateIndex(settings, indexNameExpressionResolver);
     }
 
     @AfterClass
-    public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
+    public static void destroyThreadPool() {
+        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        THREAD_POOL = null;
     }
 
     public void testDynamicDisabled() {
-        Settings noDynamicIndexing = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, "false")
-            .build();
-
-        TransportIndexAction action = new TransportIndexAction(noDynamicIndexing, transportService, clusterService,
-            indicesService, threadPool, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
+        TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
+            indicesService, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
             autoCreateIndex);
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
+        DynamicMappingDisabledTestActionListener listener = new DynamicMappingDisabledTestActionListener();
 
-        action.execute(request, new ActionListener<IndexResponse>() {
-            @Override
-            public void onResponse(IndexResponse indexResponse) {
-                fail("Indexing request should have failed");
-            }
+        action.execute(request, listener);
 
-            @Override
-            public void onFailure(Throwable e) {
-                assertEquals(e.getMessage(), "type[[type, trying to auto create mapping for [type] in index [index], but dynamic mapping is disabled]] missing");
-            }
-        });
+        assert(listener.getOnFailureCalled());
     }
 }

@@ -27,11 +27,11 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestGlobalContext;
-import org.elasticsearch.rest.RestModule;
 
 import static java.util.Collections.singletonList;
 
@@ -71,8 +71,8 @@ public class JvmExamplePlugin extends Plugin {
         return Settings.EMPTY;
     }
 
-    public void onModule(RestModule module) {
-        module.add(ExampleCatAction.class, configuredModule::exampleCatAction);
+    public void onModule(NetworkModule module) {
+        module.registerRestAction(ExampleCatAction.class, configuredModule::exampleCatAction);
     }
 
     /**

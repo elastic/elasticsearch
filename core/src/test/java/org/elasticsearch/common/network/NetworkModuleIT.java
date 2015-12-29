@@ -17,13 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.common.network;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestGlobalContext;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -41,7 +46,7 @@ import static org.hamcrest.Matchers.containsString;
  * Tests that you can register plugins that add _cat and regular REST endpoints.
  */
 @ClusterScope(scope = Scope.SUITE)
-public class RestModuleIT extends ESIntegTestCase {
+public class NetworkModuleIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(Node.HTTP_ENABLED, true).put(super.nodeSettings(nodeOrdinal)).build();
@@ -68,9 +73,9 @@ public class RestModuleIT extends ESIntegTestCase {
         public TestPlugin(Settings settings) {
         }
 
-        public void onModule(RestModule module) {
-            module.add(FakeRestAction.class, FakeRestAction::new);
-            module.add(FakeRestCatAction.class, FakeRestCatAction::new);
+        public void onModule(NetworkModule module) {
+            module.registerRestAction(FakeRestAction.class, FakeRestAction::new);
+            module.registerRestAction(FakeRestCatAction.class, FakeRestCatAction::new);
         }
 
         @Override

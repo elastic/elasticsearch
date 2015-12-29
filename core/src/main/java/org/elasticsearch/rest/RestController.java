@@ -21,7 +21,6 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +57,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     // non volatile since the assumption is that pre processors are registered on startup
     private RestFilter[] filters = new RestFilter[0];
 
-    @Inject
     public RestController(Settings settings) {
         super(settings);
     }

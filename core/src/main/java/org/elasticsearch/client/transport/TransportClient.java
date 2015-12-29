@@ -138,7 +138,7 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService, this.settings, true));
+                modules.add(new NetworkModule(networkService, this.settings, true, version));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
                 modules.add(new SearchModule() {

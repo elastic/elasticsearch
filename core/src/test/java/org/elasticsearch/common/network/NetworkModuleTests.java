@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -73,36 +74,36 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     public void testRegisterTransportService() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, Version.CURRENT);
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
 
         // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings), settings, true);
+        module = new NetworkModule(new NetworkService(settings), settings, true, Version.CURRENT);
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
     }
 
     public void testRegisterTransport() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, Version.CURRENT);
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
 
         // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings), settings, true);
+        module = new NetworkModule(new NetworkService(settings), settings, true, Version.CURRENT);
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
     }
 
     public void testRegisterHttpTransport() {
         Settings settings = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, Version.CURRENT);
         module.registerHttpTransport("custom", FakeHttpTransport.class);
         assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);
 
         // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings), settings, true);
+        module = new NetworkModule(new NetworkService(settings), settings, true, Version.CURRENT);
         try {
             module.registerHttpTransport("custom", FakeHttpTransport.class);
             fail();
@@ -113,7 +114,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
         // not added if http is disabled
         settings = Settings.builder().put(NetworkModule.HTTP_ENABLED, false).build();
-        module = new NetworkModule(new NetworkService(settings), settings, false);
+        module = new NetworkModule(new NetworkService(settings), settings, false, Version.CURRENT);
         assertNotBound(module, HttpServerTransport.class);
     }
 }

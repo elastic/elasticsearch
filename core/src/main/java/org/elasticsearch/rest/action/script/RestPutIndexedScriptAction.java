@@ -25,11 +25,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -45,32 +46,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestPutIndexedScriptAction extends BaseRestHandler {
+public class RestPutIndexedScriptAction extends BaseMultiMethodRestHandler {
     public RestPutIndexedScriptAction(RestGlobalContext context) {
-        this(context, true);
+        this(context, "/_scripts/{lang}/{id}");
     }
 
-    protected RestPutIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
-        super(context);
-        if (registerDefaultHandlers) {
-            context.getController().registerHandler(POST, "/_scripts/{lang}/{id}", this);
-            context.getController().registerHandler(PUT, "/_scripts/{lang}/{id}", this);
-
-            context.getController().registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(context));
-            context.getController().registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(context));
-        }
-    }
-
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(RestGlobalContext context) {
-            super(context);
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
-            request.params().put("op_type", "create");
-            RestPutIndexedScriptAction.this.handleRequest(request, channel, client);
-        }
+    protected RestPutIndexedScriptAction(RestGlobalContext context, String path) {
+        super(context, new Method[] {POST, PUT}, path, path + "/_create");
     }
 
     protected String getScriptLang(RestRequest request) {
@@ -79,6 +61,9 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
+        if (request.path().endsWith("/_create")) {
+            request.params().put("op_type", "create");
+        }
         PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id"));
         putRequest.version(request.paramAsLong("version", putRequest.version()));
         putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));

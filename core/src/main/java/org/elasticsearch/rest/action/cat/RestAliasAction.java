@@ -35,18 +35,13 @@ import org.elasticsearch.rest.action.support.RestTable;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  *
  */
 public class RestAliasAction extends AbstractCatAction {
     public RestAliasAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/aliases", this);
-        context.getController().registerHandler(GET, "/_cat/aliases/{alias}", this);
+        super(context, "aliases", "aliases/{alias}");
     }
-
 
     @Override
     protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
@@ -62,12 +57,6 @@ public class RestAliasAction extends AbstractCatAction {
                 return RestTable.buildResponse(tab, channel);
             }
         });
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/aliases\n");
-        sb.append("/_cat/aliases/{alias}\n");
     }
 
     @Override

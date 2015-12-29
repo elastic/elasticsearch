@@ -25,7 +25,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -42,10 +42,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
-public class RestUpdateAction extends BaseRestHandler {
+public class RestUpdateAction extends BaseSingleMethodRestHandler {
     public RestUpdateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+        super(context, POST, "/{index}/{type}/{id}/_update");
     }
 
     @Override

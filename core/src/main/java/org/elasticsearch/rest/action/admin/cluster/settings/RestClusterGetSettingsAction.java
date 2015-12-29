@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,16 +38,17 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
  */
-public class RestClusterGetSettingsAction extends BaseRestHandler {
+public class RestClusterGetSettingsAction extends BaseSingleMethodRestHandler {
 
     private final ClusterSettings clusterSettings;
 
     public RestClusterGetSettingsAction(RestGlobalContext context, ClusterSettings clusterSettings) {
-        super(context);
+        super(context, GET, "/_cluster/settings");
         this.clusterSettings = clusterSettings;
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
     }
 
     @Override

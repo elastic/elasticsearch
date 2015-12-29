@@ -25,6 +25,7 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
@@ -35,12 +36,15 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -57,8 +61,11 @@ public class RestExplainAction extends BaseRestHandler {
     public RestExplainAction(RestGlobalContext context) {
         super(context);
         this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
+    }
+
+    @Override
+    public Collection<Tuple<Method, String>> registrations() {
+        return Arrays.asList(new Tuple<>(GET, "/{index}/{type}/{id}/_explain"), new Tuple<>(POST, "/{index}/{type}/{id}/_explain"));
     }
 
     @Override

@@ -25,10 +25,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -38,26 +39,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestPercolateAction extends BaseRestHandler {
+public class RestPercolateAction extends BaseMultiMethodRestHandler {
     public RestPercolateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/_percolate", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_percolate", this);
-
-        RestPercolateExistingDocHandler existingDocHandler = new RestPercolateExistingDocHandler(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_percolate", existingDocHandler);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_percolate", existingDocHandler);
-
-        RestCountPercolateDocHandler countHandler = new RestCountPercolateDocHandler(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/_percolate/count", countHandler);
-        context.getController().registerHandler(POST, "/{index}/{type}/_percolate/count", countHandler);
-
-        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
+        super(context, new Method[] {GET, POST}, "/{index}/{type}/_percolate");
     }
 
-    void parseDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel, final Client client) {
+    static void parseDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel, final Client client) {
         percolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         percolateRequest.documentType(restRequest.param("type"));
         percolateRequest.routing(restRequest.param("routing"));
@@ -68,7 +55,7 @@ public class RestPercolateAction extends BaseRestHandler {
         executePercolate(percolateRequest, restChannel, client);
     }
 
-    void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel, final Client client) {
+    static void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel, final Client client) {
         String index = restRequest.param("index");
         String type = restRequest.param("type");
         percolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("percolate_index", index)));
@@ -92,7 +79,7 @@ public class RestPercolateAction extends BaseRestHandler {
         executePercolate(percolateRequest, restChannel, client);
     }
 
-    void executePercolate(final PercolateRequest percolateRequest, final RestChannel restChannel, final Client client) {
+    static void executePercolate(final PercolateRequest percolateRequest, final RestChannel restChannel, final Client client) {
         client.percolate(percolateRequest, new RestToXContentListener<PercolateResponse>(restChannel));
     }
 
@@ -102,10 +89,10 @@ public class RestPercolateAction extends BaseRestHandler {
         parseDocPercolate(percolateRequest, restRequest, restChannel, client);
     }
 
-    final class RestCountPercolateDocHandler extends BaseRestHandler {
+    public static final class RestCountPercolateDocHandler extends BaseMultiMethodRestHandler {
 
-        private RestCountPercolateDocHandler(RestGlobalContext context) {
-            super(context);
+        public RestCountPercolateDocHandler(RestGlobalContext context) {
+            super(context, new Method[] {GET, POST}, "/{index}/{type}/_percolate/count");
         }
 
         @Override
@@ -116,10 +103,10 @@ public class RestPercolateAction extends BaseRestHandler {
         }
     }
 
-    final class RestPercolateExistingDocHandler extends BaseRestHandler {
+    public static final class RestPercolateExistingDocHandler extends BaseMultiMethodRestHandler {
 
-        protected RestPercolateExistingDocHandler(RestGlobalContext context) {
-            super(context);
+        public RestPercolateExistingDocHandler(RestGlobalContext context) {
+            super(context, new Method[] {GET, POST}, "/{index}/{type}/{id}/_percolate");
         }
 
         @Override
@@ -129,10 +116,10 @@ public class RestPercolateAction extends BaseRestHandler {
         }
     }
 
-    final class RestCountPercolateExistingDocHandler extends BaseRestHandler {
+    public static final class RestCountPercolateExistingDocHandler extends BaseMultiMethodRestHandler {
 
-        protected RestCountPercolateExistingDocHandler(RestGlobalContext context) {
-            super(context);
+        public RestCountPercolateExistingDocHandler(RestGlobalContext context) {
+            super(context, new Method[] {GET, POST}, "/{index}/{type}/{id}/_percolate/count");
         }
 
         @Override

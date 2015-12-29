@@ -26,7 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -39,24 +39,16 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-
 /**
  *
  */
-public class RestNodesInfoAction extends BaseRestHandler {
+public class RestNodesInfoAction extends BaseSingleMethodRestHandler {
 
     private final SettingsFilter settingsFilter;
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport");
 
     public RestNodesInfoAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_nodes", this);
-        // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}", this);
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
-        // added this endpoint to be aligned with stats
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
-
+        super(context, GET, "/_nodes", "/_nodes/{nodeId}", "/_nodes/{nodeId}/{metrics}", "/_nodes/{nodeId}/info/{metrics}");
         this.settingsFilter = context.getSettingsFilter();
     }
 

@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -40,14 +40,12 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * @see DeleteByQueryRequest
  */
-public class RestDeleteByQueryAction extends BaseRestHandler {
+public class RestDeleteByQueryAction extends BaseSingleMethodRestHandler {
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
     public RestDeleteByQueryAction(RestGlobalContext context) {
-        super(context);
+        super(context, DELETE, "/{index}/_query", "/{index}/{type}/_query");
         this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
-        context.getController().registerHandler(DELETE, "/{index}/_query", this);
-        context.getController().registerHandler(DELETE, "/{index}/{type}/_query", this);
     }
 
     @Override

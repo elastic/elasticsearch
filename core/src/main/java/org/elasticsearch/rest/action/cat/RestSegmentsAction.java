@@ -42,13 +42,9 @@ import org.elasticsearch.rest.action.support.RestTable;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestSegmentsAction extends AbstractCatAction {
     public RestSegmentsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/segments", this);
-        context.getController().registerHandler(GET, "/_cat/segments/{index}", this);
+        super(context, "segments", "segments/{index}");
     }
 
     @Override
@@ -75,12 +71,6 @@ public class RestSegmentsAction extends AbstractCatAction {
                 });
             }
         });
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/segments\n");
-        sb.append("/_cat/segments/{index}\n");
     }
 
     @Override

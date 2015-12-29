@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -40,11 +40,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Rest action for {@link IndicesShardStoresAction}
  */
-public class RestIndicesShardStoresAction extends BaseRestHandler {
+public class RestIndicesShardStoresAction extends BaseSingleMethodRestHandler {
     public RestIndicesShardStoresAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_shard_stores", this);
-        context.getController().registerHandler(GET, "/{index}/_shard_stores", this);
+        super(context, GET, "/_shard_stores", "/{index}/_shard_stores");
     }
 
     @Override

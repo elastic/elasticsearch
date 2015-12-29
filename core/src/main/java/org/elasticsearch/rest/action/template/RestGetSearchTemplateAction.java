@@ -24,15 +24,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
 import org.elasticsearch.script.Template;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  *
  */
 public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
     public RestGetSearchTemplateAction(RestGlobalContext context) {
-        super(context, false);
-        context.getController().registerHandler(GET, "/_search/template/{id}", this);
+        super(context, "/_search/template/{id}");
     }
 
     @Override

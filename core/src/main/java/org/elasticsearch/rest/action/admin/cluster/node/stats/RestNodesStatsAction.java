@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -39,18 +39,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestNodesStatsAction extends BaseRestHandler {
+public class RestNodesStatsAction extends BaseSingleMethodRestHandler {
     public RestNodesStatsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_nodes/stats", this);
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats", this);
-
-        context.getController().registerHandler(GET, "/_nodes/stats/{metric}", this);
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
-
-        context.getController().registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
-
-        context.getController().registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
+        super(context, GET,
+                "/_nodes/stats",
+                "/_nodes/stats/{metric}",
+                "/_nodes/stats/{metric}/{indexMetric}",
+                "/_nodes/{nodeId}/stats",
+                "/_nodes/{nodeId}/stats/{metric}",
+                "/_nodes/{nodeId}/stats/{metric}/{indexMetric}");
     }
 
     @Override

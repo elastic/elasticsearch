@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.index;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,10 +30,13 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -44,28 +48,22 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 public class RestIndexAction extends BaseRestHandler {
     public RestIndexAction(RestGlobalContext context) {
         super(context);
-        context.getController().registerHandler(POST, "/{index}/{type}", this); // auto id creation
-        context.getController().registerHandler(PUT, "/{index}/{type}/{id}", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(context);
-        context.getController().registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(RestGlobalContext context) {
-            super(context);
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
-            request.params().put("op_type", "create");
-            RestIndexAction.this.handleRequest(request, channel, client);
-        }
+    @Override
+    public Collection<Tuple<Method, String>> registrations() {
+        return Arrays.asList(
+                new Tuple<>(POST, "/{index}/{type}"), // auto id creation
+                new Tuple<>(PUT, "/{index}/{type}/{id}"), new Tuple<>(POST, "/{index}/{type}/{id}"), // Set with an id
+                new Tuple<>(PUT, "/{index}/{type}/{id}/_create"), new Tuple<>(POST, "/{index}/{type}/{id}/_create") // Create if absent
+                );
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+        if (request.path().endsWith("_create")) {
+            request.params().put("op_type", "create");
+        }
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

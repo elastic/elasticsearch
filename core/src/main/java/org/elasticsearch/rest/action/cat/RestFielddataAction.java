@@ -40,16 +40,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  * Cat API class to display information about the size of fielddata fields per node
  */
 public class RestFielddataAction extends AbstractCatAction {
     public RestFielddataAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/fielddata", this);
-        context.getController().registerHandler(GET, "/_cat/fielddata/{fields}", this);
+        super(context, "fielddata", "fielddata/{fields}");
     }
 
     @Override
@@ -67,12 +63,6 @@ public class RestFielddataAction extends AbstractCatAction {
                 return RestTable.buildResponse(buildTable(request, nodeStatses), channel);
             }
         });
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/fielddata\n");
-        sb.append("/_cat/fielddata/{fields}\n");
     }
 
     @Override

@@ -31,7 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -46,11 +46,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  */
 @Deprecated
-public class RestGetIndicesAliasesAction extends BaseRestHandler {
+public class RestGetIndicesAliasesAction extends BaseSingleMethodRestHandler {
     public RestGetIndicesAliasesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/_aliases/{name}", this);
-        context.getController().registerHandler(GET, "/_aliases/{name}", this);
+        super(context, GET, "/_aliases/{name}", "/{index}/_aliases/{name}");
     }
 
     @Override

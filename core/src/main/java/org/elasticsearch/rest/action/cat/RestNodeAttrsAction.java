@@ -42,17 +42,9 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestNodeAttrsAction extends AbstractCatAction {
     public RestNodeAttrsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/nodeattrs", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/nodeattrs\n");
+        super(context, "nodeattrs");
     }
 
     @Override

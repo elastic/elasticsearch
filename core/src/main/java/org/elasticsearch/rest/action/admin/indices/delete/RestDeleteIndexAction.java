@@ -24,20 +24,20 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 /**
  *
  */
-public class RestDeleteIndexAction extends BaseRestHandler {
+public class RestDeleteIndexAction extends BaseSingleMethodRestHandler {
     public RestDeleteIndexAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.DELETE, "/", this);
-        context.getController().registerHandler(RestRequest.Method.DELETE, "/{index}", this);
+        super(context, DELETE, "/", "/{index}");
     }
 
     @Override

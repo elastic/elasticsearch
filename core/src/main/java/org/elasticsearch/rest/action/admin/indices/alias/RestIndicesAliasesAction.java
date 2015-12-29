@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -41,10 +41,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestIndicesAliasesAction extends BaseRestHandler {
+public class RestIndicesAliasesAction extends BaseSingleMethodRestHandler {
     public RestIndicesAliasesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_aliases", this);
+        super(context, POST, "/_aliases");
     }
 
     @Override

@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -37,16 +37,13 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestDeleteIndexedScriptAction extends BaseRestHandler {
+public class RestDeleteIndexedScriptAction extends BaseSingleMethodRestHandler {
     public RestDeleteIndexedScriptAction(RestGlobalContext context) {
-        this(context, true);
+        this(context, "/_scripts/{lang}/{id}");
     }
 
-    protected RestDeleteIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
-        super(context);
-        if (registerDefaultHandlers) {
-            context.getController().registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
-        }
+    protected RestDeleteIndexedScriptAction(RestGlobalContext context, String path) {
+        super(context, DELETE, path);
     }
 
     protected String getScriptLang(RestRequest request) {

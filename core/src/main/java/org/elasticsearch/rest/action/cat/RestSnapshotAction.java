@@ -38,15 +38,12 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  * Cat API class to display information about snapshots
  */
 public class RestSnapshotAction extends AbstractCatAction {
     public RestSnapshotAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/snapshots/{repository}", this);
+        super(context, "snapshots/{repository}");
     }
 
     @Override
@@ -65,11 +62,6 @@ public class RestSnapshotAction extends AbstractCatAction {
                 return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
             }
         });
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/snapshots/{repository}\n");
     }
 
     @Override

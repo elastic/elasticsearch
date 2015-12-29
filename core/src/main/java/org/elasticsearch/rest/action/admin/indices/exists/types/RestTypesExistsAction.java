@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,10 +38,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Rest api for checking if a type exists.
  */
-public class RestTypesExistsAction extends BaseRestHandler {
+public class RestTypesExistsAction extends BaseSingleMethodRestHandler {
     public RestTypesExistsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(HEAD, "/{index}/{type}", this);
+        super(context, HEAD, "/{index}/{type}");
     }
 
     @Override

@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -50,11 +50,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetIndicesAction extends BaseRestHandler {
+public class RestGetIndicesAction extends BaseSingleMethodRestHandler {
     public RestGetIndicesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}", this);
-        context.getController().registerHandler(GET, "/{index}/{type}", this);
+        super(context, GET, "/{index}", "/{index}/{type}");
     }
 
     @Override

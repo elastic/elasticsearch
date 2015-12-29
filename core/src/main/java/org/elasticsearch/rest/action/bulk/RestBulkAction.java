@@ -29,11 +29,12 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -50,20 +51,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */
-public class RestBulkAction extends BaseRestHandler {
+public class RestBulkAction extends BaseMultiMethodRestHandler {
 
     private final boolean allowExplicitIndex;
 
     public RestBulkAction(RestGlobalContext context) {
-        super(context);
-
-        context.getController().registerHandler(POST, "/_bulk", this);
-        context.getController().registerHandler(PUT, "/_bulk", this);
-        context.getController().registerHandler(POST, "/{index}/_bulk", this);
-        context.getController().registerHandler(PUT, "/{index}/_bulk", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_bulk", this);
-        context.getController().registerHandler(PUT, "/{index}/{type}/_bulk", this);
-
+        super(context, new Method[] {POST, PUT}, "/_bulk", "/{index}/_bulk", "/{index}/{type}/_bulk");
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 

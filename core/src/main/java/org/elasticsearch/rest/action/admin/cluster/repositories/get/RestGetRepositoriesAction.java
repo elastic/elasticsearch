@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -42,14 +42,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Returns repository information
  */
-public class RestGetRepositoriesAction extends BaseRestHandler {
+public class RestGetRepositoriesAction extends BaseSingleMethodRestHandler {
 
     private final SettingsFilter settingsFilter;
 
     public RestGetRepositoriesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_snapshot", this);
-        context.getController().registerHandler(GET, "/_snapshot/{repository}", this);
+        super(context, GET, "/_snapshot", "/_snapshot/{repository}");
         this.settingsFilter = context.getSettingsFilter();
     }
 

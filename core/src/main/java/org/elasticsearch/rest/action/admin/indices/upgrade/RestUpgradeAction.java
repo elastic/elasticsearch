@@ -27,11 +27,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -43,14 +44,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 
-public class RestUpgradeAction extends BaseRestHandler {
+public class RestUpgradeAction extends BaseMultiMethodRestHandler {
     public RestUpgradeAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_upgrade", this);
-        context.getController().registerHandler(POST, "/{index}/_upgrade", this);
-
-        context.getController().registerHandler(GET, "/_upgrade", this);
-        context.getController().registerHandler(GET, "/{index}/_upgrade", this);
+        super(context, new Method[] {GET, POST}, "/_upgrade", "/{index}/_upgrade");
     }
 
     @Override

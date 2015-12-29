@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -33,16 +33,13 @@ import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestClusterHealthAction extends BaseRestHandler {
+public class RestClusterHealthAction extends BaseSingleMethodRestHandler {
     public RestClusterHealthAction(RestGlobalContext context) {
-        super(context);
-
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);
+        super(context, GET, "/_cluster/health", "/_cluster/health/{index}");
     }
 
     @Override

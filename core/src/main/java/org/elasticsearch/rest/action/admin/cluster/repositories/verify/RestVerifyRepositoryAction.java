@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -30,10 +30,9 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import static org.elasticsearch.client.Requests.verifyRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestVerifyRepositoryAction extends BaseRestHandler {
+public class RestVerifyRepositoryAction extends BaseSingleMethodRestHandler {
     public RestVerifyRepositoryAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_snapshot/{repository}/_verify", this);
+        super(context, POST, "/_snapshot/{repository}/_verify");
     }
 
     @Override

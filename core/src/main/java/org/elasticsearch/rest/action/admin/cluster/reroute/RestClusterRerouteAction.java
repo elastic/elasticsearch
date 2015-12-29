@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -37,18 +37,19 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 /**
  */
-public class RestClusterRerouteAction extends BaseRestHandler {
+public class RestClusterRerouteAction extends BaseSingleMethodRestHandler {
 
     private final SettingsFilter settingsFilter;
 
     private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
     public RestClusterRerouteAction(RestGlobalContext context) {
-        super(context);
+        super(context, POST, "/_cluster/reroute");
         this.settingsFilter = context.getSettingsFilter();
-        context.getController().registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
     @Override

@@ -27,11 +27,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -45,14 +46,9 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestClearIndicesCacheAction extends BaseRestHandler {
+public class RestClearIndicesCacheAction extends BaseMultiMethodRestHandler {
     public RestClearIndicesCacheAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_cache/clear", this);
-        context.getController().registerHandler(POST, "/{index}/_cache/clear", this);
-
-        context.getController().registerHandler(GET, "/_cache/clear", this);
-        context.getController().registerHandler(GET, "/{index}/_cache/clear", this);
+        super(context, new Method[] {GET, POST}, "/_cache/clear", "/{index}/_cache/clear");
     }
 
     @Override

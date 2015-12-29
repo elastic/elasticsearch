@@ -23,10 +23,11 @@ import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -36,20 +37,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestMultiPercolateAction extends BaseRestHandler {
+public class RestMultiPercolateAction extends BaseMultiMethodRestHandler {
 
     private final boolean allowExplicitIndex;
 
     public RestMultiPercolateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_mpercolate", this);
-        context.getController().registerHandler(POST, "/{index}/_mpercolate", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_mpercolate", this);
-
-        context.getController().registerHandler(GET, "/_mpercolate", this);
-        context.getController().registerHandler(GET, "/{index}/_mpercolate", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_mpercolate", this);
-
+        super(context, new Method[] {POST, GET}, "/_mpercolate", "/{index}/_mpercolate", "/{index}/{type}/_mpercolate");
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 

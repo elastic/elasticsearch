@@ -28,11 +28,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -46,13 +47,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestRenderSearchTemplateAction extends BaseRestHandler {
+public class RestRenderSearchTemplateAction extends BaseMultiMethodRestHandler {
     public RestRenderSearchTemplateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_render/template", this);
-        context.getController().registerHandler(POST, "/_render/template", this);
-        context.getController().registerHandler(GET, "/_render/template/{id}", this);
-        context.getController().registerHandler(POST, "/_render/template/{id}", this);
+        super(context, new Method[] {GET, POST}, "/_render/template", "/_render/template/{id}");
     }
 
     @Override

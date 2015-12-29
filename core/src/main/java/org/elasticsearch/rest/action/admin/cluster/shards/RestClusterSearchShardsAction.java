@@ -25,10 +25,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -36,15 +37,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
-public class RestClusterSearchShardsAction extends BaseRestHandler {
+public class RestClusterSearchShardsAction extends BaseMultiMethodRestHandler {
     public RestClusterSearchShardsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_search_shards", this);
-        context.getController().registerHandler(POST, "/_search_shards", this);
-        context.getController().registerHandler(GET, "/{index}/_search_shards", this);
-        context.getController().registerHandler(POST, "/{index}/_search_shards", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_search_shards", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_search_shards", this);
+        super(context, new Method[] {GET, POST}, "/_search_shards", "/{index}/_search_shards", "/{index}/{type}/_search_shards");
     }
 
     @Override

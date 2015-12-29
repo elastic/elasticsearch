@@ -22,18 +22,19 @@ package org.elasticsearch.rest.action.admin.cluster.tasks;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
  */
-public class RestPendingClusterTasksAction extends BaseRestHandler {
+public class RestPendingClusterTasksAction extends BaseSingleMethodRestHandler {
     public RestPendingClusterTasksAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
+        super(context, GET, "/_cluster/pending_tasks");
     }
 
     @Override

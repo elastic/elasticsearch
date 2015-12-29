@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
     public RestHealthAction(RestGlobalContext context) {
-        super(context);
+        super(context, "health");
         context.getController().registerHandler(GET, "/_cat/health", this);
     }
 

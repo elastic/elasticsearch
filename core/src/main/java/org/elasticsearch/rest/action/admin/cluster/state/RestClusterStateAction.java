@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -40,19 +40,17 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.EnumSet;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 
 /**
  *
  */
-public class RestClusterStateAction extends BaseRestHandler {
+public class RestClusterStateAction extends BaseSingleMethodRestHandler {
     private final SettingsFilter settingsFilter;
 
     public RestClusterStateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
-
+        super(context, GET, "/_cluster/state", "/_cluster/state/{metric}", "/_cluster/state/{metric}/{indices}");
         this.settingsFilter = context.getSettingsFilter();
     }
 

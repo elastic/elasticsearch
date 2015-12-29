@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Example of adding a cat action with a plugin.
@@ -36,9 +36,8 @@ public class ExampleCatAction extends AbstractCatAction {
     private final ExamplePluginConfiguration config;
 
     public ExampleCatAction(RestGlobalContext context, ExamplePluginConfiguration config) {
-        super(context);
-        this.config = config;
-        context.getController().registerHandler(GET, "/_cat/configured_example", this);
+        super(context, "configured_example");
+        this.config = requireNonNull(config);
     }
 
     @Override

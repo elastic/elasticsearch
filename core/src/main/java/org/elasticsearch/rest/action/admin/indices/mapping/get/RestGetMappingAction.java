@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -47,13 +47,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetMappingAction extends BaseRestHandler {
+public class RestGetMappingAction extends BaseSingleMethodRestHandler {
     public RestGetMappingAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/_mapping", this);
-        context.getController().registerHandler(GET, "/{index}/_mappings/{type}", this);
-        context.getController().registerHandler(GET, "/{index}/_mapping/{type}", this);
-        context.getController().registerHandler(GET, "/_mapping/{type}", this);
+        super(context, GET, "/_mapping/{type}", "/{index}/_mapping/{type}", "/{index}/_mappings/{type}", "/{index}/{type}/_mapping");
     }
 
     @Override

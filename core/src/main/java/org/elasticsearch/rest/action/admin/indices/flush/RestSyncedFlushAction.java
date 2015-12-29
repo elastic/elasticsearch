@@ -25,11 +25,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -39,14 +40,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestSyncedFlushAction extends BaseRestHandler {
+public class RestSyncedFlushAction extends BaseMultiMethodRestHandler {
     public RestSyncedFlushAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_flush/synced", this);
-        context.getController().registerHandler(POST, "/{index}/_flush/synced", this);
-
-        context.getController().registerHandler(GET, "/_flush/synced", this);
-        context.getController().registerHandler(GET, "/{index}/_flush/synced", this);
+        super(context, new Method[] {POST, GET}, "/_flush/synced", "/{index}/_flush/synced");
     }
 
     @Override

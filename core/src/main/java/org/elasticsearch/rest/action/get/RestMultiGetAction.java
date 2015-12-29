@@ -23,10 +23,11 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -34,19 +35,12 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestMultiGetAction extends BaseRestHandler {
+public class RestMultiGetAction extends BaseMultiMethodRestHandler {
 
     private final boolean allowExplicitIndex;
 
     public RestMultiGetAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_mget", this);
-        context.getController().registerHandler(POST, "/_mget", this);
-        context.getController().registerHandler(GET, "/{index}/_mget", this);
-        context.getController().registerHandler(POST, "/{index}/_mget", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_mget", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_mget", this);
-
+        super(context, new Method[] {GET, POST}, "/_mget", "/{index}/_mget", "/{index}/{type}/_mget");
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 

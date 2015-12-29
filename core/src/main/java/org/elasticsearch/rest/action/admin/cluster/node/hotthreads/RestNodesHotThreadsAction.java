@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -34,21 +34,16 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  */
-public class RestNodesHotThreadsAction extends BaseRestHandler {
+public class RestNodesHotThreadsAction extends BaseSingleMethodRestHandler {
     public RestNodesHotThreadsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hot_threads", this);
-
-        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/hotthreads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/hot_threads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hotthreads", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hot_threads", this);
+        super(context, GET, "/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads",
+                "/_cluster/nodes/{nodeId}/hotthreads", "/_cluster/nodes/{nodeId}/hot_threads",
+                "/_nodes/hotthreads", "/_nodes/hot_threads",
+                "/_nodes/{nodeId}/hotthreads", "/_nodes/{nodeId}/hot_threads");
     }
 
     @Override

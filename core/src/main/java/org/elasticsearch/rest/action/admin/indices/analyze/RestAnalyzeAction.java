@@ -27,10 +27,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -44,7 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestAnalyzeAction extends BaseRestHandler {
+public class RestAnalyzeAction extends BaseMultiMethodRestHandler {
 
     public static class Fields {
         public static final ParseField ANALYZER = new ParseField("analyzer");
@@ -58,11 +59,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     public RestAnalyzeAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_analyze", this);
-        context.getController().registerHandler(GET, "/{index}/_analyze", this);
-        context.getController().registerHandler(POST, "/_analyze", this);
-        context.getController().registerHandler(POST, "/{index}/_analyze", this);
+        super(context, new Method[] {GET, POST}, "/_analyze", "/{index}/_analyze");
     }
 
     @Override

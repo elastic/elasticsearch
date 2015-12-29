@@ -28,10 +28,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
@@ -45,14 +46,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestSearchScrollAction extends BaseRestHandler {
+public class RestSearchScrollAction extends BaseMultiMethodRestHandler {
     public RestSearchScrollAction(RestGlobalContext context) {
-        super(context);
-
-        context.getController().registerHandler(GET, "/_search/scroll", this);
-        context.getController().registerHandler(POST, "/_search/scroll", this);
-        context.getController().registerHandler(GET, "/_search/scroll/{scroll_id}", this);
-        context.getController().registerHandler(POST, "/_search/scroll/{scroll_id}", this);
+        super(context, new Method[] {GET, POST}, "/_search/scroll", "/_search/scroll/{scroll_id}");
     }
 
     @Override

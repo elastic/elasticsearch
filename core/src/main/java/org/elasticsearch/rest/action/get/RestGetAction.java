@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -42,10 +42,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetAction extends BaseRestHandler {
+public class RestGetAction extends BaseSingleMethodRestHandler {
     public RestGetAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}", this);
+        super(context, GET, "/{index}/{type}/{id}");
     }
 
     @Override

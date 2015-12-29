@@ -49,8 +49,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestThreadPoolAction extends AbstractCatAction {
 
     private final static String[] SUPPORTED_NAMES = new String[]{
@@ -110,13 +108,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     public RestThreadPoolAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/thread_pool", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/thread_pool\n");
+        super(context, "thread_pool");
     }
 
     @Override

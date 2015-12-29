@@ -18,42 +18,17 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
 import org.elasticsearch.script.Template;
-
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  *
  */
 public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
     public RestPutSearchTemplateAction(RestGlobalContext context) {
-        super(context, false);
-
-        //context.getController().registerHandler(GET, "/template", this);
-        context.getController().registerHandler(POST, "/_search/template/{id}", this);
-        context.getController().registerHandler(PUT, "/_search/template/{id}", this);
-
-        context.getController().registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(context));
-        context.getController().registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(context));
-    }
-
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(RestGlobalContext context) {
-            super(context);
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
-            request.params().put("op_type", "create");
-            RestPutSearchTemplateAction.this.handleRequest(request, channel, client);
-        }
+        super(context, "/_search/template/{id}");
     }
 
     @Override

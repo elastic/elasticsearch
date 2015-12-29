@@ -24,7 +24,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -89,10 +89,9 @@ public class NetworkModuleIT extends ESIntegTestCase {
         }
     }
 
-    public static class FakeRestAction extends BaseRestHandler {
+    public static class FakeRestAction extends BaseSingleMethodRestHandler {
         public FakeRestAction(RestGlobalContext context) {
-            super(context);
-            context.getController().registerHandler(GET, "/_fake", this);
+            super(context, GET, "/_fake");
         }
 
         @Override
@@ -103,8 +102,7 @@ public class NetworkModuleIT extends ESIntegTestCase {
 
     public static class FakeRestCatAction extends AbstractCatAction {
         public FakeRestCatAction(RestGlobalContext context) {
-            super(context);
-            context.getController().registerHandler(GET, "/_cat/fake", this);
+            super(context, "fake");
         }
 
         @Override

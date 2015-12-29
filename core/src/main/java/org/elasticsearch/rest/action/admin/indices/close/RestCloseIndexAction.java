@@ -24,20 +24,20 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 /**
  *
  */
-public class RestCloseIndexAction extends BaseRestHandler {
+public class RestCloseIndexAction extends BaseSingleMethodRestHandler {
     public RestCloseIndexAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.POST, "/_close", this);
-        context.getController().registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
+        super(context, POST, "/_close", "/{index}/_close");
     }
 
     @Override

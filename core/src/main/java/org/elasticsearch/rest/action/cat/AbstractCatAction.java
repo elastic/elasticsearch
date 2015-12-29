@@ -22,29 +22,43 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.support.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.support.RestTable.pad;
+
 
 /**
  *
  */
-public abstract class AbstractCatAction extends BaseRestHandler {
-    public AbstractCatAction(RestGlobalContext context) {
-        super(context);
+public abstract class AbstractCatAction extends BaseSingleMethodRestHandler {
+    public AbstractCatAction(RestGlobalContext context, String... paths) {
+        super(context, GET, catPaths(paths));
+    }
+
+    private static String[] catPaths(String... paths) {
+        String[] result = new String[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            result[i] = "/_cat/" + paths[i];
+        }
+        return result;
     }
 
     protected abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);
 
-    protected abstract void documentation(StringBuilder sb);
-
     protected abstract Table getTableWithHeader(final RestRequest request);
+
+    protected void documentation(StringBuilder sb) {
+        for (String registration: paths()) {
+            sb.append("/_cat/").append(registration).append('\n');
+        }
+    }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {

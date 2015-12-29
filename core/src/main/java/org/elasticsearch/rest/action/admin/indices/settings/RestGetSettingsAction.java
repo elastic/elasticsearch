@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -40,12 +40,9 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestGetSettingsAction extends BaseRestHandler {
+public class RestGetSettingsAction extends BaseSingleMethodRestHandler {
     public RestGetSettingsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/_settings/{name}", this);
-        context.getController().registerHandler(GET, "/_settings/{name}", this);
-        context.getController().registerHandler(GET, "/{index}/_setting/{name}", this);
+        super(context, GET, "/_settings/{name}", "/{index}/_setting/{name}", "/{index}/_settings/{name}");
     }
 
     @Override

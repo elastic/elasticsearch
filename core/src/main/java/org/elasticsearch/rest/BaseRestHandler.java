@@ -27,8 +27,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 
+import java.util.Collection;
 import java.util.Set;
 
 /**
@@ -51,6 +53,8 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         this.client = context.getClient();
         this.parseFieldMatcher = new ParseFieldMatcher(context.getSettings());
     }
+
+    public abstract Collection<Tuple<RestRequest.Method, String>> registrations();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {

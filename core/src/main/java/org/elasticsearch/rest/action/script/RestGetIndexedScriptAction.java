@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,16 +38,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestGetIndexedScriptAction extends BaseRestHandler {
+public class RestGetIndexedScriptAction extends BaseSingleMethodRestHandler {
     public RestGetIndexedScriptAction(RestGlobalContext context) {
-        this(context, true);
+        this(context, "/_scripts/{lang}/{id}");
     }
 
-    protected RestGetIndexedScriptAction(RestGlobalContext context, boolean registerDefaultHandlers) {
-        super(context);
-        if (registerDefaultHandlers) {
-            context.getController().registerHandler(GET, "/_scripts/{lang}/{id}", this);
-        }
+    protected RestGetIndexedScriptAction(RestGlobalContext context, String path) {
+        super(context, GET, path);
     }
 
     protected XContentBuilderString getScriptFieldName() {

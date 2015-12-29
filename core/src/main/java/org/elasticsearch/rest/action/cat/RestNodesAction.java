@@ -63,17 +63,9 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestNodesAction extends AbstractCatAction {
     public RestNodesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/nodes", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/nodes\n");
+        super(context, "nodes");
     }
 
     @Override

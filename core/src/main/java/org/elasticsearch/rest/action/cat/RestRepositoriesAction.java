@@ -31,15 +31,12 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  * Cat API class to display information about snapshot repositories
  */
 public class RestRepositoriesAction extends AbstractCatAction {
     public RestRepositoriesAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/repositories", this);
+        super(context, "repositories");
     }
 
     @Override
@@ -54,11 +51,6 @@ public class RestRepositoriesAction extends AbstractCatAction {
                 return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
             }
         });
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/repositories\n");
     }
 
     @Override

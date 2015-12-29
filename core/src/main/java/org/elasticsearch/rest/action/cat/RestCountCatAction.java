@@ -40,23 +40,13 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestCountCatAction extends AbstractCatAction {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
     public RestCountCatAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/count", this);
-        context.getController().registerHandler(GET, "/_cat/count/{index}", this);
+        super(context, "count", "count/{index}");
         this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/count\n");
-        sb.append("/_cat/count/{index}\n");
     }
 
     @Override

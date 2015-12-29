@@ -26,10 +26,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -43,19 +44,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
  */
-public class RestTermVectorsAction extends BaseRestHandler {
+public class RestTermVectorsAction extends BaseMultiMethodRestHandler {
     public RestTermVectorsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        // we keep usage of _termvector as alias for now
-        context.getController().registerHandler(GET, "/{index}/{type}/_termvector", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_termvector", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+        super(context, new Method[] {GET, POST},
+                "/{index}/{type}/_termvectors", "/{index}/{type}/{id}/_termvectors",
+                // we keep usage of _termvector as alias for now
+                "/{index}/{type}/_termvector", "/{index}/{type}/{id}/_termvector");
     }
 
     @Override

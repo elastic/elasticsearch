@@ -25,17 +25,21 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -47,10 +51,12 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestFieldStatsAction extends BaseRestHandler {
     public RestFieldStatsAction(RestGlobalContext context) {
         super(context);
-        context.getController().registerHandler(GET, "/_field_stats", this);
-        context.getController().registerHandler(POST, "/_field_stats", this);
-        context.getController().registerHandler(GET, "/{index}/_field_stats", this);
-        context.getController().registerHandler(POST, "/{index}/_field_stats", this);
+    }
+
+    @Override
+    public Collection<Tuple<Method, String>> registrations() {
+        return Arrays.asList(new Tuple<>(GET, "/_field_stats"), new Tuple<>(POST, "/_field_stats"),
+                new Tuple<>(GET, "/{index}/_field_stats"), new Tuple<>(POST, "/{index}/_field_stats"));
     }
 
     @Override

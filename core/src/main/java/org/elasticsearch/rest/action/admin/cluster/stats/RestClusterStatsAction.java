@@ -22,21 +22,21 @@ package org.elasticsearch.rest.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 
 /**
  *
  */
-public class RestClusterStatsAction extends BaseRestHandler {
+public class RestClusterStatsAction extends BaseSingleMethodRestHandler {
     public RestClusterStatsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
-        context.getController().registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
+        super(context, GET, "/_cluster/stats", "/_cluster/stats/nodes/{nodeId}");
     }
 
     @Override

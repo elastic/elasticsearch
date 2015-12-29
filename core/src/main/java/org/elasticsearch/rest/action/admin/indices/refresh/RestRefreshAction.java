@@ -25,11 +25,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -41,14 +42,9 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestRefreshAction extends BaseRestHandler {
+public class RestRefreshAction extends BaseMultiMethodRestHandler {
     public RestRefreshAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_refresh", this);
-        context.getController().registerHandler(POST, "/{index}/_refresh", this);
-
-        context.getController().registerHandler(GET, "/_refresh", this);
-        context.getController().registerHandler(GET, "/{index}/_refresh", this);
+        super(context, new Method[] {POST, GET}, "/_refresh", "/{index}/_refresh");
     }
 
     @Override

@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -45,14 +45,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetFieldMappingAction extends BaseRestHandler {
+public class RestGetFieldMappingAction extends BaseSingleMethodRestHandler {
     public RestGetFieldMappingAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_mapping/field/{fields}", this);
-        context.getController().registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
-        context.getController().registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        context.getController().registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
+        super(context, GET, "/_mapping/field/{fields}", "/_mapping/{type}/field/{fields}", "/{index}/_mapping/field/{fields}",
+                "/{index}/{type}/_mapping/field/{fields}", "/{index}/_mapping/{type}/field/{fields}");
     }
 
     @Override

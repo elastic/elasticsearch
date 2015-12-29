@@ -32,10 +32,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.script.Template;
@@ -57,25 +58,15 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 /**
  *
  */
-public class RestSearchAction extends BaseRestHandler {
+public class RestSearchAction extends BaseMultiMethodRestHandler {
 
     private final IndicesQueriesRegistry queryRegistry;
 
     public RestSearchAction(RestGlobalContext context) {
-        super(context);
+        super(context, new Method[] {GET, POST},
+                "/_search", "/{index}/_search", "/{index}/{type}/_search",
+                "/_search/template", "/{index}/_search/template", "/{index}/{type}/_search/template");
         this.queryRegistry = context.getIndicesQueriesRegistry();
-        context.getController().registerHandler(GET, "/_search", this);
-        context.getController().registerHandler(POST, "/_search", this);
-        context.getController().registerHandler(GET, "/{index}/_search", this);
-        context.getController().registerHandler(POST, "/{index}/_search", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_search", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_search", this);
-        context.getController().registerHandler(GET, "/_search/template", this);
-        context.getController().registerHandler(POST, "/_search/template", this);
-        context.getController().registerHandler(GET, "/{index}/_search/template", this);
-        context.getController().registerHandler(POST, "/{index}/_search/template", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_search/template", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override

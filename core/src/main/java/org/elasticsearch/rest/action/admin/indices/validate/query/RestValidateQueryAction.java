@@ -30,11 +30,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -49,18 +50,12 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestValidateQueryAction extends BaseRestHandler {
+public class RestValidateQueryAction extends BaseMultiMethodRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
     public RestValidateQueryAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_validate/query", this);
-        context.getController().registerHandler(POST, "/_validate/query", this);
-        context.getController().registerHandler(GET, "/{index}/_validate/query", this);
-        context.getController().registerHandler(POST, "/{index}/_validate/query", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_validate/query", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_validate/query", this);
+        super(context, new Method[] {GET, POST}, "/_validate/query", "/{index}/_validate/query", "/{index}/{type}/_validate/query");
         this.indicesQueriesRegistry = context.getIndicesQueriesRegistry();
     }
 

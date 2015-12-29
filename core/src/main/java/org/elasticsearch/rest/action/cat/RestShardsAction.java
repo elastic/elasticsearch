@@ -42,19 +42,9 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestShardsAction extends AbstractCatAction {
     public RestShardsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/shards", this);
-        context.getController().registerHandler(GET, "/_cat/shards/{index}", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/shards\n");
-        sb.append("/_cat/shards/{index}\n");
+        super(context, "shards", "shards/{index}");
     }
 
     @Override

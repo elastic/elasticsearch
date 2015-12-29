@@ -25,11 +25,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -43,13 +44,9 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestSuggestAction extends BaseRestHandler {
+public class RestSuggestAction extends BaseMultiMethodRestHandler {
     public RestSuggestAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(POST, "/_suggest", this);
-        context.getController().registerHandler(GET, "/_suggest", this);
-        context.getController().registerHandler(POST, "/{index}/_suggest", this);
-        context.getController().registerHandler(GET, "/{index}/_suggest", this);
+        super(context, new Method[] {GET, POST}, "/_suggest", "/{index}/_suggest");
     }
 
     @Override

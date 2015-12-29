@@ -24,20 +24,20 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 /**
  *
  */
-public class RestOpenIndexAction extends BaseRestHandler {
+public class RestOpenIndexAction extends BaseSingleMethodRestHandler {
     public RestOpenIndexAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.POST, "/_open", this);
-        context.getController().registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
+        super(context, POST, "/_open", "/{index}/_open");
     }
 
     @Override

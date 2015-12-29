@@ -24,25 +24,20 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestMultiTermVectorsAction extends BaseRestHandler {
+public class RestMultiTermVectorsAction extends BaseMultiMethodRestHandler {
     public RestMultiTermVectorsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_mtermvectors", this);
-        context.getController().registerHandler(POST, "/_mtermvectors", this);
-        context.getController().registerHandler(GET, "/{index}/_mtermvectors", this);
-        context.getController().registerHandler(POST, "/{index}/_mtermvectors", this);
-        context.getController().registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
-        context.getController().registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
+        super(context, new Method[] {GET, POST}, "/_mtermvectors", "/{index}/_mtermvectors", "/{index}/{type}/_mtermvectors");
     }
 
     @Override

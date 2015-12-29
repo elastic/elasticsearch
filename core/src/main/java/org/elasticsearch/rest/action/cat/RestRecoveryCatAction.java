@@ -38,8 +38,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 /**
  * RestRecoveryAction provides information about the status of replica recovery
  * in a string format, designed to be used at the command line. An Index can
@@ -47,15 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestRecoveryCatAction extends AbstractCatAction {
     public RestRecoveryCatAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/recovery", this);
-        context.getController().registerHandler(GET, "/_cat/recovery/{index}", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/recovery\n");
-        sb.append("/_cat/recovery/{index}\n");
+        super(context, "recovery", "recovery/{index}");
     }
 
     @Override

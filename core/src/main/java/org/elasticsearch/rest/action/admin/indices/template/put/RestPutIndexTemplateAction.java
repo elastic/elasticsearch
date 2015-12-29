@@ -21,20 +21,22 @@ package org.elasticsearch.rest.action.admin.indices.template.put;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseMultiMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  *
  */
-public class RestPutIndexTemplateAction extends BaseRestHandler {
+public class RestPutIndexTemplateAction extends BaseMultiMethodRestHandler {
     public RestPutIndexTemplateAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
-        context.getController().registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
+        super(context, new Method[] {PUT, POST}, "/_template/{name}");
     }
 
     @Override

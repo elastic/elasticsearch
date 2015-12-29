@@ -164,6 +164,7 @@ public class Node implements Releasable {
         final NetworkService networkService = new NetworkService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        final NetworkModule networkModule = new NetworkModule(networkService, settings, false, version);
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -178,7 +179,7 @@ public class Node implements Releasable {
             modules.add(new SettingsModule(this.settings, settingsFilter));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false, version));
+            modules.add(networkModule);
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
@@ -202,6 +203,14 @@ public class Node implements Releasable {
 
             client = injector.getInstance(Client.class);
             threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
+
+            /*
+             * This is our shim to handle REST dependencies not being non-guiced.
+             * Remove this when the dependencies can be passed to the constructor.
+             */
+            injector.injectMembers(networkModule);
+
+            networkModule.setupRestActions();
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

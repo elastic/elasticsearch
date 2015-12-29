@@ -32,17 +32,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestMasterAction extends AbstractCatAction {
     public RestMasterAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/master", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/master\n");
+        super(context, "master");
     }
 
     @Override

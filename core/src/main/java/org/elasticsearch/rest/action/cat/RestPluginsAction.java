@@ -37,17 +37,9 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestPluginsAction extends AbstractCatAction {
     public RestPluginsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/plugins", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/plugins\n");
+        super(context, "plugins");
     }
 
     @Override

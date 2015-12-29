@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseSingleMethodRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -36,11 +36,12 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  *
  */
-public class RestUpdateSettingsAction extends BaseRestHandler {
+public class RestUpdateSettingsAction extends BaseSingleMethodRestHandler {
     private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
             "pretty",
             "timeout",
@@ -51,9 +52,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "allow_no_indices"));
 
     public RestUpdateSettingsAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
-        context.getController().registerHandler(RestRequest.Method.PUT, "/_settings", this);
+        super(context, PUT, "/_settings", "/{index}/_settings");
     }
 
     @Override

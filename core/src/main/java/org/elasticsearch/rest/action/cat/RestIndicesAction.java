@@ -48,23 +48,13 @@ import org.joda.time.DateTimeZone;
 
 import java.util.Locale;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestIndicesAction extends AbstractCatAction {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public RestIndicesAction(RestGlobalContext context) {
-        super(context);
+        super(context, "indices", "indices/{index}");
         this.indexNameExpressionResolver = context.getIndexNameExpressionResolver();
-        context.getController().registerHandler(GET, "/_cat/indices", this);
-        context.getController().registerHandler(GET, "/_cat/indices/{index}", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/indices\n");
-        sb.append("/_cat/indices/{index}\n");
     }
 
     @Override

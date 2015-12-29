@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -42,6 +43,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestGlobalContext;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -148,6 +150,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -180,6 +183,7 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
     private final Map<Class<? extends BaseRestHandler>, Function<RestGlobalContext, ? extends BaseRestHandler>> actions = new HashMap<>();
 
+    private RestGlobalContext context;
     /**
      * Used only to build the RestClusterGetSettingsAction.
      */
@@ -283,11 +287,6 @@ public class NetworkModule extends AbstractModule {
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 bind(HttpServer.class).asEagerSingleton();
                 httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_KEY, NETTY_TRANSPORT);
-                /*
-                 * This is our shim to handle REST dependencies not being non-guiced.
-                 * Remove this when the dependencies can be passed to the constructor.
-                 */
-                binder().requestInjection(this);
             }
         }
     }
@@ -298,14 +297,26 @@ public class NetworkModule extends AbstractModule {
      * them to the constructor.
      */
     @Inject
-    public void setupRestActions(Client client, IndicesQueriesRegistry indicesQueriesRegistry,
+    public void injectRestActionDependencies(Client client, IndicesQueriesRegistry indicesQueriesRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver, SettingsFilter settingsFilter, ClusterSettings clusterSettings,
             ClusterName clusterName, ClusterService clusterService) {
         this.clusterSettings = clusterSettings;
         this.clusterName = clusterName;
         this.clusterService = clusterService;
-        RestGlobalContext context = new RestGlobalContext(settings, controller, client, indicesQueriesRegistry, indexNameExpressionResolver,
+        context = new RestGlobalContext(settings, controller, client, indicesQueriesRegistry, indexNameExpressionResolver,
                 settingsFilter);
+    }
+
+    /**
+     * Setup the rest actions after all dependencies are available. This should
+     * be called after guice has been called or plugins that depend on some
+     * guice injected thing to setup their actions won't have them available.
+     */
+    public void setupRestActions() {
+        if (transportClient) {
+            throw new IllegalStateException("It doesn't make any sense to setup REST actions for the rest client!");
+        }
+        requireNonNull(context, "Rest actions cannot be setup before their dependencies have been injected");
         Set<AbstractCatAction> catActions = new HashSet<>();
 
         for (Map.Entry<Class<? extends BaseRestHandler>, Function<RestGlobalContext, ? extends BaseRestHandler>> t : actions.entrySet()) {
@@ -317,8 +328,20 @@ public class NetworkModule extends AbstractModule {
             if (handler instanceof AbstractCatAction) {
                 catActions.add((AbstractCatAction) handler);
             }
+            registerHandlerWithController(handler);
         }
-        new RestCatAction(context, catActions);
+        registerHandlerWithController(new RestCatAction(context, catActions));
+    }
+
+    private void registerHandlerWithController(BaseRestHandler handler) {
+        Collection<Tuple<RestRequest.Method, String>> registrations = handler.registrations();
+        if (registrations.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "It doesn't make any sense to register a REST [ " + handler + "] handler without any registrations!");
+        }
+        for (Tuple<RestRequest.Method, String> registration: registrations) {
+            controller.registerHandler(registration.v1(), registration.v2(), handler);
+        }
     }
 
     private void registerAliasActions() {
@@ -421,6 +444,11 @@ public class NetworkModule extends AbstractModule {
 
     private void registerPercolatorActions() {
         registerRestAction(RestPercolateAction.class, RestPercolateAction::new);
+        registerRestAction(RestPercolateAction.RestCountPercolateDocHandler.class, RestPercolateAction.RestCountPercolateDocHandler::new);
+        registerRestAction(RestPercolateAction.RestPercolateExistingDocHandler.class,
+                RestPercolateAction.RestPercolateExistingDocHandler::new);
+        registerRestAction(RestPercolateAction.RestCountPercolateExistingDocHandler.class,
+                RestPercolateAction.RestCountPercolateExistingDocHandler::new);
         registerRestAction(RestMultiPercolateAction.class, RestMultiPercolateAction::new);
     }
 

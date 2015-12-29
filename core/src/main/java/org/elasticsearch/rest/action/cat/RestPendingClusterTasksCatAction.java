@@ -31,17 +31,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestPendingClusterTasksCatAction extends AbstractCatAction {
     public RestPendingClusterTasksCatAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_cat/pending_tasks", this);
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/pending_tasks\n");
+        super(context, "pending_tasks");
     }
 
     @Override

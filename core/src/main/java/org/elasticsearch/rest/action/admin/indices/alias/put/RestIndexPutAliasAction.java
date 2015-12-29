@@ -24,14 +24,18 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -42,18 +46,24 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexPutAliasAction extends BaseRestHandler {
     public RestIndexPutAliasAction(RestGlobalContext context) {
         super(context);
-        context.getController().registerHandler(PUT, "/{index}/_alias/{name}", this);
-        context.getController().registerHandler(PUT, "/_alias/{name}", this);
-        context.getController().registerHandler(PUT, "/{index}/_aliases/{name}", this);
-        context.getController().registerHandler(PUT, "/_aliases/{name}", this);
-        context.getController().registerHandler(PUT, "/{index}/_alias", this);
-        context.getController().registerHandler(PUT, "/_alias", this);
+    }
 
-        context.getController().registerHandler(POST, "/{index}/_alias/{name}", this);
-        context.getController().registerHandler(POST, "/_alias/{name}", this);
-        context.getController().registerHandler(POST, "/{index}/_aliases/{name}", this);
-        context.getController().registerHandler(POST, "/_aliases/{name}", this);
-        context.getController().registerHandler(PUT, "/{index}/_aliases", this);
+    @Override
+    public Collection<Tuple<Method, String>> registrations() {
+        return Arrays.asList(
+                new Tuple<>(PUT, "/_alias"),
+                new Tuple<>(PUT, "/_alias/{name}"),
+                new Tuple<>(PUT, "/{index}/_alias"),
+                new Tuple<>(PUT, "/{index}/_alias/{name}"),
+                new Tuple<>(PUT, "/_aliases/{name}"),
+                new Tuple<>(PUT, "/{index}/_aliases"),
+                new Tuple<>(PUT, "/{index}/_aliases/{name}"),
+
+                new Tuple<>(POST, "/_alias/{name}"),
+                new Tuple<>(POST, "/{index}/_alias/{name}"),
+                new Tuple<>(POST, "/_aliases/{name}"),
+                new Tuple<>(POST, "/{index}/_aliases/{name}")
+                );
         //we cannot add POST for "/_aliases" because this is the _aliases api already defined in RestIndicesAliasesAction
     }
 

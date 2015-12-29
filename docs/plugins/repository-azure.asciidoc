@@ -64,6 +64,27 @@ cloud:
 
 `my_account1` is the default account which will be used by a repository unless you set an explicit one.
 
+You can set the timeout to use when making any single request. It can be defined globally, per account or both.
+Defaults to `5m`.
+
+[source,yaml]
+----
+cloud:
+    azure:
+        storage:
+            timeout: 10s
+            my_account1:
+                account: your_azure_storage_account1
+                key: your_azure_storage_key1
+                default: true
+            my_account2:
+                account: your_azure_storage_account2
+                key: your_azure_storage_key2
+                timeout: 30s
+----
+
+In this example, timeout will be 10s for `my_account1` and 30s for `my_account2`.
+
 [[repository-azure-repository-settings]]
 ===== Repository settings
 

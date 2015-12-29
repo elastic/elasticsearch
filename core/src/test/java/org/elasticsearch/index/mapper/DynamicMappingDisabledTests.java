@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +82,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     @AfterClass
     public static void destroyThreadPool() {
         ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        // since static must set to null to be eligible for collection
         THREAD_POOL = null;
     }
 
@@ -91,7 +93,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
-        final AtomicBoolean onFailureCalled = new AtomicBoolean(false);
+        final AtomicBoolean onFailureCalled = new AtomicBoolean();
 
         action.execute(request, new ActionListener<IndexResponse>() {
             @Override
@@ -102,7 +104,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
             @Override
             public void onFailure(Throwable e) {
                 onFailureCalled.set(true);
-                assertTrue(e instanceof IndexNotFoundException);
+                assertThat(e, instanceOf(IndexNotFoundException.class));
                 assertEquals(e.getMessage(), "no such index");
             }
         });

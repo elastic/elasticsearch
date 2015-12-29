@@ -5,7 +5,7 @@ Specifying a `search_quote_analyzer` allows you to control the tokenization of p
 dealing with disabling stemming and stop words for phrases.
 
 Using `multi_fields` two fields can be specified, the default field would have an analyzer that would have stems and stop words removed whilst 
-another field would have no analyzer specified and would contain all the original terms. The `search_quote_analyzer` setting can be applied on 
+another field would have no explicitly specified analyzer but by default the `standard` analyzer would be used and would contain all the original terms. The `search_quote_analyzer` setting can be applied on 
 the default field and pointed to an analyzer that does not stem or remove any stop words. This will effectively ensure that when a phrase is encountered 
 with stems or stop words a specific set of tokens would be generated which would then be matched against all fields and since the default field has stems
 and stop words removed the match would be found in the field that has the original terms.

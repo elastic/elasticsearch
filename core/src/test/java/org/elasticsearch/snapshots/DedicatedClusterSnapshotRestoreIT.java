@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -50,6 +52,8 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -635,7 +639,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                         .put("secret.mock.password", "verysecretpassword")
         ).get();
 
-        RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
+        RestGlobalContext context = new RestGlobalContext(nodeSettings, new RestController(nodeSettings), client(), null, null,
+                internalCluster().getInstance(SettingsFilter.class));
+        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(context);
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
         final CountDownLatch getRepoLatch = new CountDownLatch(1);
@@ -657,7 +663,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             throw getRepoError.get();
         }
 
-        RestClusterStateAction clusterStateAction = internalCluster().getInstance(RestClusterStateAction.class);
+        RestClusterStateAction clusterStateAction = new RestClusterStateAction(context);
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();

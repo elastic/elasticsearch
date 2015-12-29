@@ -38,7 +38,7 @@ public class RestCatAction extends BaseRestHandler {
     private final String HELP;
 
     public RestCatAction(RestGlobalContext context, Set<AbstractCatAction> catActions) {
-        super(context.getSettings(), context.getController(), context.getClient());
+        super(context);
         context.getController().registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();
         sb.append(CAT_NL);

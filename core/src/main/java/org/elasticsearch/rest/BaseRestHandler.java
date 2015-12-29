@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Set;
 
@@ -47,14 +46,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     protected final ParseFieldMatcher parseFieldMatcher;
 
     protected BaseRestHandler(RestGlobalContext context) {
-        this(context.getSettings(), context.getController(), context.getClient());
-    }
-
-    protected BaseRestHandler(Settings settings, RestController controller, Client client) {
-        super(settings);
-        this.controller = controller;
-        this.client = client;
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
+        super(context.getSettings());
+        this.controller = context.getController();
+        this.client = context.getClient();
+        this.parseFieldMatcher = new ParseFieldMatcher(context.getSettings());
     }
 
     @Override

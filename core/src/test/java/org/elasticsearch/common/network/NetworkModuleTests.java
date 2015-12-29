@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +27,6 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -73,14 +69,6 @@ public class NetworkModuleTests extends ModuleTestCase {
         }
         @Override
         public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {}
-    }
-
-    static class FakeRestHandler extends BaseRestHandler {
-        public FakeRestHandler() {
-            super(null, null, null);
-        }
-        @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {}
     }
 
     public void testRegisterTransportService() {

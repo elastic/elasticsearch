@@ -82,7 +82,7 @@ GET my_index/my_type/_search
       }
    }
 }
-
+--------------------------------------------------
 <1> Analysis setting to define the `my_analyzer` analyzer which filters stems and stop words
 <2> The default field uses the `my_analyzer` analyzer which removes stems and stop words at index time
 <3> `search_quote_analyzer` setting that points to the standard analyzer that does not remove stems and stop words at query side but only when 
@@ -116,6 +116,6 @@ GET my_index/my_type/_search
       }
    }
 }
-
+--------------------------------------------------
 Notice the document with the title `I bought two guard dogs` is returned, if stemming was not disabled at query time for phrases both documents would 
 be returned because each document contains the following tokens in the default field ['guard', 'dog'].

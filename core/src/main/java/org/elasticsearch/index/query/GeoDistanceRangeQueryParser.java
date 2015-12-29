@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.GeoDistanceUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -212,7 +213,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
                 to = geoDistance.normalize(to, DistanceUnit.DEFAULT);
             }
         } else {
-            to = GeoUtils.maxRadialDistance(point);
+            to = GeoDistanceUtils.maxRadialDistanceMeters(point.lon(), point.lat());
         }
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);

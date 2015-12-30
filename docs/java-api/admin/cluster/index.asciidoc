@@ -1,0 +1,10 @@
+[[java-admin-cluster]]
+=== Cluster Administration
+
+To access cluster Java API, you need to call `cluster()` method from an <<java-admin,`AdminClient`>>:
+
+[source,java]
+--------------------------------------------------
+ClusterAdminClient clusterAdminClient = adminClient.cluster();
+--------------------------------------------------
+

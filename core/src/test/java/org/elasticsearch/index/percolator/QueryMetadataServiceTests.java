@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -241,23 +242,28 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testSelectTermsListWithHighestSumOfTermLength() {
         Set<Term> terms1 = new HashSet<>();
-        int sumTermLength = randomIntBetween(32, 64);
+        int shortestTerms1Length = Integer.MAX_VALUE;
+        int sumTermLength = randomIntBetween(1, 128);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
+            shortestTerms1Length = Math.min(shortestTerms1Length, length);
             terms1.add(new Term("field", randomAsciiOfLength(length)));
             sumTermLength -= length;
         }
 
         Set<Term> terms2 = new HashSet<>();
-        sumTermLength = randomIntBetween(65, 128);
+        int shortestTerms2Length = Integer.MAX_VALUE;
+        sumTermLength = randomIntBetween(1, 128);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
+            shortestTerms2Length = Math.min(shortestTerms2Length, length);
             terms2.add(new Term("field", randomAsciiOfLength(length)));
             sumTermLength -= length;
         }
 
         Set<Term> result = QueryMetadataService.selectTermListWithTheLongestShortestTerm(terms1, terms2);
-        assertThat(result, sameInstance(terms2));
+        Set<Term> expected = shortestTerms1Length >= shortestTerms2Length ? terms1 : terms2;
+        assertThat(result, sameInstance(expected));
     }
 
     private void assertClause(BooleanQuery booleanQuery, int i, String expectedField, String expectedValue) {

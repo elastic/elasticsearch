@@ -173,7 +173,7 @@ public final class QueryMetadataService {
             int terms1ShortestTerm = minTermLength(terms1);
             int terms2ShortestTerm = minTermLength(terms2);
             // keep the clause with longest terms, this likely to be rarest.
-            if (terms1ShortestTerm > terms2ShortestTerm) {
+            if (terms1ShortestTerm >= terms2ShortestTerm) {
                 return terms1;
             } else {
                 return terms2;

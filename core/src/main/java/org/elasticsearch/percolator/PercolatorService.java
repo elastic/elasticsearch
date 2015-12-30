@@ -157,8 +157,7 @@ public class PercolatorService extends AbstractComponent implements IndexEventLi
         try {
             ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), percolateIndexService.getQueryShardContext());
 
-            PercolatorQueriesRegistry queriesRegistry = indexShard.percolateRegistry();
-            if (queriesRegistry.getPercolateQueries().isEmpty()) {
+            if (context.searcher().getIndexReader().maxDoc() == 0) {
                 return new PercolateShardResponse(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
             }
             if (context.size() < 0) {
@@ -203,6 +202,7 @@ public class PercolatorService extends AbstractComponent implements IndexEventLi
                 aggregatorCollector.preCollection();
             }
             Query percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
+            PercolatorQueriesRegistry queriesRegistry = indexShard.percolateRegistry();
             Collector collector = action.doPercolate(context.percolateQuery(), aliasFilter, percolatorTypeFilter, queriesRegistry, context.searcher(), context.docSearcher(), context.size(), aggregatorCollector);
             if (aggregatorCollector != null) {
                 aggregatorCollector.postCollection();

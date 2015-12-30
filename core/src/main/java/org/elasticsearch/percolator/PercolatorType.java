@@ -61,9 +61,9 @@ abstract class PercolatorType<C extends Collector> {
     abstract PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) throws IOException;
 
     C doPercolate(Query percolateQuery, Query aliasQuery, Query percolateTypeQuery, PercolatorQueriesRegistry queriesRegistry, IndexSearcher shardSearcher, IndexSearcher percolateSearcher, int size, Collector... extraCollectors) throws IOException {
-        if (size > shardSearcher.getIndexReader().numDocs()) {
+        if (size > shardSearcher.getIndexReader().maxDoc()) {
             // prevent easy OOM if more than the total number of docs that exist is requested...
-            size = shardSearcher.getIndexReader().numDocs();
+            size = shardSearcher.getIndexReader().maxDoc();
         }
         C typeCollector = getCollector(size);
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(percolateSearcher, queriesRegistry.getPercolateQueries(), percolateTypeQuery);

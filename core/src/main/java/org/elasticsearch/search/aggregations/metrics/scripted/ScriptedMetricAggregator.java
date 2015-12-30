@@ -127,7 +127,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
             if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, context, parent);
+                return asMultiBucketAggregator(this, context, parent, reduceScript);
             }
             Map<String, Object> params = this.params;
             if (params != null) {

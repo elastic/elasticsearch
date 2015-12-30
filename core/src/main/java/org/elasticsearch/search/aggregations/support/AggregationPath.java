@@ -20,10 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -240,7 +237,24 @@ public class AggregationPath {
                         "]. Missing value key in [" + token + "] which refers to a multi-value metric aggregation");
             }
             parent = null;
-            value = ((InternalNumericMetricsAggregation.MultiValue) agg).value(token.key);
+            if(agg instanceof InternalNumericMetricsAggregation.MultiValue) {
+                // For NumericMetricsAggregation we use the method value returning a native double
+                // Optimization to avoid object creation and multiple casts.
+                value = ((InternalNumericMetricsAggregation.MultiValue) agg).value(token.key);
+            } else if(agg instanceof InternalAggregation) {
+                // For a general use case, we use the method getProperty returning an Object
+                Object propertyValue = agg.getProperty(token.key);
+                // Only aggregation returning a numeric value are supported.
+                if(propertyValue instanceof Number) {
+                    value = ((Number) propertyValue).doubleValue();
+                } else {
+                    throw new AggregationExecutionException("Invalid order path ["+this+
+                            "]. Only numeric result are supported.");
+                }
+            } else {
+                throw new AggregationExecutionException("Invalid aggregation type for order path ["+this+
+                        "]. Only numeric & scripted metric aggregation are supported.");
+            }
         }
 
         return value;

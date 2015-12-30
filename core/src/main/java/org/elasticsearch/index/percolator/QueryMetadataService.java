@@ -55,7 +55,6 @@ public final class QueryMetadataService {
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
 
     public static String QUERY_METADATA_FIELD = "query_metadata_field";
-    public static String QUERY_METADATA_FIELD_UNKNOWN = "query_metadata_field_unknown";
     public static FieldType QUERY_METADATA_FIELD_TYPE = new FieldType();
 
     static {
@@ -75,7 +74,7 @@ public final class QueryMetadataService {
         try {
             queryTerms = extractQueryMetadata(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(QUERY_METADATA_FIELD_UNKNOWN, new BytesRef(), QUERY_METADATA_FIELD_TYPE));
+            document.add(new Field(QUERY_METADATA_FIELD, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR}), QUERY_METADATA_FIELD_TYPE));
             return;
         }
         for (Term term : queryTerms) {
@@ -194,7 +193,7 @@ public final class QueryMetadataService {
      */
     public static Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
         List<Term> extractedTerms = new ArrayList<>();
-        extractedTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
+        extractedTerms.add(new Term(QUERY_METADATA_FIELD, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR})));
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
             Terms terms = fields.terms(field);

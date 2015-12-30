@@ -136,8 +136,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     "\"query\" : {\n" +
                         "\"type\" : \"percolator\"\n" +
                     "},\n" +
-                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }," +
-                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }" +
+                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }" +
                 "}\n" +
             "}\n" +
         "}";

@@ -15,5 +15,7 @@ include::create-index.asciidoc[]
 
 include::put-mapping.asciidoc[]
 
+include::refresh.asciidoc[]
+
 include::get-settings.asciidoc[]
 include::update-settings.asciidoc[]

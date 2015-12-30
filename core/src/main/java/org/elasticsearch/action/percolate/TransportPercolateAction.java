@@ -152,7 +152,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
             try {
                 result = percolatorService.reduce(onlyCount, shardResults, request);
             } catch (IOException e) {
-                throw new ElasticsearchException("error during reduce phase");
+                throw new ElasticsearchException("error during reduce phase", e);
             }
             long tookInMillis =  Math.max(1, System.currentTimeMillis() - request.startTime);
             return new PercolateResponse(

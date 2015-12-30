@@ -74,15 +74,12 @@ public class PercolateDocumentParser {
         Map<String, ? extends SearchParseElement> aggregationElements = aggregationPhase.parseElements();
 
         ParsedDocument doc = null;
-        XContentParser parser = null;
-
         // Some queries (function_score query when for decay functions) rely on a SearchContext being set:
         // We switch types because this context needs to be in the context of the percolate queries in the shard and
         // not the in memory percolate doc
         String[] previousTypes = context.types();
         context.types(new String[]{PercolatorService.TYPE_NAME});
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source);) {
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -154,25 +151,26 @@ public class PercolateDocumentParser {
             if (context.highlight() != null) {
                 parser.close();
                 currentFieldName = null;
-                parser = XContentFactory.xContent(source).createParser(source);
-                token = parser.nextToken();
-                assert token == XContentParser.Token.START_OBJECT;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        if ("doc".equals(currentFieldName)) {
-                            BytesStreamOutput bStream = new BytesStreamOutput();
-                            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, bStream);
-                            builder.copyCurrentStructure(parser);
-                            builder.close();
-                            doc.setSource(bStream.bytes());
+                try (XContentParser parserForHighlighter = XContentFactory.xContent(source).createParser(source)) {
+                    token = parserForHighlighter.nextToken();
+                    assert token == XContentParser.Token.START_OBJECT;
+                    while ((token = parserForHighlighter.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parserForHighlighter.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            if ("doc".equals(currentFieldName)) {
+                                BytesStreamOutput bStream = new BytesStreamOutput();
+                                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, bStream);
+                                builder.copyCurrentStructure(parserForHighlighter);
+                                builder.close();
+                                doc.setSource(bStream.bytes());
+                                break;
+                            } else {
+                                parserForHighlighter.skipChildren();
+                            }
+                        } else if (token == null) {
                             break;
-                        } else {
-                            parser.skipChildren();
                         }
-                    } else if (token == null) {
-                        break;
                     }
                 }
             }
@@ -181,9 +179,6 @@ public class PercolateDocumentParser {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
             context.types(previousTypes);
-            if (parser != null) {
-                parser.close();
-            }
         }
 
         if (request.docSource() != null && request.docSource().length() != 0) {

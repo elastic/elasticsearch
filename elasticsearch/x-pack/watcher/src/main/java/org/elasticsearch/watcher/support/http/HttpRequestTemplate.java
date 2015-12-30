@@ -8,12 +8,14 @@ package org.elasticsearch.watcher.support.http;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.http.HttpRequest.Field;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
@@ -23,6 +25,8 @@ import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -272,6 +276,8 @@ public class HttpRequestTemplate implements ToXContent {
                     builder.putParams(parseFieldTemplates(currentFieldName, parser));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     builder.body(parseFieldTemplate(currentFieldName, parser));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.URL)) {
+                    builder.fromUrl(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
@@ -459,6 +465,30 @@ public class HttpRequestTemplate implements ToXContent {
         public HttpRequestTemplate build() {
             return new HttpRequestTemplate(host, port, scheme, method, path, unmodifiableMap(new HashMap<>(params)),
                     unmodifiableMap(new HashMap<>(headers)), auth, body, connectionTimeout, readTimeout, proxy);
+        }
+
+        public Builder fromUrl(String supposedUrl) {
+            try {
+                URI uri = new URI(supposedUrl);
+                port = uri.getPort() > 0 ? uri.getPort() : 80;
+                host = uri.getHost();
+                scheme = Scheme.parse(uri.getScheme());
+                if (Strings.hasLength(uri.getPath())) {
+                    path = TextTemplate.inline(uri.getPath()).build();
+                }
+
+                String rawQuery = uri.getRawQuery();
+                if (Strings.hasLength(rawQuery)) {
+                    Map<String, String> stringParams = new HashMap<>();
+                    RestUtils.decodeQueryString(rawQuery, 0, stringParams);
+                    for (Map.Entry<String, String> entry : stringParams.entrySet()) {
+                        params.put(entry.getKey(), TextTemplate.inline(entry.getValue()).build());
+                    }
+                }
+            } catch (URISyntaxException e) {
+                throw new ElasticsearchParseException("Malformed URI [{}]", supposedUrl);
+            }
+            return this;
         }
     }
 

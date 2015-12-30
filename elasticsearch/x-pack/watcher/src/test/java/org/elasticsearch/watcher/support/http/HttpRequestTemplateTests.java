@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -21,6 +24,7 @@ import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -131,6 +135,38 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate parsed = parser.parse(xContentParser);
 
         assertThat(parsed, equalTo(template));
+    }
+
+    public void testParsingFromUrl() throws Exception {
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("www.example.org", 1234);
+        builder.path("/foo/bar/org");
+        builder.putParam("param", TextTemplate.inline("test"));
+        builder.scheme(Scheme.HTTPS);
+        assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org:1234/foo/bar/org?param=test", builder);
+
+        // test without specifying port
+        builder = HttpRequestTemplate.builder("www.example.org", 80);
+        assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org", builder);
+
+        // encoded values
+        builder = HttpRequestTemplate.builder("www.example.org", 80).putParam("foo", TextTemplate.inline(" white space"));
+        assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org?foo=%20white%20space", builder);
+    }
+
+    private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequestTemplate.Builder builder) throws Exception {
+        XContentBuilder urlContentBuilder = jsonBuilder().startObject().field("url", url).endObject();
+        XContentParser urlContentParser = JsonXContent.jsonXContent.createParser(urlContentBuilder.bytes());
+        urlContentParser.nextToken();
+
+        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
+        HttpRequestTemplate urlParsedTemplate = parser.parse(urlContentParser);
+
+        XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        xContentParser.nextToken();
+        HttpRequestTemplate parsedTemplate = parser.parse(xContentParser);
+
+        assertThat(parsedTemplate, is(urlParsedTemplate));
     }
 
     static class MockTextTemplateEngine implements TextTemplateEngine {

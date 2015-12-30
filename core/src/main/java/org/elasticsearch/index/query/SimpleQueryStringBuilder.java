@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
 import java.io.IOException;
@@ -269,19 +271,28 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
 
         // Use standard analyzer by default if none specified
-        Analyzer luceneAnalyzer;
+        Analyzer defaultAnalyzer;
         if (analyzer == null) {
-            luceneAnalyzer = context.getMapperService().searchAnalyzer();
+            defaultAnalyzer = context.getMapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = context.getAnalysisService().analyzer(analyzer);
-            if (luceneAnalyzer == null) {
+            defaultAnalyzer = context.getAnalysisService().analyzer(analyzer);
+            if (defaultAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
             }
-
         }
 
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, settings);
+        // Fetch each mapped type for the fields specified
+        Map<String, MappedFieldType> fieldToType = new HashMap<>();
+        MapperService ms = context.getMapperService();
+        for (String fieldName : resolvedFieldsAndWeights.keySet()) {
+            MappedFieldType mapping = ms.getFieldForName(fieldName);
+            if (mapping != null) {
+                fieldToType.put(fieldName, mapping);
+            }
+        }
+
+        SimpleQueryParser sqp = new SimpleQueryParser(defaultAnalyzer, resolvedFieldsAndWeights, fieldToType, flags, settings);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
@@ -394,4 +405,3 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 && Objects.equals(settings, other.settings) && (flags == other.flags);
     }
 }
-

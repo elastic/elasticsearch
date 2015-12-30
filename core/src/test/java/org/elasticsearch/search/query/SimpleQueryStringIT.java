@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -30,7 +31,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -98,6 +101,22 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "5", "6");
+    }
+
+    // See: https://github.com/elastic/elasticsearch/issues/16577
+    public void testSimpleQueryStringUsesFieldAnalyzer() throws Exception {
+        client().prepareIndex("test", "type1", "1").setSource("foo", 123, "bar", "abc").get();
+        client().prepareIndex("test", "type1", "2").setSource("foo", 234, "bar", "bcd").get();
+
+        refresh();
+
+        Map<String, Float> fields = new HashMap<>();
+        fields.put("foo", 1.0f);
+        fields.put("bar", 1.0f);
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+            simpleQueryStringQuery("123").fields(fields)).get();
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
     }
 
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {

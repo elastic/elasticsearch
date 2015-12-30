@@ -459,6 +459,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Returns the {@link MappedFieldType} for the give fullName.
+     *
+     * If multiple types have fields with the same full name, the first is returned.
+     *
+     * This is an alias to make {@code fullName} easier to find
+     */
+    public MappedFieldType getFieldForName(String fullName) {
+        return this.fullName(fullName);
+    }
+
+    /**
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */

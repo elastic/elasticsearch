@@ -460,8 +460,7 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_3_0_0) &&
-            "default".equals(value) && parserContext.getSimilarity(value) == null) {
+        if (parserContext.indexVersionCreated().before(Version.V_3_0_0) && "default".equals(value)) {
             // "default" similarity has been renamed into "classic" in 3.x.
             value = SimilarityService.DEFAULT_SIMILARITY;
         }

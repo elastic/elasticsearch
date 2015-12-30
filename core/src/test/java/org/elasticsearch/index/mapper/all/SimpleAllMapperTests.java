@@ -258,7 +258,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             }
             tv_stored |= tv_positions || tv_payloads || tv_offsets;
             if (randomBoolean()) {
-                mappingBuilder.field("similarity", similarity = randomBoolean() ? "BM25" : "TF/IDF");
+                mappingBuilder.field("similarity", similarity = randomBoolean() ? "BM25" : null);
             }
             mappingBuilder.endObject();
         }
@@ -296,7 +296,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         } else {
             assertThat(field, nullValue());
         }
-        if (similarity == null || similarity.equals("TF/IDF")) {
+        if (similarity == null) {
             assertThat(builtDocMapper.allFieldMapper().fieldType().similarity(), nullValue());
         }   else {
             assertThat(similarity, equalTo(builtDocMapper.allFieldMapper().fieldType().similarity().name()));

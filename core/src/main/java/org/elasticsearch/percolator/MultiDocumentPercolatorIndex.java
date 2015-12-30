@@ -34,6 +34,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -84,12 +85,13 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
             final IndexSearcher slowSearcher = new IndexSearcher(slowReader) {
 
                 @Override
-                public void search(Query query, Collector collector) throws IOException {
+                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
                     BooleanQuery.Builder bq = new BooleanQuery.Builder();
                     bq.add(query, BooleanClause.Occur.MUST);
                     bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    super.search(bq.build(), collector);
+                    return super.createNormalizedWeight(bq.build(), needsScores);
                 }
+
             };
             slowSearcher.setQueryCache(null);
             DocSearcher docSearcher = new DocSearcher(slowSearcher, rootDocMemoryIndex);

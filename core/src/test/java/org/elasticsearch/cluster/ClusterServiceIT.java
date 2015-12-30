@@ -806,13 +806,13 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         class TaskExecutor implements ClusterStateTaskExecutor<Integer> {
-            int tracking = -1;
+            int tracking = 0;
 
             @Override
             public BatchResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
                 for (Integer task : tasks) {
                     try {
-                        assertEquals("task was executed out of order", tracking + 1, (int)task);
+                        assertEquals("task was executed out of order", tracking, (int)task);
                         tracking++;
                     } catch (AssertionError e) {
                         return BatchResult.<Integer>builder().failures(tasks, e).build(currentState);
@@ -886,7 +886,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertFalse(failure.get());
 
         for (int i = 0; i < numberOfThreads; i++) {
-            assertEquals(tasksSubmittedPerThread - 1, executors[i].tracking);
+            assertEquals(tasksSubmittedPerThread, executors[i].tracking);
         }
     }
 

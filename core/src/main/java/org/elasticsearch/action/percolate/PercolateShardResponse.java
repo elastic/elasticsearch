@@ -47,7 +47,7 @@ public class PercolateShardResponse extends BroadcastShardResponse {
     private TopDocs topDocs;
     private Map<Integer, String> ids;
     private Map<Integer, Map<String, HighlightField>> hls;
-    private byte percolatorTypeId;
+    private boolean onlyCount;
     private int requestedSize;
 
     private InternalAggregations aggregations;
@@ -61,7 +61,7 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         this.topDocs= topDocs;
         this.ids = ids;
         this.hls = hls;
-        this.percolatorTypeId = context.percolatorTypeId;
+        this.onlyCount = context.isOnlyCount();
         this.requestedSize = context.size();
         QuerySearchResult result = context.queryResult();
         if (result != null) {
@@ -102,18 +102,18 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         return pipelineAggregators;
     }
 
-    public byte percolatorTypeId() {
-        return percolatorTypeId;
+    public boolean onlyCount() {
+        return onlyCount;
     }
 
     public boolean isEmpty() {
-        return percolatorTypeId == 0x00;
+        return topDocs.totalHits == 0;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        percolatorTypeId = in.readByte();
+        onlyCount = in.readBoolean();
         requestedSize = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
         int size = in.readVInt();
@@ -148,7 +148,7 @@ public class PercolateShardResponse extends BroadcastShardResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(percolatorTypeId);
+        out.writeBoolean(onlyCount);
         out.writeVLong(requestedSize);
         Lucene.writeTopDocs(out, topDocs);
         out.writeVInt(ids.size());

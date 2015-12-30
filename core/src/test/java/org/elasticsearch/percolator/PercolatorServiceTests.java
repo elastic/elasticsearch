@@ -37,6 +37,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
@@ -55,16 +57,21 @@ import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class PercolatorTypeTests extends ESTestCase {
+public class PercolatorServiceTests extends ESTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
@@ -85,6 +92,11 @@ public class PercolatorTypeTests extends ESTestCase {
     }
 
     public void testCount() throws Exception {
+        PercolateContext context = mock(PercolateContext.class);
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
+        when(context.isOnlyCount()).thenReturn(true);
+
         PercolatorQueriesRegistry registry = createRegistry();
         addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, registry);
         addPercolatorQuery("2", new TermQuery(new Term("field", "fox")), indexWriter, registry);
@@ -93,18 +105,23 @@ public class PercolatorTypeTests extends ESTestCase {
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
         IndexSearcher shardSearcher = newSearcher(directoryReader);
-
+        when(context.searcher()).thenReturn(new ContextIndexSearcher(new Engine.Searcher("test", shardSearcher), shardSearcher.getQueryCache(), shardSearcher.getQueryCachingPolicy()));
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        when(context.docSearcher()).thenReturn(percolateSearcher);
 
-        CountPercolatorType countPercolatorType = new CountPercolatorType(null, null);
-        TotalHitCountCollector countCollector = countPercolatorType.doPercolate(null, null, new MatchAllDocsQuery(), registry, shardSearcher, percolateSearcher, 0);
-        assertThat(countCollector.getTotalHits(), equalTo(2));
+        PercolateShardResponse response = PercolatorService.doPercolate(context, registry, null, null, null);
+        assertThat(response.topDocs().totalHits, equalTo(2));
     }
 
     public void testTopMatching() throws Exception {
+        PercolateContext context = mock(PercolateContext.class);
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
+        when(context.size()).thenReturn(10);
+
         PercolatorQueriesRegistry registry = createRegistry();
         addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, registry);
         addPercolatorQuery("2", new TermQuery(new Term("field", "monkey")), indexWriter, registry);
@@ -112,16 +129,16 @@ public class PercolatorTypeTests extends ESTestCase {
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher =  new IndexSearcher(directoryReader);
-
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        when(context.searcher()).thenReturn(new ContextIndexSearcher(new Engine.Searcher("test", shardSearcher), shardSearcher.getQueryCache(), shardSearcher.getQueryCachingPolicy()));
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        when(context.docSearcher()).thenReturn(percolateSearcher);
 
-        TopMatchingPercolatorType countPercolatorType = new TopMatchingPercolatorType(null, null, null);
-        TopDocsCollector topDocsCollector = countPercolatorType.doPercolate(null, null, new MatchAllDocsQuery(), registry, shardSearcher, percolateSearcher, 10);
-        TopDocs topDocs = topDocsCollector.topDocs();
+        PercolateShardResponse response = PercolatorService.doPercolate(context, registry, null, null, null);
+        TopDocs topDocs = response.topDocs();
         assertThat(topDocs.totalHits, equalTo(2));
         assertThat(topDocs.scoreDocs.length, equalTo(2));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));

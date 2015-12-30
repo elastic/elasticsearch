@@ -89,7 +89,6 @@ import java.util.concurrent.ConcurrentMap;
 public class PercolateContext extends SearchContext {
 
     private int size = 10;
-    public byte percolatorTypeId;
     private boolean trackScores;
 
     private final SearchShardTarget searchShardTarget;
@@ -104,6 +103,7 @@ public class PercolateContext extends SearchContext {
     private final Query aliasFilter;
     private final long originNanoTime = System.nanoTime();
     private final long startTime;
+    private final boolean onlyCount;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -141,6 +141,7 @@ public class PercolateContext extends SearchContext {
         this.numberOfShards = request.getNumberOfShards();
         this.aliasFilter = aliasFilter;
         this.startTime = request.getStartTime();
+        this.onlyCount = request.onlyCount();
     }
 
     // for testing:
@@ -157,6 +158,7 @@ public class PercolateContext extends SearchContext {
         this.aliasFilter = null;
         this.startTime = 0;
         this.numberOfShards = 0;
+        this.onlyCount = true;
     }
 
     public IndexSearcher docSearcher() {
@@ -204,6 +206,14 @@ public class PercolateContext extends SearchContext {
             hitContext = new FetchSubPhase.HitContext();
         }
         return hitContext;
+    }
+
+    public boolean isOnlyCount() {
+        return onlyCount;
+    }
+
+    public Query percolatorTypeFilter(){
+        return indexService().mapperService().documentMapper(PercolatorService.TYPE_NAME).typeFilter();
     }
 
     @Override

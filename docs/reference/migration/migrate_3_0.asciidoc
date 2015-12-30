@@ -245,6 +245,20 @@ will still be accepted for indices created before the upgrade to 3.0 for backwar
 compatibility, but it will have no effect. Indices created on or after 3.0 will
 reject this option.
 
+==== Object notation
+
+Core types don't support the object notation anymore, which allowed to provide
+values as follows:
+
+[source,json]
+-----
+{
+  "value": "field_value",
+  "boost": 42
+}
+----
+
+
 [[breaking_30_plugins]]
 === Plugin changes
 

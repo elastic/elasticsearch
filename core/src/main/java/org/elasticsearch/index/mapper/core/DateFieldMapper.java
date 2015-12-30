@@ -489,7 +489,8 @@ public class DateFieldMapper extends NumberFieldMapper {
                 dateAsString = fieldType().nullValueAsString();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 dateAsString = parser.text();
-            } else if (token == XContentParser.Token.START_OBJECT) {
+            } else if (token == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {

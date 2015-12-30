@@ -73,5 +73,3 @@ include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
 
-include::analysis/icu-plugin.asciidoc[]
-

@@ -2,7 +2,8 @@
     person:{
         properties:{
             "name":{
-                type:"multi_field",
+                type:"string",
+                index:"no",
                 "fields":{
                     "not_indexed3":{
                         type:"string",

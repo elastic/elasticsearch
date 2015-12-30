@@ -19,23 +19,23 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * {@link SimilarityProvider} for {@link DefaultSimilarity}.
+ * {@link SimilarityProvider} for {@link ClassicSimilarity}.
  * <p>
  * Configuration options available:
  * <ul>
  *     <li>discount_overlaps</li>
  * </ul>
- * @see DefaultSimilarity For more information about configuration
+ * @see ClassicSimilarity For more information about configuration
  */
-public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
+public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
 
-    private final DefaultSimilarity similarity = new DefaultSimilarity();
+    private final ClassicSimilarity similarity = new ClassicSimilarity();
 
-    public DefaultSimilarityProvider(String name, Settings settings) {
+    public ClassicSimilarityProvider(String name, Settings settings) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
         this.similarity.setDiscountOverlaps(discountOverlaps);
@@ -45,7 +45,7 @@ public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
      * {@inheritDoc}
      */
     @Override
-    public DefaultSimilarity get() {
+    public ClassicSimilarity get() {
         return similarity;
     }
 }

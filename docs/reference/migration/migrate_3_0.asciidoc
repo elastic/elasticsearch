@@ -224,6 +224,10 @@ Allocation settings deprecated in 1.x have been removed:
 
 Please change the setting in your configuration files or in the clusterstate to use the new settings instead.
 
+==== Similarity settings
+
+The 'default' similarity has been renamed to 'classic'.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

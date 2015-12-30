@@ -258,7 +258,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             }
             tv_stored |= tv_positions || tv_payloads || tv_offsets;
             if (randomBoolean()) {
-                mappingBuilder.field("similarity", similarity = randomBoolean() ? "BM25" : null);
+                mappingBuilder.field("similarity", similarity = "BM25");
             }
             mappingBuilder.endObject();
         }

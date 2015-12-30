@@ -193,11 +193,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("name")
-                    .field("type", "multi_field")
+                    .field("type", "string")
                     .startObject("fields")
-                        .startObject("name")
-                            .field("type", "string")
-                        .endObject()
                         .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
@@ -267,11 +264,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("name")
-                    .field("type", "multi_field")
+                    .field("type", "string")
                     .startObject("fields")
-                        .startObject("name")
-                            .field("type", "string")
-                        .endObject()
                         .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
@@ -808,13 +802,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
                     .startObject("name")
-                        .field("type", "multi_field")
-                        .startObject("fields")
-                            .startObject("name")
-                                .field("type", "string")
-                                .field("analyzer", "suggest")
-                            .endObject()
-                        .endObject()
+                        .field("type", "string")
+                        .field("analyzer", "suggest")
                     .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -855,13 +844,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                     startObject("type1").
                         startObject("properties").
                             startObject("name").
-                                field("type", "multi_field").
-                                startObject("fields").
-                                    startObject("name").
-                                        field("type", "string").
-                                        field("analyzer", "suggest").
-                                    endObject().
-                                endObject().
+                                field("type", "string").
+                                field("analyzer", "suggest").
                             endObject().
                         endObject().
                     endObject().

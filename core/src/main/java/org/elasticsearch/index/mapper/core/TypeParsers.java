@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -54,88 +53,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  *
  */
 public class TypeParsers {
-
-    public static final String MULTI_FIELD_CONTENT_TYPE = "multi_field";
-    public static final Mapper.TypeParser multiFieldConverterTypeParser = new Mapper.TypeParser() {
-
-        @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FieldMapper.Builder mainFieldBuilder = null;
-            List<FieldMapper.Builder> fields = null;
-            String firstType = null;
-
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("fields")) {
-                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
-                    for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
-                        Map.Entry<String, Object> entry1 = fieldsIterator.next();
-                        String propName = entry1.getKey();
-                        Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
-
-                        String type;
-                        Object typeNode = propNode.get("type");
-                        if (typeNode != null) {
-                            type = typeNode.toString();
-                            if (firstType == null) {
-                                firstType = type;
-                            }
-                        } else {
-                            throw new MapperParsingException("no type specified for property [" + propName + "]");
-                        }
-
-                        Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                        if (typeParser == null) {
-                            throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + fieldName + "]");
-                        }
-                        if (propName.equals(name)) {
-                            mainFieldBuilder = (FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
-                            fieldsIterator.remove();
-                        } else {
-                            if (fields == null) {
-                                fields = new ArrayList<>(2);
-                            }
-                            fields.add((FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
-                            fieldsIterator.remove();
-                        }
-                    }
-                    fieldsNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(fieldName, fieldsNode, parserContext.indexVersionCreated());
-                    iterator.remove();
-                }
-            }
-
-            if (mainFieldBuilder == null) {
-                if (fields == null) {
-                    // No fields at all were specified in multi_field, so lets return a non indexed string field.
-                    return new StringFieldMapper.Builder(name).index(false);
-                }
-                Mapper.TypeParser typeParser = parserContext.typeParser(firstType);
-                if (typeParser == null) {
-                    // The first multi field's type is unknown
-                    mainFieldBuilder = new StringFieldMapper.Builder(name).index(false);
-                } else {
-                    Mapper.Builder substitute = typeParser.parse(name, Collections.<String, Object>emptyMap(), parserContext);
-                    if (substitute instanceof FieldMapper.Builder) {
-                        mainFieldBuilder = ((FieldMapper.Builder) substitute).index(false);
-                    } else {
-                        // The first multi isn't a core field type
-                        mainFieldBuilder =  new StringFieldMapper.Builder(name).index(false);
-                    }
-                }
-            }
-
-            if (fields != null) {
-                for (Mapper.Builder field : fields) {
-                    mainFieldBuilder.addMultiField(field);
-                }
-            }
-            return mainFieldBuilder;
-        }
-
-    };
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";

@@ -111,7 +111,7 @@ public class CodecTests extends ESTestCase {
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(settings);
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
-        MapperService service = new MapperService(settings, analysisService, similarityService, mapperRegistry);
+        MapperService service = new MapperService(settings, analysisService, similarityService, mapperRegistry, () -> null);
         return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 

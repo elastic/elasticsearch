@@ -19,7 +19,11 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

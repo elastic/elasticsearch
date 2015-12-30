@@ -48,6 +48,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -74,6 +75,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -117,7 +119,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, IndexService.this::getQueryShardContext);
         this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
         this.eventListener = eventListener;

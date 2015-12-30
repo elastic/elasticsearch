@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
-    public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
+    public final static String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
     // This is a shard level service, but these below are index level service:
     private final MapperService mapperService;
@@ -136,8 +136,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     }
 
     public Query parsePercolatorDocument(String id, BytesReference source) {
-        String type = null;
-        BytesReference querySource = null;
         try (XContentParser sourceParser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
@@ -149,38 +147,21 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
                     currentFieldName = sourceParser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        if (type != null) {
-                            return parseQuery(type, sourceParser);
-                        } else {
-                            XContentBuilder builder = XContentFactory.contentBuilder(sourceParser.contentType());
-                            builder.copyCurrentStructure(sourceParser);
-                            querySource = builder.bytes();
-                            builder.close();
-                        }
+                        return parseQuery(queryShardContext, mapUnmappedFieldsAsString, sourceParser);
                     } else {
                         sourceParser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     sourceParser.skipChildren();
-                } else if (token.isValue()) {
-                    if ("type".equals(currentFieldName)) {
-                        type = sourceParser.text();
-                    }
                 }
-            }
-            try (XContentParser queryParser = XContentHelper.createParser(querySource)) {
-                return parseQuery(type, queryParser);
             }
         } catch (Exception e) {
             throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
         }
+        return null;
     }
 
-    private Query parseQuery(String type, XContentParser parser) {
-        String[] previousTypes = null;
-        if (type != null) {
-            previousTypes = QueryShardContext.setTypesWithPrevious(type);
-        }
+    public static Query parseQuery(QueryShardContext queryShardContext, boolean mapUnmappedFieldsAsString, XContentParser parser) {
         QueryShardContext context = new QueryShardContext(queryShardContext);
         try {
             context.reset(parser);
@@ -202,9 +183,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {
-            if (type != null) {
-                QueryShardContext.setTypes(previousTypes);
-            }
             context.reset(null);
         }
     }

@@ -20,12 +20,20 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -33,7 +41,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
@@ -42,13 +54,13 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -134,7 +146,8 @@ public class PercolatorTypeTests extends ESTestCase {
                 Settings.EMPTY, Collections.emptyList()
         );
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
-        MapperService mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()));
+        IndicesModule indicesModule = new IndicesModule();
+        MapperService mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()), indicesModule.getMapperRegistry(), () -> null);
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,

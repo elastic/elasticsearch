@@ -19,8 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -47,8 +44,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -126,11 +121,6 @@ public class PercolatorService extends AbstractComponent implements IndexEventLi
         percolatorTypes.put(countPercolatorType.id(), countPercolatorType);
         topMatchingPercolator = new TopMatchingPercolatorType(bigArrays, scriptService, highlightPhase);
         percolatorTypes.put(topMatchingPercolator.id(), topMatchingPercolator);
-    }
-
-    @Override
-    public void afterIndexCreated(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putTypeParser(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser(indexService));
     }
 
     public ReduceResult reduce(byte percolatorTypeId, List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {

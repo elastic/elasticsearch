@@ -23,7 +23,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
@@ -129,7 +136,7 @@ final class PercolatorQuery extends Query {
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
                 Scorer scorer = scorer(leafReaderContext);
                 if (scorer != null) {
-                    int result = scorer.advance(docId);
+                    int result = scorer.iterator().advance(docId);
                     if (result == docId) {
                         return Explanation.match(scorer.score(), "PercolatorQuery");
                     }
@@ -158,8 +165,13 @@ final class PercolatorQuery extends Query {
                 return new Scorer(this) {
 
                     @Override
-                    public TwoPhaseIterator asTwoPhaseIterator() {
-                        return new TwoPhaseIterator(approximation) {
+                    public DocIdSetIterator iterator() {
+                        return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
+                    }
+
+                    @Override
+                    public TwoPhaseIterator twoPhaseIterator() {
+                        return new TwoPhaseIterator(approximation.iterator()) {
                             @Override
                             public boolean matches() throws IOException {
                                 return matchDocId(approximation.docID(), leafReader);
@@ -185,26 +197,6 @@ final class PercolatorQuery extends Query {
                     @Override
                     public int docID() {
                         return approximation.docID();
-                    }
-
-                    @Override
-                    public int nextDoc() throws IOException {
-                        return advance(approximation.docID() + 1);
-                    }
-
-                    @Override
-                    public int advance(int target) throws IOException {
-                        for (int docId = approximation.advance(target); docId < NO_MORE_DOCS; docId = approximation.nextDoc()) {
-                            if (matchDocId(docId, leafReader)) {
-                                return docId;
-                            }
-                        }
-                        return NO_MORE_DOCS;
-                    }
-
-                    @Override
-                    public long cost() {
-                        return approximation.cost();
                     }
 
                     boolean matchDocId(int docId, LeafReader leafReader) throws IOException {

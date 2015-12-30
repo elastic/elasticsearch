@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1619,7 +1620,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
                     .get();
             fail();
-        } catch (PercolatorException e) {
+        } catch (MapperParsingException e) {
         }
         refresh();
 
@@ -1708,7 +1709,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject())
                     .get();
             fail();
-        } catch (PercolatorException e) {
+        } catch (MapperParsingException e) {
             assertThat(e.getRootCause(), instanceOf(QueryShardException.class));
         }
 
@@ -1717,7 +1718,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(0).to(1)).endObject())
                     .get();
             fail();
-        } catch (PercolatorException e) {
+        } catch (MapperParsingException e) {
             assertThat(e.getRootCause(), instanceOf(QueryShardException.class));
         }
     }

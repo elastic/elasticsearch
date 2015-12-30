@@ -21,14 +21,14 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
@@ -41,7 +41,9 @@ import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
 
@@ -74,7 +76,7 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
             PercolateShardResponse shardResponse = shardResponses.get(doc.shardIndex);
             String id = shardResponse.ids().get(doc.doc);
             Map<String, HighlightField> hl = shardResponse.hls().get(doc.doc);
-            matches[i] = new PercolateResponse.Match(new StringText(shardResponse.getIndex()), new StringText(id), doc.score, hl);
+            matches[i] = new PercolateResponse.Match(new Text(shardResponse.getIndex()), new Text(id), doc.score, hl);
         }
         InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
         return new PercolatorService.ReduceResult(foundMatches, matches, reducedAggregations);

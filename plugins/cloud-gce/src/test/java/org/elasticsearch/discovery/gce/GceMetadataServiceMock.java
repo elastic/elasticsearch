@@ -40,14 +40,14 @@ import java.net.URL;
 import java.security.GeneralSecurityException;
 
 /**
- *
+ * Mock for GCE Metadata Service
  */
-public class GceComputeServiceMock extends GceComputeServiceImpl {
+public class GceMetadataServiceMock extends GceMetadataServiceImpl {
 
     protected HttpTransport mockHttpTransport;
 
-    public GceComputeServiceMock(Settings settings) {
-        super(settings);
+    public GceMetadataServiceMock(Settings settings, NetworkService networkService) {
+        super(settings, networkService);
         this.mockHttpTransport = GceMockUtils.configureMock();
     }
 

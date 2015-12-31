@@ -119,7 +119,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -131,7 +131,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .putArray(GceComputeService.Fields.TAGS, "elasticsearch")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(1));
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
@@ -144,7 +144,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .putArray(GceComputeService.Fields.TAGS, "elasticsearch", "dev")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(1));
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
@@ -156,7 +156,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -168,7 +168,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .putArray(GceComputeService.Fields.TAGS, "elasticsearch")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -180,7 +180,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
                 .putArray(GceComputeService.Fields.TAGS, "elasticsearch", "dev")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -191,7 +191,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -202,7 +202,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -216,7 +216,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "us-central1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(0));
     }

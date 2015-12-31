@@ -67,12 +67,6 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     private final String project;
     private final List<String> zones;
 
-    // Forcing Google Token API URL as set in GCE SDK to
-    //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
-    // See https://developers.google.com/compute/docs/metadata#metadataserver
-    public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance";
-    public static final String TOKEN_SERVER_ENCODED_URL = GCE_METADATA_URL + "/service-accounts/default/token";
-
     @Override
     public Collection<Instance> instances() {
             logger.debug("get instances for project [{}], zones [{}]", project, zones);
@@ -118,37 +112,6 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             return instanceList;
     }
 
-    @Override
-    public String metadata(String metadataPath) throws IOException {
-        String urlMetadataNetwork = GCE_METADATA_URL + "/" + metadataPath;
-        logger.debug("get metadata from [{}]", urlMetadataNetwork);
-        URL url = new URL(urlMetadataNetwork);
-        HttpHeaders headers;
-        try {
-            // hack around code messiness in GCE code
-            // TODO: get this fixed
-            headers = AccessController.doPrivileged(new PrivilegedExceptionAction<HttpHeaders>() {
-                @Override
-                public HttpHeaders run() throws IOException {
-                    return new HttpHeaders();
-                }
-            });
-
-            // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
-            headers.put("Metadata-Flavor", "Google");
-            HttpResponse response;
-            response = getGceHttpTransport().createRequestFactory()
-                    .buildGetRequest(new GenericUrl(url))
-                    .setHeaders(headers)
-                    .execute();
-            String metadata = response.parseAsString();
-            logger.debug("metadata found [{}]", metadata);
-            return metadata;
-        } catch (Exception e) {
-            throw new IOException("failed to fetch metadata from [" + urlMetadataNetwork + "]", e);
-        }
-    }
-
     private Compute client;
     private TimeValue refreshInterval = null;
     private long lastRefresh;
@@ -160,12 +123,11 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     private JsonFactory gceJsonFactory;
 
     @Inject
-    public GceComputeServiceImpl(Settings settings, NetworkService networkService) {
+    public GceComputeServiceImpl(Settings settings) {
         super(settings);
         this.project = settings.get(Fields.PROJECT);
         String[] zoneList = settings.getAsArray(Fields.ZONE);
         this.zones = Arrays.asList(zoneList);
-        networkService.addCustomNameResolver(new GceNameResolver(settings, this));
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
@@ -190,7 +152,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             logger.info("starting GCE discovery service");
             final ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                        .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
+                        .setTokenServerEncodedUrl(GceMetadataServiceImpl.TOKEN_SERVER_ENCODED_URL)
                     .build();
 
             // hack around code messiness in GCE code

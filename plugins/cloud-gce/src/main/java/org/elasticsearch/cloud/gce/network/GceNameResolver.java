@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.gce.network;
 
 import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -40,7 +41,7 @@ import java.net.InetAddress;
  */
 public class GceNameResolver extends AbstractComponent implements CustomNameResolver {
 
-    private final GceComputeService gceComputeService;
+    private final GceMetadataService gceMetadataService;
 
     /**
      * enum that can be added to over time with more meta-data types
@@ -72,9 +73,9 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
     /**
      * Construct a {@link CustomNameResolver}.
      */
-    public GceNameResolver(Settings settings, GceComputeService gceComputeService) {
+    public GceNameResolver(Settings settings, GceMetadataService gceMetadataService) {
         super(settings);
-        this.gceComputeService = gceComputeService;
+        this.gceMetadataService = gceMetadataService;
     }
 
     /**
@@ -105,7 +106,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
         }
 
         try {
-            String metadataResult = gceComputeService.metadata(gceMetadataPath);
+            String metadataResult = gceMetadataService.metadata(gceMetadataPath);
             if (metadataResult == null || metadataResult.length() == 0) {
                 throw new IOException("no gce metadata returned from [" + gceMetadataPath + "] for [" + value + "]");
             }

@@ -21,18 +21,37 @@ package org.elasticsearch.cloud.gce;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+
+import static org.elasticsearch.plugin.cloud.gce.CloudGcePlugin.isDiscoveryAlive;
 
 public class GceModule extends AbstractModule {
     // pkg private so tests can override with mock
     static Class<? extends GceComputeService> computeServiceImpl = GceComputeServiceImpl.class;
+    static Class<? extends GceMetadataService> metadataServiceImpl = GceMetadataServiceImpl.class;
+
+    protected final Settings settings;
+    protected final ESLogger logger = Loggers.getLogger(GceModule.class);
+
+    public GceModule(Settings settings) {
+        this.settings = settings;
+    }
 
     public static Class<? extends GceComputeService> getComputeServiceImpl() {
         return computeServiceImpl;
     }
 
+    public static Class<? extends GceMetadataService> getMetadataServiceImpl() {
+        return metadataServiceImpl;
+    }
+
     @Override
     protected void configure() {
-        bind(GceComputeService.class).to(computeServiceImpl).asEagerSingleton();
+        if (isDiscoveryAlive(settings, logger)) {
+            bind(GceComputeService.class).to(computeServiceImpl).asEagerSingleton();
+        }
+        bind(GceMetadataService.class).to(metadataServiceImpl).asEagerSingleton();
     }
 }

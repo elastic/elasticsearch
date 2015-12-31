@@ -88,9 +88,7 @@ public class CloudGcePlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
-        if (isDiscoveryAlive(settings, logger)) {
-            modules.add(new GceModule());
-        }
+        modules.add(new GceModule(settings));
         return modules;
     }
 
@@ -100,6 +98,7 @@ public class CloudGcePlugin extends Plugin {
         if (isDiscoveryAlive(settings, logger)) {
             services.add(GceModule.getComputeServiceImpl());
         }
+        services.add(GceModule.getMetadataServiceImpl());
         return services;
     }
 
@@ -122,9 +121,9 @@ public class CloudGcePlugin extends Plugin {
             return false;
         }
 
-        if (checkProperty(GceComputeService.Fields.PROJECT, settings.get(GceComputeService.Fields.PROJECT), logger) == false ||
-                checkProperty(GceComputeService.Fields.ZONE, settings.getAsArray(GceComputeService.Fields.ZONE), logger) == false) {
-            logger.debug("one or more gce discovery settings are missing. " +
+        if (checkProperty(settings.get(GceComputeService.Fields.PROJECT)) == false ||
+                checkProperty(settings.getAsArray(GceComputeService.Fields.ZONE)) == false) {
+            logger.warn("one or more gce discovery settings are missing. " +
                             "Check elasticsearch.yml file. Should have [{}] and [{}].",
                     GceComputeService.Fields.PROJECT,
                     GceComputeService.Fields.ZONE);
@@ -136,20 +135,12 @@ public class CloudGcePlugin extends Plugin {
         return true;
     }
 
-    private static boolean checkProperty(String name, String value, ESLogger logger) {
-        if (!Strings.hasText(value)) {
-            logger.warn("{} is not set.", name);
-            return false;
-        }
-        return true;
+    private static boolean checkProperty(String value) {
+        return Strings.hasText(value);
     }
 
-    private static boolean checkProperty(String name, String[] values, ESLogger logger) {
-        if (values == null || values.length == 0) {
-            logger.warn("{} is not set.", name);
-            return false;
-        }
-        return true;
+    private static boolean checkProperty(String[] values) {
+        return !(values == null || values.length == 0);
     }
 
 }

@@ -244,7 +244,7 @@ public class ThirdPartyAuditTask extends AntTask {
         Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                String entry = root.relativize(file).toString();
+                String entry = root.relativize(file).toString().replace('\\', '/');
                 if (entry.endsWith(".class")) {
                     if (ext.getResource(entry) != null) {
                         sheistySet.add(entry);

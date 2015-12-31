@@ -1,13 +1,13 @@
 [[search-quote-analyzer]]
 === `search_quote_analyzer`
 
-Specifying a `search_quote_analyzer` allows you to specify an analyzer for phrases, this is particularly useful when dealing with disabling 
+The `search_quote_analyzer` setting allows you to specify an analyzer for phrases, this is particularly useful when dealing with disabling 
 stop words for phrase queries.
 
 To disable stop words for phrases a field utilising three analyzer settings will be required:
 
 1. An `analyzer` setting for indexing all terms including stop words
-2. A search analyzer setting for non-phrase queries that will remove stop words
+2. A `search_analyzer` setting for non-phrase queries that will remove stop words
 3. A `search_quote_analyzer` setting for phrase queries that will not remove stop words
 
 [source,js]

@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.renderer;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
@@ -42,9 +41,6 @@ public class RendererModule extends AbstractModule {
         MapBinder<String, Renderer> mbinder = MapBinder.newMapBinder(binder(), String.class, Renderer.class);
 
         // Bind default renderers
-        bind(ClusterInfoRenderer.class).asEagerSingleton();
-        mbinder.addBinding(ClusterInfoCollector.TYPE).to(ClusterInfoRenderer.class);
-
         bind(IndicesStatsRenderer.class).asEagerSingleton();
         mbinder.addBinding(IndicesStatsCollector.TYPE).to(IndicesStatsRenderer.class);
 
@@ -52,7 +48,8 @@ public class RendererModule extends AbstractModule {
         mbinder.addBinding(IndexStatsCollector.TYPE).to(IndexStatsRenderer.class);
 
         bind(ClusterStatsRenderer.class).asEagerSingleton();
-        mbinder.addBinding(ClusterStatsCollector.TYPE).to(ClusterStatsRenderer.class);
+        mbinder.addBinding(ClusterStatsCollector.CLUSTER_INFO_TYPE).to(ClusterInfoRenderer.class);
+        mbinder.addBinding(ClusterStatsCollector.CLUSTER_STATS_TYPE).to(ClusterStatsRenderer.class);
 
         bind(ClusterStateRenderer.class).asEagerSingleton();
         mbinder.addBinding(ClusterStateCollector.TYPE).to(ClusterStateRenderer.class);

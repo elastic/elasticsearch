@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -39,7 +39,7 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterInfoCollector.NAME)
+                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterStatsCollector.NAME)
                 .build();
     }
 
@@ -65,17 +65,15 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         awaitIndexExists(dataIndex);
 
         logger.debug("--> waiting for cluster info collector to collect data");
-        awaitMarvelDocsCount(equalTo(1L), ClusterInfoCollector.TYPE);
+        awaitMarvelDocsCount(equalTo(1L), ClusterStatsCollector.CLUSTER_INFO_TYPE);
 
         logger.debug("--> retrieving cluster info document");
-        GetResponse response = client().prepareGet(dataIndex, ClusterInfoCollector.TYPE, clusterUUID).get();
+        GetResponse response = client().prepareGet(dataIndex, ClusterStatsCollector.CLUSTER_INFO_TYPE, clusterUUID).get();
         assertTrue("cluster_info document does not exist in data index", response.isExists());
-
-        logger.debug("--> checking that the document contains all required information");
 
         logger.debug("--> checking that the document contains license information");
         assertThat(response.getIndex(), equalTo(dataIndex));
-        assertThat(response.getType(), equalTo(ClusterInfoCollector.TYPE));
+        assertThat(response.getType(), equalTo(ClusterStatsCollector.CLUSTER_INFO_TYPE));
         assertThat(response.getId(), equalTo(clusterUUID));
 
         Map<String, Object> source = response.getSource();
@@ -124,7 +122,7 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
 
         assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(dataIndex)
-                .setTypes(ClusterInfoCollector.TYPE)
+                .setTypes(ClusterStatsCollector.CLUSTER_INFO_TYPE)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
                                 .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.INVALID.label()))

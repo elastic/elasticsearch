@@ -15,7 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.agent.collector.Collector;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
@@ -63,7 +63,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         for (Collector collector : collectors) {
             if (Regex.simpleMatch(filters, collector.name().toLowerCase(Locale.ROOT))) {
                 list.add(collector);
-            } else if (collector instanceof ClusterInfoCollector) {
+            } else if (collector instanceof ClusterStatsCollector) {
                 list.add(collector);
             }
         }

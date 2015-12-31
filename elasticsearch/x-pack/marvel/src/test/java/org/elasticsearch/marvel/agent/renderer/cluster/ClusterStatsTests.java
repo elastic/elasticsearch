@@ -61,13 +61,13 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
         // ok.. we'll start collecting now...
         updateMarvelInterval(3L, TimeUnit.SECONDS);
 
-        awaitMarvelDocsCount(greaterThan(0L), ClusterStatsCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), ClusterStatsCollector.CLUSTER_STATS_TYPE);
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 logger.debug("--> checking that every document contains the expected fields");
-                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsCollector.TYPE).get();
+                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsCollector.CLUSTER_STATS_TYPE).get();
                 String[] filters = ClusterStatsRenderer.FILTERS;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     Map<String, Object> fields = searchHit.sourceAsMap();

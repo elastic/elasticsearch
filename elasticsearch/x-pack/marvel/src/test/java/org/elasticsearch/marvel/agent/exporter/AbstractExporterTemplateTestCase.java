@@ -8,16 +8,12 @@ package org.elasticsearch.marvel.agent.exporter;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.Collector;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
-import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -157,12 +153,8 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     }
 
     protected void doExporting() throws Exception {
-        List<MarvelDoc> docs = new ArrayList<>();
-        for (Class<? extends Collector> collectorClass : Arrays.asList(ClusterInfoCollector.class, NodeStatsCollector.class)) {
-            Collector collector = internalCluster().getInstance(collectorClass);
-            docs.addAll(collector.collect());
-        }
-        exporter().export(docs);
+        Collector collector = internalCluster().getInstance(ClusterStatsCollector.class);
+        exporter().export(collector.collect());
     }
 
     private Exporter exporter() {
@@ -187,6 +179,33 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
                                     .field("index.number_of_replicas", 1)
                                     .field(MarvelTemplateUtils.VERSION_FIELD, String.valueOf(version))
                                 .endObject()
-                .endObject().bytes();
+                                .startObject("mappings")
+                                    .startObject("_default_")
+                                        .startObject("_all")
+                                            .field("enabled", false)
+                                        .endObject()
+                                        .field("date_detection", false)
+                                        .startObject("properties")
+                                            .startObject("cluster_uuid")
+                                                .field("type", "string")
+                                                .field("index", "not_analyzed")
+                                            .endObject()
+                                            .startObject("timestamp")
+                                                .field("type", "date")
+                                                .field("format", "date_time")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                    .startObject("cluster_info")
+                                        .field("enabled", false)
+                                    .endObject()
+                                    .startObject("cluster_stats")
+                                        .startObject("properties")
+                                            .startObject("cluster_stats")
+                                                .field("type", "object")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject().bytes();
     }
 }

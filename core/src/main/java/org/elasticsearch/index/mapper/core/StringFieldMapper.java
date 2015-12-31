@@ -338,7 +338,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
      */
     public static ValueAndBoost parseCreateFieldForString(ParseContext context, String nullValue, float defaultBoost) throws IOException {
         if (context.externalValueSet()) {
-            return new ValueAndBoost((String) context.externalValue(), defaultBoost);
+            return new ValueAndBoost(context.externalValue().toString(), defaultBoost);
         }
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {

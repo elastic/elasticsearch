@@ -337,7 +337,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         json = jsonBuilder().startObject()
-                .startArray("b").startArray().value(-1).value(-1).endArray().startArray().value(-2).value(-2).endArray().endArray()
+                .startArray("b").startArray().value(a.lon()).value(a.lat()).endArray().startArray().value(b.lon()).value(b.lat()).endArray().endArray()
                 .endObject().bytes();
         doc = docMapper.parse("test", "type", "1", json).rootDoc();
 
@@ -345,9 +345,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
         if (indexCreatedBefore22 == true) {
-            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+            assertThat(f.stringValue(), equalTo(a.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
@@ -356,9 +356,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
         if (indexCreatedBefore22 == true) {
-            assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
+            assertThat(f.stringValue(), equalTo(b.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-2.0, -2.0)));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(b.lon(), b.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
@@ -366,10 +366,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
-        // NOTE: "]" B/c the lat,long aren't specified as a string, we miss the actual values when parsing the multi
-        // fields. We already skipped over the coordinates values and can't get to the coordinates.
-        // This happens if coordinates are specified as array and object.
-        assertThat(f.stringValue(), equalTo("]"));
+        assertThat(f.stringValue(), equalTo(a.toString()));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }

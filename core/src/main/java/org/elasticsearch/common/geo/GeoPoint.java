@@ -142,7 +142,7 @@ public final class GeoPoint {
 
     @Override
     public String toString() {
-        return lat + ", " + lon;
+        return lat + "," + lon;
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {

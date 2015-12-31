@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -273,16 +274,18 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
         final boolean hasDocValues = indexCreatedBefore22 == false;
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().hasDocValues(), equalTo(hasDocValues));
+        GeoPoint a = new GeoPoint(-1, -1);
+        GeoPoint b = new GeoPoint(-2, -2);
 
         BytesReference json = jsonBuilder().startObject()
-                .field("a", "-1,-1")
+                .field("a", a.toString())
                 .endObject().bytes();
         Document doc = docMapper.parse("test", "type", "1", json).rootDoc();
 
         IndexableField f = doc.getField("a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a"));
-        assertThat(f.stringValue(), equalTo("-1,-1"));
+        assertThat(f.stringValue(), equalTo(a.toString()));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
@@ -290,9 +293,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
         if (indexCreatedBefore22 == true) {
-            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+            assertThat(f.stringValue(), equalTo(a.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
@@ -311,7 +314,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("b.a").fieldType().tokenized(), equalTo(false));
 
         json = jsonBuilder().startObject()
-                .field("b", "-1,-1")
+                .field("b", a.toString())
                 .endObject().bytes();
         doc = docMapper.parse("test", "type", "1", json).rootDoc();
 
@@ -319,9 +322,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
         if (indexCreatedBefore22 == true) {
-            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+            assertThat(f.stringValue(), equalTo(a.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
@@ -329,7 +332,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
-        assertThat(f.stringValue(), equalTo("-1,-1"));
+        assertThat(f.stringValue(), equalTo(a.toString()));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
@@ -469,12 +472,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
     }
-    
+
     @Test
     // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
     public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
         final String MY_MULTI_FIELD = "multi_field";
-        
+
         // Possible fielddata settings
         Map<String, Object> possibleSettings = new TreeMap<String, Object>();
         possibleSettings.put("filter.frequency.min", 1);
@@ -484,7 +487,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         possibleSettings.put("foo", "bar");
         possibleSettings.put("zetting", "zValue");
         possibleSettings.put("aSetting", "aValue");
-        
+
         // Generate a mapping with the a random subset of possible fielddata settings
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
@@ -494,8 +497,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
             builder.field(keys[i], possibleSettings.get(keys[i]));
         builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
-        
-        // Check the mapping remains identical when deserialed/re-serialsed 
+
+        // Check the mapping remains identical when deserialed/re-serialsed
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(builder.string()));
         DocumentMapper docMapper2 = parser.parse("type", docMapper.mappingSource());

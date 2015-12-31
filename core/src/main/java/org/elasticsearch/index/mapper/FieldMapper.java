@@ -362,7 +362,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());
         if (newFieldType == null) {
-            throw new IllegalStateException();
+            // this field does not exist in the mappings yet
+            // this can happen if this mapper represents a mapping update
+            return this;
         } else if (fieldType.getClass() != newFieldType.getClass()) {
             throw new IllegalStateException("Mixing up field types: " + fieldType.getClass() + " != " + newFieldType.getClass());
         }

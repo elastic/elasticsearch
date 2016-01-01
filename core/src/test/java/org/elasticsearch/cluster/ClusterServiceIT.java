@@ -806,18 +806,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         class TaskExecutor implements ClusterStateTaskExecutor<Integer> {
-            int tracking = 0;
+            List<Integer> tasks = new ArrayList<>();
 
             @Override
             public BatchResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
-                for (Integer task : tasks) {
-                    try {
-                        assertEquals("task was executed out of order", tracking, (int)task);
-                        tracking++;
-                    } catch (AssertionError e) {
-                        return BatchResult.<Integer>builder().failures(tasks, e).build(currentState);
-                    }
-                }
+                this.tasks.addAll(tasks);
                 return BatchResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
 
@@ -841,7 +834,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.debug("failure: [{}]", t, source);
+                logger.debug("unexpected failure: [{}]", t, source);
                 failure.set(true);
                 updateLatch.countDown();
             }
@@ -886,7 +879,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertFalse(failure.get());
 
         for (int i = 0; i < numberOfThreads; i++) {
-            assertEquals(tasksSubmittedPerThread, executors[i].tracking);
+            assertEquals(tasksSubmittedPerThread, executors[i].tasks.size());
+            for (int j = 0; j < tasksSubmittedPerThread; j++) {
+                assertNotNull(executors[i].tasks.get(j));
+                assertEquals("cluster state update task executed out of order", j, (int)executors[i].tasks.get(j));
+            }
         }
     }
 

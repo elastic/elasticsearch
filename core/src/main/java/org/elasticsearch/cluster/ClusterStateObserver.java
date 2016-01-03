@@ -50,7 +50,7 @@ public class ClusterStateObserver {
     final AtomicReference<ObservedState> lastObservedState;
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
-    final AtomicReference<ObservingContext> observingContext = new AtomicReference<ObservingContext>(null);
+    final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
     volatile Long startTimeNS;
     volatile boolean timedOut;
 
@@ -117,7 +117,7 @@ public class ClusterStateObserver {
             if (timeOutValue != null) {
                 long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
-                if (timeoutTimeLeftMS <= 0l) {
+                if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
                     logger.trace("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                     // update to latest, in case people want to retry
@@ -238,7 +238,7 @@ public class ClusterStateObserver {
         }
     }
 
-    public static interface Listener {
+    public interface Listener {
 
         /** called when a new state is observed */
         void onNewClusterState(ClusterState state);
@@ -256,15 +256,17 @@ public class ClusterStateObserver {
          *
          * @return true if newState should be accepted
          */
-        public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
-                             ClusterState newState, ClusterState.ClusterStateStatus newStatus);
+        boolean apply(ClusterState previousState,
+                      ClusterState.ClusterStateStatus previousStatus,
+                      ClusterState newState,
+                      ClusterState.ClusterStateStatus newStatus);
 
         /**
          * called to see whether a cluster change should be accepted
          *
          * @return true if changedEvent.state() should be accepted
          */
-        public boolean apply(ClusterChangedEvent changedEvent);
+        boolean apply(ClusterChangedEvent changedEvent);
     }
 
 
@@ -272,20 +274,14 @@ public class ClusterStateObserver {
 
         @Override
         public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus, ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
-            if (previousState != newState || previousStatus != newStatus) {
-                return validate(newState);
-            }
-            return false;
+            return (previousState != newState || previousStatus != newStatus) && validate(newState);
         }
 
         protected abstract boolean validate(ClusterState newState);
 
         @Override
         public boolean apply(ClusterChangedEvent changedEvent) {
-            if (changedEvent.previousState().version() != changedEvent.state().version()) {
-                return validate(changedEvent.state());
-            }
-            return false;
+            return changedEvent.previousState().version() != changedEvent.state().version() && validate(changedEvent.state());
         }
     }
 

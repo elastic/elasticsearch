@@ -329,6 +329,33 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggest, 0, "test", "aacd","abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
     }
+	
+	public void testExactMatch() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        index("test", "type1", "1", "text", "abcd");
+        index("test", "type1", "2", "text", "aacd");
+        index("test", "type1", "3", "text", "abbd");
+        index("test", "type1", "4", "text", "abcc");
+        refresh();
+
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
+        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+
+        TermSuggestionBuilder termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("abcd")
+                .field("text")
+                .exactMatch(true);
+        Suggest suggest = searchSuggest( termSuggest);
+        assertSuggestion(suggest, 0, "test", "abcd", "aacd", "abbd", "abcc");
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+
+        suggest = searchSuggest( termSuggest);
+        assertSuggestion(suggest, 0, "test", "abcd", "aacd","abbd", "abcc");
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+    }
 
     public void testEmpty() throws Exception {
         createIndex("test");

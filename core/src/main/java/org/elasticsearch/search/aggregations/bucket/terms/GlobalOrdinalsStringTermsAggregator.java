@@ -267,9 +267,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
                         Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext,
- Aggregator parent, SubAggCollectionMode collectionMode,
+                        Aggregator parent, SubAggCollectionMode collectionMode,
                 boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode,
@@ -341,7 +341,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private RandomAccessOrds segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
- Terms.Order order,
+                Terms.Order order,
                 BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
                 SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
@@ -411,11 +411,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             // This is the cleanest way I can think of so far
 
             GlobalOrdinalMapping mapping;
-            if (globalOrds instanceof GlobalOrdinalMapping) {
-                mapping = (GlobalOrdinalMapping) globalOrds;
-            } else {
-                assert globalOrds.getValueCount() == segmentOrds.getValueCount();
+            if (globalOrds.getValueCount() == segmentOrds.getValueCount()) {
                 mapping = null;
+            } else {
+                mapping = (GlobalOrdinalMapping) globalOrds;
             }
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.

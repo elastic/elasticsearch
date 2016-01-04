@@ -365,7 +365,7 @@ Pre-registered templates can also be rendered using
 GET /_render/template/<template_name>
 {
   "params": {
-    "...
+    "..."
   }
 }
 ------------------------------------------

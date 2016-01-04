@@ -83,16 +83,12 @@ public class ShardStateAction extends AbstractComponent {
         shardFailed(clusterState, shardRouting, indexUUID, message, failure, null, listener);
     }
 
-    public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
-        innerShardFailed(clusterState, shardRouting, indexUUID, message, failure, timeout, listener);
-    }
-
     public void resendShardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
         logger.trace("re-sending failed shard [{}], index UUID [{}], reason [{}]", failure, shardRouting, indexUUID, message);
         shardFailed(clusterState, shardRouting, indexUUID, message, failure, listener);
     }
 
-    private void innerShardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, final Throwable failure, TimeValue timeout, Listener listener) {
+    public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
             logger.warn("no master known to fail shard [{}]", shardRouting);

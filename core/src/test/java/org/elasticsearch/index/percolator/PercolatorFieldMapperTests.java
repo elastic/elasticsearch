@@ -58,4 +58,19 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testAllowNoAdditionalSettings() throws Exception {
+        IndexService indexService = createIndex("test1", Settings.EMPTY);
+        MapperService mapperService = indexService.mapperService();
+
+        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
+            .startObject("properties").startObject("query").field("type", "percolator").field("index", "no").endObject().endObject()
+            .endObject().endObject().string();
+        try {
+            mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), true, true);
+            fail("MapperParsingException expected");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("Mapping definition for [query] has unsupported parameters:  [index : no]"));
+        }
+    }
+
 }

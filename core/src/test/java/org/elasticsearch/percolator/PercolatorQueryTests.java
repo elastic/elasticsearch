@@ -21,9 +21,11 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -46,7 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.QueryMetadataService;
+import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -60,6 +62,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class PercolatorQueryTests extends ESTestCase {
+
+    public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
+    public static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
+
+    static {
+        EXTRACTED_TERMS_FIELD_TYPE.setTokenized(false);
+        EXTRACTED_TERMS_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        EXTRACTED_TERMS_FIELD_TYPE.freeze();
+    }
 
     private Directory directory;
     private IndexWriter indexWriter;
@@ -119,7 +130,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 queries,
                 new MatchAllDocsQuery()
         );
-        builder.extractQueryMetadata();
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
         TopDocs topDocs = shardSearcher.search(builder.build(), 10);
         assertThat(topDocs.totalHits, equalTo(5));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
@@ -146,7 +157,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 queries,
                 new MatchAllDocsQuery()
         );
-        builder.extractQueryMetadata();
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
         builder.setPercolateQuery(new TermQuery(new Term("field", "value1")));
 
         PercolatorQuery percolatorQuery = builder.build();
@@ -194,7 +205,7 @@ public class PercolatorQueryTests extends ESTestCase {
                     new MatchAllDocsQuery()
             );
             // enables the optimization that prevents queries from being evaluated that don't match
-            builder1.extractQueryMetadata();
+            builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
             TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
 
             PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
@@ -215,7 +226,7 @@ public class PercolatorQueryTests extends ESTestCase {
     void addPercolatorQuery(String id, Query query, String... extraFields) throws IOException {
         queries.put(new BytesRef(id), query);
         ParseContext.Document document = new ParseContext.Document();
-        QueryMetadataService.extractQueryMetadata(query, document);
+        ExtractQueryTermsService.extractQueryMetadata(query, document, EXTRACTED_TERMS_FIELD_NAME, EXTRACTED_TERMS_FIELD_TYPE);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {

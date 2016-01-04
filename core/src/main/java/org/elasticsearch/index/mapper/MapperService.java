@@ -44,8 +44,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.QueryMetadataService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -73,7 +71,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -135,8 +132,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 "\"properties\" : {\n" +
                     "\"query\" : {\n" +
                         "\"type\" : \"percolator\"\n" +
-                    "},\n" +
-                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }" +
+                    "}\n" +
                 "}\n" +
             "}\n" +
         "}";

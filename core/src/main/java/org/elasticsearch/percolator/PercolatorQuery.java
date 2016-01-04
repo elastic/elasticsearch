@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -36,7 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.QueryMetadataService;
+import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -82,9 +81,11 @@ final class PercolatorQuery extends Query {
         /**
          * Optionally sets a query that reduces the number of queries to percolate based on extracted terms from
          * the document to be percolated.
+         *
+         * @param fieldName The name of the field to get the extracted terms from
          */
-        void extractQueryMetadata() throws IOException {
-            this.queriesMetaDataQuery = QueryMetadataService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader());
+        void extractQueryTermsQuery(String fieldName) throws IOException {
+            this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader(), fieldName);
         }
 
         PercolatorQuery build() {

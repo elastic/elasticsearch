@@ -54,6 +54,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -240,7 +241,7 @@ public class PercolatorService extends AbstractComponent implements IndexEventLi
     static PercolateShardResponse doPercolate(PercolateContext context, PercolatorQueriesRegistry queriesRegistry, AggregationPhase aggregationPhase, @Nullable BucketCollector aggregatorCollector, HighlightPhase highlightPhase) throws IOException {
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(context.docSearcher(), queriesRegistry.getPercolateQueries(), context.percolatorTypeFilter());
         if (queriesRegistry.indexSettings().getSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0)) {
-            builder.extractQueryMetadata();
+            builder.extractQueryTermsQuery(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
         }
         if (context.percolateQuery() != null || context.aliasFilter() != null) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();

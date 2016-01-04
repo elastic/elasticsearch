@@ -26,11 +26,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +43,9 @@ public class PercolatorFieldMapper extends FieldMapper {
     public static final String NAME = "query";
     public static final String CONTENT_TYPE = "percolator";
     public static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
+
+    private static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
+    public static final String EXTRACTED_TERMS_FULL_FIELD_NAME = NAME + "." + EXTRACTED_TERMS_FIELD_NAME;
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
@@ -51,7 +58,20 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public PercolatorFieldMapper build(BuilderContext context) {
-            return new PercolatorFieldMapper(name(), fieldType(), fieldType(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext);
+            StringFieldMapper.Builder queryMetaDataFieldBuilder = createExtractedTermsFieldMapperBuilder();
+            context.path().add(name);
+            StringFieldMapper queryMetaDataField = queryMetaDataFieldBuilder.build(context);
+            context.path().remove();
+            return new PercolatorFieldMapper(name(), fieldType(), fieldType(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext, queryMetaDataField);
+        }
+
+        static StringFieldMapper.Builder createExtractedTermsFieldMapperBuilder() {
+            StringFieldMapper.Builder queryMetaDataFieldBuilder = MapperBuilders.stringField(EXTRACTED_TERMS_FIELD_NAME);
+            queryMetaDataFieldBuilder.docValues(false);
+            queryMetaDataFieldBuilder.store(false);
+            queryMetaDataFieldBuilder.tokenized(false);
+            queryMetaDataFieldBuilder.indexOptions(IndexOptions.DOCS);
+            return queryMetaDataFieldBuilder;
         }
     }
 
@@ -89,10 +109,12 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private final boolean mapUnmappedFieldAsString;
     private final QueryShardContext queryShardContext;
+    private final StringFieldMapper queryMetadataField;
 
-    public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext) {
+    public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext, StringFieldMapper queryMetadataField) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
+        this.queryMetadataField = queryMetadataField;
         this.mapUnmappedFieldAsString = indexSettings.getAsBoolean(PercolatorQueriesRegistry.MAP_UNMAPPED_FIELDS_AS_STRING, false);
     }
 
@@ -101,9 +123,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
         Query query = PercolatorQueriesRegistry.parseQuery(queryShardContext, mapUnmappedFieldAsString, context.parser());
         if (context.flyweight() == false) {
-            QueryMetadataService.extractQueryMetadata(query, context.doc());
+            ExtractQueryTermsService.extractQueryMetadata(query, context.doc(), queryMetadataField.name(), queryMetadataField.fieldType());
         }
         return null;
+    }
+
+    @Override
+    public Iterator<Mapper> iterator() {
+        return Collections.<Mapper>singletonList(queryMetadataField).iterator();
     }
 
     @Override

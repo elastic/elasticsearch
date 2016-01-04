@@ -50,31 +50,27 @@ import java.util.Set;
 /**
  * Utility to extract query terms from queries and create queries from documents.
  */
-public final class QueryMetadataService {
+public final class ExtractQueryTermsService {
 
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
 
-    public static String QUERY_METADATA_FIELD = "query_metadata_field";
-    public static FieldType QUERY_METADATA_FIELD_TYPE = new FieldType();
-
-    static {
-        QUERY_METADATA_FIELD_TYPE.setTokenized(false);
-        QUERY_METADATA_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        QUERY_METADATA_FIELD_TYPE.freeze();
-    }
-
-    private QueryMetadataService() {
+    private ExtractQueryTermsService() {
     }
 
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
+     *
+     * @param query The query to extract terms from
+     * @param document The document to add the extracted terms to
+     * @param queryMetadataField The field in the document holding the extracted terms
+     * @param queryMetadataFieldType The field type for the query metadata field
      */
-    public static void extractQueryMetadata(Query query, ParseContext.Document document) {
+    public static void extractQueryMetadata(Query query, ParseContext.Document document, String queryMetadataField, FieldType queryMetadataFieldType) {
         Set<Term> queryTerms;
         try {
             queryTerms = extractQueryMetadata(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(QUERY_METADATA_FIELD, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR}), QUERY_METADATA_FIELD_TYPE));
+            document.add(new Field(queryMetadataField, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR}), queryMetadataFieldType));
             return;
         }
         for (Term term : queryTerms) {
@@ -82,7 +78,7 @@ public final class QueryMetadataService {
             builder.append(new BytesRef(term.field()));
             builder.append(FIELD_VALUE_SEPARATOR);
             builder.append(term.bytes());
-            document.add(new Field(QUERY_METADATA_FIELD, builder.toBytesRef(), QUERY_METADATA_FIELD_TYPE));
+            document.add(new Field(queryMetadataField, builder.toBytesRef(), queryMetadataFieldType));
         }
     }
 
@@ -191,9 +187,9 @@ public final class QueryMetadataService {
     /**
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
-    public static Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
+    public static Query createQueryMetadataQuery(IndexReader indexReader, String queryMetadataField) throws IOException {
         List<Term> extractedTerms = new ArrayList<>();
-        extractedTerms.add(new Term(QUERY_METADATA_FIELD, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR})));
+        extractedTerms.add(new Term(queryMetadataField, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR})));
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
             Terms terms = fields.terms(field);
@@ -208,7 +204,7 @@ public final class QueryMetadataService {
                 builder.append(fieldBr);
                 builder.append(FIELD_VALUE_SEPARATOR);
                 builder.append(term);
-                extractedTerms.add(new Term(QUERY_METADATA_FIELD, builder.toBytesRef()));
+                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
             }
         }
         return new TermsQuery(extractedTerms);

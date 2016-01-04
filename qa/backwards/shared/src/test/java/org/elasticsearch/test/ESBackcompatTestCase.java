@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -86,6 +87,7 @@ import static org.hamcrest.Matchers.is;
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
+@LuceneTestCase.SuppressCodecs("*") // we cannot use test codecs here because the external nodes might not be able to read them (we also run the bwc tests agains current so old nodes might get shards from new nodes).
 public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     /**
      * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from

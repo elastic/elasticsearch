@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.messy.tests;
 
+import java.io.IOException;
+import java.lang.reflect.Proxy;
+import java.util.Collections;
+
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -60,16 +65,13 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.lang.reflect.Proxy;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -104,11 +106,14 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings, new SettingsFilter(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule() {
+                new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override
-                    public void configure() {
-                        // skip services
-                        bindQueryParsersExtension();
+                    protected void configureSearch() {
+                        // skip so we don't need transport
+                    }
+                    @Override
+                    protected void configureSuggesters() {
+                        // skip so we don't need IndicesService
                     }
                 },
                 scriptModule,

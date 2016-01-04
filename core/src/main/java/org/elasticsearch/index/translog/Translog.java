@@ -167,8 +167,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
                 }
-                current = createWriter(checkpoint.generation + 1);
-                this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                boolean success = false;
+                try {
+                    current = createWriter(checkpoint.generation + 1);
+                    this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                    success = true;
+                } finally {
+                    // we have to close all the recovered ones otherwise we leak file handles here
+                    // for instance if we have a lot of tlog and we can't create the writer we keep on holding
+                    // on to all the uncommitted tlog files if we don't close
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(recoveredTranslogs);
+                    }
+                }
             } else {
                 this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);

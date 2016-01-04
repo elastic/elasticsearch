@@ -35,6 +35,6 @@ public class TestResponseHeaderPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        module.registerRestAction(TestResponseHeaderRestAction.class, TestResponseHeaderRestAction::new);
+        module.registerRestHandler(TestResponseHeaderRestAction.class, TestResponseHeaderRestAction::new);
     }
 }

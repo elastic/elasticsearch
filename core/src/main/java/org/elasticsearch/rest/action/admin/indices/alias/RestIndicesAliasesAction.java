@@ -19,6 +19,10 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -26,22 +30,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  *
  */
-public class RestIndicesAliasesAction extends BaseSingleMethodRestHandler {
+public class RestIndicesAliasesAction extends BaseStandardRegistrationsRestHandler {
     public RestIndicesAliasesAction(RestGlobalContext context) {
         super(context, POST, "/_aliases");
     }

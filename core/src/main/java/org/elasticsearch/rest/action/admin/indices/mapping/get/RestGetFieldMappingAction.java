@@ -19,6 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
@@ -26,7 +29,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -35,9 +38,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-import java.util.Map;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -45,7 +45,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetFieldMappingAction extends BaseSingleMethodRestHandler {
+public class RestGetFieldMappingAction extends BaseStandardRegistrationsRestHandler {
     public RestGetFieldMappingAction(RestGlobalContext context) {
         super(context, GET, "/_mapping/field/{fields}", "/_mapping/{type}/field/{fields}", "/{index}/_mapping/field/{fields}",
                 "/{index}/{type}/_mapping/field/{fields}", "/{index}/_mapping/{type}/field/{fields}");

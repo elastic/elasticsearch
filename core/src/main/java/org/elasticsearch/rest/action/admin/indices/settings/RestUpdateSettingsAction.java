@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  *
  */
-public class RestUpdateSettingsAction extends BaseSingleMethodRestHandler {
+public class RestUpdateSettingsAction extends BaseStandardRegistrationsRestHandler {
     private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
             "pretty",
             "timeout",

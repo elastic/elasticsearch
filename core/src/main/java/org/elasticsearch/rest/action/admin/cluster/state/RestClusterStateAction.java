@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestClusterStateAction extends BaseSingleMethodRestHandler {
+public class RestClusterStateAction extends BaseStandardRegistrationsRestHandler {
     private final SettingsFilter settingsFilter;
 
     public RestClusterStateAction(RestGlobalContext context) {

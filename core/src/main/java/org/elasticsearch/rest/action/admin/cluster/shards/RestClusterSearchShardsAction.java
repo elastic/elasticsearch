@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
-public class RestClusterSearchShardsAction extends BaseMultiMethodRestHandler {
+public class RestClusterSearchShardsAction extends BaseStandardRegistrationsRestHandler {
     public RestClusterSearchShardsAction(RestGlobalContext context) {
         super(context, new Method[] {GET, POST}, "/_search_shards", "/{index}/_search_shards", "/{index}/{type}/_search_shards");
     }

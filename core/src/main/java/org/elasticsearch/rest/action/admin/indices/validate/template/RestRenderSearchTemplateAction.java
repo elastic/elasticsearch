@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -47,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestRenderSearchTemplateAction extends BaseMultiMethodRestHandler {
+public class RestRenderSearchTemplateAction extends BaseStandardRegistrationsRestHandler {
     public RestRenderSearchTemplateAction(RestGlobalContext context) {
         super(context, new Method[] {GET, POST}, "/_render/template", "/_render/template/{id}");
     }

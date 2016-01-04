@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 
 /**
  */
-public class RestIndicesSegmentsAction extends BaseSingleMethodRestHandler {
+public class RestIndicesSegmentsAction extends BaseStandardRegistrationsRestHandler {
     public RestIndicesSegmentsAction(RestGlobalContext context) {
         super(context, GET, "/_segments", "/{index}/_segments");
     }

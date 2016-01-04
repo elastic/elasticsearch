@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestCloseIndexAction extends BaseSingleMethodRestHandler {
+public class RestCloseIndexAction extends BaseStandardRegistrationsRestHandler {
     public RestCloseIndexAction(RestGlobalContext context) {
         super(context, POST, "/_close", "/{index}/_close");
     }

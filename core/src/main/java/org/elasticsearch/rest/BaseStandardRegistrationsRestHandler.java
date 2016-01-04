@@ -19,23 +19,41 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.rest.RestRequest.Method;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.rest.RestRequest.Method;
+
 import static java.util.Collections.unmodifiableList;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
- * Helper subclass for describing REST handlers that map multiple HTTP method to the same paths.
+ * Helper subclass for describing REST handlers that want to register in standard ways.
  */
-public abstract class BaseMultiMethodRestHandler extends BaseRestHandler {
+public abstract class BaseStandardRegistrationsRestHandler extends BaseRestHandler {
+    /**
+     * Many controllers use these methods.
+     */
+    protected static final Method[] PUT_AND_POST = new Method[] {PUT, POST};
+
     private final Method[] methods;
     private final String[] paths;
 
-    public BaseMultiMethodRestHandler(RestGlobalContext context, Method[] methods, String... paths) {
+    /**
+     * Constructor for when registering for a single method.
+     */
+    public BaseStandardRegistrationsRestHandler(RestGlobalContext context, Method method, String... paths) {
+        this(context, new Method[] {method}, paths);
+    }
+
+    /**
+     * Constructor for when registering for multiple methods on the same paths.
+     */
+    public BaseStandardRegistrationsRestHandler(RestGlobalContext context, Method[] methods, String... paths) {
         super(context);
         this.methods = methods;
         this.paths = paths;
@@ -45,15 +63,18 @@ public abstract class BaseMultiMethodRestHandler extends BaseRestHandler {
         return paths;
     }
 
+    protected Method[] methods() {
+        return methods;
+    }
+
     @Override
     public final Collection<Tuple<Method, String>> registrations() {
         List<Tuple<Method, String>> registrations = new ArrayList<>(paths.length * methods.length);
         for (String path : paths) {
-            for (Method method: methods) {
+            for (Method method : methods) {
                 registrations.add(new Tuple<>(method, path));
             }
         }
         return unmodifiableList(registrations);
     }
-
 }

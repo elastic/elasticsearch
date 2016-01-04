@@ -19,13 +19,15 @@
 
 package org.elasticsearch.rest.action.admin.indices.stats;
 
+import java.util.Set;
+
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -33,15 +35,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.util.Set;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  */
-public class RestIndicesStatsAction extends BaseSingleMethodRestHandler {
+public class RestIndicesStatsAction extends BaseStandardRegistrationsRestHandler {
     public RestIndicesStatsAction(RestGlobalContext context) {
         super(context, GET, "/_stats", "/_stats/{metric}", "/_stats/{metric}/{indexMetric}", "/{index}/_stats", "/{index}/_stats/{metric}");
     }

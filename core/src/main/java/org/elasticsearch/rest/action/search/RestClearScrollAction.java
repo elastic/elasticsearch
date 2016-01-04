@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  */
-public class RestClearScrollAction extends BaseSingleMethodRestHandler {
+public class RestClearScrollAction extends BaseStandardRegistrationsRestHandler {
     public RestClearScrollAction(RestGlobalContext context) {
         super(context, DELETE, "/_search/scroll", "/_search/scroll/{scroll_id}");
     }

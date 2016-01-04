@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestPercolateAction extends BaseMultiMethodRestHandler {
+public class RestPercolateAction extends BaseStandardRegistrationsRestHandler {
     public RestPercolateAction(RestGlobalContext context) {
         super(context, new Method[] {GET, POST}, "/{index}/{type}/_percolate");
     }
@@ -89,7 +89,7 @@ public class RestPercolateAction extends BaseMultiMethodRestHandler {
         parseDocPercolate(percolateRequest, restRequest, restChannel, client);
     }
 
-    public static final class RestCountPercolateDocHandler extends BaseMultiMethodRestHandler {
+    public static final class RestCountPercolateDocHandler extends BaseStandardRegistrationsRestHandler {
 
         public RestCountPercolateDocHandler(RestGlobalContext context) {
             super(context, new Method[] {GET, POST}, "/{index}/{type}/_percolate/count");
@@ -103,7 +103,7 @@ public class RestPercolateAction extends BaseMultiMethodRestHandler {
         }
     }
 
-    public static final class RestPercolateExistingDocHandler extends BaseMultiMethodRestHandler {
+    public static final class RestPercolateExistingDocHandler extends BaseStandardRegistrationsRestHandler {
 
         public RestPercolateExistingDocHandler(RestGlobalContext context) {
             super(context, new Method[] {GET, POST}, "/{index}/{type}/{id}/_percolate");
@@ -116,7 +116,7 @@ public class RestPercolateAction extends BaseMultiMethodRestHandler {
         }
     }
 
-    public static final class RestCountPercolateExistingDocHandler extends BaseMultiMethodRestHandler {
+    public static final class RestCountPercolateExistingDocHandler extends BaseStandardRegistrationsRestHandler {
 
         public RestCountPercolateExistingDocHandler(RestGlobalContext context) {
             super(context, new Method[] {GET, POST}, "/{index}/{type}/{id}/_percolate/count");

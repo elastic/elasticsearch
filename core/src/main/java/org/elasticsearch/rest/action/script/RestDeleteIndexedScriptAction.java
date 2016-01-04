@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestDeleteIndexedScriptAction extends BaseSingleMethodRestHandler {
+public class RestDeleteIndexedScriptAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteIndexedScriptAction(RestGlobalContext context) {
         this(context, "/_scripts/{lang}/{id}");
     }

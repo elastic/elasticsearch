@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.settings;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,7 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -37,10 +35,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestGetSettingsAction extends BaseSingleMethodRestHandler {
+public class RestGetSettingsAction extends BaseStandardRegistrationsRestHandler {
     public RestGetSettingsAction(RestGlobalContext context) {
         super(context, GET, "/_settings/{name}", "/{index}/_setting/{name}", "/{index}/_settings/{name}");
     }

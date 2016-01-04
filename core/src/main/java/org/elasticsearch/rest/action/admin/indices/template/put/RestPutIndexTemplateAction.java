@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.template.put;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -34,9 +34,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  *
  */
-public class RestPutIndexTemplateAction extends BaseMultiMethodRestHandler {
+public class RestPutIndexTemplateAction extends BaseStandardRegistrationsRestHandler {
     public RestPutIndexTemplateAction(RestGlobalContext context) {
-        super(context, new Method[] {PUT, POST}, "/_template/{name}");
+        super(context, PUT_AND_POST, "/_template/{name}");
     }
 
     @Override

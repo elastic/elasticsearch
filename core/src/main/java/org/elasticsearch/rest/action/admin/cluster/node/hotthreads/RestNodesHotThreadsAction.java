@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  */
-public class RestNodesHotThreadsAction extends BaseSingleMethodRestHandler {
+public class RestNodesHotThreadsAction extends BaseStandardRegistrationsRestHandler {
     public RestNodesHotThreadsAction(RestGlobalContext context) {
         super(context, GET, "/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads",
                 "/_cluster/nodes/{nodeId}/hotthreads", "/_cluster/nodes/{nodeId}/hot_threads",

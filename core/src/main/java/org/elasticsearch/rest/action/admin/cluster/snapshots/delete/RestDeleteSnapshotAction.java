@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.snapshots.delete;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Deletes a snapshot
  */
-public class RestDeleteSnapshotAction extends BaseSingleMethodRestHandler {
+public class RestDeleteSnapshotAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteSnapshotAction(RestGlobalContext context) {
         super(context, DELETE, "/_snapshot/{repository}/{snapshot}");
     }

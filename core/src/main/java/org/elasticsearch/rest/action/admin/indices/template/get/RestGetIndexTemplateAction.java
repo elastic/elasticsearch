@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetIndexTemplateAction extends BaseSingleMethodRestHandler {
+public class RestGetIndexTemplateAction extends BaseStandardRegistrationsRestHandler {
     public RestGetIndexTemplateAction(RestGlobalContext context) {
         super(context, GET, "/_template", "/_template/{name}");
     }

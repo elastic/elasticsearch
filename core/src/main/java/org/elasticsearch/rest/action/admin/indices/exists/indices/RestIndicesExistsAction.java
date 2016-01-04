@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestIndicesExistsAction extends BaseSingleMethodRestHandler {
+public class RestIndicesExistsAction extends BaseStandardRegistrationsRestHandler {
     public RestIndicesExistsAction(RestGlobalContext context) {
         super(context, HEAD, "/{index}");
     }

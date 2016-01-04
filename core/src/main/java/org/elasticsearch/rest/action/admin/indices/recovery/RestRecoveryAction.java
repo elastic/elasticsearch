@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * REST handler to report on index recoveries.
  */
-public class RestRecoveryAction extends BaseSingleMethodRestHandler {
+public class RestRecoveryAction extends BaseStandardRegistrationsRestHandler {
     public RestRecoveryAction(RestGlobalContext context) {
         super(context, GET, "/_recovery", "/{index}/_recovery");
     }

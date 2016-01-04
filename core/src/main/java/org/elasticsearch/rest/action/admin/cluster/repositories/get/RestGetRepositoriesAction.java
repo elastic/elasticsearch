@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Returns repository information
  */
-public class RestGetRepositoriesAction extends BaseSingleMethodRestHandler {
+public class RestGetRepositoriesAction extends BaseStandardRegistrationsRestHandler {
 
     private final SettingsFilter settingsFilter;
 

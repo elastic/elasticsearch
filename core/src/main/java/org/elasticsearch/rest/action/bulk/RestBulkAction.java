@@ -29,7 +29,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -51,7 +51,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */
-public class RestBulkAction extends BaseMultiMethodRestHandler {
+public class RestBulkAction extends BaseStandardRegistrationsRestHandler {
 
     private final boolean allowExplicitIndex;
 

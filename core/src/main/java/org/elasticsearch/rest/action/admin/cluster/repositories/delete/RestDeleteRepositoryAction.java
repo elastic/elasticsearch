@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.repositories.delete;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Unregisters a repository
  */
-public class RestDeleteRepositoryAction extends BaseSingleMethodRestHandler {
+public class RestDeleteRepositoryAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteRepositoryAction(RestGlobalContext context) {
         super(context, DELETE, "/_snapshot/{repository}");
     }

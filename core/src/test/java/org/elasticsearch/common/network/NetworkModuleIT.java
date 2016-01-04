@@ -19,12 +19,14 @@
 
 package org.elasticsearch.common.network;
 
+import java.util.Collection;
+
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -35,9 +37,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 
-import java.util.Collection;
-
 import static java.util.Collections.singleton;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -74,8 +75,8 @@ public class NetworkModuleIT extends ESIntegTestCase {
         }
 
         public void onModule(NetworkModule module) {
-            module.registerRestAction(FakeRestAction.class, FakeRestAction::new);
-            module.registerRestAction(FakeRestCatAction.class, FakeRestCatAction::new);
+            module.registerRestHandler(FakeRestAction.class, FakeRestAction::new);
+            module.registerRestHandler(FakeRestCatAction.class, FakeRestCatAction::new);
         }
 
         @Override
@@ -89,7 +90,7 @@ public class NetworkModuleIT extends ESIntegTestCase {
         }
     }
 
-    public static class FakeRestAction extends BaseSingleMethodRestHandler {
+    public static class FakeRestAction extends BaseStandardRegistrationsRestHandler {
         public FakeRestAction(RestGlobalContext context) {
             super(context, GET, "/_fake");
         }

@@ -19,16 +19,9 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -37,6 +30,16 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -79,6 +82,11 @@ public class RestFilterChainTests extends ESTestCase {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new TestResponse());
+            }
+
+            @Override
+            public Collection<Tuple<Method, String>> registrations() {
+                throw new RuntimeException("Not used for test");
             }
         });
 
@@ -137,6 +145,11 @@ public class RestFilterChainTests extends ESTestCase {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new TestResponse());
+            }
+
+            @Override
+            public Collection<Tuple<Method, String>> registrations() {
+                throw new RuntimeException("Not used for test");
             }
         });
 

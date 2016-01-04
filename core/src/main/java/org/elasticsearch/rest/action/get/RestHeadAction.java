@@ -23,7 +23,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestHeadAction extends BaseSingleMethodRestHandler {
+public class RestHeadAction extends BaseStandardRegistrationsRestHandler {
     public RestHeadAction(RestGlobalContext context) {
         super(context, HEAD, "/{index}/{type}/{id}", "/{index}/{type}/{id}/_source");
     }

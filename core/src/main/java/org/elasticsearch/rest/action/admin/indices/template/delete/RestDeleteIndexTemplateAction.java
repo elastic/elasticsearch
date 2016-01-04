@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.template.delete;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  *
  */
-public class RestDeleteIndexTemplateAction extends BaseSingleMethodRestHandler {
+public class RestDeleteIndexTemplateAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteIndexTemplateAction(RestGlobalContext context) {
         super(context, DELETE, "/_template/{name}");
     }

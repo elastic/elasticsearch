@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -31,13 +29,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  */
 @Deprecated
-public class RestGetIndicesAliasesAction extends BaseSingleMethodRestHandler {
+public class RestGetIndicesAliasesAction extends BaseStandardRegistrationsRestHandler {
     public RestGetIndicesAliasesAction(RestGlobalContext context) {
         super(context, GET, "/_aliases/{name}", "/{index}/_aliases/{name}");
     }

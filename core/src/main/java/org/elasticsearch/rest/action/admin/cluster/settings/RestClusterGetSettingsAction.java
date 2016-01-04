@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  */
-public class RestClusterGetSettingsAction extends BaseSingleMethodRestHandler {
+public class RestClusterGetSettingsAction extends BaseStandardRegistrationsRestHandler {
 
     private final ClusterSettings clusterSettings;
 

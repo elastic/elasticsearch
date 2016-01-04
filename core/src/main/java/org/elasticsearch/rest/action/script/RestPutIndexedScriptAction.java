@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestPutIndexedScriptAction extends BaseMultiMethodRestHandler {
+public class RestPutIndexedScriptAction extends BaseStandardRegistrationsRestHandler {
     public RestPutIndexedScriptAction(RestGlobalContext context) {
         this(context, "/_scripts/{lang}/{id}");
     }

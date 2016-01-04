@@ -26,7 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
  */
-public class RestTermVectorsAction extends BaseMultiMethodRestHandler {
+public class RestTermVectorsAction extends BaseStandardRegistrationsRestHandler {
     public RestTermVectorsAction(RestGlobalContext context) {
         super(context, new Method[] {GET, POST},
                 "/{index}/{type}/_termvectors", "/{index}/{type}/{id}/_termvectors",

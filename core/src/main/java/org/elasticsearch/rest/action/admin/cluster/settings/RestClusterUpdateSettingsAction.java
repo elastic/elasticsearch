@@ -26,7 +26,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  */
-public class RestClusterUpdateSettingsAction extends BaseSingleMethodRestHandler {
+public class RestClusterUpdateSettingsAction extends BaseStandardRegistrationsRestHandler {
     public RestClusterUpdateSettingsAction(RestGlobalContext context) {
         super(context, PUT, "/_cluster/settings");
     }

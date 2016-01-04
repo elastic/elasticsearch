@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Returns status of currently running snapshot
  */
-public class RestSnapshotsStatusAction extends BaseSingleMethodRestHandler {
+public class RestSnapshotsStatusAction extends BaseStandardRegistrationsRestHandler {
     public RestSnapshotsStatusAction(RestGlobalContext context) {
         super(context, GET, "/_snapshot/_status", "/_snapshot/{repository}/_status", "/_snapshot/{repository}/{snapshot}/_status");
     }

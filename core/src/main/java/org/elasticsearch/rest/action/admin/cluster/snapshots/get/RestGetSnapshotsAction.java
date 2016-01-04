@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Returns information about snapshot
  */
-public class RestGetSnapshotsAction extends BaseSingleMethodRestHandler {
+public class RestGetSnapshotsAction extends BaseStandardRegistrationsRestHandler {
     public RestGetSnapshotsAction(RestGlobalContext context) {
         super(context, GET, "/_snapshot/{repository}/{snapshot}");
     }

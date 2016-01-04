@@ -72,7 +72,7 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        module.registerRestAction(ExampleCatAction.class, configuredModule::exampleCatAction);
+        module.registerRestHandler(ExampleCatAction.class, configuredModule::exampleCatAction);
     }
 
     /**

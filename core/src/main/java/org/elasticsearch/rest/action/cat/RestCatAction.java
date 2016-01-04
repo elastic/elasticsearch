@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -31,7 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestCatAction extends BaseSingleMethodRestHandler {
+public class RestCatAction extends BaseStandardRegistrationsRestHandler {
 
     private static final String CAT = "=^.^=";
     private static final String CAT_NL = CAT + "\n";

@@ -32,7 +32,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -58,7 +58,7 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 /**
  *
  */
-public class RestSearchAction extends BaseMultiMethodRestHandler {
+public class RestSearchAction extends BaseStandardRegistrationsRestHandler {
 
     private final IndicesQueriesRegistry queryRegistry;
 

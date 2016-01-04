@@ -19,13 +19,16 @@
 
 package org.elasticsearch.rest.action.update;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,14 +38,11 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
-public class RestUpdateAction extends BaseSingleMethodRestHandler {
+public class RestUpdateAction extends BaseStandardRegistrationsRestHandler {
     public RestUpdateAction(RestGlobalContext context) {
         super(context, POST, "/{index}/{type}/{id}/_update");
     }

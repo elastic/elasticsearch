@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  *
  */
-public class RestDeleteIndexAction extends BaseSingleMethodRestHandler {
+public class RestDeleteIndexAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteIndexAction(RestGlobalContext context) {
         super(context, DELETE, "/", "/{index}");
     }

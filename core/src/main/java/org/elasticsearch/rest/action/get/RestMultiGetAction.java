@@ -23,7 +23,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestMultiGetAction extends BaseMultiMethodRestHandler {
+public class RestMultiGetAction extends BaseStandardRegistrationsRestHandler {
 
     private final boolean allowExplicitIndex;
 

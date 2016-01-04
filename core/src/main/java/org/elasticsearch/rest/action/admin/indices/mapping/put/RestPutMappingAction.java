@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -38,9 +38,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  *
  */
-public class RestPutMappingAction extends BaseMultiMethodRestHandler {
+public class RestPutMappingAction extends BaseStandardRegistrationsRestHandler {
     public RestPutMappingAction(RestGlobalContext context) {
-        super(context, new Method[] {PUT, POST},
+        super(context, PUT_AND_POST,
                 "/{index}/_mapping/", "/{index}/{type}/_mapping", "/{index}/_mapping/{type}", "/_mapping/{type}",
                 "/{index}/_mappings/", "/{index}/{type}/_mappings", "/{index}/_mappings/{type}", "/_mappings/{type}");
     }

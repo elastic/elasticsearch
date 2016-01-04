@@ -19,7 +19,7 @@
 package org.elasticsearch.plugins.responseheader;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -29,7 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class TestResponseHeaderRestAction extends BaseSingleMethodRestHandler {
+public class TestResponseHeaderRestAction extends BaseStandardRegistrationsRestHandler {
     public TestResponseHeaderRestAction(RestGlobalContext context) {
         super(context, GET, "/_protected");
     }

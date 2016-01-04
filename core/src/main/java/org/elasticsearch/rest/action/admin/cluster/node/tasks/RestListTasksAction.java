@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -30,13 +30,9 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-
-public class RestListTasksAction extends BaseRestHandler {
+public class RestListTasksAction extends BaseStandardRegistrationsRestHandler {
     public RestListTasksAction(RestGlobalContext context) {
-        super(context);
-        context.getController().registerHandler(GET, "/_tasks", this);
-        context.getController().registerHandler(GET, "/_tasks/{nodeId}", this);
-        context.getController().registerHandler(GET, "/_tasks/{nodeId}/{actions}", this);
+        super(context, GET, "/_tasks", "/_tasks/{nodeId}", "/_tasks/{nodeId}/{actions}");
     }
 
     @Override

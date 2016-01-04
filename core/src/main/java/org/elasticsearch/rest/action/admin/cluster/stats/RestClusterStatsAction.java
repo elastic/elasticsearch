@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestClusterStatsAction extends BaseSingleMethodRestHandler {
+public class RestClusterStatsAction extends BaseStandardRegistrationsRestHandler {
     public RestClusterStatsAction(RestGlobalContext context) {
         super(context, GET, "/_cluster/stats", "/_cluster/stats/nodes/{nodeId}");
     }

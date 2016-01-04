@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Restores a snapshot
  */
-public class RestRestoreSnapshotAction extends BaseSingleMethodRestHandler {
+public class RestRestoreSnapshotAction extends BaseStandardRegistrationsRestHandler {
     public RestRestoreSnapshotAction(RestGlobalContext context) {
         super(context, POST, "/_snapshot/{repository}/{snapshot}/_restore");
     }

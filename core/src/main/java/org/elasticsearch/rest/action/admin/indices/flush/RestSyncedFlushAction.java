@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestSyncedFlushAction extends BaseMultiMethodRestHandler {
+public class RestSyncedFlushAction extends BaseStandardRegistrationsRestHandler {
     public RestSyncedFlushAction(RestGlobalContext context) {
         super(context, new Method[] {POST, GET}, "/_flush/synced", "/{index}/_flush/synced");
     }

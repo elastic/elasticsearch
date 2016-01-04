@@ -45,7 +45,7 @@ public class DeleteByQueryPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        module.registerRestAction(RestDeleteByQueryAction.class, RestDeleteByQueryAction::new);
+        module.registerRestHandler(RestDeleteByQueryAction.class, RestDeleteByQueryAction::new);
     }
 
 }

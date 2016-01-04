@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -41,13 +39,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestGetMappingAction extends BaseSingleMethodRestHandler {
+public class RestGetMappingAction extends BaseStandardRegistrationsRestHandler {
     public RestGetMappingAction(RestGlobalContext context) {
         super(context, GET, "/_mapping/{type}", "/{index}/_mapping/{type}", "/{index}/_mappings/{type}", "/{index}/{type}/_mapping");
     }

@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 /**
  *
  */
-public class RestMainAction extends BaseMultiMethodRestHandler {
+public class RestMainAction extends BaseStandardRegistrationsRestHandler {
 
     private final Version version;
     private final ClusterName clusterName;

@@ -164,7 +164,7 @@ public class Node implements Releasable {
         final NetworkService networkService = new NetworkService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
-        final NetworkModule networkModule = new NetworkModule(networkService, settings, false, version);
+        final NetworkModule networkModule = new NetworkModule(networkService, settings, settingsFilter, false, version);
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);

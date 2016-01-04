@@ -24,7 +24,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestMultiTermVectorsAction extends BaseMultiMethodRestHandler {
+public class RestMultiTermVectorsAction extends BaseStandardRegistrationsRestHandler {
     public RestMultiTermVectorsAction(RestGlobalContext context) {
         super(context, new Method[] {GET, POST}, "/_mtermvectors", "/{index}/_mtermvectors", "/{index}/{type}/_mtermvectors");
     }

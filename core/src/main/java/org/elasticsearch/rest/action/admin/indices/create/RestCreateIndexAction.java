@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,9 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  *
  */
-public class RestCreateIndexAction extends BaseMultiMethodRestHandler {
+public class RestCreateIndexAction extends BaseStandardRegistrationsRestHandler {
     public RestCreateIndexAction(RestGlobalContext context) {
-        super(context, new Method[] {PUT, POST}, "/{index}");
+        super(context, PUT_AND_POST, "/{index}");
     }
 
     @Override

@@ -19,10 +19,18 @@
 
 package org.elasticsearch.rest;
 
+import java.util.Collection;
+
+import org.elasticsearch.common.collect.Tuple;
+
 /**
  * Handler for REST requests
  */
 public interface RestHandler {
-
     void handleRequest(RestRequest request, RestChannel channel) throws Exception;
+
+    /**
+     * REST methods for which this handler should be registered.
+     */
+    Collection<Tuple<RestRequest.Method, String>> registrations();
 }

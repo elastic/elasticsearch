@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.tasks;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  */
-public class RestPendingClusterTasksAction extends BaseSingleMethodRestHandler {
+public class RestPendingClusterTasksAction extends BaseStandardRegistrationsRestHandler {
     public RestPendingClusterTasksAction(RestGlobalContext context) {
         super(context, GET, "/_cluster/pending_tasks");
     }

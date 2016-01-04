@@ -23,7 +23,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  *
  */
-public class RestDeleteAction extends BaseSingleMethodRestHandler {
+public class RestDeleteAction extends BaseStandardRegistrationsRestHandler {
     public RestDeleteAction(RestGlobalContext context) {
         super(context, DELETE, "/{index}/{type}/{id}");
     }

@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.repositories.put;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.rest.BaseMultiMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -36,9 +36,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Registers repositories
  */
-public class RestPutRepositoryAction extends BaseMultiMethodRestHandler {
+public class RestPutRepositoryAction extends BaseStandardRegistrationsRestHandler {
     public RestPutRepositoryAction(RestGlobalContext context) {
-        super(context, new Method[] {PUT, POST}, "/_snapshot/{repository}");
+        super(context, PUT_AND_POST, "/_snapshot/{repository}");
     }
 
 

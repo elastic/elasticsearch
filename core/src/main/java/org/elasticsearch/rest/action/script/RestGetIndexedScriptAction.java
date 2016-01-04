@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestGetIndexedScriptAction extends BaseSingleMethodRestHandler {
+public class RestGetIndexedScriptAction extends BaseStandardRegistrationsRestHandler {
     public RestGetIndexedScriptAction(RestGlobalContext context) {
         this(context, "/_scripts/{lang}/{id}");
     }

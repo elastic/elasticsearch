@@ -22,7 +22,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  */
-public class RestIndexDeleteAliasesAction extends BaseSingleMethodRestHandler {
+public class RestIndexDeleteAliasesAction extends BaseStandardRegistrationsRestHandler {
     public RestIndexDeleteAliasesAction(RestGlobalContext context) {
         super(context, DELETE, "/{index}/_alias/{name}", "/{index}/_aliases/{name}");
     }

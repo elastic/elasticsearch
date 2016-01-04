@@ -22,7 +22,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.rest.BaseSingleMethodRestHandler;
+import org.elasticsearch.rest.BaseStandardRegistrationsRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestGlobalContext;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.action.support.RestTable.pad;
 /**
  *
  */
-public abstract class AbstractCatAction extends BaseSingleMethodRestHandler {
+public abstract class AbstractCatAction extends BaseStandardRegistrationsRestHandler {
     public AbstractCatAction(RestGlobalContext context, String... paths) {
         super(context, GET, catPaths(paths));
     }

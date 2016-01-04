@@ -176,6 +176,7 @@ public class NetworkModule extends AbstractModule {
     private final NetworkService networkService;
     private final RestController controller;
     private final Settings settings;
+    private final SettingsFilter settingsFilter;
     private final boolean transportClient;
 
     private final ExtensionPoint.SelectedType<TransportService> transportServiceTypes = new ExtensionPoint.SelectedType<>("transport_service", TransportService.class);
@@ -204,9 +205,10 @@ public class NetworkModule extends AbstractModule {
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      */
-    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient, Version version) {
+    public NetworkModule(NetworkService networkService, Settings settings, SettingsFilter settingsFilter, boolean transportClient, Version version) {
         this.networkService = networkService;
         this.settings = settings;
+        this.settingsFilter = settingsFilter;
         this.transportClient = transportClient;
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
@@ -217,11 +219,11 @@ public class NetworkModule extends AbstractModule {
         } else {
             registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
             controller = new RestController(settings);
-            registerRestAction(RestMainAction.class, c -> new RestMainAction(c, version, clusterName, clusterService));
-            registerRestAction(RestAnalyzeAction.class, RestAnalyzeAction::new);
-            registerRestAction(RestFieldStatsAction.class, RestFieldStatsAction::new);
-            registerRestAction(RestSuggestAction.class, RestSuggestAction::new);
-            registerRestAction(RestTypesExistsAction.class, RestTypesExistsAction::new);
+            registerRestHandler(RestMainAction.class, c -> new RestMainAction(c, version, clusterName, clusterService));
+            registerRestHandler(RestAnalyzeAction.class, RestAnalyzeAction::new);
+            registerRestHandler(RestFieldStatsAction.class, RestFieldStatsAction::new);
+            registerRestHandler(RestSuggestAction.class, RestSuggestAction::new);
+            registerRestHandler(RestTypesExistsAction.class, RestTypesExistsAction::new);
 
             registerAliasActions();
             registerCatActions();
@@ -259,7 +261,7 @@ public class NetworkModule extends AbstractModule {
         httpTransportTypes.registerExtension(name, clazz);
     }
 
-    public <T extends BaseRestHandler> void registerRestAction(Class<T> type, Function<RestGlobalContext, T> builder) {
+    public <T extends BaseRestHandler> void registerRestHandler(Class<T> type, Function<RestGlobalContext, T> builder) {
         requireNonNull(type, "Must define the action type being registered");
         requireNonNull(builder, "Must define the builder to register");
         Object old = actions.putIfAbsent(type, builder);
@@ -298,7 +300,7 @@ public class NetworkModule extends AbstractModule {
      */
     @Inject
     public void injectRestActionDependencies(Client client, IndicesQueriesRegistry indicesQueriesRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver, SettingsFilter settingsFilter, ClusterSettings clusterSettings,
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings,
             ClusterName clusterName, ClusterService clusterService) {
         this.clusterSettings = clusterSettings;
         this.clusterName = clusterName;
@@ -345,143 +347,143 @@ public class NetworkModule extends AbstractModule {
     }
 
     private void registerAliasActions() {
-        registerRestAction(RestAliasesExistAction.class, RestAliasesExistAction::new);
-        registerRestAction(RestCreateIndexAction.class, RestCreateIndexAction::new);
-        registerRestAction(RestDeleteIndexAction.class, RestDeleteIndexAction::new);
-        registerRestAction(RestGetAliasesAction.class, RestGetAliasesAction::new);
-        registerRestAction(RestGetIndicesAliasesAction.class, RestGetIndicesAliasesAction::new);
-        registerRestAction(RestIndexDeleteAliasesAction.class, RestIndexDeleteAliasesAction::new);
-        registerRestAction(RestIndexPutAliasAction.class, RestIndexPutAliasAction::new);
-        registerRestAction(RestIndicesAliasesAction.class, RestIndicesAliasesAction::new);
+        registerRestHandler(RestAliasesExistAction.class, RestAliasesExistAction::new);
+        registerRestHandler(RestCreateIndexAction.class, RestCreateIndexAction::new);
+        registerRestHandler(RestDeleteIndexAction.class, RestDeleteIndexAction::new);
+        registerRestHandler(RestGetAliasesAction.class, RestGetAliasesAction::new);
+        registerRestHandler(RestGetIndicesAliasesAction.class, RestGetIndicesAliasesAction::new);
+        registerRestHandler(RestIndexDeleteAliasesAction.class, RestIndexDeleteAliasesAction::new);
+        registerRestHandler(RestIndexPutAliasAction.class, RestIndexPutAliasAction::new);
+        registerRestHandler(RestIndicesAliasesAction.class, RestIndicesAliasesAction::new);
     }
 
     private void registerCatActions() {
-        registerRestAction(RestAliasAction.class, RestAliasAction::new);
-        registerRestAction(RestAllocationAction.class, RestAllocationAction::new);
-        registerRestAction(RestCountCatAction.class, RestCountCatAction::new);
-        registerRestAction(RestFielddataAction.class, RestFielddataAction::new);
-        registerRestAction(RestHealthAction.class, RestHealthAction::new);
-        registerRestAction(RestIndicesAction.class, RestIndicesAction::new);
-        registerRestAction(RestMasterAction.class, RestMasterAction::new);
-        registerRestAction(RestNodeAttrsAction.class, RestNodeAttrsAction::new);
-        registerRestAction(RestNodesAction.class, RestNodesAction::new);
-        registerRestAction(RestPendingClusterTasksCatAction.class, RestPendingClusterTasksCatAction::new);
-        registerRestAction(RestPluginsAction.class, RestPluginsAction::new);
-        registerRestAction(RestRecoveryCatAction.class, RestRecoveryCatAction::new);
-        registerRestAction(RestRepositoriesAction.class, RestRepositoriesAction::new);
-        registerRestAction(RestSegmentsAction.class, RestSegmentsAction::new);
-        registerRestAction(RestShardsAction.class, RestShardsAction::new);
-        registerRestAction(RestSnapshotAction.class, RestSnapshotAction::new);
-        registerRestAction(RestThreadPoolAction.class, RestThreadPoolAction::new);
+        registerRestHandler(RestAliasAction.class, RestAliasAction::new);
+        registerRestHandler(RestAllocationAction.class, RestAllocationAction::new);
+        registerRestHandler(RestCountCatAction.class, RestCountCatAction::new);
+        registerRestHandler(RestFielddataAction.class, RestFielddataAction::new);
+        registerRestHandler(RestHealthAction.class, RestHealthAction::new);
+        registerRestHandler(RestIndicesAction.class, RestIndicesAction::new);
+        registerRestHandler(RestMasterAction.class, RestMasterAction::new);
+        registerRestHandler(RestNodeAttrsAction.class, RestNodeAttrsAction::new);
+        registerRestHandler(RestNodesAction.class, RestNodesAction::new);
+        registerRestHandler(RestPendingClusterTasksCatAction.class, RestPendingClusterTasksCatAction::new);
+        registerRestHandler(RestPluginsAction.class, RestPluginsAction::new);
+        registerRestHandler(RestRecoveryCatAction.class, RestRecoveryCatAction::new);
+        registerRestHandler(RestRepositoriesAction.class, RestRepositoriesAction::new);
+        registerRestHandler(RestSegmentsAction.class, RestSegmentsAction::new);
+        registerRestHandler(RestShardsAction.class, RestShardsAction::new);
+        registerRestHandler(RestSnapshotAction.class, RestSnapshotAction::new);
+        registerRestHandler(RestThreadPoolAction.class, RestThreadPoolAction::new);
     }
 
     private void registerClusterActions() {
-        registerRestAction(RestClusterHealthAction.class, RestClusterHealthAction::new);
-        registerRestAction(RestClusterRerouteAction.class, RestClusterRerouteAction::new);
-        registerRestAction(RestClusterSearchShardsAction.class, RestClusterSearchShardsAction::new);
-        registerRestAction(RestClusterStateAction.class, RestClusterStateAction::new);
-        registerRestAction(RestClusterStatsAction.class, RestClusterStatsAction::new);
-        registerRestAction(RestClusterGetSettingsAction.class, c -> new RestClusterGetSettingsAction(c, clusterSettings));
-        registerRestAction(RestClusterUpdateSettingsAction.class, RestClusterUpdateSettingsAction::new);
-        registerRestAction(RestPendingClusterTasksAction.class, RestPendingClusterTasksAction::new);
+        registerRestHandler(RestClusterHealthAction.class, RestClusterHealthAction::new);
+        registerRestHandler(RestClusterRerouteAction.class, RestClusterRerouteAction::new);
+        registerRestHandler(RestClusterSearchShardsAction.class, RestClusterSearchShardsAction::new);
+        registerRestHandler(RestClusterStateAction.class, RestClusterStateAction::new);
+        registerRestHandler(RestClusterStatsAction.class, RestClusterStatsAction::new);
+        registerRestHandler(RestClusterGetSettingsAction.class, c -> new RestClusterGetSettingsAction(c, clusterSettings));
+        registerRestHandler(RestClusterUpdateSettingsAction.class, RestClusterUpdateSettingsAction::new);
+        registerRestHandler(RestPendingClusterTasksAction.class, RestPendingClusterTasksAction::new);
     }
 
     private void registerDocumentActions() {
-        registerRestAction(RestBulkAction.class, RestBulkAction::new);
-        registerRestAction(RestCountAction.class, RestCountAction::new);
-        registerRestAction(RestDeleteAction.class, RestDeleteAction::new);
-        registerRestAction(RestGetAction.class, RestGetAction::new);
-        registerRestAction(RestGetSourceAction.class, RestGetSourceAction::new);
-        registerRestAction(RestHeadAction.class, RestHeadAction::new);
-        registerRestAction(RestIndexAction.class, RestIndexAction::new);
-        registerRestAction(RestMultiGetAction.class, RestMultiGetAction::new);
-        registerRestAction(RestMultiTermVectorsAction.class, RestMultiTermVectorsAction::new);
-        registerRestAction(RestTermVectorsAction.class, RestTermVectorsAction::new);
-        registerRestAction(RestUpdateAction.class, RestUpdateAction::new);
+        registerRestHandler(RestBulkAction.class, RestBulkAction::new);
+        registerRestHandler(RestCountAction.class, RestCountAction::new);
+        registerRestHandler(RestDeleteAction.class, RestDeleteAction::new);
+        registerRestHandler(RestGetAction.class, RestGetAction::new);
+        registerRestHandler(RestGetSourceAction.class, RestGetSourceAction::new);
+        registerRestHandler(RestHeadAction.class, RestHeadAction::new);
+        registerRestHandler(RestIndexAction.class, RestIndexAction::new);
+        registerRestHandler(RestMultiGetAction.class, RestMultiGetAction::new);
+        registerRestHandler(RestMultiTermVectorsAction.class, RestMultiTermVectorsAction::new);
+        registerRestHandler(RestTermVectorsAction.class, RestTermVectorsAction::new);
+        registerRestHandler(RestUpdateAction.class, RestUpdateAction::new);
     }
 
     private void registerIndexActions() {
-        registerRestAction(RestCloseIndexAction.class, RestCloseIndexAction::new);
-        registerRestAction(RestClearIndicesCacheAction.class, RestClearIndicesCacheAction::new);
-        registerRestAction(RestFlushAction.class, RestFlushAction::new);
-        registerRestAction(RestForceMergeAction.class, RestForceMergeAction::new);
-        registerRestAction(RestGetIndicesAction.class, RestGetIndicesAction::new);
-        registerRestAction(RestIndicesExistsAction.class, RestIndicesExistsAction::new);
-        registerRestAction(RestIndicesSegmentsAction.class, RestIndicesSegmentsAction::new);
-        registerRestAction(RestIndicesShardStoresAction.class, RestIndicesShardStoresAction::new);
-        registerRestAction(RestIndicesStatsAction.class, RestIndicesStatsAction::new);
-        registerRestAction(RestOpenIndexAction.class, RestOpenIndexAction::new);
-        registerRestAction(RestRecoveryAction.class, RestRecoveryAction::new);
-        registerRestAction(RestRefreshAction.class, RestRefreshAction::new);
-        registerRestAction(RestSyncedFlushAction.class, RestSyncedFlushAction::new);
-        registerRestAction(RestUpgradeAction.class, RestUpgradeAction::new);
+        registerRestHandler(RestCloseIndexAction.class, RestCloseIndexAction::new);
+        registerRestHandler(RestClearIndicesCacheAction.class, RestClearIndicesCacheAction::new);
+        registerRestHandler(RestFlushAction.class, RestFlushAction::new);
+        registerRestHandler(RestForceMergeAction.class, RestForceMergeAction::new);
+        registerRestHandler(RestGetIndicesAction.class, RestGetIndicesAction::new);
+        registerRestHandler(RestIndicesExistsAction.class, RestIndicesExistsAction::new);
+        registerRestHandler(RestIndicesSegmentsAction.class, RestIndicesSegmentsAction::new);
+        registerRestHandler(RestIndicesShardStoresAction.class, RestIndicesShardStoresAction::new);
+        registerRestHandler(RestIndicesStatsAction.class, RestIndicesStatsAction::new);
+        registerRestHandler(RestOpenIndexAction.class, RestOpenIndexAction::new);
+        registerRestHandler(RestRecoveryAction.class, RestRecoveryAction::new);
+        registerRestHandler(RestRefreshAction.class, RestRefreshAction::new);
+        registerRestHandler(RestSyncedFlushAction.class, RestSyncedFlushAction::new);
+        registerRestHandler(RestUpgradeAction.class, RestUpgradeAction::new);
     }
 
     private void registerIndexTemplateActions() {
-        registerRestAction(RestDeleteIndexTemplateAction.class, RestDeleteIndexTemplateAction::new);
-        registerRestAction(RestGetIndexTemplateAction.class, RestGetIndexTemplateAction::new);
-        registerRestAction(RestHeadIndexTemplateAction.class, RestHeadIndexTemplateAction::new);
-        registerRestAction(RestPutIndexTemplateAction.class, RestPutIndexTemplateAction::new);
+        registerRestHandler(RestDeleteIndexTemplateAction.class, RestDeleteIndexTemplateAction::new);
+        registerRestHandler(RestGetIndexTemplateAction.class, RestGetIndexTemplateAction::new);
+        registerRestHandler(RestHeadIndexTemplateAction.class, RestHeadIndexTemplateAction::new);
+        registerRestHandler(RestPutIndexTemplateAction.class, RestPutIndexTemplateAction::new);
     }
 
     private void registerIndexedScriptsActions() {
-        registerRestAction(RestDeleteIndexedScriptAction.class, RestDeleteIndexedScriptAction::new);
-        registerRestAction(RestGetIndexedScriptAction.class, RestGetIndexedScriptAction::new);
-        registerRestAction(RestPutIndexedScriptAction.class, RestPutIndexedScriptAction::new);
+        registerRestHandler(RestDeleteIndexedScriptAction.class, RestDeleteIndexedScriptAction::new);
+        registerRestHandler(RestGetIndexedScriptAction.class, RestGetIndexedScriptAction::new);
+        registerRestHandler(RestPutIndexedScriptAction.class, RestPutIndexedScriptAction::new);
     }
 
     private void registerMappingActions() {
-        registerRestAction(RestGetFieldMappingAction.class, RestGetFieldMappingAction::new);
-        registerRestAction(RestGetMappingAction.class, RestGetMappingAction::new);
-        registerRestAction(RestPutMappingAction.class, RestPutMappingAction::new);
+        registerRestHandler(RestGetFieldMappingAction.class, RestGetFieldMappingAction::new);
+        registerRestHandler(RestGetMappingAction.class, RestGetMappingAction::new);
+        registerRestHandler(RestPutMappingAction.class, RestPutMappingAction::new);
     }
 
     private void registerNodeActions() {
-        registerRestAction(RestNodesHotThreadsAction.class, RestNodesHotThreadsAction::new);
-        registerRestAction(RestNodesInfoAction.class, RestNodesInfoAction::new);
-        registerRestAction(RestNodesStatsAction.class, RestNodesStatsAction::new);
+        registerRestHandler(RestNodesHotThreadsAction.class, RestNodesHotThreadsAction::new);
+        registerRestHandler(RestNodesInfoAction.class, RestNodesInfoAction::new);
+        registerRestHandler(RestNodesStatsAction.class, RestNodesStatsAction::new);
     }
 
     private void registerPercolatorActions() {
-        registerRestAction(RestPercolateAction.class, RestPercolateAction::new);
-        registerRestAction(RestPercolateAction.RestCountPercolateDocHandler.class, RestPercolateAction.RestCountPercolateDocHandler::new);
-        registerRestAction(RestPercolateAction.RestPercolateExistingDocHandler.class,
+        registerRestHandler(RestPercolateAction.class, RestPercolateAction::new);
+        registerRestHandler(RestPercolateAction.RestCountPercolateDocHandler.class, RestPercolateAction.RestCountPercolateDocHandler::new);
+        registerRestHandler(RestPercolateAction.RestPercolateExistingDocHandler.class,
                 RestPercolateAction.RestPercolateExistingDocHandler::new);
-        registerRestAction(RestPercolateAction.RestCountPercolateExistingDocHandler.class,
+        registerRestHandler(RestPercolateAction.RestCountPercolateExistingDocHandler.class,
                 RestPercolateAction.RestCountPercolateExistingDocHandler::new);
-        registerRestAction(RestMultiPercolateAction.class, RestMultiPercolateAction::new);
+        registerRestHandler(RestMultiPercolateAction.class, RestMultiPercolateAction::new);
     }
 
     private void registerSettingsActions() {
-        registerRestAction(RestGetSettingsAction.class, RestGetSettingsAction::new);
-        registerRestAction(RestUpdateSettingsAction.class, RestUpdateSettingsAction::new);
+        registerRestHandler(RestGetSettingsAction.class, RestGetSettingsAction::new);
+        registerRestHandler(RestUpdateSettingsAction.class, RestUpdateSettingsAction::new);
     }
 
     private void registerSearchActions() {
-        registerRestAction(RestClearScrollAction.class, RestClearScrollAction::new);
-        registerRestAction(RestExplainAction.class, RestExplainAction::new);
-        registerRestAction(RestSearchAction.class, RestSearchAction::new);
-        registerRestAction(RestSearchScrollAction.class, RestSearchScrollAction::new);
-        registerRestAction(RestMultiSearchAction.class, RestMultiSearchAction::new);
-        registerRestAction(RestValidateQueryAction.class, RestValidateQueryAction::new);
+        registerRestHandler(RestClearScrollAction.class, RestClearScrollAction::new);
+        registerRestHandler(RestExplainAction.class, RestExplainAction::new);
+        registerRestHandler(RestSearchAction.class, RestSearchAction::new);
+        registerRestHandler(RestSearchScrollAction.class, RestSearchScrollAction::new);
+        registerRestHandler(RestMultiSearchAction.class, RestMultiSearchAction::new);
+        registerRestHandler(RestValidateQueryAction.class, RestValidateQueryAction::new);
     }
 
     private void registerSearchTemplateActions() {
-        registerRestAction(RestGetSearchTemplateAction.class, RestGetSearchTemplateAction::new);
-        registerRestAction(RestDeleteSearchTemplateAction.class, RestDeleteSearchTemplateAction::new);
-        registerRestAction(RestRenderSearchTemplateAction.class, RestRenderSearchTemplateAction::new);
-        registerRestAction(RestPutSearchTemplateAction.class, RestPutSearchTemplateAction::new);
+        registerRestHandler(RestGetSearchTemplateAction.class, RestGetSearchTemplateAction::new);
+        registerRestHandler(RestDeleteSearchTemplateAction.class, RestDeleteSearchTemplateAction::new);
+        registerRestHandler(RestRenderSearchTemplateAction.class, RestRenderSearchTemplateAction::new);
+        registerRestHandler(RestPutSearchTemplateAction.class, RestPutSearchTemplateAction::new);
     }
 
     private void registerSnapshotActions() {
-        registerRestAction(RestGetSnapshotsAction.class, RestGetSnapshotsAction::new);
-        registerRestAction(RestCreateSnapshotAction.class, RestCreateSnapshotAction::new);
-        registerRestAction(RestDeleteRepositoryAction.class, RestDeleteRepositoryAction::new);
-        registerRestAction(RestDeleteSnapshotAction.class, RestDeleteSnapshotAction::new);
-        registerRestAction(RestGetRepositoriesAction.class, RestGetRepositoriesAction::new);
-        registerRestAction(RestPutRepositoryAction.class, RestPutRepositoryAction::new);
-        registerRestAction(RestRestoreSnapshotAction.class, RestRestoreSnapshotAction::new);
-        registerRestAction(RestSnapshotsStatusAction.class, RestSnapshotsStatusAction::new);
-        registerRestAction(RestVerifyRepositoryAction.class, RestVerifyRepositoryAction::new);
+        registerRestHandler(RestGetSnapshotsAction.class, RestGetSnapshotsAction::new);
+        registerRestHandler(RestCreateSnapshotAction.class, RestCreateSnapshotAction::new);
+        registerRestHandler(RestDeleteRepositoryAction.class, RestDeleteRepositoryAction::new);
+        registerRestHandler(RestDeleteSnapshotAction.class, RestDeleteSnapshotAction::new);
+        registerRestHandler(RestGetRepositoriesAction.class, RestGetRepositoriesAction::new);
+        registerRestHandler(RestPutRepositoryAction.class, RestPutRepositoryAction::new);
+        registerRestHandler(RestRestoreSnapshotAction.class, RestRestoreSnapshotAction::new);
+        registerRestHandler(RestSnapshotsStatusAction.class, RestSnapshotsStatusAction::new);
+        registerRestHandler(RestVerifyRepositoryAction.class, RestVerifyRepositoryAction::new);
     }
 }

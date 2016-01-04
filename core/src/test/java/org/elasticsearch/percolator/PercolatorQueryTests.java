@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.not;
 public class PercolatorQueryTests extends ESTestCase {
 
     public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
+    public final static String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
     public static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
 
     static {
@@ -130,7 +131,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 queries,
                 new MatchAllDocsQuery()
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         TopDocs topDocs = shardSearcher.search(builder.build(), 10);
         assertThat(topDocs.totalHits, equalTo(5));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
@@ -157,7 +158,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 queries,
                 new MatchAllDocsQuery()
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         builder.setPercolateQuery(new TermQuery(new Term("field", "value1")));
 
         PercolatorQuery percolatorQuery = builder.build();
@@ -205,7 +206,7 @@ public class PercolatorQueryTests extends ESTestCase {
                     new MatchAllDocsQuery()
             );
             // enables the optimization that prevents queries from being evaluated that don't match
-            builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME);
+            builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
             TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
 
             PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
@@ -226,7 +227,7 @@ public class PercolatorQueryTests extends ESTestCase {
     void addPercolatorQuery(String id, Query query, String... extraFields) throws IOException {
         queries.put(new BytesRef(id), query);
         ParseContext.Document document = new ParseContext.Document();
-        ExtractQueryTermsService.extractQueryMetadata(query, document, EXTRACTED_TERMS_FIELD_NAME, EXTRACTED_TERMS_FIELD_TYPE);
+        ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, EXTRACTED_TERMS_FIELD_TYPE);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {

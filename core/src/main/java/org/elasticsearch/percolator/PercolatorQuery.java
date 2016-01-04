@@ -82,10 +82,11 @@ final class PercolatorQuery extends Query {
          * Optionally sets a query that reduces the number of queries to percolate based on extracted terms from
          * the document to be percolated.
          *
-         * @param fieldName The name of the field to get the extracted terms from
+         * @param extractedTermsFieldName The name of the field to get the extracted terms from
+         * @param unknownQueryFieldname The field used to mark documents whose queries couldn't all get extracted
          */
-        void extractQueryTermsQuery(String fieldName) throws IOException {
-            this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader(), fieldName);
+        void extractQueryTermsQuery(String extractedTermsFieldName, String unknownQueryFieldname) throws IOException {
+            this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName, unknownQueryFieldname);
         }
 
         PercolatorQuery build() {

@@ -152,7 +152,7 @@ public class PercolatorServiceTests extends ESTestCase {
         extractedQueryTermsFieldType.setTokenized(false);
         extractedQueryTermsFieldType.setIndexOptions(IndexOptions.DOCS);
         extractedQueryTermsFieldType.freeze();
-        ExtractQueryTermsService.extractQueryMetadata(query, document, PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME, extractedQueryTermsFieldType);
+        ExtractQueryTermsService.extractQueryTerms(query, document, PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME, PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME, extractedQueryTermsFieldType);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         writer.addDocument(document);
     }

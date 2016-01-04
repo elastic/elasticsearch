@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public final static String QUERY_TERMS_FIELD = "extracted_terms";
+    public final static String UNKNOWN_QUERY_FIELD = "unknown_query";
     public static FieldType QUERY_TERMS_FIELD_TYPE = new FieldType();
 
     static {
@@ -69,7 +70,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         bq.add(termQuery2, BooleanClause.Occur.SHOULD);
 
         ParseContext.Document document = new ParseContext.Document();
-        ExtractQueryTermsService.extractQueryMetadata(bq.build(), document, QUERY_TERMS_FIELD, QUERY_TERMS_FIELD_TYPE);
+        ExtractQueryTermsService.extractQueryTerms(bq.build(), document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE);
         Collections.sort(document.getFields(), (field1, field2) -> field1.binaryValue().compareTo(field2.binaryValue()));
         assertThat(document.getFields().size(), equalTo(2));
         assertThat(document.getFields().get(0).name(), equalTo(QUERY_TERMS_FIELD));
@@ -87,15 +88,15 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         ParseContext.Document document = new ParseContext.Document();
-        ExtractQueryTermsService.extractQueryMetadata(query, document, QUERY_TERMS_FIELD, QUERY_TERMS_FIELD_TYPE);
+        ExtractQueryTermsService.extractQueryTerms(query, document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE);
         assertThat(document.getFields().size(), equalTo(1));
-        assertThat(document.getFields().get(0).name(), equalTo(QUERY_TERMS_FIELD));
-        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("\u0000"));
+        assertThat(document.getFields().get(0).name(), equalTo(UNKNOWN_QUERY_FIELD));
+        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo(""));
     }
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(termQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(termQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
@@ -103,7 +104,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(phraseQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(phraseQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -124,7 +125,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(booleanQuery));
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(3));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -150,7 +151,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(booleanQuery));
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -171,7 +172,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(booleanQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -180,7 +181,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(constantScoreQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -189,7 +190,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_boostQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
-        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryMetadata(constantScoreQuery));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -199,7 +200,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
         try {
-            ExtractQueryTermsService.extractQueryMetadata(termRangeQuery);
+            ExtractQueryTermsService.extractQueryTerms(termRangeQuery);
             fail("UnsupportedQueryException expected");
         } catch (ExtractQueryTermsService.UnsupportedQueryException e) {
             assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
@@ -212,7 +213,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         BooleanQuery bq = builder.build();
 
         try {
-            ExtractQueryTermsService.extractQueryMetadata(bq);
+            ExtractQueryTermsService.extractQueryTerms(bq);
             fail("UnsupportedQueryException expected");
         } catch (ExtractQueryTermsService.UnsupportedQueryException e) {
             assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
@@ -227,28 +228,28 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
-        Query query = ExtractQueryTermsService.createQueryMetadataQuery(indexReader, QUERY_TERMS_FIELD);
+        Query query = ExtractQueryTermsService.createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD);
         assertThat(query, instanceOf(TermsQuery.class));
 
         // no easy way to get to the terms in TermsQuery,
         // if there a less then 16 terms then it gets rewritten to bq and then we can easily check the terms
         BooleanQuery booleanQuery = (BooleanQuery) ((ConstantScoreQuery) query.rewrite(indexReader)).getQuery();
         assertThat(booleanQuery.clauses().size(), equalTo(15));
-        assertClause(booleanQuery, 0, QUERY_TERMS_FIELD, "\u0000");
-        assertClause(booleanQuery, 1, QUERY_TERMS_FIELD, "_field3\u0000me");
-        assertClause(booleanQuery, 2, QUERY_TERMS_FIELD, "_field3\u0000unhide");
-        assertClause(booleanQuery, 3, QUERY_TERMS_FIELD, "field1\u0000brown");
-        assertClause(booleanQuery, 4, QUERY_TERMS_FIELD, "field1\u0000dog");
-        assertClause(booleanQuery, 5, QUERY_TERMS_FIELD, "field1\u0000fox");
-        assertClause(booleanQuery, 6, QUERY_TERMS_FIELD, "field1\u0000jumps");
-        assertClause(booleanQuery, 7, QUERY_TERMS_FIELD, "field1\u0000lazy");
-        assertClause(booleanQuery, 8, QUERY_TERMS_FIELD, "field1\u0000over");
-        assertClause(booleanQuery, 9, QUERY_TERMS_FIELD, "field1\u0000quick");
-        assertClause(booleanQuery, 10, QUERY_TERMS_FIELD, "field1\u0000the");
-        assertClause(booleanQuery, 11, QUERY_TERMS_FIELD, "field2\u0000more");
-        assertClause(booleanQuery, 12, QUERY_TERMS_FIELD, "field2\u0000some");
-        assertClause(booleanQuery, 13, QUERY_TERMS_FIELD, "field2\u0000text");
-        assertClause(booleanQuery, 14, QUERY_TERMS_FIELD, "field4\u0000123");
+        assertClause(booleanQuery, 0, QUERY_TERMS_FIELD, "_field3\u0000me");
+        assertClause(booleanQuery, 1, QUERY_TERMS_FIELD, "_field3\u0000unhide");
+        assertClause(booleanQuery, 2, QUERY_TERMS_FIELD, "field1\u0000brown");
+        assertClause(booleanQuery, 3, QUERY_TERMS_FIELD, "field1\u0000dog");
+        assertClause(booleanQuery, 4, QUERY_TERMS_FIELD, "field1\u0000fox");
+        assertClause(booleanQuery, 5, QUERY_TERMS_FIELD, "field1\u0000jumps");
+        assertClause(booleanQuery, 6, QUERY_TERMS_FIELD, "field1\u0000lazy");
+        assertClause(booleanQuery, 7, QUERY_TERMS_FIELD, "field1\u0000over");
+        assertClause(booleanQuery, 8, QUERY_TERMS_FIELD, "field1\u0000quick");
+        assertClause(booleanQuery, 9, QUERY_TERMS_FIELD, "field1\u0000the");
+        assertClause(booleanQuery, 10, QUERY_TERMS_FIELD, "field2\u0000more");
+        assertClause(booleanQuery, 11, QUERY_TERMS_FIELD, "field2\u0000some");
+        assertClause(booleanQuery, 12, QUERY_TERMS_FIELD, "field2\u0000text");
+        assertClause(booleanQuery, 13, QUERY_TERMS_FIELD, "field4\u0000123");
+        assertClause(booleanQuery, 14, UNKNOWN_QUERY_FIELD, "");
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {

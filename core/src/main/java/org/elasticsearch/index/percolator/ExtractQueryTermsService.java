@@ -21,7 +21,6 @@ package org.elasticsearch.index.percolator;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
@@ -59,18 +58,19 @@ public final class ExtractQueryTermsService {
 
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
-     *
-     * @param query The query to extract terms from
+     *  @param query The query to extract terms from
      * @param document The document to add the extracted terms to
-     * @param queryMetadataField The field in the document holding the extracted terms
-     * @param queryMetadataFieldType The field type for the query metadata field
+     * @param queryTermsFieldField The field in the document holding the extracted terms
+     * @param unknownQueryField The field used to mark a document that not all query terms could be extracted. For example
+     *                          the query contained an unsupported query (e.g. WildcardQuery).
+     * @param fieldType The field type for the query metadata field
      */
-    public static void extractQueryMetadata(Query query, ParseContext.Document document, String queryMetadataField, FieldType queryMetadataFieldType) {
+    public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField, String unknownQueryField, FieldType fieldType) {
         Set<Term> queryTerms;
         try {
-            queryTerms = extractQueryMetadata(query);
+            queryTerms = extractQueryTerms(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(queryMetadataField, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR}), queryMetadataFieldType));
+            document.add(new Field(unknownQueryField, new BytesRef(), fieldType));
             return;
         }
         for (Term term : queryTerms) {
@@ -78,7 +78,7 @@ public final class ExtractQueryTermsService {
             builder.append(new BytesRef(term.field()));
             builder.append(FIELD_VALUE_SEPARATOR);
             builder.append(term.bytes());
-            document.add(new Field(queryMetadataField, builder.toBytesRef(), queryMetadataFieldType));
+            document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
         }
     }
 
@@ -91,7 +91,7 @@ public final class ExtractQueryTermsService {
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    public static Set<Term> extractQueryMetadata(Query query) {
+    static Set<Term> extractQueryTerms(Query query) {
         // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
         // TODO: add support for span queries
         if (query instanceof TermQuery) {
@@ -129,7 +129,7 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
 
-                    Set<Term> temp = extractQueryMetadata(clause.getQuery());
+                    Set<Term> temp = extractQueryTerms(clause.getQuery());
                     bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
                 }
                 if (bestClause != null) {
@@ -144,16 +144,16 @@ public final class ExtractQueryTermsService {
                         // we don't need to remember the things that do *not* match...
                         continue;
                     }
-                    terms.addAll(extractQueryMetadata(clause.getQuery()));
+                    terms.addAll(extractQueryTerms(clause.getQuery()));
                 }
                 return terms;
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return extractQueryMetadata(wrappedQuery);
+            return extractQueryTerms(wrappedQuery);
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return extractQueryMetadata(wrappedQuery);
+            return extractQueryTerms(wrappedQuery);
         } else {
             throw new UnsupportedQueryException(query);
         }
@@ -187,9 +187,9 @@ public final class ExtractQueryTermsService {
     /**
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
-    public static Query createQueryMetadataQuery(IndexReader indexReader, String queryMetadataField) throws IOException {
+    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField, String unknownQueryField) throws IOException {
         List<Term> extractedTerms = new ArrayList<>();
-        extractedTerms.add(new Term(queryMetadataField, new BytesRef(new byte[]{FIELD_VALUE_SEPARATOR})));
+        extractedTerms.add(new Term(unknownQueryField));
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
             Terms terms = fields.terms(field);

@@ -222,6 +222,27 @@ final class PercolatorQuery extends Query {
         }
     }
 
+    private final Object instance = new Object();
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        PercolatorQuery that = (PercolatorQuery) o;
+
+        return instance.equals(that.instance);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + instance.hashCode();
+        return result;
+    }
+
     @Override
     public String toString(String s) {
         return "PercolatorQuery{inner={" + percolatorQueriesQuery.toString(s)  + "}}";

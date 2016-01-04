@@ -71,8 +71,8 @@ public class ShardStateAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateHandler(allocationService, logger), logger));
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateHandler(allocationService, routingService, logger), logger));
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
     }
 
     public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
@@ -113,12 +113,12 @@ public class ShardStateAction extends AbstractComponent {
 
     private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
         private final ClusterService clusterService;
-        private final ShardFailedClusterStateHandler shardFailedClusterStateHandler;
+        private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
         private final ESLogger logger;
 
-        public ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateHandler shardFailedClusterStateHandler, ESLogger logger) {
+        public ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor, ESLogger logger) {
             this.clusterService = clusterService;
-            this.shardFailedClusterStateHandler = shardFailedClusterStateHandler;
+            this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
             this.logger = logger;
         }
 
@@ -129,7 +129,7 @@ public class ShardStateAction extends AbstractComponent {
                 "shard-failed (" + request.shardRouting + "), message [" + request.message + "]",
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateHandler,
+                shardFailedClusterStateTaskExecutor,
                 new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Throwable t) {
@@ -164,12 +164,12 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static class ShardFailedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+    private static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
         private final ESLogger logger;
 
-        public ShardFailedClusterStateHandler(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
+        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
             this.allocationService = allocationService;
             this.routingService = routingService;
             this.logger = logger;
@@ -227,12 +227,12 @@ public class ShardStateAction extends AbstractComponent {
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
         private final ClusterService clusterService;
-        private final ShardStartedClusterStateHandler shardStartedClusterStateHandler;
+        private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
         private final ESLogger logger;
 
-        public ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateHandler shardStartedClusterStateHandler, ESLogger logger) {
+        public ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor, ESLogger logger) {
             this.clusterService = clusterService;
-            this.shardStartedClusterStateHandler = shardStartedClusterStateHandler;
+            this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
             this.logger = logger;
         }
 
@@ -243,17 +243,17 @@ public class ShardStateAction extends AbstractComponent {
                 "shard-started (" + request.shardRouting + "), reason [" + request.message + "]",
                 request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
-                shardStartedClusterStateHandler,
-                shardStartedClusterStateHandler);
+                shardStartedClusterStateTaskExecutor,
+                shardStartedClusterStateTaskExecutor);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
-    private static class ShardStartedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry>, ClusterStateTaskListener {
+    private static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final ESLogger logger;
 
-        public ShardStartedClusterStateHandler(AllocationService allocationService, ESLogger logger) {
+        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, ESLogger logger) {
             this.allocationService = allocationService;
             this.logger = logger;
         }

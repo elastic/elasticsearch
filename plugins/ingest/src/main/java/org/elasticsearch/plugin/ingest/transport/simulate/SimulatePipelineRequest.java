@@ -147,9 +147,9 @@ public class SimulatePipelineRequest extends ActionRequest {
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Map<String, Object> dataMap : docs) {
             Map<String, Object> document = ConfigurationUtils.readMap(dataMap, Fields.SOURCE);
-            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, MetaData.INDEX.getFieldName()),
-                    ConfigurationUtils.readStringProperty(dataMap, MetaData.TYPE.getFieldName()),
-                    ConfigurationUtils.readStringProperty(dataMap, MetaData.ID.getFieldName()),
+            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, MetaData.INDEX.getFieldName(), "_index"),
+                    ConfigurationUtils.readStringProperty(dataMap, MetaData.TYPE.getFieldName(), "_type"),
+                    ConfigurationUtils.readStringProperty(dataMap, MetaData.ID.getFieldName(), "_id"),
                     ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.ROUTING.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.PARENT.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.TIMESTAMP.getFieldName()),

@@ -70,6 +70,33 @@
   - length: { docs: 1 }
 
 ---
+"Test simulate without index type and id":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value" : "_value"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+
+---
 "Test simulate with provided pipeline definition with on_failure block":
   - do:
       ingest.simulate:

@@ -137,7 +137,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(t);
                         } catch (Throwable channelThrowable) {
-                            logger.warn("{} failed to send failure [{}] while failing shard [{}]", channelThrowable, t, request.shardRouting.shardId(), request.shardRouting);
+                            logger.warn("{} failed to send failure [{}] while failing shard [{}]", channelThrowable, request.shardRouting.shardId(), t, request.shardRouting);
                         }
                     }
 

@@ -64,7 +64,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             StringFieldMapper extractedTermsField = createStringFieldBuilder(EXTRACTED_TERMS_FIELD_NAME).build(context);
             StringFieldMapper unknownQueryField = createStringFieldBuilder(UNKNOWN_QUERY_FIELD_NAME).build(context);
             context.path().remove();
-            return new PercolatorFieldMapper(name(), fieldType(), fieldType(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField, unknownQueryField);
+            return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField, unknownQueryField);
         }
 
         static StringFieldMapper.Builder createStringFieldBuilder(String name) {

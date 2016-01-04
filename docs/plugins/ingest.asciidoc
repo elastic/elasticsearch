@@ -445,6 +445,20 @@ An example that adds the parsed date to the `timestamp` field based on the `init
 }
 --------------------------------------------------
 
+==== Fail processor
+The Fail Processor is used to raise an exception. This is useful for when
+a user expects a pipeline to fail and wishes to relay a specific message
+to the requester.
+
+[source,js]
+--------------------------------------------------
+{
+  "fail": {
+    "message": "an error message"
+  }
+}
+--------------------------------------------------
+
 === Accessing data in pipelines
 
 Processors in pipelines have read and write access to documents that pass through the pipeline.

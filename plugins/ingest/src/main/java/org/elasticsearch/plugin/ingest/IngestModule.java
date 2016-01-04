@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.append.AppendProcessor;
 import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
+import org.elasticsearch.ingest.processor.fail.FailProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
 import org.elasticsearch.ingest.processor.gsub.GsubProcessor;
@@ -72,6 +73,7 @@ public class IngestModule extends AbstractModule {
             addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
             addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
             addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
+            addProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
 
             MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
             for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {

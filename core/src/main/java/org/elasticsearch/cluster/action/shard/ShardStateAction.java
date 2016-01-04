@@ -124,7 +124,13 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
-            handleShardFailureOnMaster(request, new ClusterStateTaskListener() {
+            logger.warn("{} received shard failed for {}", request.failure, request.shardRouting.shardId(), request);
+            clusterService.submitStateUpdateTask(
+                "shard-failed (" + request.shardRouting + "), message [" + request.message + "]",
+                request,
+                ClusterStateTaskConfig.build(Priority.HIGH),
+                shardFailedClusterStateHandler,
+                new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Throwable t) {
                         logger.error("{} unexpected failure while failing shard [{}]", t, request.shardRouting.shardId(), request.shardRouting);
@@ -155,16 +161,6 @@ public class ShardStateAction extends AbstractComponent {
                     }
                 }
             );
-        }
-
-        private void handleShardFailureOnMaster(final ShardRoutingEntry shardRoutingEntry, ClusterStateTaskListener listener) {
-            logger.warn("{} received shard failed for [{}]", shardRoutingEntry.failure, shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
-            clusterService.submitStateUpdateTask(
-                "shard-failed (" + shardRoutingEntry.shardRouting + "), message [" + shardRoutingEntry.message + "]",
-                shardRoutingEntry,
-                ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateHandler,
-                listener);
         }
     }
 
@@ -230,19 +226,14 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
-            handleShardStartedOnMaster(request);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        private void handleShardStartedOnMaster(final ShardRoutingEntry shardRoutingEntry) {
-            logger.debug("{} received shard started for [{}]", shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
-
+            logger.debug("{} received shard started for [{}]", request.shardRouting.shardId(), request);
             clusterService.submitStateUpdateTask(
-                "shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.message + "]",
-                shardRoutingEntry,
+                "shard-started (" + request.shardRouting + "), reason [" + request.message + "]",
+                request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateHandler,
                 shardStartedClusterStateHandler);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

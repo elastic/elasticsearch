@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import java.util.Set;
+
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -51,8 +53,13 @@ public class RestGlobalContext {
         return settings;
     }
 
-    public RestController getController() {
-        return controller;
+    /**
+     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
+     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
+     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
+     */
+    public Set<String> relevantHeaders() {
+        return controller.relevantHeaders();
     }
 
     public Client getClient() {

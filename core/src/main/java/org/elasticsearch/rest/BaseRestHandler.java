@@ -41,20 +41,18 @@ import org.elasticsearch.common.component.AbstractComponent;
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    private final RestController controller;
-    private final Client client;
+    private final RestGlobalContext context;
     protected final ParseFieldMatcher parseFieldMatcher;
 
     protected BaseRestHandler(RestGlobalContext context) {
         super(context.getSettings());
-        this.controller = context.getController();
-        this.client = context.getClient();
+        this.context = context;
         this.parseFieldMatcher = new ParseFieldMatcher(context.getSettings());
     }
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, new HeadersAndContextCopyClient(client, request, controller.relevantHeaders()));
+        handleRequest(request, channel, new HeadersAndContextCopyClient(context.getClient(), request, context.relevantHeaders()));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
@@ -70,7 +68,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             this.headers = headers;
         }
 
-        private static void copyHeadersAndContext(ActionRequest actionRequest, RestRequest restRequest, Set<String> headers) {
+        private static void copyHeadersAndContext(ActionRequest<?> actionRequest, RestRequest restRequest, Set<String> headers) {
             for (String usefulHeader : headers) {
                 String headerValue = restRequest.header(usefulHeader);
                 if (headerValue != null) {

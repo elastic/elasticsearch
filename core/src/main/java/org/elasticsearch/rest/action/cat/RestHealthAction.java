@@ -19,6 +19,9 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -32,15 +35,9 @@ import org.elasticsearch.rest.action.support.RestTable;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import java.util.Locale;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 public class RestHealthAction extends AbstractCatAction {
     public RestHealthAction(RestGlobalContext context) {
         super(context, "health");
-        context.getController().registerHandler(GET, "/_cat/health", this);
     }
 
     @Override

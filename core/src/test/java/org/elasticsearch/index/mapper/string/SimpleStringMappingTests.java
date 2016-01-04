@@ -540,24 +540,4 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    /**
-     * Test backward compatibility
-     */
-    public void testBackwardCompatible() throws Exception {
-
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
-                                         Version.V_1_7_1)).build();
-
-        DocumentMapperParser parser = createIndex("backward_compatible_index", settings).mapperService().documentMapperParser();
-
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("field1")
-                .field("type", "string")
-                .field("position_offset_gap", 10)
-                .endObject().endObject().endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"position_increment_gap\":10"));
-    }
 }

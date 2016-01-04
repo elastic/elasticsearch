@@ -27,12 +27,9 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -42,10 +39,6 @@ import static java.util.Collections.unmodifiableMap;
  * utility classes like MapperService, ...
  */
 public final class Mapping implements ToXContent {
-
-    // Set of fields that were included into the root object mapper before 2.0
-    public static final Set<String> LEGACY_INCLUDE_IN_OBJECT = Collections.unmodifiableSet(new HashSet<>(
-            Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl")));
 
     final Version indexCreated;
     final RootObjectMapper root;
@@ -58,9 +51,6 @@ public final class Mapping implements ToXContent {
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            if (indexCreated.before(Version.V_2_0_0_beta1) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
-                rootObjectMapper = rootObjectMapper.copyAndPutMapper(metadataMapper);
-            }
             metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
         }
         this.root = rootObjectMapper;

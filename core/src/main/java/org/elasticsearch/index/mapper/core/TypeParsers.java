@@ -113,9 +113,7 @@ public class TypeParsers {
             } else if (propName.equals("store_term_vector_payloads")) {
                 builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
-                    propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-
+            } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
@@ -192,25 +190,11 @@ public class TypeParsers {
                 }
                 DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
                 iterator.remove();
-            } else if (propName.equals("omit_term_freq_and_positions")) {
-                final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-                if (indexVersionCreated.onOrAfter(Version.V_1_0_0_RC2)) {
-                    throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead");
-                }
-                // deprecated option for BW compat
-                builder.indexOptions(op);
-                iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("postings_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                // ignore for old indexes
-                iterator.remove();
-            } else if (propName.equals("doc_values_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());

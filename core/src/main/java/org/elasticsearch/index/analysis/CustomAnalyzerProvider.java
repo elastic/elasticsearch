@@ -74,7 +74,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             tokenFilters.add(tokenFilter);
         }
 
-        int positionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
+        int positionIncrementGap = StringFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
         if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
             if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){

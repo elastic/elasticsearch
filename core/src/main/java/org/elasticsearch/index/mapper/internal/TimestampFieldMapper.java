@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -46,7 +45,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 public class TimestampFieldMapper extends MetadataFieldMapper {
 
@@ -58,10 +56,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         public static final String NAME = "_timestamp";
 
         // TODO: this should be removed
-        public static final TimestampFieldType PRE_20_FIELD_TYPE;
         public static final TimestampFieldType FIELD_TYPE = new TimestampFieldType();
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("epoch_millis||dateOptionalTime");
 
         static {
             FIELD_TYPE.setStored(true);
@@ -73,34 +69,20 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Integer.MAX_VALUE));
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
-            PRE_20_FIELD_TYPE = FIELD_TYPE.clone();
-            PRE_20_FIELD_TYPE.setStored(false);
-            PRE_20_FIELD_TYPE.setHasDocValues(false);
-            PRE_20_FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER_BEFORE_2_0);
-            PRE_20_FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER_BEFORE_2_0, Defaults.PRECISION_STEP_64_BIT));
-            PRE_20_FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER_BEFORE_2_0, Integer.MAX_VALUE));
-            PRE_20_FIELD_TYPE.freeze();
         }
 
         public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
-        public static final String PATH = null;
         public static final String DEFAULT_TIMESTAMP = "now";
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, TimestampFieldMapper> {
 
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
-        private String path = Defaults.PATH;
         private String defaultTimestamp = Defaults.DEFAULT_TIMESTAMP;
-        private boolean explicitStore = false;
         private Boolean ignoreMissing = null;
 
         public Builder(MappedFieldType existing, Settings settings) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, chooseFieldType(settings, null));
-            if (existing != null) {
-                // if there is an existing type, always use that store value (only matters for < 2.0)
-                explicitStore = true;
-            }
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
         @Override
@@ -110,11 +92,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         public Builder enabled(EnabledAttributeMapper enabledState) {
             this.enabledState = enabledState;
-            return builder;
-        }
-
-        public Builder path(String path) {
-            this.path = path;
             return builder;
         }
 
@@ -135,32 +112,14 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Builder store(boolean store) {
-            explicitStore = true;
             return super.store(store);
         }
 
         @Override
         public TimestampFieldMapper build(BuilderContext context) {
-            if (explicitStore == false && context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
-                fieldType.setStored(false);
-            }
-
-            if (fieldType().dateTimeFormatter().equals(Defaults.DATE_TIME_FORMATTER)) {
-                fieldType().setDateTimeFormatter(getDateTimeFormatter(context.indexSettings()));
-            }
-
             setupFieldType(context);
-            return new TimestampFieldMapper(fieldType, defaultFieldType, enabledState, path, defaultTimestamp,
+            return new TimestampFieldMapper(fieldType, defaultFieldType, enabledState, defaultTimestamp,
                     ignoreMissing, context.indexSettings());
-        }
-    }
-
-    private static FormatDateTimeFormatter getDateTimeFormatter(Settings indexSettings) {
-        Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.onOrAfter(Version.V_2_0_0_beta1)) {
-            return Defaults.DATE_TIME_FORMATTER;
-        } else {
-            return Defaults.DATE_TIME_FORMATTER_BEFORE_2_0;
         }
     }
 
@@ -168,9 +127,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.mapperService().getIndexSettings().getSettings());
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                parseField(builder, builder.name, node, parserContext);
-            }
             boolean defaultSet = false;
             Boolean ignoreMissing = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -181,23 +137,12 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                     EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
-                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.path(fieldNode.toString());
-                    iterator.remove();
                 } else if (fieldName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("default")) {
                     if (fieldNode == null) {
-                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_4_0_Beta1) &&
-                                parserContext.indexVersionCreated().before(Version.V_1_5_0)) {
-                            // We are reading an index created in 1.4 with feature #7036
-                            // `default: null` was explicitly set. We need to change this index to
-                            // `ignore_missing: false`
-                            builder.ignoreMissing(false);
-                        } else {
-                            throw new TimestampParsingException("default timestamp can not be set to null");
-                        }
+                        throw new TimestampParsingException("default timestamp can not be set to null");
                     } else {
                         builder.defaultTimestamp(fieldNode.toString());
                         defaultSet = true;
@@ -246,28 +191,19 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static MappedFieldType chooseFieldType(Settings settings, MappedFieldType existing) {
-        if (existing != null) {
-            return existing;
-        }
-        return Version.indexCreated(settings).onOrAfter(Version.V_2_0_0_beta1) ? Defaults.FIELD_TYPE : Defaults.PRE_20_FIELD_TYPE;
-    }
-
     private EnabledAttributeMapper enabledState;
 
-    private final String path;
     private final String defaultTimestamp;
     private final Boolean ignoreMissing;
 
     private TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null).clone(), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
+        this(existing != null ? existing : Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, Defaults.ENABLED, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
     }
 
-    private TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,
+    private TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState,
                                    String defaultTimestamp, Boolean ignoreMissing, Settings indexSettings) {
         super(NAME, fieldType, defaultFieldType, indexSettings);
         this.enabledState = enabledState;
-        this.path = path;
         this.defaultTimestamp = defaultTimestamp;
         this.ignoreMissing = ignoreMissing;
     }
@@ -279,10 +215,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    public String path() {
-        return this.path;
     }
 
     public String defaultTimestamp() {
@@ -329,35 +261,19 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
-        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // if all are defaults, no sense to write it at all
-        if (!includeDefaults && indexed == indexedDefault && hasCustomFieldDataSettings() == false &&
-            fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
+        if (!includeDefaults && enabledState == Defaults.ENABLED
                 && fieldType().dateTimeFormatter().format().equals(Defaults.DATE_TIME_FORMATTER.format())
-                && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
-                && defaultFieldType.hasDocValues() == fieldType().hasDocValues()) {
+                && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (indexCreatedBefore2x && (includeDefaults || (indexed != indexedDefault) || (fieldType().tokenized() != Defaults.FIELD_TYPE.tokenized()))) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
-        }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.PRE_20_FIELD_TYPE.stored())) {
-            builder.field("store", fieldType().stored());
-        }
-        if (indexCreatedBefore2x) {
-            doXContentDocValues(builder, includeDefaults);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || path != Defaults.PATH)) {
-            builder.field("path", path);
-        }
         // different format handling depending on index version
-        String defaultDateFormat = indexCreatedBefore2x ? Defaults.DATE_TIME_FORMATTER_BEFORE_2_0.format() : Defaults.DATE_TIME_FORMATTER.format();
+        String defaultDateFormat = Defaults.DATE_TIME_FORMATTER.format();
         if (includeDefaults || !fieldType().dateTimeFormatter().format().equals(defaultDateFormat)) {
             builder.field("format", fieldType().dateTimeFormatter().format());
         }
@@ -366,9 +282,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
         if (includeDefaults || ignoreMissing != null) {
             builder.field("ignore_missing", ignoreMissing);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || hasCustomFieldDataSettings())) {
-            builder.field("fielddata", fieldType().fieldDataType().getSettings().getAsMap());
         }
 
         builder.endObject();
@@ -392,13 +305,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             conflicts.add("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
         } else if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
             conflicts.add("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
-        }
-        if (this.path != null) {
-            if (path.equals(timestampFieldMapperMergeWith.path()) == false) {
-                conflicts.add("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
-            }
-        } else if (timestampFieldMapperMergeWith.path() != null) {
-            conflicts.add("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
         }
         if (conflicts.isEmpty() == false) {
             throw new IllegalArgumentException("Conflicts: " + conflicts);

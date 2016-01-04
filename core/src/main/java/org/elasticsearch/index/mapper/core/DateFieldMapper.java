@@ -73,7 +73,6 @@ public class DateFieldMapper extends NumberFieldMapper {
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strict_date_optional_time||epoch_millis", Locale.ROOT);
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("date_optional_time", Locale.ROOT);
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
         public static final DateFieldType FIELD_TYPE = new DateFieldType();
 
@@ -128,12 +127,6 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         protected void setupFieldType(BuilderContext context) {
-            if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0_beta1) &&
-                !fieldType().dateTimeFormatter().format().contains("epoch_")) {
-                String format = fieldType().timeUnit().equals(TimeUnit.SECONDS) ? "epoch_second" : "epoch_millis";
-                fieldType().setDateTimeFormatter(Joda.forPattern(format + "||" + fieldType().dateTimeFormatter().format()));
-            }
-
             FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
             if (!locale.equals(dateTimeFormatter.locale())) {
                 fieldType().setDateTimeFormatter(new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale));
@@ -186,11 +179,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                 }
             }
             if (!configuredFormat) {
-                if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                    builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER);
-                } else {
-                    builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER_BEFORE_2_0);
-                }
+                builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER);
             }
             return builder;
         }

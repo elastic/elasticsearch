@@ -655,60 +655,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    /**
-     * Test backward compatibility
-     */
-    public void testBackwardCompatibleOptions() throws Exception {
-        // backward compatibility testing
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
-                Version.V_1_7_1)).build();
-
-        // validate
-        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate_lat", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate_lon", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        // normalize
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"coerce\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize_lat", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"coerce\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse("type", new CompressedXContent(mapping));
-        assertThat(parser.parse("type", new CompressedXContent(mapping)).mapping().toString(), containsString("\"coerce\":true"));
-    }
-
     public void testGeoPointMapperMerge() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();

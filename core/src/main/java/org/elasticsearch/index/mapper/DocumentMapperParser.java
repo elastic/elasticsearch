@@ -143,11 +143,7 @@ public class DocumentMapperParser {
 
     public static void checkNoRemainingFields(Map<String, Object> fieldNodeMap, Version indexVersionCreated, String message) {
         if (!fieldNodeMap.isEmpty()) {
-            if (indexVersionCreated.onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
-            } else {
-                logger.debug(message + "{}", getRemainingFields(fieldNodeMap));
-            }
+            throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
         }
     }
 

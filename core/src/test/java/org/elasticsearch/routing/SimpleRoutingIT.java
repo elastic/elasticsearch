@@ -217,76 +217,6 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
     }
 
-    public void testRequiredRoutingWithPathMapping() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
-                        .startObject("_routing").field("required", true).field("path", "routing_field").endObject().startObject("properties")
-                        .startObject("routing_field").field("type", "string").field("index", randomBoolean() ? "no" : "not_analyzed").field("doc_values", randomBoolean() ? "yes" : "no").endObject().endObject()
-                        .endObject().endObject())
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
-                .execute().actionGet();
-        ensureGreen();
-
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1", "routing_field", "0").setRefresh(true).execute().actionGet();
-
-        logger.info("--> check failure with different routing");
-        try {
-            client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("1").setSource("field", "value1", "routing_field", "0").setRefresh(true).execute().actionGet();
-            fail();
-        } catch (ElasticsearchException e) {
-            assertThat(e.unwrapCause(), instanceOf(MapperParsingException.class));
-        }
-
-
-        logger.info("--> verifying get with no routing, should fail");
-        for (int i = 0; i < 5; i++) {
-            try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
-                fail();
-            } catch (RoutingMissingException e) {
-                assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
-            }
-        }
-        logger.info("--> verifying get with routing, should find");
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-        }
-    }
-
-    public void testRequiredRoutingWithPathMappingBulk() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
-                        .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
-                        .endObject().endObject())
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
-                .execute().actionGet();
-        ensureGreen();
-
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareBulk().add(
-                client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1", "routing_field", "0")).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        logger.info("--> verifying get with no routing, should fail");
-        for (int i = 0; i < 5; i++) {
-            try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
-                fail();
-            } catch (RoutingMissingException e) {
-                assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
-            }
-        }
-        logger.info("--> verifying get with routing, should find");
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-        }
-    }
-
     public void testRequiredRoutingBulk() throws Exception {
         client().admin().indices().prepareCreate("test")
             .addAlias(new Alias("alias"))
@@ -299,37 +229,6 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> indexing with id [1], and routing [0]");
         client().prepareBulk().add(
             client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1")).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        logger.info("--> verifying get with no routing, should fail");
-        for (int i = 0; i < 5; i++) {
-            try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
-                fail();
-            } catch (RoutingMissingException e) {
-                assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
-            }
-        }
-        logger.info("--> verifying get with routing, should find");
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-        }
-    }
-
-    public void testRequiredRoutingWithPathNumericType() throws Exception {
-
-        client().admin().indices().prepareCreate("test")
-                .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
-                        .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
-                        .endObject().endObject())
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
-                .execute().actionGet();
-        ensureGreen();
-
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1", "routing_field", 0).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> verifying get with no routing, should fail");

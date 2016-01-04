@@ -161,15 +161,12 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (indexCreatedBefore2x == false || fieldType().stored() == false)) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() == true)) {
-            builder.field("store", fieldType().stored());
         }
         builder.endObject();
         return builder;

@@ -78,7 +78,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
              * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
+            int overridePositionIncrementGap = StringFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*

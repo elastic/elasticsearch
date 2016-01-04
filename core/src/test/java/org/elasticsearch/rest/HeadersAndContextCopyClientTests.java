@@ -19,6 +19,15 @@
 
 package org.elasticsearch.rest;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -34,17 +43,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestGlobalContext.HeadersAndContextCopyClient;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -373,7 +374,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

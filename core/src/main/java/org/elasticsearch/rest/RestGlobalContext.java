@@ -21,7 +21,13 @@ package org.elasticsearch.rest;
 
 import java.util.Set;
 
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
@@ -47,22 +53,43 @@ public class RestGlobalContext {
     }
 
     /**
-     * Returns the REST headers that get copied over from a
-     * {@link org.elasticsearch.rest.RestRequest} to its corresponding
-     * {@link org.elasticsearch.transport.TransportRequest}(s). By default no
-     * headers get copied but it is possible to extend this behaviour via
-     * plugins by calling
-     * {@link RestController#registerRelevantHeaders(String...)}.
+     * Create the client to be used to process a request. This client will copy
+     * headers from the rest request into the internal requests but otherwise
+     * simply wraps a globally shared client.
      */
-    public Set<String> relevantHeaders() {
-        return controller.relevantHeaders();
-    }
-
-    public Client getClient() {
-        return client;
+    public Client createClient(RestRequest request) {
+        return new HeadersAndContextCopyClient(client, request, controller.relevantHeaders());
     }
 
     public IndicesQueriesRegistry getIndicesQueriesRegistry() {
         return indicesQueriesRegistry;
+    }
+
+    static final class HeadersAndContextCopyClient extends FilterClient {
+
+        private final RestRequest restRequest;
+        private final Set<String> headers;
+
+        HeadersAndContextCopyClient(Client in, RestRequest restRequest, Set<String> headers) {
+            super(in);
+            this.restRequest = restRequest;
+            this.headers = headers;
+        }
+
+        private static void copyHeadersAndContext(ActionRequest<?> actionRequest, RestRequest restRequest, Set<String> headers) {
+            for (String usefulHeader : headers) {
+                String headerValue = restRequest.header(usefulHeader);
+                if (headerValue != null) {
+                    actionRequest.putHeader(usefulHeader, headerValue);
+                }
+            }
+            actionRequest.copyContextFrom(restRequest);
+        }
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            copyHeadersAndContext(request, restRequest, headers);
+            super.doExecute(action, request, listener);
+        }
     }
 }

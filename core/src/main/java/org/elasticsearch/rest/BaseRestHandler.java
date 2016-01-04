@@ -19,15 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import java.util.Set;
-
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 
@@ -52,36 +44,8 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, new HeadersAndContextCopyClient(context.getClient(), request, context.relevantHeaders()));
+        handleRequest(request, channel, context.createClient(request));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
-
-    static final class HeadersAndContextCopyClient extends FilterClient {
-
-        private final RestRequest restRequest;
-        private final Set<String> headers;
-
-        HeadersAndContextCopyClient(Client in, RestRequest restRequest, Set<String> headers) {
-            super(in);
-            this.restRequest = restRequest;
-            this.headers = headers;
-        }
-
-        private static void copyHeadersAndContext(ActionRequest<?> actionRequest, RestRequest restRequest, Set<String> headers) {
-            for (String usefulHeader : headers) {
-                String headerValue = restRequest.header(usefulHeader);
-                if (headerValue != null) {
-                    actionRequest.putHeader(usefulHeader, headerValue);
-                }
-            }
-            actionRequest.copyContextFrom(restRequest);
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-            copyHeadersAndContext(request, restRequest, headers);
-            super.doExecute(action, request, listener);
-        }
-    }
 }

@@ -40,9 +40,9 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestGlobalContext;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
@@ -182,7 +182,7 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<TransportService> transportServiceTypes = new ExtensionPoint.SelectedType<>("transport_service", TransportService.class);
     private final ExtensionPoint.SelectedType<Transport> transportTypes = new ExtensionPoint.SelectedType<>("transport", Transport.class);
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
-    private final Map<Class<? extends BaseRestHandler>, Function<RestGlobalContext, ? extends BaseRestHandler>> actions = new HashMap<>();
+    private final Map<Class<? extends RestHandler>, Function<RestGlobalContext, ? extends RestHandler>> actions = new HashMap<>();
 
     private RestGlobalContext context;
     /**
@@ -261,7 +261,7 @@ public class NetworkModule extends AbstractModule {
         httpTransportTypes.registerExtension(name, clazz);
     }
 
-    public <T extends BaseRestHandler> void registerRestHandler(Class<T> type, Function<RestGlobalContext, T> builder) {
+    public <T extends RestHandler> void registerRestHandler(Class<T> type, Function<RestGlobalContext, T> builder) {
         requireNonNull(type, "Must define the action type being registered");
         requireNonNull(builder, "Must define the builder to register");
         Object old = actions.putIfAbsent(type, builder);
@@ -321,8 +321,8 @@ public class NetworkModule extends AbstractModule {
         requireNonNull(context, "Rest actions cannot be setup before their dependencies have been injected");
         Set<AbstractCatAction> catActions = new HashSet<>();
 
-        for (Map.Entry<Class<? extends BaseRestHandler>, Function<RestGlobalContext, ? extends BaseRestHandler>> t : actions.entrySet()) {
-            BaseRestHandler handler = t.getValue().apply(context);
+        for (Map.Entry<Class<? extends RestHandler>, Function<RestGlobalContext, ? extends RestHandler>> t : actions.entrySet()) {
+            RestHandler handler = t.getValue().apply(context);
             if (t.getKey() != handler.getClass()) {
                 throw new IllegalStateException(
                         "REST handler registered as [" + t.getKey() + "] but actually build a [" + handler.getClass() + "]");
@@ -335,7 +335,7 @@ public class NetworkModule extends AbstractModule {
         registerHandlerWithController(new RestCatAction(context, catActions));
     }
 
-    private void registerHandlerWithController(BaseRestHandler handler) {
+    private void registerHandlerWithController(RestHandler handler) {
         Collection<Tuple<RestRequest.Method, String>> registrations = handler.registrations();
         if (registrations.isEmpty()) {
             throw new IllegalArgumentException(

@@ -84,14 +84,14 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void resendShardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
-        logger.trace("re-sending failed shard [{}], index UUID [{}], reason [{}]", failure, shardRouting, indexUUID, message);
+        logger.trace("{} re-sending failed shard [{}], index UUID [{}], reason [{}]", shardRouting.shardId(), failure, shardRouting, indexUUID, message);
         shardFailed(clusterState, shardRouting, indexUUID, message, failure, listener);
     }
 
     public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
-            logger.warn("no master known to fail shard [{}]", shardRouting);
+            logger.warn("{} no master known to fail shard [{}]", shardRouting.shardId(), shardRouting);
             listener.onShardFailedNoMaster();
             return;
         }
@@ -109,7 +109,7 @@ public class ShardStateAction extends AbstractComponent {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.warn("unexpected failure while sending request to [{}] to fail shard [{}]", exp, masterNode, shardRoutingEntry);
+                    logger.warn("{} unexpected failure while sending request to [{}] to fail shard [{}]", exp, shardRoutingEntry.shardRouting.shardId(), masterNode, shardRoutingEntry);
                     listener.onShardFailedFailure(masterNode, exp);
                 }
             });
@@ -127,21 +127,21 @@ public class ShardStateAction extends AbstractComponent {
             handleShardFailureOnMaster(request, new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure while failing shard [{}]", t, request.shardRouting);
+                        logger.error("{} unexpected failure while failing shard [{}]", t, request.shardRouting.shardId(), request.shardRouting);
                         try {
                             channel.sendResponse(t);
                         } catch (Throwable channelThrowable) {
-                            logger.warn("failed to send failure [{}] while failing shard [{}]", channelThrowable, t, request.shardRouting);
+                            logger.warn("{} failed to send failure [{}] while failing shard [{}]", channelThrowable, t, request.shardRouting.shardId(), request.shardRouting);
                         }
                     }
 
                     @Override
                     public void onNoLongerMaster(String source) {
-                        logger.error("no longer master while failing shard [{}]", request.shardRouting);
+                        logger.error("{} no longer master while failing shard [{}]", request.shardRouting.shardId(), request.shardRouting);
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Throwable channelThrowable) {
-                            logger.warn("failed to send no longer master while failing shard [{}]", channelThrowable, request.shardRouting);
+                            logger.warn("{} failed to send no longer master while failing shard [{}]", channelThrowable, request.shardRouting.shardId(), request.shardRouting);
                         }
                     }
 
@@ -150,7 +150,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Throwable channelThrowable) {
-                            logger.warn("failed to send response while failing shard [{}]", channelThrowable, request.shardRouting);
+                            logger.warn("{} failed to send response while failing shard [{}]", channelThrowable, request.shardRouting.shardId(), request.shardRouting);
                         }
                     }
                 }
@@ -158,7 +158,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         private void handleShardFailureOnMaster(final ShardRoutingEntry shardRoutingEntry, ClusterStateTaskListener listener) {
-            logger.warn("{} received shard failed for {}", shardRoutingEntry.failure, shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
+            logger.warn("{} received shard failed for [{}]", shardRoutingEntry.failure, shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
             clusterService.submitStateUpdateTask(
                 "shard-failed (" + shardRoutingEntry.shardRouting + "), message [" + shardRoutingEntry.message + "]",
                 shardRoutingEntry,
@@ -207,7 +207,7 @@ public class ShardStateAction extends AbstractComponent {
     public void shardStarted(final ClusterState clusterState, final ShardRouting shardRouting, String indexUUID, final String reason) {
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
-            logger.warn("no master known to start shard [{}]", shardRouting);
+            logger.warn("{} no master known to start shard [{}]", shardRouting.shardId(), shardRouting);
             return;
         }
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason, null);
@@ -216,7 +216,7 @@ public class ShardStateAction extends AbstractComponent {
             SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason, null), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.warn("failure sending start shard [{}] to [{}]", exp, masterNode, shardRouting);
+                    logger.warn("{} failure sending start shard [{}] to [{}]", exp, shardRouting.shardId(), masterNode, shardRouting);
                 }
             });
     }
@@ -235,7 +235,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         private void handleShardStartedOnMaster(final ShardRoutingEntry shardRoutingEntry) {
-            logger.debug("received shard started for {}", shardRoutingEntry);
+            logger.debug("{} received shard started for [{}]", shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
 
             clusterService.submitStateUpdateTask(
                 "shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.message + "]",

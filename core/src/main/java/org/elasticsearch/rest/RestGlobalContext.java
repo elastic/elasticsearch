@@ -22,9 +22,7 @@ package org.elasticsearch.rest;
 import java.util.Set;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 /**
@@ -36,17 +34,12 @@ public class RestGlobalContext {
     private final RestController controller;
     private final Client client;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final SettingsFilter settingsFilter;
 
-    public RestGlobalContext(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver, SettingsFilter settingsFilter) {
+    public RestGlobalContext(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         this.settings = settings;
         this.controller = controller;
         this.client = client;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.settingsFilter = settingsFilter;
     }
 
     public Settings getSettings() {
@@ -54,9 +47,12 @@ public class RestGlobalContext {
     }
 
     /**
-     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
-     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
+     * Returns the REST headers that get copied over from a
+     * {@link org.elasticsearch.rest.RestRequest} to its corresponding
+     * {@link org.elasticsearch.transport.TransportRequest}(s). By default no
+     * headers get copied but it is possible to extend this behaviour via
+     * plugins by calling
+     * {@link RestController#registerRelevantHeaders(String...)}.
      */
     public Set<String> relevantHeaders() {
         return controller.relevantHeaders();
@@ -68,13 +64,5 @@ public class RestGlobalContext {
 
     public IndicesQueriesRegistry getIndicesQueriesRegistry() {
         return indicesQueriesRegistry;
-    }
-
-    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return indexNameExpressionResolver;
-    }
-
-    public SettingsFilter getSettingsFilter() {
-        return settingsFilter;
     }
 }

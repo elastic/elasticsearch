@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import java.util.Locale;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -46,15 +48,13 @@ import org.elasticsearch.rest.action.support.RestTable;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.util.Locale;
-
 public class RestIndicesAction extends AbstractCatAction {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public RestIndicesAction(RestGlobalContext context) {
+    public RestIndicesAction(RestGlobalContext context, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(context, "indices", "indices/{index}");
-        this.indexNameExpressionResolver = context.getIndexNameExpressionResolver();
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

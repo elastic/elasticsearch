@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster.state;
 
+import java.util.EnumSet;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -38,8 +40,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.util.EnumSet;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
@@ -49,9 +49,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestClusterStateAction extends BaseStandardRegistrationsRestHandler {
     private final SettingsFilter settingsFilter;
 
-    public RestClusterStateAction(RestGlobalContext context) {
+    public RestClusterStateAction(RestGlobalContext context, SettingsFilter settingsFilter) {
         super(context, GET, "/_cluster/state", "/_cluster/state/{metric}", "/_cluster/state/{metric}/{indices}");
-        this.settingsFilter = context.getSettingsFilter();
+        this.settingsFilter = settingsFilter;
     }
 
     @Override

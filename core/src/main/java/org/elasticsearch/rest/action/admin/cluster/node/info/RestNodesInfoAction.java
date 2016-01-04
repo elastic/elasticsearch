@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
+import java.util.Set;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -35,8 +37,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.util.Set;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -47,9 +47,9 @@ public class RestNodesInfoAction extends BaseStandardRegistrationsRestHandler {
     private final SettingsFilter settingsFilter;
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport");
 
-    public RestNodesInfoAction(RestGlobalContext context) {
+    public RestNodesInfoAction(RestGlobalContext context, SettingsFilter settingsFilter) {
         super(context, GET, "/_nodes", "/_nodes/{nodeId}", "/_nodes/{nodeId}/{metrics}", "/_nodes/{nodeId}/info/{metrics}");
-        this.settingsFilter = context.getSettingsFilter();
+        this.settingsFilter = settingsFilter;
     }
 
     @Override

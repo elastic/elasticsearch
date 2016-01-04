@@ -19,6 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster.reroute;
 
+import java.io.IOException;
+import java.util.EnumSet;
+
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
@@ -34,9 +37,6 @@ import org.elasticsearch.rest.RestGlobalContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
-import java.io.IOException;
-import java.util.EnumSet;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -47,9 +47,9 @@ public class RestClusterRerouteAction extends BaseStandardRegistrationsRestHandl
 
     private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
-    public RestClusterRerouteAction(RestGlobalContext context) {
+    public RestClusterRerouteAction(RestGlobalContext context, SettingsFilter settingsFilter) {
         super(context, POST, "/_cluster/reroute");
-        this.settingsFilter = context.getSettingsFilter();
+        this.settingsFilter = settingsFilter;
     }
 
     @Override

@@ -46,9 +46,9 @@ public class RestGetRepositoriesAction extends BaseStandardRegistrationsRestHand
 
     private final SettingsFilter settingsFilter;
 
-    public RestGetRepositoriesAction(RestGlobalContext context) {
+    public RestGetRepositoriesAction(RestGlobalContext context, SettingsFilter settingsFilter) {
         super(context, GET, "/_snapshot", "/_snapshot/{repository}");
-        this.settingsFilter = context.getSettingsFilter();
+        this.settingsFilter = settingsFilter;
     }
 
     @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -37,8 +39,6 @@ import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-
-import java.util.concurrent.TimeUnit;
 
 public class RestCountCatAction extends AbstractCatAction {
 

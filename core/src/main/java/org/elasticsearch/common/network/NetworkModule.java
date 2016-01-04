@@ -197,6 +197,10 @@ public class NetworkModule extends AbstractModule {
      * Used only to build RestMainAction.
      */
     private ClusterService clusterService;
+    /**
+     * Used only to build RestIndicesAction.
+     */
+    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -305,8 +309,8 @@ public class NetworkModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.clusterName = clusterName;
         this.clusterService = clusterService;
-        context = new RestGlobalContext(settings, controller, client, indicesQueriesRegistry, indexNameExpressionResolver,
-                settingsFilter);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        context = new RestGlobalContext(settings, controller, client, indicesQueriesRegistry);
     }
 
     /**
@@ -363,7 +367,7 @@ public class NetworkModule extends AbstractModule {
         registerRestHandler(RestCountCatAction.class, RestCountCatAction::new);
         registerRestHandler(RestFielddataAction.class, RestFielddataAction::new);
         registerRestHandler(RestHealthAction.class, RestHealthAction::new);
-        registerRestHandler(RestIndicesAction.class, RestIndicesAction::new);
+        registerRestHandler(RestIndicesAction.class, (RestGlobalContext contex) -> new RestIndicesAction(context, indexNameExpressionResolver));
         registerRestHandler(RestMasterAction.class, RestMasterAction::new);
         registerRestHandler(RestNodeAttrsAction.class, RestNodeAttrsAction::new);
         registerRestHandler(RestNodesAction.class, RestNodesAction::new);
@@ -379,9 +383,9 @@ public class NetworkModule extends AbstractModule {
 
     private void registerClusterActions() {
         registerRestHandler(RestClusterHealthAction.class, RestClusterHealthAction::new);
-        registerRestHandler(RestClusterRerouteAction.class, RestClusterRerouteAction::new);
+        registerRestHandler(RestClusterRerouteAction.class, (RestGlobalContext context) -> new RestClusterRerouteAction(context, settingsFilter));
         registerRestHandler(RestClusterSearchShardsAction.class, RestClusterSearchShardsAction::new);
-        registerRestHandler(RestClusterStateAction.class, RestClusterStateAction::new);
+        registerRestHandler(RestClusterStateAction.class, (RestGlobalContext context) -> new RestClusterStateAction(context, settingsFilter));
         registerRestHandler(RestClusterStatsAction.class, RestClusterStatsAction::new);
         registerRestHandler(RestClusterGetSettingsAction.class, c -> new RestClusterGetSettingsAction(c, clusterSettings));
         registerRestHandler(RestClusterUpdateSettingsAction.class, RestClusterUpdateSettingsAction::new);
@@ -440,7 +444,7 @@ public class NetworkModule extends AbstractModule {
 
     private void registerNodeActions() {
         registerRestHandler(RestNodesHotThreadsAction.class, RestNodesHotThreadsAction::new);
-        registerRestHandler(RestNodesInfoAction.class, RestNodesInfoAction::new);
+        registerRestHandler(RestNodesInfoAction.class, (RestGlobalContext context) -> new RestNodesInfoAction(context, settingsFilter));
         registerRestHandler(RestNodesStatsAction.class, RestNodesStatsAction::new);
     }
 
@@ -480,7 +484,7 @@ public class NetworkModule extends AbstractModule {
         registerRestHandler(RestCreateSnapshotAction.class, RestCreateSnapshotAction::new);
         registerRestHandler(RestDeleteRepositoryAction.class, RestDeleteRepositoryAction::new);
         registerRestHandler(RestDeleteSnapshotAction.class, RestDeleteSnapshotAction::new);
-        registerRestHandler(RestGetRepositoriesAction.class, RestGetRepositoriesAction::new);
+        registerRestHandler(RestGetRepositoriesAction.class, (RestGlobalContext context) -> new RestGetRepositoriesAction(context, settingsFilter));
         registerRestHandler(RestPutRepositoryAction.class, RestPutRepositoryAction::new);
         registerRestHandler(RestRestoreSnapshotAction.class, RestRestoreSnapshotAction::new);
         registerRestHandler(RestSnapshotsStatusAction.class, RestSnapshotsStatusAction::new);

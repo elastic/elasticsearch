@@ -19,6 +19,10 @@
 
 package org.elasticsearch.rest.action.explain;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -41,10 +45,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;

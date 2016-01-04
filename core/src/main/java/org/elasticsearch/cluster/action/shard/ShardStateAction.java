@@ -39,6 +39,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,25 +59,20 @@ import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
-
 public class ShardStateAction extends AbstractComponent {
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
 
     private final TransportService transportService;
-    private final AllocationService allocationService;
-    private final RoutingService routingService;
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
                             AllocationService allocationService, RoutingService routingService) {
         super(settings);
         this.transportService = transportService;
-        this.allocationService = allocationService;
-        this.routingService = routingService;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService));
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService));
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateHandler(allocationService, logger), logger));
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateHandler(allocationService, routingService, logger), logger));
     }
 
     public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
@@ -115,11 +111,15 @@ public class ShardStateAction extends AbstractComponent {
             });
     }
 
-    private class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
+    private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
         private final ClusterService clusterService;
+        private final ShardFailedClusterStateHandler shardFailedClusterStateHandler;
+        private final ESLogger logger;
 
-        public ShardFailedTransportHandler(ClusterService clusterService) {
+        public ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateHandler shardFailedClusterStateHandler, ESLogger logger) {
             this.clusterService = clusterService;
+            this.shardFailedClusterStateHandler = shardFailedClusterStateHandler;
+            this.logger = logger;
         }
 
         @Override
@@ -164,7 +164,17 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    class ShardFailedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+    private static class ShardFailedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+        private final AllocationService allocationService;
+        private final RoutingService routingService;
+        private final ESLogger logger;
+
+        public ShardFailedClusterStateHandler(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
+            this.allocationService = allocationService;
+            this.routingService = routingService;
+            this.logger = logger;
+        }
+
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
@@ -198,8 +208,6 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private final ShardFailedClusterStateHandler shardFailedClusterStateHandler = new ShardFailedClusterStateHandler();
-
     public void shardStarted(final ClusterState clusterState, final ShardRouting shardRouting, String indexUUID, final String reason) {
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
@@ -217,11 +225,15 @@ public class ShardStateAction extends AbstractComponent {
             });
     }
 
-    class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
+    private static class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
         private final ClusterService clusterService;
+        private final ShardStartedClusterStateHandler shardStartedClusterStateHandler;
+        private final ESLogger logger;
 
-        public ShardStartedTransportHandler(ClusterService clusterService) {
+        public ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateHandler shardStartedClusterStateHandler, ESLogger logger) {
             this.clusterService = clusterService;
+            this.shardStartedClusterStateHandler = shardStartedClusterStateHandler;
+            this.logger = logger;
         }
 
         @Override
@@ -237,7 +249,15 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    class ShardStartedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry>, ClusterStateTaskListener {
+    private static class ShardStartedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry>, ClusterStateTaskListener {
+        private final AllocationService allocationService;
+        private final ESLogger logger;
+
+        public ShardStartedClusterStateHandler(AllocationService allocationService, ESLogger logger) {
+            this.allocationService = allocationService;
+            this.logger = logger;
+        }
+
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
@@ -265,8 +285,6 @@ public class ShardStateAction extends AbstractComponent {
             logger.error("unexpected failure during [{}]", t, source);
         }
     }
-
-    private final ShardStartedClusterStateHandler shardStartedClusterStateHandler = new ShardStartedClusterStateHandler();
 
     public static class ShardRoutingEntry extends TransportRequest {
         ShardRouting shardRouting;

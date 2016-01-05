@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.BufferedOutputStream;
@@ -42,9 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class TranslogWriter extends TranslogReader {
 
@@ -268,12 +264,12 @@ public class TranslogWriter extends TranslogReader {
 
     @Override
     protected void readBytes(ByteBuffer targetBuffer, long position) throws IOException {
-        if (position+targetBuffer.limit() > getWrittenOffset()) {
+        if (position+targetBuffer.remaining() > getWrittenOffset()) {
             synchronized (this) {
                 outputStream.flush();
             }
         }
-        // we don't have to have a read lock here because we only write ahead to the file, so all writes has been complete
+        // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
     }

@@ -1264,33 +1264,29 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
-    public void writeIndexingBufferAsync() {
+    public void writeIndexingBuffer() {
         if (canIndex() == false) {
             throw new UnsupportedOperationException();
         }
-        threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        Engine engine = getEngine();
-                        long bytes = engine.getIndexBufferRAMBytesUsed();
-                        // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
-                        // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
-                        // there's still up to the 20% being used and continue writing if necessary:
-                        writingBytes.addAndGet(bytes);
-                        logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                        try {
-                            getEngine().writeIndexingBuffer();
-                        } finally {
-                            logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                            // nocommit but we don't promptly stop index throttling anymore?
-                            writingBytes.addAndGet(-bytes);
-                        }
-                    } catch (Exception e) {
-                        handleRefreshException(e);
-                    }
-                }
-            });
+        try {
+            Engine engine = getEngine();
+            long bytes = engine.getIndexBufferRAMBytesUsed();
+
+            // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
+            // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
+            // there's still up to the 20% being used and continue writing if necessary:
+            logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+            writingBytes.addAndGet(bytes);
+            try {
+                engine.writeIndexingBuffer();
+            } finally {
+                // nocommit but we don't promptly stop index throttling anymore?
+                writingBytes.addAndGet(-bytes);
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+            }
+        } catch (Exception e) {
+            handleRefreshException(e);
+        };
     }
 
     final class EngineRefresher implements Runnable {

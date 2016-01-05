@@ -174,7 +174,12 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     /** ask this shard to refresh, in the background, to free up heap */
     protected void writeIndexingBufferAsync(IndexShard shard) {
-        shard.writeIndexingBufferAsync();
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+            @Override
+            public void run() {
+                shard.writeIndexingBuffer();
+            }
+        });
     }
 
     /** force checker to run now */

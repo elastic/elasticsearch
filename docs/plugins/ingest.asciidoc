@@ -38,7 +38,8 @@ its value will be replaced with the provided one.
 --------------------------------------------------
 {
   "set": {
-    "field1": 582.1
+    "field": "field1",
+    "value": 582.1
   }
 }
 --------------------------------------------------
@@ -53,7 +54,8 @@ Accepts a single value or an array of values.
 --------------------------------------------------
 {
   "append": {
-    "field1": ["item2", "item3", "item4"]
+    "field": "field1"
+    "value": ["item2", "item3", "item4"]
   }
 }
 --------------------------------------------------

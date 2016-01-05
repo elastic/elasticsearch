@@ -50,6 +50,7 @@ OFFICIAL PLUGINS
     - mapper-attachments
     - mapper-murmur3
     - mapper-size
+    - reindex
     - repository-azure
     - repository-s3
     - store-smb
@@ -62,5 +63,5 @@ OPTIONS
     -v,--verbose                 Verbose output
 
     -h,--help                    Shows this message
-    
+
     -b,--batch                   Enable batch mode explicitly, automatic confirmation of security permissions

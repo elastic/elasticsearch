@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.cloud.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceModule;

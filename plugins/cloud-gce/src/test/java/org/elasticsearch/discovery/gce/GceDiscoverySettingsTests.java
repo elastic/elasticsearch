@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.gce;
 
-import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.test.ESTestCase;

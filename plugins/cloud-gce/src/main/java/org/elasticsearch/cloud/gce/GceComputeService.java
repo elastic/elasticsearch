@@ -22,7 +22,6 @@ package org.elasticsearch.cloud.gce;
 import com.google.api.services.compute.model.Instance;
 import org.elasticsearch.common.component.LifecycleComponent;
 
-import java.io.IOException;
 import java.util.Collection;
 
 /**

@@ -20,23 +20,11 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.LowLevelHttpRequest;
-import com.google.api.client.http.LowLevelHttpResponse;
-import com.google.api.client.json.Json;
-import com.google.api.client.testing.http.MockHttpTransport;
-import com.google.api.client.testing.http.MockLowLevelHttpRequest;
-import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Callback;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.security.GeneralSecurityException;
 
 /**

@@ -43,19 +43,14 @@ public class IndexingStats implements Streamable, ToXContent {
         private long indexTimeInMillis;
         private long indexCurrent;
         private long indexFailedCount;
-
         private long deleteCount;
         private long deleteTimeInMillis;
         private long deleteCurrent;
-
         private long noopUpdateCount;
-
         private long throttleTimeInMillis;
         private boolean isThrottled;
 
-        Stats() {
-
-        }
+        Stats() {}
 
         public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
             this.indexCount = indexCount;
@@ -87,26 +82,29 @@ public class IndexingStats implements Streamable, ToXContent {
             }
         }
 
-        public long getIndexCount() {
-            return indexCount;
-        }
+        /**
+         * The total number of indexing operations
+         */
+        public long getIndexCount() { return indexCount; }
 
-        public long getIndexFailedCount() {
-            return indexFailedCount;
-        }
+        /**
+         * The number of failed indexing operations
+         */
+        public long getIndexFailedCount() { return indexFailedCount; }
 
-        public TimeValue getIndexTime() {
-            return new TimeValue(indexTimeInMillis);
-        }
+        /**
+         * The total amount of time spend on executing index operations.
+         */
+        public TimeValue getIndexTime() { return new TimeValue(indexTimeInMillis); }
 
-        public long getIndexTimeInMillis() {
-            return indexTimeInMillis;
-        }
+        /**
+         * Returns the currently in-flight indexing operations.
+         */
+        public long getIndexCurrent() { return indexCurrent;}
 
-        public long getIndexCurrent() {
-            return indexCurrent;
-        }
-
+        /**
+         * Returns the number of delete operation executed
+         */
         public long getDeleteCount() {
             return deleteCount;
         }
@@ -114,32 +112,21 @@ public class IndexingStats implements Streamable, ToXContent {
         /**
          * Returns if the index is under merge throttling control
          */
-        public boolean isThrottled() {
-            return isThrottled;
-        }
-
-        /**
-         * Gets the amount of time in milliseconds that the index has been under merge throttling control
-         */
-        public long getThrottleTimeInMillis() {
-            return throttleTimeInMillis;
-        }
+        public boolean isThrottled() { return isThrottled; }
 
         /**
          * Gets the amount of time in a TimeValue that the index has been under merge throttling control
          */
-        public TimeValue getThrottleTime() {
-            return new TimeValue(throttleTimeInMillis);
-        }
+        public TimeValue getThrottleTime() { return new TimeValue(throttleTimeInMillis); }
 
-        public TimeValue getDeleteTime() {
-            return new TimeValue(deleteTimeInMillis);
-        }
+        /**
+         * The total amount of time spend on executing delete operations.
+         */
+        public TimeValue getDeleteTime() { return new TimeValue(deleteTimeInMillis); }
 
-        public long getDeleteTimeInMillis() {
-            return deleteTimeInMillis;
-        }
-
+        /**
+         * Returns the currently in-flight delete operations
+         */
         public long getDeleteCurrent() {
             return deleteCurrent;
         }

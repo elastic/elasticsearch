@@ -37,6 +37,7 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -513,7 +514,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
         builder.put("path.home", createTempDir());
 
-        try (Node node = new MockNode(builder.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
+        try (Node node = new MockNode(builder.build(), Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
         }
     }

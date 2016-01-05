@@ -24,10 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -35,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,8 +50,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     ValueFormatter formatter;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                         AggregationContext context,
+                         Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
@@ -71,7 +69,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+                                                final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -85,11 +83,47 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                 values.setDocument(doc);
                 final int valueCount = values.count();
-                counts.increment(bucket, valueCount);
                 double sum = 0;
-                for (int i = 0; i < valueCount; i++) {
-                    sum += values.valueAt(i);
+                long count = 0;
+                if (values instanceof ScriptDoubleValues && ((ScriptDoubleValues)values).hasExtendedScriptResult()) {
+                    // Avg aggregation with a script returning a weight or a list of weights
+                    ScriptDoubleValues scriptDoubleValues = (ScriptDoubleValues)values;
+                    Object weightObj = scriptDoubleValues.getExtendedScriptResult().get("weight");
+                    Object weightsObj = scriptDoubleValues.getExtendedScriptResult().get("weights");
+                    if(weightsObj instanceof List) {
+                        List weights = (List) weightsObj;
+                        for (int i = 0; i < valueCount; i++) {
+                            // By default, a missing weight is considered equals to 1.
+                            long weight = 1;
+                            if(i < weights.size()) {
+                                Object weightObjAtIndexI = weights.get(i);
+                                if(weightObjAtIndexI instanceof Number) {
+                                    weight = ((Number)weightObjAtIndexI).longValue();
+                                } else {
+                                    throw new AggregationExecutionException("Unsupported weight value [" + weightObjAtIndexI + "], should be a number");
+                                }
+                            }
+                            count += weight;
+                            sum += values.valueAt(i) * weight;
+                        }
+                    } else {
+                        // by default weight is equals to 0
+                        long weight = 1;
+                        if(weightObj instanceof Number) {
+                            weight = ((Number)weightObj).longValue();
+                        }
+                        for (int i = 0; i < valueCount; i++) {
+                            count += weight;
+                            sum += values.valueAt(i) * weight;
+                        }
+                    }
+                } else {
+                    count += valueCount;
+                    for (int i = 0; i < valueCount; i++) {
+                        sum += values.valueAt(i);
+                    }
                 }
+                counts.increment(bucket, count);
                 sums.increment(bucket, sum);
             }
         };
@@ -121,14 +155,14 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
             return new AvgAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                                              boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             return new AvgAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }

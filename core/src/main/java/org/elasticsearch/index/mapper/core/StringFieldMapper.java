@@ -69,19 +69,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
          * values.
          */
         public static final int POSITION_INCREMENT_GAP = 100;
-        public static final int POSITION_INCREMENT_GAP_PRE_2_0 = 0;
 
         public static final int IGNORE_ABOVE = -1;
-
-        /**
-         * The default position_increment_gap for a particular version of Elasticsearch.
-         */
-        public static int positionIncrementGap(Version version) {
-            if (version.before(Version.V_2_0_0_beta1)) {
-                return POSITION_INCREMENT_GAP_PRE_2_0;
-            }
-            return POSITION_INCREMENT_GAP;
-        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, StringFieldMapper> {
@@ -175,8 +164,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     }
                     builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
-                } else if (propName.equals("position_increment_gap") ||
-                        parserContext.indexVersionCreated().before(Version.V_2_0_0) && propName.equals("position_offset_gap")) {
+                } else if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     if (newPositionIncrementGap < 0) {
                         throw new MapperParsingException("positions_increment_gap less than 0 aren't allowed.");
@@ -338,13 +326,14 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
      */
     public static ValueAndBoost parseCreateFieldForString(ParseContext context, String nullValue, float defaultBoost) throws IOException {
         if (context.externalValueSet()) {
-            return new ValueAndBoost((String) context.externalValue(), defaultBoost);
+            return new ValueAndBoost(context.externalValue().toString(), defaultBoost);
         }
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return new ValueAndBoost(nullValue, defaultBoost);
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
             XContentParser.Token token;
             String currentFieldName = null;
             String value = nullValue;

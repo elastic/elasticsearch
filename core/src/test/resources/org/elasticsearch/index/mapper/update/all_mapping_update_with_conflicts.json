@@ -10,7 +10,7 @@
       "omit_norms": false,
       "analyzer": "whitespace",
       "search_analyzer": "standard",
-      "similarity": "bm25",
+      "similarity": "BM25",
       "fielddata": {
           "format": "paged_bytes"
       }

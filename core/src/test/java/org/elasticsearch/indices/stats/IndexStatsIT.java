@@ -303,7 +303,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0l));
     }
 
     public void testThrottleStats() throws Exception {
@@ -341,7 +341,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             refresh();
             stats = client().admin().indices().prepareStats().execute().actionGet();
             //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
             if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
                 fail("index throttling didn't kick in after 5 minutes of intense merging");
             }
@@ -376,7 +376,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0l));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());

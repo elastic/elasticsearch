@@ -23,15 +23,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -123,8 +120,7 @@ class DocumentParser implements Closeable {
 
             // try to parse the next token, this should be null if the object is ended properly
             // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)
-                && source.parser() == null && parser != null) {
+            if (source.parser() == null && parser != null) {
                 // only check for end of tokens if we created the parser here
                 token = parser.nextToken();
                 if (token != null) {
@@ -191,8 +187,7 @@ class DocumentParser implements Closeable {
         XContentParser parser = context.parser();
 
         String currentFieldName = parser.currentName();
-        if (atRoot && MapperService.isMetadataField(currentFieldName) &&
-            Version.indexCreated(context.indexSettings()).onOrAfter(Version.V_2_0_0_beta1)) {
+        if (atRoot && MapperService.isMetadataField(currentFieldName)) {
             throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
         }
         XContentParser.Token token = parser.currentToken();

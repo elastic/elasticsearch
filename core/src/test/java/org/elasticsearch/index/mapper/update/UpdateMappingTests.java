@@ -247,23 +247,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIndexFieldParsingBackcompat() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
-        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
-        boolean enabled = randomBoolean();
-        indexMapping.startObject()
-                .startObject("type")
-                .startObject("_index")
-                .field("enabled", enabled)
-                .endObject()
-                .endObject()
-                .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
-        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
-        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-    }
-
     public void testTimestampParsing() throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
@@ -272,10 +255,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .startObject("_timestamp")
                 .field("enabled", enabled)
-                .field("store", true)
-                .startObject("fielddata")
-                .field("format", "doc_values")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();

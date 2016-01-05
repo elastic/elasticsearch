@@ -461,6 +461,54 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
+        IndexService indexService = createIndex("test");
+        XContentBuilder mappings1 = jsonBuilder().startObject()
+                .startObject("type1")
+                    .startArray("dynamic_templates")
+                        .startObject()
+                            .startObject("template1")
+                                .field("match_mapping_type", "string")
+                                .startObject("mapping")
+                                    .field("type", "string")
+                                    .startObject("fields")
+                                        .startObject("raw")
+                                            .field("type", "string")
+                                            .field("index", "not_analyzed")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endArray()
+                .endObject().endObject();
+        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), true, false);
+        XContentBuilder mappings2 = jsonBuilder().startObject()
+                .startObject("type2")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject();
+        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), true, false);
+
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject()
+                    .field("field", "foo")
+                .endObject();
+        SourceToParse source = SourceToParse.source(json.bytes()).id("1");
+        DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
+        assertNull(mapper.mappers().getMapper("field.raw"));
+        ParsedDocument parsed = mapper.parse(source);
+        assertNotNull(parsed.dynamicMappingsUpdate());
+
+        indexService.mapperService().merge("type1", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()), false, false);
+        mapper = indexService.mapperService().documentMapper("type1");
+        assertNotNull(mapper.mappers().getMapper("field.raw"));
+        parsed = mapper.parse(source);
+        assertNull(parsed.dynamicMappingsUpdate());
+    }
+
     public void testDefaultFloatingPointMappings() throws IOException {
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperWithAutoCreate("type").getDocumentMapper();
         doTestDefaultFloatingPointMappings(mapper, XContentFactory.jsonBuilder());

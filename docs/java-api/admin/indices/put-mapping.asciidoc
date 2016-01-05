@@ -1,0 +1,76 @@
+[[java-admin-indices-put-mapping]]
+==== Put Mapping
+
+The PUT mapping API allows you to add a new type while creating an index:
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().prepareCreate("twitter")   <1>
+        .addMapping("tweet", "{\n" +                <2>
+                "    \"tweet\": {\n" +
+                "      \"properties\": {\n" +
+                "        \"message\": {\n" +
+                "          \"type\": \"string\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }")
+        .get();
+--------------------------------------------------
+<1> <<java-admin-indices-create-index,Creates an index>> called `twitter`
+<2> It also adds a `tweet` mapping type.
+
+
+The PUT mapping API also allows to add a new type to an existing index:
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().preparePutMapping("twitter")   <1>
+        .setType("user")                                <2>
+        .setSource("{\n" +                              <3>
+                "  \"properties\": {\n" +
+                "    \"name\": {\n" +
+                "      \"type\": \"string\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}")
+        .get();
+
+// You can also provide the type in the source document
+client.admin().indices().preparePutMapping("twitter")
+        .setType("user")
+        .setSource("{\n" +
+                "    \"user\":{\n" +                        <4>
+                "        \"properties\": {\n" +
+                "            \"name\": {\n" +
+                "                \"type\": \"string\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}")
+        .get();
+--------------------------------------------------
+<1> Puts a mapping on existing index called `twitter`
+<2> Adds a `user` mapping type.
+<3> This `user` has a predefined type
+<4> type can be also provided within the source
+
+You can use the same API to update an existing mapping:
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().preparePutMapping("twitter")   <1>
+        .setType("tweet")                               <2>
+        .setSource("{\n" +                              <3>
+                "  \"properties\": {\n" +
+                "    \"user_name\": {\n" +
+                "      \"type\": \"string\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}")
+        .get();
+--------------------------------------------------
+<1> Puts a mapping on existing index called `twitter`
+<2> Updates the `user` mapping type.
+<3> This `user` has now a new field `user_name`
+

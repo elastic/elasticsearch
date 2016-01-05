@@ -79,6 +79,8 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String DEFAULT_MAPPING = "_default_";
+    public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
+    public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -126,7 +128,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
-        this.dynamic = this.indexSettings.getSettings().getAsBoolean("index.mapper.dynamic", true);
+        this.dynamic = this.indexSettings.getSettings().getAsBoolean(INDEX_MAPPER_DYNAMIC_SETTING, INDEX_MAPPER_DYNAMIC_DEFAULT);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +
                 "\"properties\" : {\n" +
@@ -230,7 +232,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper.type().length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
+        if (mapper.type().length() > 255) {
             throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
         }
         if (mapper.type().charAt(0) == '_') {
@@ -246,11 +248,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
         }
         if (typeNameStartsWithIllegalDot(mapper)) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
-            } else {
-                logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
-            }
+            throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
         }
 
         // 1. compute the merged DocumentMapper
@@ -361,16 +359,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (objectFullNames.add(fullPath) == false) {
                 throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
             }
-        }
-
-        if (indexSettings.getIndexVersionCreated().before(Version.V_3_0_0)) {
-            // Before 3.0 some metadata mappers are also registered under the root object mapper
-            // So we avoid false positives by deduplicating mappers
-            // given that we check exact equality, this would still catch the case that a mapper
-            // is defined under the root object
-            Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<>());
-            uniqueFieldMappers.addAll(fieldMappers);
-            fieldMappers = uniqueFieldMappers;
         }
 
         final Set<String> fieldNames = new HashSet<>();

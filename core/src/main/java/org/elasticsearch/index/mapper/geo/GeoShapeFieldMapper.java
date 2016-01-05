@@ -30,7 +30,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -96,8 +95,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final boolean POINTS_ONLY = false;
         public static final int GEOHASH_LEVELS = GeoUtils.geoHashLevelsForPrecision("50m");
         public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
-        public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Orientation ORIENTATION = Orientation.RIGHT;
+        public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
 
         public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
@@ -147,12 +146,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public GeoShapeFieldMapper build(BuilderContext context) {
             GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
 
-            if (geoShapeFieldType.tree.equals(Names.TREE_QUADTREE) && context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
-                geoShapeFieldType.setTree("legacyquadtree");
-            }
-
-            if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1) ||
-                (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0)) {
+            if (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0) {
                 geoShapeFieldType.setDefaultDistanceErrorPct(Defaults.LEGACY_DISTANCE_ERROR_PCT);
             }
             setupFieldType(context);

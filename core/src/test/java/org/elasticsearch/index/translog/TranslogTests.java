@@ -1590,4 +1590,27 @@ public class TranslogTests extends ESTestCase {
     private static final class UnknownException extends RuntimeException {
 
     }
+
+    // see https://github.com/elastic/elasticsearch/issues/15754
+    public void testFailWhileCreateWriteWithRecoveredTLogs() throws IOException {
+        Path tempDir = createTempDir();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        Translog translog = new Translog(config);
+        translog.add(new Translog.Index("test", "boom", "boom".getBytes(Charset.forName("UTF-8"))));
+        Translog.TranslogGeneration generation = translog.getGeneration();
+        translog.close();
+        config.setTranslogGeneration(generation);
+        try {
+            new Translog(config) {
+                @Override
+                protected TranslogWriter createWriter(long fileGeneration) throws IOException {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
+            };
+            // if we have a LeakFS here we fail if not all resources are closed
+            fail("should have been failed");
+        } catch (MockDirectoryWrapper.FakeIOException ex) {
+            // all is well
+        }
+    }
 }

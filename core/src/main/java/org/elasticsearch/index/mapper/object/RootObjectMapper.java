@@ -215,14 +215,6 @@ public class RootObjectMapper extends ObjectMapper {
         this.numericDetection = numericDetection;
     }
 
-    /** Return a copy of this mapper that has the given {@code mapper} as a
-     *  sub mapper. */
-    public RootObjectMapper copyAndPutMapper(Mapper mapper) {
-        RootObjectMapper clone = (RootObjectMapper) clone();
-        clone.putMapper(mapper);
-        return clone;
-    }
-
     @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);

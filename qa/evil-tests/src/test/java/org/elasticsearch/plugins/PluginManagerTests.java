@@ -710,7 +710,7 @@ public class PluginManagerTests extends ESIntegTestCase {
             Channel channel = serverBootstrap.bind(new InetSocketAddress(InetAddress.getByName("localhost"), 0));
             int port = ((InetSocketAddress) channel.getLocalAddress()).getPort();
             // IO_ERROR because there is no real file delivered...
-            assertStatus(String.format(Locale.ROOT, "install https://user:pass@localhost:%s/foo.zip --verbose --timeout 1s", port), ExitStatus.IO_ERROR);
+            assertStatus(String.format(Locale.ROOT, "install https://user:pass@localhost:%s/foo.zip --verbose --timeout 10s", port), ExitStatus.IO_ERROR);
 
             // ensure that we did not try any other data source like download.elastic.co, in case we specified our own local URL
             assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("download.elastic.co"))));

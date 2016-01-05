@@ -24,7 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.TermStatistics;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -67,7 +67,7 @@ public class TermVectorsFilter {
 
         this.dfs = dfs;
         this.scoreTerms = new HashMap<>();
-        this.similarity = new DefaultSimilarity();
+        this.similarity = new ClassicSimilarity();
     }
 
     public void setSettings(TermVectorsRequest.FilterSettings settings) {

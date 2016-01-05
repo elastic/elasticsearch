@@ -267,8 +267,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a.b"), notNullValue());
         assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("a.b").fieldType().indexOptions());
-        final boolean stored = indexCreatedBefore22 == false;
-        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(stored));
+        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
         final boolean hasDocValues = indexCreatedBefore22 == false;
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().hasDocValues(), equalTo(hasDocValues));
@@ -295,13 +294,13 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         } else {
             assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
-        assertThat(f.fieldType().stored(), equalTo(stored));
+        assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().getMapper("b"), notNullValue());
         assertThat(docMapper.mappers().getMapper("b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("b").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(stored));
+        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("b").fieldType().tokenized(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("b").fieldType().hasDocValues(), equalTo(hasDocValues));
 
@@ -324,7 +323,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         } else {
             assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
-        assertThat(f.fieldType().stored(), equalTo(stored));
+        assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");

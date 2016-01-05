@@ -56,7 +56,7 @@ public class AuditTrailModuleTests extends ESTestCase {
         try {
             Injector injector = Guice.createInjector(
                     new SettingsModule(settings, new SettingsFilter(settings)),
-                    new NetworkModule(new NetworkService(settings), settings, false) {
+                    new NetworkModule(new NetworkService(settings), settings, false, null) {
                         @Override
                         protected void configure() {
                             bind(Transport.class).to(LocalTransport.class).asEagerSingleton();

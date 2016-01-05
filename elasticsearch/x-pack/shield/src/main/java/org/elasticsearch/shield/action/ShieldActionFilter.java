@@ -26,6 +26,7 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     }
 
     @Override
-    public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+    public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
 
         /**
             A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
@@ -100,9 +101,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                         interceptor.intercept(request, user);
                     }
                 }
-                chain.proceed(action, request, new SigningListener(this, listener));
+                chain.proceed(task, action, request, new SigningListener(this, listener));
             } else {
-                chain.proceed(action, request, listener);
+                chain.proceed(task, action, request, listener);
             }
         } catch (Throwable t) {
             listener.onFailure(t);

@@ -31,7 +31,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -102,11 +101,11 @@ public class TransportFilterTests extends ESIntegTestCase {
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
 
-        InOrder inOrder = inOrder(sourceServerFilter, sourceClientFilter, targetServerFilter, targetClientFilter);
+        InOrder inOrder = inOrder(sourceClientFilter, targetServerFilter, targetClientFilter, sourceServerFilter);
         inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
-        inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(NettyTransportChannel.class));
+        inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(TransportChannel.class));
         inOrder.verify(targetClientFilter).outbound("_action", new Request("trgt_to_src"));
-        inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(NettyTransportChannel.class));
+        inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(TransportChannel.class));
     }
 
     public static class InternalPlugin extends Plugin {

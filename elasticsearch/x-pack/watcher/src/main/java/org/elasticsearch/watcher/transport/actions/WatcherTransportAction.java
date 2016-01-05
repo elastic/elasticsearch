@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.WatcherLicensee;
@@ -35,9 +36,9 @@ public abstract class WatcherTransportAction<Request extends MasterNodeRequest<R
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         if (watcherLicensee.isWatcherTransportActionAllowed()) {
-            super.doExecute(request, listener);
+            super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
         }

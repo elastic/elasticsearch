@@ -17,6 +17,7 @@ cluster:monitor/nodes/stats
 cluster:monitor/state
 cluster:monitor/stats
 cluster:monitor/task
+cluster:monitor/tasks/lists
 indices:admin/aliases
 indices:admin/aliases/exists
 indices:admin/aliases/get

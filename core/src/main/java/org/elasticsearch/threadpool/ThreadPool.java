@@ -533,18 +533,19 @@ public class ThreadPool extends AbstractComponent {
         throw new IllegalArgumentException("No type found [" + type + "], for [" + name + "]");
     }
 
-    private int applyHardSizeLimit(String name, int requestedSize) {
+    private int applyHardSizeLimit(String name, int size) {
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        if (name.equals(Names.BULK) || name.equals(Names.INDEX)) {
+        if ((name.equals(Names.BULK) || name.equals(Names.INDEX)) && size > availableProcessors) {
             // We use a hard max size for the indexing pools, because if too many threads enter Lucene's IndexWriter, it means
             // too many segments written, too frequently, too much merging, etc:
-
             // TODO: I would love to be loud here (throw an exception if you ask for a too-big size), but I think this is dangerous
             // because on upgrade this setting could be in cluster state and hard for the user to correct?
-            return Math.min(requestedSize, availableProcessors);
-        } else {
-            return requestedSize;
+            logger.warn("requested thread pool size [{}] for [{}] is too large; setting to maximum [{}] instead",
+                        size, name, availableProcessors);
+            size = availableProcessors;
         }
+
+        return size;
     }
 
     private void updateSettings(Settings settings) {

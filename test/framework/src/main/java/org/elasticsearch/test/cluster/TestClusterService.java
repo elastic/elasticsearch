@@ -184,9 +184,11 @@ public class TestClusterService implements ClusterService {
         if (threadPool == null) {
             throw new UnsupportedOperationException("TestClusterService wasn't initialized with a thread pool");
         }
-        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-        onGoingTimeouts.add(notifyTimeout);
+        if (timeout != null) {
+            NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+            notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+            onGoingTimeouts.add(notifyTimeout);
+        }
         listeners.add(listener);
         listener.postAdded();
     }

@@ -26,11 +26,27 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.ProcessorsModule;
+import org.elasticsearch.ingest.processor.AppendProcessor;
+import org.elasticsearch.ingest.processor.ConvertProcessor;
+import org.elasticsearch.ingest.processor.DateProcessor;
+import org.elasticsearch.ingest.processor.FailProcessor;
+import org.elasticsearch.ingest.processor.GeoIpProcessor;
+import org.elasticsearch.ingest.processor.GrokProcessor;
+import org.elasticsearch.ingest.processor.GsubProcessor;
+import org.elasticsearch.ingest.processor.JoinProcessor;
+import org.elasticsearch.ingest.processor.LowercaseProcessor;
+import org.elasticsearch.ingest.processor.RemoveProcessor;
+import org.elasticsearch.ingest.processor.RenameProcessor;
+import org.elasticsearch.ingest.processor.SetProcessor;
+import org.elasticsearch.ingest.processor.SplitProcessor;
+import org.elasticsearch.ingest.processor.TrimProcessor;
+import org.elasticsearch.ingest.processor.UppercaseProcessor;
 import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
+import org.elasticsearch.plugin.ingest.rest.RestIngestDisabledAction;
 import org.elasticsearch.plugin.ingest.rest.RestPutPipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestSimulatePipelineAction;
-import org.elasticsearch.plugin.ingest.rest.RestIngestDisabledAction;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 import org.elasticsearch.plugin.ingest.transport.IngestDisabledActionFilter;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
@@ -44,6 +60,7 @@ import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineTransp
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -82,7 +99,25 @@ public class IngestPlugin extends Plugin {
         if (transportClient) {
             return Collections.emptyList();
         } else {
-            return Collections.singletonList(new IngestModule(ingestEnabled));
+            ProcessorsModule processorsModule = new ProcessorsModule();
+            if (ingestEnabled) {
+                processorsModule.addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+                processorsModule.addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
+                processorsModule.addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
+                processorsModule.addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
+                processorsModule.addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
+                processorsModule.addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
+                processorsModule.addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
+                processorsModule.addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
+                processorsModule.addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
+                processorsModule.addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
+                processorsModule.addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
+                processorsModule.addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
+                processorsModule.addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
+                processorsModule.addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
+                processorsModule.addProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
+            }
+            return Arrays.asList(new IngestModule(ingestEnabled), processorsModule);
         }
     }
 

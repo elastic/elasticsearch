@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.ingest.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -32,8 +31,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.processor.CompoundProcessor;
-import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
@@ -45,14 +44,12 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.BulkRequestModifier;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;

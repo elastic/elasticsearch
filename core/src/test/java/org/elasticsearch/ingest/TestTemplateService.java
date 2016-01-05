@@ -16,24 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.ingest;
 
 import java.util.Map;
 
-/**
- * Abstraction for the template engine.
- */
-// NOTE: this abstraction is added because the 'org.elasticsearch.ingest' has the requirement to be ES agnostic
-public interface TemplateService {
+public class TestTemplateService implements TemplateService {
 
-    Template compile(String template);
-
-    interface Template {
-
-        String execute(Map<String, Object> model);
-
-        String getKey();
-
+    public static TemplateService instance() {
+        return new TestTemplateService();
     }
 
+    private TestTemplateService() {
+    }
+
+    @Override
+    public Template compile(String template) {
+        return new MockTemplate(template);
+    }
+
+    public static class MockTemplate implements TemplateService.Template {
+
+        private final String expected;
+
+        public MockTemplate(String expected) {
+            this.expected = expected;
+        }
+
+        @Override
+        public String execute(Map<String, Object> model) {
+            return expected;
+        }
+
+        @Override
+        public String getKey() {
+            return expected;
+        }
+    }
 }

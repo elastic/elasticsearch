@@ -21,8 +21,8 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.processor.CompoundProcessor;
-import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

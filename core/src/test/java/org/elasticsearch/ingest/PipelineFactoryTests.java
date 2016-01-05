@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -27,8 +26,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class PipelineFactoryTests extends ESTestCase {
 
@@ -38,13 +35,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put("description", "_description");
         pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        Processor processor = mock(Processor.class);
-        when(processor.getType()).thenReturn("test-processor");
-        Processor.Factory processorFactory = mock(Processor.Factory.class);
-        when(processorFactory.create(processorConfig)).thenReturn(processor);
-        processorRegistry.put("test", processorFactory);
-
+        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
@@ -56,16 +47,10 @@ public class PipelineFactoryTests extends ESTestCase {
         Map<String, Object> processorConfig = new HashMap<>();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test-processor", processorConfig)));
-        pipelineConfig.put("on_failure", Collections.singletonList(Collections.singletonMap("test-processor", processorConfig)));
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put("on_failure", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        Processor processor = mock(Processor.class);
-        when(processor.getType()).thenReturn("test-processor");
-        Processor.Factory processorFactory = mock(Processor.Factory.class);
-        when(processorFactory.create(processorConfig)).thenReturn(processor);
-        processorRegistry.put("test-processor", processorFactory);
-
+        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
@@ -82,12 +67,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put("description", "_description");
         pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        Processor processor = mock(Processor.class);
-        when(processor.getType()).thenReturn("test-processor");
-        Processor.Factory processorFactory = mock(Processor.Factory.class);
-        when(processorFactory.create(processorConfig)).thenReturn(processor);
-        processorRegistry.put("test", processorFactory);
+        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         try {
             factory.create("_id", pipelineConfig, processorRegistry);
         } catch (IllegalArgumentException e) {
@@ -103,14 +83,8 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put("description", "_description");
         pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorFactoryStore = new HashMap<>();
-        Processor processor = mock(Processor.class);
-        when(processor.getType()).thenReturn("test-processor");
-        Processor.Factory processorFactory = mock(Processor.Factory.class);
-        when(processorFactory.create(processorConfig)).thenReturn(processor);
-        processorFactoryStore.put("test", processorFactory);
-
-        Pipeline pipeline = factory.create("_id", pipelineConfig, processorFactoryStore);
+        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(1));

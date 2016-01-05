@@ -20,31 +20,11 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.ingest.processor.AppendProcessor;
-import org.elasticsearch.ingest.processor.ConvertProcessor;
-import org.elasticsearch.ingest.processor.DateProcessor;
-import org.elasticsearch.ingest.processor.FailProcessor;
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
-import org.elasticsearch.ingest.processor.GrokProcessor;
-import org.elasticsearch.ingest.processor.GsubProcessor;
-import org.elasticsearch.ingest.processor.JoinProcessor;
-import org.elasticsearch.ingest.processor.LowercaseProcessor;
-import org.elasticsearch.ingest.processor.RemoveProcessor;
-import org.elasticsearch.ingest.processor.RenameProcessor;
-import org.elasticsearch.ingest.processor.SetProcessor;
-import org.elasticsearch.ingest.processor.SplitProcessor;
-import org.elasticsearch.ingest.processor.TrimProcessor;
-import org.elasticsearch.ingest.processor.UppercaseProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class IngestModule extends AbstractModule {
 
     private final boolean ingestEnabled;
-    private final Map<String, ProcessorFactoryProvider> processorFactoryProviders = new HashMap<>();
 
     public IngestModule(boolean ingestEnabled) {
         this.ingestEnabled = ingestEnabled;
@@ -52,41 +32,12 @@ public class IngestModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        // Even if ingest isn't enable we still need to make sure that rest requests with pipeline
+        // Even if ingest isn't enabled we still need to make sure that rest requests with pipeline
         // param copy the pipeline into the context, so that in IngestDisabledActionFilter
         // index/bulk requests can be failed
         binder().bind(IngestRestFilter.class).asEagerSingleton();
         if (ingestEnabled) {
             binder().bind(IngestBootstrapper.class).asEagerSingleton();
-
-            addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
-            addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
-            addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
-            addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
-            addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
-            addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
-            addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
-            addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
-            addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
-            addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
-            addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
-            addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
-            addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
-            addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
-            addProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
-
-            MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
-            for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
-                mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
-            }
         }
     }
-
-    /**
-     * Adds a processor factory under a specific type name.
-     */
-    public void addProcessor(String type, ProcessorFactoryProvider processorFactoryProvider) {
-        processorFactoryProviders.put(type, processorFactoryProvider);
-    }
-
 }

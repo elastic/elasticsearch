@@ -23,13 +23,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.processor.CompoundProcessor;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

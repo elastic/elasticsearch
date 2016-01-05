@@ -18,9 +18,7 @@
  */
 
 
-package org.elasticsearch.ingest.processor;
-
-import org.elasticsearch.ingest.IngestDocument;
+package org.elasticsearch.ingest;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +40,7 @@ public class CompoundProcessor implements Processor {
     public CompoundProcessor(Processor... processor) {
         this(Arrays.asList(processor), Collections.emptyList());
     }
+
     public CompoundProcessor(List<Processor> processors, List<Processor> onFailureProcessors) {
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
@@ -57,7 +56,7 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public String getType() {
-        return "compound[" + processors.stream().map(p -> p.getType()).collect(Collectors.joining(",")) + "]";
+        return "compound[" + processors.stream().map(Processor::getType).collect(Collectors.joining(",")) + "]";
     }
 
     @Override

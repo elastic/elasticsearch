@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.processor.ConfigurationUtils;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 
 import java.io.IOException;

@@ -20,10 +20,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.processor.ConfigurationUtils;
-import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.CompoundProcessor;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -92,12 +88,10 @@ public final class Pipeline {
                 }
                 if (onFailureProcessors.isEmpty()) {
                     return processor;
-                } else {
-                    return new CompoundProcessor(Arrays.asList(processor), onFailureProcessors);
                 }
-            } else {
-                throw new IllegalArgumentException("No processor type exist with name [" + type + "]");
+                return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
             }
+            throw new IllegalArgumentException("No processor type exist with name [" + type + "]");
         }
 
         private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {
@@ -121,6 +115,5 @@ public final class Pipeline {
             CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));
             return new Pipeline(id, description, compoundProcessor);
         }
-
     }
 }

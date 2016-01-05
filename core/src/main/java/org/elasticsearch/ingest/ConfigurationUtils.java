@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest;
 
 import java.util.List;
 import java.util.Map;

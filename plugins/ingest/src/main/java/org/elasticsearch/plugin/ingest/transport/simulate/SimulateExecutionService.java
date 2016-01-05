@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

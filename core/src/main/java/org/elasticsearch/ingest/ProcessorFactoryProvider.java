@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.ingest.processor.Processor;
 
 /**
  * The ingest framework (pipeline, processor and processor factory) can't rely on ES specific code. However some
@@ -29,9 +27,8 @@ import org.elasticsearch.ingest.processor.Processor;
  * so we need some code that provides the physical location of the configuration directory to the processor factories
  * that need this and this is what this processor factory provider does.
  */
+//TODO this abstraction could be removed once ingest-core is part of es core?
 @FunctionalInterface
-interface ProcessorFactoryProvider {
-
+public interface ProcessorFactoryProvider {
     Processor.Factory get(Environment environment, TemplateService templateService);
-
 }

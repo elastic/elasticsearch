@@ -20,6 +20,14 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -38,7 +46,6 @@ import java.util.TimeZone;
 public final class IngestDocument {
 
     public final static String INGEST_KEY = "_ingest";
-    public final static String SOURCE_KEY = "_source";
 
     static final String TIMESTAMP = "timestamp";
 
@@ -348,7 +355,7 @@ public final class IngestDocument {
             if (append) {
                 if (map.containsKey(leafKey)) {
                     Object object = map.get(leafKey);
-                    List<Object> list = appendValues(path, object, value);
+                    List<Object> list = appendValues(object, value);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
@@ -374,7 +381,7 @@ public final class IngestDocument {
             }
             if (append) {
                 Object object = list.get(index);
-                List<Object> newList = appendValues(path, object, value);
+                List<Object> newList = appendValues(object, value);
                 if (newList != object) {
                     list.set(index, newList);
                 }
@@ -387,7 +394,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Object> appendValues(String path, Object maybeList, Object value) {
+    private static List<Object> appendValues(Object maybeList, Object value) {
         List<Object> list;
         if (maybeList instanceof List) {
             //maybeList is already a list, we append the provided values to it
@@ -427,7 +434,7 @@ public final class IngestDocument {
 
     private Map<String, Object> createTemplateModel() {
         Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SOURCE_KEY, sourceAndMetadata);
+        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
         // If there is a field in the source with the name '_ingest' it gets overwritten here,
         // if access to that field is required then it get accessed via '_source._ingest'
         model.put(INGEST_KEY, ingestMetadata);
@@ -489,13 +496,13 @@ public final class IngestDocument {
     }
 
     public enum MetaData {
-        INDEX("_index"),
-        TYPE("_type"),
-        ID("_id"),
-        ROUTING("_routing"),
-        PARENT("_parent"),
-        TIMESTAMP("_timestamp"),
-        TTL("_ttl");
+        INDEX(IndexFieldMapper.NAME),
+        TYPE(TypeFieldMapper.NAME),
+        ID(IdFieldMapper.NAME),
+        ROUTING(RoutingFieldMapper.NAME),
+        PARENT(ParentFieldMapper.NAME),
+        TIMESTAMP(TimestampFieldMapper.NAME),
+        TTL(TTLFieldMapper.NAME);
 
         private final String fieldName;
 
@@ -506,7 +513,6 @@ public final class IngestDocument {
         public String getFieldName() {
             return fieldName;
         }
-
     }
 
     private class FieldPath {
@@ -523,7 +529,7 @@ public final class IngestDocument {
                 newPath = path.substring(8, path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith(SOURCE_KEY + ".")) {
+                if (path.startsWith(SourceFieldMapper.NAME + ".")) {
                     newPath = path.substring(8, path.length());
                 } else {
                     newPath = path;

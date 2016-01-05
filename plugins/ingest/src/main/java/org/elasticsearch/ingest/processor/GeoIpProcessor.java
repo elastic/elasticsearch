@@ -32,6 +32,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,8 +56,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.ingest.processor.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor implements Processor {
 

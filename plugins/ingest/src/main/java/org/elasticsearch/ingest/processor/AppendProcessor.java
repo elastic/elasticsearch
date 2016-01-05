@@ -22,6 +22,8 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.Processor;
 
 import java.util.Map;
 

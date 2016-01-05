@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -53,7 +53,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(val, equalTo("bar"));
     }
 
-    public void testReadStringProperty_InvalidType() {
+    public void testReadStringPropertyInvalidType() {
         try {
             ConfigurationUtils.readStringProperty(config, "arr");
         } catch (IllegalArgumentException e) {

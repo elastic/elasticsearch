@@ -67,5 +67,4 @@ public class ValueSourceTests extends ESTestCase {
         assertThat(myPreciousList.size(), equalTo(1));
         assertThat(myPreciousList.get(0), equalTo("value"));
     }
-
 }

@@ -69,7 +69,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
-        final boolean stored = indexCreatedBefore22 == false;
+        final boolean stored = false;
         assertThat(doc.rootDoc().getField("point.lat").fieldType().stored(), is(stored));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").fieldType().stored(), is(stored));

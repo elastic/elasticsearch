@@ -106,6 +106,7 @@ public class TranslogWriter extends TranslogReader {
     }
 
     private synchronized final void closeWithTragicEvent(Throwable throwable) throws IOException {
+        assert throwable != null : "throwable must not be null in a tragic event";
         if (tragedy == null) {
             tragedy = throwable;
         } else {

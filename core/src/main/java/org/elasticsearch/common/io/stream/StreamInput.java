@@ -576,6 +576,18 @@ public abstract class StreamInput extends InputStream {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Reads a list of objects
+     */
+    public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(reader.read(this));
+        }
+        return builder;
+    }
+
     public static StreamInput wrap(BytesReference reference) {
         if (reference.hasArray() == false) {
             reference = reference.toBytesArray();

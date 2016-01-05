@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -65,6 +66,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
     protected final ThreadPool threadPool;
+    protected final TaskManager taskManager;
 
     volatile ImmutableMap<String, RequestHandlerRegistry> requestHandlers = ImmutableMap.of();
     final Object requestHandlerMutex = new Object();
@@ -113,6 +115,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", TransportLivenessAction.NAME}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
+        taskManager = new TaskManager(settings);
     }
 
     /**
@@ -126,6 +129,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     // for testing
     DiscoveryNode getLocalNode() {
         return localNode;
+    }
+
+    public TaskManager getTaskManager() {
+        return taskManager;
     }
 
     protected Adapter createAdapter() {
@@ -346,13 +353,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, channel);
+                reg.processMessageReceived(request, channel);
             } else {
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, channel);
+                        reg.processMessageReceived(request, channel);
                     }
 
                     @Override
@@ -428,7 +435,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, handler, executor, false);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
         registerRequestHandler(reg);
     }
 
@@ -442,7 +449,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, handler, executor, forceExecution);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
         registerRequestHandler(reg);
     }
 
@@ -451,7 +458,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             RequestHandlerRegistry replaced = requestHandlers.get(reg.getAction());
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
             if (replaced != null) {
-                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg.getHandler(), replaced.getHandler());
+                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg, replaced);
             }
         }
     }
@@ -840,6 +847,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.error("failed to handle exception for action [{}], handler [{}]", e, action, handler);
             }
         }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "direct";
+        }
+
     }
 
 }

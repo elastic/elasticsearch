@@ -6,11 +6,10 @@ The reindex plugin adds two APIs:
 * `_update_by_query` updates all documents matching a query in place.
 * `_reindex` copies documents from one index to another.
 
-These APIs are brothers so they live in the same plugin. Both use
+These APIs are siblings so they live in the same plugin. Both use
 {ref}/search-request-scroll.html[Scroll] and {ref}/docs-bulk.html[Bulk] APIs
-to send an index request per document though they may not work that way in the
-future. Regardless of how they work internally they will always work **as**
-**though** they send an index request per document that matches a scroll.
+to send an index request per document. There are potential shortcuts that could
+speed this process so this plugin may change how this is done in the future.
 
 [float]
 ==== Installation
@@ -40,8 +39,10 @@ The node must be stopped before removing the plugin.
 [[update-by-query-usage]]
 ==== Using `_update_by_query`
 
-The simplest usage of `_update_by_query` just `touch`es every document in an
-index:
+The simplest usage of `_update_by_query` just performs an update on every
+document in the index without changing the source. This is useful to
+<<picking-up-a-new-property,pick up a new property>> or some other online
+mapping change. Here is the API:
 
 [source,js]
 --------------------------------------------------
@@ -63,29 +64,26 @@ That will return something like this:
 --------------------------------------------------
 
 `_update_by_query` gets a snapshot of the index when it starts and indexes what
-it finds using `internal` versioning. That means that if the document changes
-between the time when the snapshot was taken and when the index request is
-processed then you'll get a version conflict. When the versions match the
-document is changed and the version number is incremented.
+it finds using `internal` versioning. That means that you'll get a version
+conflict if the document changes between the time when the snapshot was taken
+and when the index request is processed. When the versions match the document
+is updated and the version number is incremented.
 
-Version conflicts are just counted and not returned by default. To count them
-you must set `conflicts=abort` on the url or `"conflicts": "abort"` in the
-request body. If you do then the `failures` element will contain version
-conflict information. There is no `conflicts=record` because we number of
-conflicts could grow without bounds so its either `abort` or nothing.
+All non-version conflict update failures cause the `_update_by_query` to abort
+and are returned in the `failures` of the response. The updates that have been
+performed still stick. In other words, the process is not rolled back, only
+aborted. While the first failure causes the abort all failures that are
+returned by the failing bulk request are returned in the `failures` element so
+its possible for there to be quite a few.
 
-Speaking of the `failures` element, it will contain a list of failures if
-there are any. The only "optional" sort of failures are version conflicts. All
-other failures always cause the operation to abort. While the first failure
-causes the abort, it's possible to encounter lots of subsequent failures due to
-batching so all failures are reported. Just in case you want them.
+By default version conflict failures are simply counted and do not cause the
+`_update_by_query` to abort. You can request that they cause it to abort by
+setting `conflicts=abort` on the url or `"conflicts": "abort"` in the request
+body. If you do then the `failures` element will contain version conflict
+information. Version conflicts cannot be recorded without causing aborts.
 
-It's important to remember that "abort" here doesn't mean "rollback". This
-operation isn't atomic. If it fails part way through then its changes have been
-made.
-
-Back to the API format, you can limit the copy to a single type. This will only
-update `tweet`s from the `twitter` index:
+Back to the API format, you can limit `_update_by_query` to a single type. This
+will only update `tweet`s from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -93,8 +91,9 @@ POST /twitter/tweet/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-You can limit using the {ref}/query-dsl.html[Query DSL]. This will update
-all documents from the `twitter` index for the user `kimchy`:
+You can also limit `_update_by_query` using the
+{ref}/query-dsl.html[Query DSL]. This will update all documents from the
+`twitter` index for the user `kimchy`:
 
 [source,js]
 --------------------------------------------------
@@ -113,17 +112,17 @@ POST /twitter/_update_by_query
 way as the {ref}/search-search.html[Search API]. You can also use the `q`
 parameter in the same way as the search api.
 
-So far we've only been touching documents. This is useful for picking up new
-properties if the mapping has `"dynamic": "false"` but its only half the fun.
-`_update_by_query` supports the `script` object to define how to actually
-update the document. This will prefix the `user` field with `other` on all of
-kimchy's tweets:
+So far we've only been updating documents without changing their source. That
+is genuinely useful for things like
+<<picking-up-a-new-property,picking up new properties>> but its only half the
+fun. `_update_by_query` supports a `script` object to update the document. This
+will increment the `likes` field on all of kimchy's tweets:
 [source,js]
 --------------------------------------------------
 POST /twitter/_update_by_query
 {
   "script": {
-    "inline": "ctx._source.user = \"other\" + ctx._source.user"
+    "inline": "ctx._source.likes++"
   },
   "query": {
     "term": {
@@ -137,7 +136,9 @@ POST /twitter/_update_by_query
 Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
-anything else is an error. Setting any other field in `ctx` is an error.
+anything else is an error. If you want to delete by a query you can use the
+<<plugins-delete-by-query,Delete by Query Plugin>> instead. Setting any other
+field in `ctx` is an error.
 
 This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
@@ -152,7 +153,8 @@ POST /twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-And `routing` works, on the off chance that you need it:
+If you provide `routing` then the routing is copied to the scroll query,
+limiting the process to the shards that match that routing value:
 
 [source,js]
 --------------------------------------------------
@@ -508,14 +510,16 @@ The number of documents that were successfully created. This is not returned by
 
 Below are some examples of how you might use this plugin:
 
+[[picking-up-a-new-property]]
 ==== Pick up a new property
 
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:
 
-```
-curl -XDELETE localhost:9200/test?pretty
-curl -XPUT localhost:9200/test?pretty -d '{
+[source,js]
+--------------------------------------------------
+PUT test
+{
   "mappings": {
     "test": {
       "dynamic": false,
@@ -524,76 +528,101 @@ curl -XPUT localhost:9200/test?pretty -d '{
       }
     }
   }
-}'
+}
 
-curl -XPOST 'localhost:9200/test/test?refresh&pretty' -d '{
+POST test/test?refresh
+{
   "text": "words words",
   "flag": "bar"
 }'
-curl -XPOST 'localhost:9200/test/test?refresh&pretty' -d '{
+POST test/test?refresh
+{
   "text": "words words",
   "flag": "foo"
 }'
-curl -XPUT localhost:9200/test/_mapping/test?pretty -d '{
+PUT test/_mapping/test
+{
   "properties": {
     "text": {"type": "string"},
     "flag": {"type": "string", "analyzer": "keyword"}
   }
-}'
-```
+}
+--------------------------------------------------
+// AUTOSENSE
 
 Searching for the data won't find anything:
 
-```
-curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
+[source,js]
+--------------------------------------------------
+POST test/_search?filter_path=hits.total
+{
   "query": {
     "match": {
       "flag": "foo"
     }
   }
-}'
-# {
-#   "hits" : {
-#     "total" : 0
-#   }
-# }
-```
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[source,js]
+--------------------------------------------------
+{
+  "hits" : {
+    "total" : 0
+  }
+}
+--------------------------------------------------
 
 But you can issue an `_update_by_query` request to pick up the new mapping:
 
-```
-curl -XPOST 'localhost:9200/test/_update_by_query?pretty&refresh'
-curl -XPOST 'localhost:9200/test/_search?pretty&filter_path=hits.total' -d '{
+[source,js]
+--------------------------------------------------
+POST test/_update_by_query?refresh
+POST test/_search?filter_path=hits.total
+{
   "query": {
     "match": {
       "flag": "foo"
     }
   }
-}'
-# {
-#   "hits" : {
-#     "total" : 1
-#   }
-# }
-```
+}
+--------------------------------------------------
+// AUTOSENSE
 
-Hurray! Remember that you can do the exact same thing when adding a field to a
-multifield.
+[source,js]
+--------------------------------------------------
+{
+  "hits" : {
+    "total" : 1
+  }
+}
+--------------------------------------------------
+
+Hurray! You can do the exact same thing when adding a field to a multifield.
 
 ==== Change the name of a field
 
-`_reindex` can be used to build a copy of an index with renamed fields:
+`_reindex` can be used to build a copy of an index with renamed fields. Say you
+create an index containing documents that look like this:
 
-```
-curl -XDELETE localhost:9200/test?pretty
-
-curl -XPOST 'localhost:9200/test/test/1?refresh&pretty' -d '{
+[source,js]
+--------------------------------------------------
+POST test/test/1?refresh&pretty
+{
   "text": "words words",
   "flag": "foo"
-}'
+}
+--------------------------------------------------
+// AUTOSENSE
 
-curl -XDELETE localhost:9200/test2?pretty
-curl -XPOST localhost:9200/_reindex?pretty  -d '{
+But you don't like the name `flag` and want to replace it with `tag`.
+`_reindex` can create the other index for you:
+
+[source,js]
+--------------------------------------------------
+POST _reindex?pretty
+{
   "src": {
     "index": "test"
   },
@@ -603,6 +632,26 @@ curl -XPOST localhost:9200/_reindex?pretty  -d '{
   "script": {
     "inline": "ctx._source.tag = ctx._source.remove(\"flag\")"
   }
-}'
-curl localhost:9200/test2/test/1?pretty
-```
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Now you can get the new document:
+
+[source,js]
+--------------------------------------------------
+GET test2/test/1?pretty
+--------------------------------------------------
+// AUTOSENSE
+
+and it'll look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "text": "words words",
+  "tag": "foo"
+}
+--------------------------------------------------
+
+Or you can search by `tag` or whatever you want.

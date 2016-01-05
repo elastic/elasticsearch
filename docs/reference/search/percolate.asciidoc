@@ -313,6 +313,10 @@ document.
 Internally the percolate API will issue a GET request for fetching the `_source` of the document to percolate.
 For this feature to work, the `_source` for documents to be percolated needs to be stored.
 
+If percolating an existing document and the a document is also specified in the source of the percolate request then
+an error is thrown. Either the document to percolate should be specified in the source or be defined by specifying the
+index, type and id.
+
 [float]
 ==== Example
 
@@ -382,13 +386,11 @@ requests.txt:
 {"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
 {"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
-{}
 {"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
 {"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
 {"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
-{}
 --------------------------------------------------
 
 For a percolate existing document item (headers with the `id` field), the response can be an empty JSON object.

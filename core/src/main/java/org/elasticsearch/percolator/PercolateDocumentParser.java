@@ -197,6 +197,7 @@ public class PercolateDocumentParser {
     }
 
     private void parseSort(XContentParser parser, PercolateContext context) throws Exception {
+        context.trackScores(true);
         sortParseElement.parse(parser, context);
         // null, means default sorting by relevancy
         if (context.sort() != null) {

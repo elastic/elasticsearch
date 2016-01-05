@@ -277,9 +277,14 @@ public class PercolatorService extends AbstractComponent implements IndexEventLi
             }
 
             TopDocs topDocs = collector.topDocs();
-            Map<Integer, String> ids = new HashMap<>();
-            Map<Integer, Map<String, HighlightField>> hls = new HashMap<>();
+            Map<Integer, String> ids = new HashMap<>(topDocs.scoreDocs.length);
+            Map<Integer, Map<String, HighlightField>> hls = new HashMap<>(topDocs.scoreDocs.length);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                if (context.trackScores() == false) {
+                    // No sort or tracking scores was provided, so use special value to indicate to not show the scores:
+                    scoreDoc.score = NO_SCORE;
+                }
+
                 int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
                 LeafReaderContext atomicReaderContext = context.searcher().getIndexReader().leaves().get(segmentIdx);
                 final int segmentDocId = scoreDoc.doc - atomicReaderContext.docBase;

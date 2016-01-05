@@ -573,3 +573,6 @@ This optimization didn't work in the percolate API mode where modifications to q
 The percolator by defaults sets the `size` option to `10` whereas before this was set to unlimited.
 
 The percolate api can no longer accept documents that have fields that don't exist in the mapping.
+
+When percolating an existing document then specifying a document in the source of the percolate request is not allowed
+any more.

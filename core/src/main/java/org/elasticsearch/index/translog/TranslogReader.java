@@ -138,7 +138,7 @@ public abstract class TranslogReader implements Closeable, Comparable<TranslogRe
     abstract protected void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
-    public void close() throws IOException {
+    public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             channelReference.decRef();
         }

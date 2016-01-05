@@ -44,22 +44,24 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        String sourceNodeId = shardRouting.currentNodeId();
-        /* if sourceNodeId is not null we do a relocation and just check the version of the node
-         * that we are currently allocate on. If not we are initializing and recover from primary.*/
-        if (sourceNodeId == null) { // we allocate - check primary
-            if (shardRouting.primary()) {
-                // we are the primary we can allocate wherever
+        if (shardRouting.primary()) {
+            if (shardRouting.currentNodeId() == null) {
+                // fresh primary, we can allocate wherever
                 return allocation.decision(Decision.YES, NAME, "primary shard can be allocated anywhere");
+            } else {
+                // relocating primary, only migrate to newer host
+                return isVersionCompatible(allocation.routingNodes(), shardRouting.currentNodeId(), node, allocation);
             }
+        } else {
             final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
-            if (primary == null) { // we have a primary - it's a start ;)
+            // check that active primary has a newer version so that peer recovery works
+            if (primary != null) {
+                return isVersionCompatible(allocation.routingNodes(), primary.currentNodeId(), node, allocation);
+            } else {
+                // ReplicaAfterPrimaryActiveAllocationDecider should prevent this case from occurring
                 return allocation.decision(Decision.YES, NAME, "no active primary shard yet");
             }
-            sourceNodeId = primary.currentNodeId();
         }
-        return isVersionCompatible(allocation.routingNodes(), sourceNodeId, node, allocation);
-
     }
 
     private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target, RoutingAllocation allocation) {

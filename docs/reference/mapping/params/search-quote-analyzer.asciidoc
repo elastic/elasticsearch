@@ -29,14 +29,14 @@ PUT /my_index
                "tokenizer":"standard",
                "filter":[
                   "lowercase",
-                  "minimal_english"
+                  "english_stop"
                ]
             }
          },
          "filter":{
-            "minimal_english":{
-               "type":"stemmer",
-               "name":"minimal_english"
+            "english_stop":{
+               "type":"stop",
+               "stopwords":"_english_"
             }
          }
       }

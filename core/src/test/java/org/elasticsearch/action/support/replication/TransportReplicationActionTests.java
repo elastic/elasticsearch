@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -557,7 +558,24 @@ public class TransportReplicationActionTests extends ESTestCase {
                     // the shard the request was sent to and the shard to be failed should be the same
                     assertEquals(shardRoutingEntry.getShardRouting(), routing);
                     failures.add(shardFailedRequest);
-                    transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    if (randomBoolean()) {
+                        // simulate master left and test that the shard failure is retried
+                        int numberOfRetries = randomIntBetween(1, 4);
+                        CapturingTransport.CapturedRequest currentRequest = shardFailedRequest;
+                        for (int retryNumber = 0; retryNumber < numberOfRetries; retryNumber++) {
+                            // force a new cluster state to simulate a new master having been elected
+                            clusterService.setState(ClusterState.builder(clusterService.state()));
+                            transport.handleResponse(currentRequest.requestId, new NotMasterException("shard-failed-test"));
+                            CapturingTransport.CapturedRequest[] retryRequests = transport.capturedRequests();
+                            transport.clear();
+                            assertEquals(1, retryRequests.length);
+                            currentRequest = retryRequests[0];
+                        }
+                        // now simulate that the last retry succeeded
+                        transport.handleResponse(currentRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    } else {
+                        transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    }
                 }
             } else {
                 successful++;

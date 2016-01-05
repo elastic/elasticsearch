@@ -2372,7 +2372,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
                 if (extenmd.promote == null) {
                     throw new IllegalArgumentException("Cannot apply compound assignment to " +
-                        " types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
+                        "types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
                 }
 
                 extenmd.castFrom = getLegalCast(source, extenmd.type, extenmd.promote, false);

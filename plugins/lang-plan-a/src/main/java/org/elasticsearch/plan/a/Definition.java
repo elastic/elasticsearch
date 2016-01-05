@@ -24,11 +24,14 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class Definition {
     enum Sort {
@@ -352,20 +355,32 @@ class Definition {
     final Type utilityType;
     final Type defobjType;
 
+    final Type itrType;
+    final Type oitrType;
+    final Type sitrType;
+
     final Type collectionType;
     final Type ocollectionType;
     final Type scollectionType;
 
     final Type listType;
     final Type arraylistType;
-    final Type mapType;
-    final Type hashmapType;
-
     final Type olistType;
     final Type oarraylistType;
-    final Type omapType;
-    final Type ohashmapType;
+    final Type slistType;
+    final Type sarraylistType;
 
+    final Type setType;
+    final Type hashsetType;
+    final Type osetType;
+    final Type ohashsetType;
+    final Type ssetType;
+    final Type shashsetType;
+
+    final Type mapType;
+    final Type hashmapType;
+    final Type oomapType;
+    final Type oohashmapType;
     final Type smapType;
     final Type shashmapType;
     final Type somapType;
@@ -417,20 +432,32 @@ class Definition {
         utilityType = getType("Utility");
         defobjType = getType("Def");
 
+        itrType = getType("Iterator");
+        oitrType = getType("Iterator<Object>");
+        sitrType = getType("Iterator<String>");
+
         collectionType = getType("Collection");
         ocollectionType = getType("Collection<Object>");
-        scollectionType = getType("")
+        scollectionType = getType("Collection<String>");
 
         listType = getType("List");
         arraylistType = getType("ArrayList");
-        mapType = getType("Map");
-        hashmapType = getType("HashMap");
-
         olistType = getType("List<Object>");
         oarraylistType = getType("ArrayList<Object>");
-        omapType = getType("Map<Object,Object>");
-        ohashmapType = getType("HashMap<Object,Object>");
+        slistType = getType("List<String>");
+        sarraylistType = getType("ArrayList<String>");
 
+        setType = getType("Set");
+        hashsetType = getType("HashSet");
+        osetType = getType("Set<Object>");
+        ohashsetType = getType("HashSet<Object>");
+        ssetType = getType("Set<String>");
+        shashsetType = getType("HashSet<String>");
+
+        mapType = getType("Map");
+        hashmapType = getType("HashMap");
+        oomapType = getType("Map<Object,Object>");
+        oohashmapType = getType("HashMap<Object,Object>");
         smapType = getType("Map<String,def>");
         shashmapType = getType("HashMap<String,def>");
         somapType = getType("Map<String,Object>");
@@ -499,16 +526,32 @@ class Definition {
         utilityType = definition.utilityType;
         defobjType = definition.defobjType;
 
+        itrType = definition.itrType;
+        oitrType = definition.oitrType;
+        sitrType = definition.sitrType;
+
+        collectionType = definition.collectionType;
+        ocollectionType = definition.ocollectionType;
+        scollectionType = definition.scollectionType;
+
         listType = definition.listType;
         arraylistType = definition.arraylistType;
-        mapType = definition.mapType;
-        hashmapType = definition.hashmapType;
-
         olistType = definition.olistType;
         oarraylistType = definition.oarraylistType;
-        omapType = definition.omapType;
-        ohashmapType = definition.ohashmapType;
+        slistType = definition.slistType;
+        sarraylistType = definition.sarraylistType;
 
+        setType = definition.setType;
+        hashsetType = definition.hashsetType;
+        osetType = definition.osetType;
+        ohashsetType = definition.ohashsetType;
+        ssetType = definition.ssetType;
+        shashsetType = definition.shashsetType;
+
+        mapType = definition.mapType;
+        hashmapType = definition.hashmapType;
+        oomapType = definition.oomapType;
+        oohashmapType = definition.oohashmapType;
         smapType = definition.smapType;
         shashmapType = definition.shashmapType;
         somapType = definition.somapType;
@@ -553,24 +596,36 @@ class Definition {
         addStruct( "Utility"      , Utility.class      );
         addStruct( "Def"          , Def.class          );
 
-        addStruct( "List"      , List.class      );
-        addStruct( "ArrayList" , ArrayList.class );
-        addStruct( "Map"       , Map.class       );
-        addStruct( "HashMap"   , HashMap.class   );
-
-        addStruct( "List<Object>"           , List.class      );
-        addStruct( "ArrayList<Object>"      , ArrayList.class );
-        addStruct( "Map<Object,Object>"     , Map.class       );
-        addStruct( "HashMap<Object,Object>" , HashMap.class   );
-
-        addStruct( "Map<String,def>"        , Map.class       );
-        addStruct( "HashMap<String,def>"    , HashMap.class   );
-        addStruct( "Map<String,Object>"     , Map.class       );
-        addStruct( "HashMap<String,Object>" , HashMap.class   );
-
         addStruct( "Iterator"         , Iterator.class );
         addStruct( "Iterator<Object>" , Iterator.class );
         addStruct( "Iterator<String>" , Iterator.class );
+
+        addStruct( "Collection"         , Collection.class );
+        addStruct( "Collection<Object>" , Collection.class );
+        addStruct( "Collection<String>" , Collection.class );
+
+        addStruct( "List"              , List.class      );
+        addStruct( "ArrayList"         , ArrayList.class );
+        addStruct( "List<Object>"      , List.class      );
+        addStruct( "ArrayList<Object>" , ArrayList.class );
+        addStruct( "List<String>"      , List.class      );
+        addStruct( "ArrayList<String>" , ArrayList.class );
+
+        addStruct( "Set"             , Set.class     );
+        addStruct( "HashSet"         , HashSet.class );
+        addStruct( "Set<Object>"     , Set.class     );
+        addStruct( "HashSet<Object>" , HashSet.class );
+        addStruct( "Set<String>"     , Set.class     );
+        addStruct( "HashSet<String>" , HashSet.class );
+
+        addStruct( "Map"                    , Map.class     );
+        addStruct( "HashMap"                , HashMap.class );
+        addStruct( "Map<Object,Object>"     , Map.class     );
+        addStruct( "HashMap<Object,Object>" , HashMap.class );
+        addStruct( "Map<String,def>"        , Map.class     );
+        addStruct( "HashMap<String,def>"    , HashMap.class );
+        addStruct( "Map<String,Object>"     , Map.class     );
+        addStruct( "HashMap<String,Object>" , HashMap.class );
 
         addStruct( "Executable" , Executable.class );
 
@@ -605,8 +660,12 @@ class Definition {
         addClass("CharSequence");
         addClass("String");
 
+        addClass("Iterator");
+        addClass("Collection");
         addClass("List");
         addClass("ArrayList");
+        addClass("Set");
+        addClass("HashSet");
         addClass("Map");
         addClass("HashMap");
 
@@ -855,53 +914,111 @@ class Definition {
         addMethod("Def", "DefToFloat", null, true, floatobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToDouble", null, true, doubleobjType, new Type[] {defType}, null, null);
 
-        addMethod("List", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Iterator", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator", "next", null, false, objectType, new Type[] {}, defType, null);
+        addMethod("Iterator", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Iterator<Object>", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator<Object>", "next", null, false, objectType, new Type[] {}, null, null);
+        addMethod("Iterator<Object>", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Iterator<String>", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator<String>", "next", null, false, objectType, new Type[] {}, stringType, null);
+        addMethod("Iterator<String>", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Collection", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection", "contains", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection", "iterator", null, false, itrType, new Type[] {}, null, null);
+        addMethod("Collection", "remove", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "size", null, false, intType, new Type[] {}, null, null);
+
+        addMethod("Collection<Object>", "add", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "contains", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "iterator", null, false, oitrType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "remove", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "size", null, false, intType, new Type[] {}, null, null);
+
+        addMethod("Collection<String>", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "contains", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "iterator", null, false, sitrType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "remove", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "size", null, false, intType, new Type[] {}, null, null);
+
         addMethod("List", "set", null, false, objectType, new Type[] {intType, objectType}, defType, new Type[] {intType, defType});
         addMethod("List", "get", null, false, objectType, new Type[] {intType}, defType, null);
         addMethod("List", "remove", null, false, objectType, new Type[] {intType}, defType, null);
-        addMethod("List", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("List", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
 
         addConstructor("ArrayList", "new", new Type[] {}, null);
+
+        addMethod("List<Object>", "set", null, false, objectType, new Type[] {intType, objectType}, null, null);
+        addMethod("List<Object>", "get", null, false, objectType, new Type[] {intType}, null, null);
+        addMethod("List<Object>", "remove", null, false, objectType, new Type[] {intType}, null, null);
+
+        addConstructor("ArrayList<Object>", "new", new Type[] {}, null);
+
+        addMethod("List<String>", "set", null, false, objectType, new Type[] {intType, objectType}, stringType, new Type[] {intType, stringType});
+        addMethod("List<String>", "get", null, false, objectType, new Type[] {intType}, stringType, null);
+        addMethod("List<String>", "remove", null, false, objectType, new Type[] {intType}, stringType, null);
+
+        addConstructor("ArrayList<String>", "new", new Type[] {}, null);
+
+        addConstructor("HashSet", "new", new Type[] {}, null);
+
+        addConstructor("HashSet<Object>", "new", new Type[] {}, null);
+
+        addConstructor("HashSet<String>", "new", new Type[] {}, null);
 
         addMethod("Map", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {defType, defType});
         addMethod("Map", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {defType});
         addMethod("Map", "remove", null, false, objectType, new Type[] {objectType}, null, null);
-        addMethod("Map", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map", "containsValue", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map", "keySet", null, false, osetType, new Type[] {}, setType, null);
+        addMethod("Map", "values", null, false, ocollectionType, new Type[] {}, collectionType, null);
 
         addConstructor("HashMap", "new", new Type[] {}, null);
-
-        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {stringType, defType});
-        addMethod("Map<String,def>", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
-        addMethod("Map<String,def>", "remove", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
-        addMethod("Map<String,def>", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("Map<String,def>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
-
-        addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
-
-        addMethod("List<Object>", "add", null, false, booleanType, new Type[] {objectType}, null, null);
-        addMethod("List<Object>", "set", null, false, objectType, new Type[] {intType, objectType}, null, null);
-        addMethod("List<Object>", "get", null, false, objectType, new Type[] {intType}, null, null);
-        addMethod("List<Object>", "remove", null, false, objectType, new Type[] {intType}, null, null);
-        addMethod("List<Object>", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("List<Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
-
-        addConstructor("ArrayList<Object>", "new", new Type[] {}, null);
 
         addMethod("Map<Object,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null, null);
         addMethod("Map<Object,Object>", "get", null, false, objectType, new Type[] {objectType}, null, null);
         addMethod("Map<Object,Object>", "remove", null, false, objectType, new Type[] {objectType}, null, null);
-        addMethod("Map<Object,Object>", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map<Object,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<Object,Object>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<Object,Object>", "keySet", null, false, osetType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "values", null, false, ocollectionType, new Type[] {}, null, null);
 
         addConstructor("HashMap<Object,Object>", "new", new Type[] {}, null);
+
+        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {stringType, defType});
+        addMethod("Map<String,def>", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
+        addMethod("Map<String,def>", "remove", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
+        addMethod("Map<String,def>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<String,def>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<String,def>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Map<String,def>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map<String,def>", "keySet", null, false, osetType, new Type[] {}, ssetType, null);
+        addMethod("Map<String,def>", "values", null, false, ocollectionType, new Type[] {}, collectionType, null);
+
+        addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
 
         addMethod("Map<String,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null, new Type[] {stringType, objectType});
         addMethod("Map<String,Object>", "get", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
         addMethod("Map<String,Object>", "remove", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
-        addMethod("Map<String,Object>", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map<String,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<String,Object>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<String,Object>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Map<String,Object>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<String,Object>", "keySet", null, false, osetType, new Type[] {}, ssetType, null);
+        addMethod("Map<String,Object>", "values", null, false, ocollectionType, new Type[] {}, null, null);
 
         addConstructor("HashMap<String,Object>", "new", new Type[] {}, null);
 
@@ -931,17 +1048,26 @@ class Definition {
         copyStruct("CharSequence", "Object");
         copyStruct("String", "CharSequence", "Object");
 
-        copyStruct("List", "Object");
-        copyStruct("ArrayList", "List", "Object");
+        copyStruct("List", "Collection", "Object");
+        copyStruct("ArrayList", "List", "Collection", "Object");
+        copyStruct("List<Object>", "Collection<Object>", "Object");
+        copyStruct("ArrayList<Object>", "List<Object>", "Collection<Object>", "Object");
+        copyStruct("List<String>", "Collection<String>", "Object");
+        copyStruct("ArrayList<String>", "List<String>", "Collection<String>", "Object");
+
+        copyStruct("Set", "Collection", "Object");
+        copyStruct("HashSet", "Set", "Collection", "Object");
+        copyStruct("Set<Object>", "Collection<Object>", "Object");
+        copyStruct("HashSet<Object>", "Set<Object>", "Collection<Object>", "Object");
+        copyStruct("Set<String>", "Collection<String>", "Object");
+        copyStruct("HashSet<String>", "Set<String>", "Collection<String>", "Object");
+
         copyStruct("Map", "Object");
         copyStruct("HashMap", "Map", "Object");
-        copyStruct("Map<String,def>", "Object");
-        copyStruct("HashMap<String,def>", "Map<String,def>", "Object");
-
-        copyStruct("List<Object>", "Object");
-        copyStruct("ArrayList<Object>", "List", "Object");
         copyStruct("Map<Object,Object>", "Object");
         copyStruct("HashMap<Object,Object>", "Map<Object,Object>", "Object");
+        copyStruct("Map<String,def>", "Object");
+        copyStruct("HashMap<String,def>", "Map<String,def>", "Object");
         copyStruct("Map<String,Object>", "Object");
         copyStruct("HashMap<String,Object>", "Map<String,Object>", "Object");
 
@@ -1254,38 +1380,141 @@ class Definition {
 
         addBound(stringType, charseqType, charseqType);
 
+        addBound(oitrType, itrType, itrType);
+        addBound(oitrType, sitrType, itrType);
+        addBound(sitrType, itrType, itrType);
+
+        addBound(ocollectionType, collectionType, collectionType);
+        addBound(scollectionType, collectionType, collectionType);
+        addBound(scollectionType, ocollectionType, ocollectionType);
+        addBound(listType, collectionType, collectionType);
+        addBound(listType, ocollectionType, collectionType);
+        addBound(listType, scollectionType, collectionType);
+        addBound(arraylistType, collectionType, collectionType);
+        addBound(arraylistType, ocollectionType, collectionType);
+        addBound(arraylistType, scollectionType, collectionType);
         addBound(arraylistType, listType, listType);
+        addBound(olistType, collectionType, collectionType);
+        addBound(olistType, ocollectionType, ocollectionType);
+        addBound(olistType, scollectionType, ocollectionType);
         addBound(olistType, listType, listType);
         addBound(olistType, arraylistType, listType);
+        addBound(oarraylistType, collectionType, collectionType);
+        addBound(oarraylistType, ocollectionType, ocollectionType);
+        addBound(oarraylistType, scollectionType, ocollectionType);
         addBound(oarraylistType, listType, listType);
-        addBound(oarraylistType, olistType, olistType);
         addBound(oarraylistType, arraylistType, arraylistType);
+        addBound(oarraylistType, olistType, olistType);
+        addBound(slistType, collectionType, collectionType);
+        addBound(slistType, ocollectionType, ocollectionType);
+        addBound(slistType, scollectionType, scollectionType);
+        addBound(slistType, listType, listType);
+        addBound(slistType, arraylistType, listType);
+        addBound(slistType, olistType, olistType);
+        addBound(slistType, oarraylistType, olistType);
+        addBound(sarraylistType, collectionType, collectionType);
+        addBound(sarraylistType, ocollectionType, ocollectionType);
+        addBound(sarraylistType, scollectionType, scollectionType);
+        addBound(sarraylistType, listType, listType);
+        addBound(sarraylistType, arraylistType, arraylistType);
+        addBound(sarraylistType, olistType, olistType);
+        addBound(sarraylistType, oarraylistType, oarraylistType);
+        addBound(sarraylistType, slistType, slistType);
+        addBound(setType, collectionType, collectionType);
+        addBound(setType, ocollectionType, collectionType);
+        addBound(setType, scollectionType, collectionType);
+        addBound(setType, listType, collectionType);
+        addBound(setType, arraylistType, collectionType);
+        addBound(setType, olistType, collectionType);
+        addBound(setType, oarraylistType, collectionType);
+        addBound(setType, slistType, collectionType);
+        addBound(setType, sarraylistType, collectionType);
+        addBound(hashsetType, collectionType, collectionType);
+        addBound(hashsetType, ocollectionType, collectionType);
+        addBound(hashsetType, scollectionType, collectionType);
+        addBound(hashsetType, listType, collectionType);
+        addBound(hashsetType, arraylistType, collectionType);
+        addBound(hashsetType, olistType, collectionType);
+        addBound(hashsetType, oarraylistType, collectionType);
+        addBound(hashsetType, slistType, collectionType);
+        addBound(hashsetType, sarraylistType, collectionType);
+        addBound(hashsetType, setType, setType);
+        addBound(osetType, collectionType, collectionType);
+        addBound(osetType, ocollectionType, ocollectionType);
+        addBound(osetType, scollectionType, ocollectionType);
+        addBound(osetType, listType, collectionType);
+        addBound(osetType, arraylistType, collectionType);
+        addBound(osetType, olistType, ocollectionType);
+        addBound(osetType, oarraylistType, ocollectionType);
+        addBound(osetType, slistType, ocollectionType);
+        addBound(osetType, sarraylistType, ocollectionType);
+        addBound(osetType, setType, setType);
+        addBound(osetType, hashsetType, setType);
+        addBound(ohashsetType, collectionType, collectionType);
+        addBound(ohashsetType, ocollectionType, ocollectionType);
+        addBound(ohashsetType, scollectionType, ocollectionType);
+        addBound(ohashsetType, listType, collectionType);
+        addBound(ohashsetType, arraylistType, collectionType);
+        addBound(ohashsetType, olistType, ocollectionType);
+        addBound(ohashsetType, oarraylistType, ocollectionType);
+        addBound(ohashsetType, slistType, ocollectionType);
+        addBound(ohashsetType, sarraylistType, ocollectionType);
+        addBound(ohashsetType, setType, setType);
+        addBound(ohashsetType, hashsetType, hashsetType);
+        addBound(ohashsetType, osetType, osetType);
+        addBound(ssetType, collectionType, collectionType);
+        addBound(ssetType, ocollectionType, ocollectionType);
+        addBound(ssetType, scollectionType, scollectionType);
+        addBound(ssetType, listType, collectionType);
+        addBound(ssetType, arraylistType, collectionType);
+        addBound(ssetType, olistType, ocollectionType);
+        addBound(ssetType, oarraylistType, ocollectionType);
+        addBound(ssetType, slistType, scollectionType);
+        addBound(ssetType, sarraylistType, scollectionType);
+        addBound(ssetType, setType, setType);
+        addBound(ssetType, hashsetType, setType);
+        addBound(ssetType, osetType, osetType);
+        addBound(ssetType, ohashsetType, osetType);
+        addBound(shashsetType, collectionType, collectionType);
+        addBound(shashsetType, ocollectionType, ocollectionType);
+        addBound(shashsetType, scollectionType, scollectionType);
+        addBound(shashsetType, listType, collectionType);
+        addBound(shashsetType, arraylistType, collectionType);
+        addBound(shashsetType, olistType, ocollectionType);
+        addBound(shashsetType, oarraylistType, ocollectionType);
+        addBound(shashsetType, slistType, scollectionType);
+        addBound(shashsetType, sarraylistType, scollectionType);
+        addBound(shashsetType, setType, setType);
+        addBound(shashsetType, hashsetType, hashsetType);
+        addBound(shashsetType, osetType, osetType);
+        addBound(shashsetType, ohashsetType, hashsetType);
+        addBound(shashsetType, ssetType, ssetType);
 
         addBound(hashmapType, mapType, mapType);
-        addBound(omapType, mapType, mapType);
-        addBound(omapType, hashmapType, mapType);
-        addBound(ohashmapType, mapType, mapType);
-        addBound(ohashmapType, hashmapType, hashmapType);
-        addBound(ohashmapType, omapType, omapType);
+        addBound(oomapType, mapType, mapType);
+        addBound(oomapType, hashmapType, mapType);
+        addBound(oohashmapType, mapType, mapType);
+        addBound(oohashmapType, hashmapType, hashmapType);
+        addBound(oohashmapType, oomapType, oomapType);
         addBound(smapType, mapType, mapType);
         addBound(smapType, hashmapType, mapType);
-        addBound(smapType, omapType, omapType);
-        addBound(smapType, ohashmapType, omapType);
+        addBound(smapType, oomapType, oomapType);
+        addBound(smapType, oohashmapType, oomapType);
         addBound(shashmapType, mapType, mapType);
         addBound(shashmapType, hashmapType, hashmapType);
-        addBound(shashmapType, omapType, omapType);
-        addBound(shashmapType, ohashmapType, ohashmapType);
+        addBound(shashmapType, oomapType, oomapType);
+        addBound(shashmapType, oohashmapType, oohashmapType);
         addBound(shashmapType, smapType, smapType);
         addBound(somapType, mapType, mapType);
         addBound(somapType, hashmapType, mapType);
-        addBound(somapType, omapType, omapType);
-        addBound(somapType, ohashmapType, omapType);
+        addBound(somapType, oomapType, oomapType);
+        addBound(somapType, oohashmapType, oomapType);
         addBound(somapType, smapType, smapType);
         addBound(somapType, shashmapType, smapType);
         addBound(sohashmapType, mapType, mapType);
         addBound(sohashmapType, hashmapType, hashmapType);
-        addBound(sohashmapType, omapType, omapType);
-        addBound(sohashmapType, ohashmapType, ohashmapType);
+        addBound(sohashmapType, oomapType, oomapType);
+        addBound(sohashmapType, oohashmapType, oohashmapType);
         addBound(sohashmapType, smapType, smapType);
         addBound(sohashmapType, shashmapType, shashmapType);
         addBound(sohashmapType, somapType, somapType);

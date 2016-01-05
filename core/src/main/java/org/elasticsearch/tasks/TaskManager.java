@@ -49,8 +49,8 @@ public class TaskManager extends AbstractComponent {
     public Task register(String type, String action, TransportRequest request) {
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action);
         if (task != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+            if (logger.isTraceEnabled()) {
+                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
             }
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -62,7 +62,7 @@ public class TaskManager extends AbstractComponent {
      * Unregister the task
      */
     public void unregister(Task task) {
-        logger.debug("unregister task for id: {}", task.getId());
+        logger.trace("unregister task for id: {}", task.getId());
         tasks.remove(task.getId());
     }
 

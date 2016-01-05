@@ -55,6 +55,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -354,6 +355,18 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
             countResponse = client().prepareCount().get();
+            if (countResponse.getCount() != numDocs) {
+                Map<String, String> xContentParamsMap = new HashMap<>();
+                xContentParamsMap.put("level", "shards");
+                ToXContent.Params xContentParams = new ToXContent.MapParams(xContentParamsMap);
+                for (int i = 0; i < indices.length; i++) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+                    builder.startObject();
+                    client().admin().indices().prepareStats(indices[i]).all().get().toXContent(builder, xContentParams);
+                    builder.endObject();
+                    logger.info("stats for {}: {}", indices[i], builder.string());
+                }
+            }
             assertHitCount(countResponse, numDocs);
             for (int i = 0; i < numDocs; i++) {
                 docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());

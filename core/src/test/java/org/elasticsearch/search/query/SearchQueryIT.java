@@ -476,39 +476,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, hasId("2"));
     }
 
-    public void testOmitTermFreqsAndPositions() throws Exception {
-        cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
-                                   // is added randomly via an index template.
-        Version version = Version.CURRENT;
-        int iters = scaledRandomIntBetween(10, 20);
-        for (int i = 0; i < iters; i++) {
-            try {
-                // backwards compat test!
-                assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                        .setSettings(settings(version).put(SETTING_NUMBER_OF_SHARDS, 1)));
-                assertThat(version.onOrAfter(Version.V_1_0_0_RC2), equalTo(false));
-                indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-                        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
-
-
-                SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).get();
-                assertHitCount(searchResponse, 1l);
-                try {
-                    client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)).get();
-                    fail("SearchPhaseExecutionException should have been thrown");
-                } catch (SearchPhaseExecutionException e) {
-                    assertTrue(e.toString().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
-                }
-                cluster().wipeIndices("test");
-            } catch (MapperParsingException ex) {
-                assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
-                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead"));
-            }
-            version = randomVersion(random());
-        }
-    }
-
     public void testQueryStringAnalyzedWildcard() throws Exception {
         createIndex("test");
 
@@ -635,24 +602,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    public void testTypeFilterTypeIndexedTests() throws Exception {
-        typeFilterTests("not_analyzed");
-    }
-
-    public void testTypeFilterTypeNotIndexedTests() throws Exception {
-        typeFilterTests("no");
-    }
-
-    private void typeFilterTests(String index) throws Exception {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        assertAcked(prepareCreate("test").setSettings(indexSettings)
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
-                        .startObject("_type").field("index", index).endObject()
-                        .endObject().endObject())
-                .addMapping("type2", jsonBuilder().startObject().startObject("type2")
-                        .startObject("_type").field("index", index).endObject()
-                        .endObject().endObject())
-                .setUpdateAllTypes(true));
+    public void testTypeFilter() throws Exception {
+        assertAcked(prepareCreate("test"));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -669,19 +620,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testIdsQueryTestsIdIndexed() throws Exception {
-        idsQueryTests("not_analyzed");
-    }
-
-    public void testIdsQueryTestsIdNotIndexed() throws Exception {
-        idsQueryTests("no");
-    }
-
-    private void idsQueryTests(String index) throws Exception {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings)
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
-                        .startObject("_id").field("index", index).endObject()
-                        .endObject().endObject()));
+        assertAcked(client().admin().indices().prepareCreate("test"));
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
@@ -714,27 +653,13 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "3");
     }
 
-    public void testTermIndexQueryIndexed() throws Exception {
-        termIndexQueryTests("not_analyzed");
-    }
-
-    public void testTermIndexQueryNotIndexed() throws Exception {
-        termIndexQueryTests("no");
-    }
-
-    private void termIndexQueryTests(String index) throws Exception {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+    public void testTermIndexQuery() throws Exception {
         String[] indexNames = { "test1", "test2" };
         for (String indexName : indexNames) {
             assertAcked(client()
                     .admin()
                     .indices()
-                    .prepareCreate(indexName)
-                    .setSettings(indexSettings)
-                    .addMapping(
-                            "type1",
-                            jsonBuilder().startObject().startObject("type1").startObject("_index").field("index", index).endObject()
-                                    .endObject().endObject()));
+                    .prepareCreate(indexName));
 
             indexRandom(true, client().prepareIndex(indexName, "type1", indexName + "1").setSource("field1", "value1"));
 

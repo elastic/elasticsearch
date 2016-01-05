@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -168,7 +169,7 @@ public class LongFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseLongValue(lowerTerm),
                 upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
@@ -178,7 +179,7 @@ public class LongFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             long iValue = parseLongValue(value);
             final long iSim = fuzziness.asLong();
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -235,7 +236,7 @@ public class LongFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Long.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -246,9 +247,10 @@ public class LongFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Long objValue = fieldType().nullValue();
@@ -275,7 +277,7 @@ public class LongFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.longValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

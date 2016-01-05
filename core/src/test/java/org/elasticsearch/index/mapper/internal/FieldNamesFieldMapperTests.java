@@ -22,8 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -141,45 +139,6 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertNull(doc.rootDoc().get("_field_names"));
     }
 
-    public void testPre13Disabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_2_4.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.fieldType().isEnabled());
-    }
-
-    public void testDisablingBackcompat() throws Exception {
-        // before 1.5, disabling happened by setting index:no
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("index", "no").endObject()
-            .endObject().endObject().string();
-
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.fieldType().isEnabled());
-
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes());
-
-        assertNull(doc.rootDoc().get("_field_names"));
-    }
-
-    public void testFieldTypeSettingsBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("store", "yes").endObject()
-            .endObject().endObject().string();
-
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
-        assertTrue(fieldNamesMapper.fieldType().stored());
-    }
-
     public void testMergingMappings() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", true).endObject()
@@ -187,15 +146,13 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper mapperEnabled = parser.parse("type", new CompressedXContent(enabledMapping));
-        DocumentMapper mapperDisabled = parser.parse("type", new CompressedXContent(disabledMapping));
-        mapperEnabled.merge(mapperDisabled.mapping(), false, false);
-        assertFalse(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
+        DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = parser.parse("type", new CompressedXContent(enabledMapping));
-        mapperDisabled.merge(mapperEnabled.mapping(), false, false);
+        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), false, false);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 
@@ -246,7 +203,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setNames(new MappedFieldType.Names("_dummy"));
+            FIELD_TYPE.setName("_dummy");
             FIELD_TYPE.freeze();
         }
 

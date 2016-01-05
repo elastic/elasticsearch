@@ -64,57 +64,6 @@ public class IdMappingTests extends ESSingleNodeTestCase {
             assertTrue(e.getMessage().contains("No id found"));
         }
     }
-    
-    public void testIdIndexedBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_id").field("index", "not_analyzed").endObject()
-                .endObject().endObject().string();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .endObject()
-                .bytes());
-
-        assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
-        assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());
-    }
-    
-    public void testIdPathBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_id").field("path", "my_path").endObject()
-                .endObject().endObject().string();
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        // serialize the id mapping
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        builder = docMapper.idFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        String serialized_id_mapping = builder.string();
-
-        String expected_id_mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("_id").field("path", "my_path").endObject()
-                .endObject().string();
-
-        assertThat(serialized_id_mapping, equalTo(expected_id_mapping));
-    }
-
-    public void testIncludeInObjectBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
-            .startObject()
-            .field("_id", "1")
-            .endObject()
-            .bytes()).type("type"));
-
-        // _id is not indexed so we need to check _uid
-        assertEquals(Uid.createUid("type", "1"), doc.rootDoc().get(UidFieldMapper.NAME));
-    }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();

@@ -83,8 +83,6 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
-        // serialization to json (this is best effort considering the unsafe etc at play)
-        assertSuccess("def x = 5; groovy.json.JsonOutput.toJson(x)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections

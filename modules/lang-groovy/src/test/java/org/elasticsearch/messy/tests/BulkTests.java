@@ -19,7 +19,6 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -33,10 +32,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -45,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -53,7 +49,6 @@ import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -552,86 +547,6 @@ public class BulkTests extends ESIntegTestCase {
         }
 
         assertThat(successes, equalTo(1));
-    }
-
-    // issue 4745
-    public void testPreParsingSourceDueToMappingShouldNotBreakCompleteBulkRequest() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                    .startObject("type")
-                        .startObject("_timestamp")
-                            .field("enabled", true)
-                            .field("path", "last_modified")
-                        .endObject()
-                    .endObject()
-                .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder)
-            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
-
-        String brokenBuildRequestData = "{\"index\": {\"_id\": \"1\"}}\n" +
-                "{\"name\": \"Malformed}\n" +
-                "{\"index\": {\"_id\": \"2\"}}\n" +
-                "{\"name\": \"Good\", \"last_modified\" : \"2013-04-05\"}\n";
-
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
-        assertThat(bulkResponse.getItems().length, is(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
-        assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
-
-        assertExists(get("test", "type", "2"));
-    }
-
-    // issue 4745
-    public void testPreParsingSourceDueToRoutingShouldNotBreakCompleteBulkRequest() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                    .startObject("type")
-                        .startObject("_routing")
-                            .field("required", true)
-                            .field("path", "my_routing")
-                        .endObject()
-                    .endObject()
-                .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder)
-            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
-        ensureYellow("test");
-
-        String brokenBuildRequestData = "{\"index\": {} }\n" +
-                "{\"name\": \"Malformed}\n" +
-                "{\"index\": { \"_id\" : \"24000\" } }\n" +
-                "{\"name\": \"Good\", \"my_routing\" : \"48000\"}\n";
-
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
-        assertThat(bulkResponse.getItems().length, is(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
-        assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
-
-        assertExists(client().prepareGet("test", "type", "24000").setRouting("48000").get());
-    }
-
-
-    // issue 4745
-    public void testPreParsingSourceDueToIdShouldNotBreakCompleteBulkRequest() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                    .startObject("type")
-                        .startObject("_id")
-                            .field("path", "my_id")
-                        .endObject()
-                    .endObject()
-                .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder)
-            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
-        ensureYellow("test");
-
-        String brokenBuildRequestData = "{\"index\": {} }\n" +
-                "{\"name\": \"Malformed}\n" +
-                "{\"index\": {} }\n" +
-                "{\"name\": \"Good\", \"my_id\" : \"48\"}\n";
-
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
-        assertThat(bulkResponse.getItems().length, is(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
-        assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
-
-        assertExists(get("test", "type", "48"));
     }
 
     // issue 4987

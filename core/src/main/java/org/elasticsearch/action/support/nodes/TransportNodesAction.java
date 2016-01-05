@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -71,8 +73,14 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     }
 
     @Override
-    protected void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
-        new AsyncAction(request, listener).start();
+    protected final void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
+        logger.warn("attempt to execute a transport nodes operation without a task");
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        new AsyncAction(task, request, listener).start();
     }
 
     protected boolean transportCompress() {
@@ -106,8 +114,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
+        private final Task task;
 
-        private AsyncAction(NodesRequest request, ActionListener<NodesResponse> listener) {
+        private AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+            this.task = task;
             this.request = request;
             this.listener = listener;
             ClusterState clusterState = clusterService.state();
@@ -150,7 +160,11 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         // those (and they randomize the client node usage, so tricky to find when)
                         onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                     } else {
-                        NodeRequest nodeRequest = newNodeRequest(nodeId, request);
+                        ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
+                        if (task != null) {
+                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                        }
+
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(), new BaseTransportResponseHandler<NodeResponse>() {
                             @Override
                             public NodeResponse newInstance() {

@@ -242,25 +242,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
     }
 
-    public void testRealtimeGetWithCompressBackcompat() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id))
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject()));
-        ensureGreen();
-
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 10000; i++) {
-            sb.append((char) i);
-        }
-        String fieldValue = sb.toString();
-        client().prepareIndex("test", "type", "1").setSource("field", fieldValue).get();
-
-        // realtime get
-        GetResponse getResponse = client().prepareGet("test", "type", "1").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo(fieldValue));
-    }
-
     public void testGetDocWithMultivaluedFields() throws Exception {
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
@@ -946,63 +927,6 @@ public class GetActionIT extends ESIntegTestCase {
         flush();
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
-    }
-
-    public void testUngeneratedFieldsPartOfSourceUnstoredSourceDisabledBackcompat() throws IOException {
-        indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
-        String[] fieldsList = {};
-        // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-        flush();
-        //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-    }
-
-    public void testUngeneratedFieldsPartOfSourceEitherStoredOrSourceEnabledBackcompat() throws IOException {
-        boolean stored = randomBoolean();
-        boolean sourceEnabled = true;
-        if (stored) {
-            sourceEnabled = randomBoolean();
-        }
-        indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(stored, sourceEnabled);
-        String[] fieldsList = {};
-        // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-        flush();
-        //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-    }
-
-    void indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(boolean stored, boolean sourceEnabled) {
-        String storedString = stored ? "yes" : "no";
-        String createIndexSource = "{\n" +
-                "  \"settings\": {\n" +
-                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
-                "    \"refresh_interval\": \"-1\",\n" +
-                "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
-                "      \"_source\": {\n" +
-                "        \"enabled\": " + sourceEnabled + "\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
-        ensureGreen();
-        String doc = "{\n" +
-                "  \"my_boost\": 5.0,\n" +
-                "  \"_ttl\": \"1h\"\n" +
-                "}\n";
-
-        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
     }
 
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {

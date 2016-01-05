@@ -19,8 +19,6 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -52,9 +50,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
         ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
@@ -64,23 +62,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
-    }
-
-    public void testContentBackcompat() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build(),
-            getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
-
-        BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
-
-        ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
-        assertThat(doc.get("file"), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 
     /**
@@ -95,9 +79,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
         ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
@@ -107,9 +91,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 
     /**

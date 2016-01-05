@@ -47,7 +47,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -160,9 +159,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-        if (config.getSyncInterval().millis() > 0 && config.getThreadPool() != null) {
-            syncScheduler = config.getThreadPool().schedule(config.getSyncInterval(), ThreadPool.Names.SAME, new Sync());
-        }
 
         try {
             if (translogGeneration != null) {
@@ -171,8 +167,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
                 }
-                current = createWriter(checkpoint.generation + 1);
-                this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                boolean success = false;
+                try {
+                    current = createWriter(checkpoint.generation + 1);
+                    this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                    success = true;
+                } finally {
+                    // we have to close all the recovered ones otherwise we leak file handles here
+                    // for instance if we have a lot of tlog and we can't create the writer we keep on holding
+                    // on to all the uncommitted tlog files if we don't close
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(recoveredTranslogs);
+                    }
+                }
             } else {
                 this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);
@@ -715,34 +722,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    class Sync implements Runnable {
-        @Override
-        public void run() {
-            // don't re-schedule  if its closed..., we are done
-            if (closed.get()) {
-                return;
-            }
-            final ThreadPool threadPool = config.getThreadPool();
-            if (syncNeeded()) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            sync();
-                        } catch (Exception e) {
-                            logger.warn("failed to sync translog", e);
-                        }
-                        if (closed.get() == false) {
-                            syncScheduler = threadPool.schedule(config.getSyncInterval(), ThreadPool.Names.SAME, Sync.this);
-                        }
-                    }
-                });
-            } else {
-                syncScheduler = threadPool.schedule(config.getSyncInterval(), ThreadPool.Names.SAME, Sync.this);
-            }
-        }
-    }
-
     public static class Location implements Accountable, Comparable<Location> {
 
         public final long generation;
@@ -1188,7 +1167,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-    public enum Durabilty {
+    public enum Durability {
         /**
          * Async durability - translogs are synced based on a time interval.
          */

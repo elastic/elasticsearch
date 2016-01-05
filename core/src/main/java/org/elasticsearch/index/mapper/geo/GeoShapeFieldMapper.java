@@ -30,7 +30,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -96,8 +95,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final boolean POINTS_ONLY = false;
         public static final int GEOHASH_LEVELS = GeoUtils.geoHashLevelsForPrecision("50m");
         public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
-        public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Orientation ORIENTATION = Orientation.RIGHT;
+        public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
 
         public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
@@ -105,7 +104,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         static {
             // setting name here is a hack so freeze can be called...instead all these options should be
             // moved to the default ctor for GeoShapeFieldType, and defaultFieldType() should be removed from mappers...
-            FIELD_TYPE.setNames(new MappedFieldType.Names("DoesNotExist"));
+            FIELD_TYPE.setName("DoesNotExist");
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
@@ -147,12 +146,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public GeoShapeFieldMapper build(BuilderContext context) {
             GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
 
-            if (geoShapeFieldType.tree.equals(Names.TREE_QUADTREE) && context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
-                geoShapeFieldType.setTree("legacyquadtree");
-            }
-
-            if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1) ||
-                (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0)) {
+            if (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0) {
                 geoShapeFieldType.setDefaultDistanceErrorPct(Defaults.LEGACY_DISTANCE_ERROR_PCT);
             }
             setupFieldType(context);
@@ -278,10 +272,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            recursiveStrategy = new RecursivePrefixTreeStrategy(prefixTree, names().indexName());
+            recursiveStrategy = new RecursivePrefixTreeStrategy(prefixTree, name());
             recursiveStrategy.setDistErrPct(distanceErrorPct());
             recursiveStrategy.setPruneLeafyBranches(false);
-            termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, names().indexName());
+            termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, name());
             termStrategy.setDistErrPct(distanceErrorPct());
             defaultStrategy = resolveStrategy(strategyName);
             defaultStrategy.setPointsOnly(pointsOnly);
@@ -293,33 +287,33 @@ public class GeoShapeFieldMapper extends FieldMapper {
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [strategy]");
+                conflicts.add("mapper [" + name() + "] has different [strategy]");
             }
 
             // prevent user from changing trees (changes encoding)
             if (tree().equals(other.tree()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [tree]");
+                conflicts.add("mapper [" + name() + "] has different [tree]");
             }
 
             if ((pointsOnly() != other.pointsOnly())) {
-                conflicts.add("mapper [" + names().fullName() + "] has different points_only");
+                conflicts.add("mapper [" + name() + "] has different points_only");
             }
 
             // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
             // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
             if (treeLevels() != other.treeLevels()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [tree_levels]");
+                conflicts.add("mapper [" + name() + "] has different [tree_levels]");
             }
             if (precisionInMeters() != other.precisionInMeters()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [precision]");
+                conflicts.add("mapper [" + name() + "] has different [precision]");
             }
 
             if (strict) {
                 if (orientation() != other.orientation()) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [orientation] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [orientation] across all types.");
                 }
                 if (distanceErrorPct() != other.distanceErrorPct()) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [distance_error_pct] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [distance_error_pct] across all types.");
                 }
             }
         }
@@ -450,7 +444,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 shape = shapeBuilder.build();
             }
             if (fieldType().pointsOnly() && !(shape instanceof Point)) {
-                throw new MapperParsingException("[{" + fieldType().names().fullName() + "}] is configured for points only but a " +
+                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
             }
             Field[] fields = fieldType().defaultStrategy().createIndexableFields(shape);
@@ -464,7 +458,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
         }
         return null;
     }

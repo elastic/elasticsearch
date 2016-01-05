@@ -79,13 +79,9 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * since we are checking on the cluster state IndexMetaData always.
      */
     public static final String INDEX_CACHE_REQUEST_ENABLED = "index.requests.cache.enable";
-    @Deprecated
-    public static final String DEPRECATED_INDEX_CACHE_REQUEST_ENABLED = "index.cache.query.enable";
     public static final String INDICES_CACHE_REQUEST_CLEAN_INTERVAL = "indices.requests.cache.clean_interval";
 
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.requests.cache.size";
-    @Deprecated
-    public static final String DEPRECATED_INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.requests.cache.expire";
 
     private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
@@ -113,19 +109,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         this.threadPool = threadPool;
         this.cleanInterval = settings.getAsTime(INDICES_CACHE_REQUEST_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
 
-        String size = settings.get(INDICES_CACHE_QUERY_SIZE);
-        if (size == null) {
-            size = settings.get(DEPRECATED_INDICES_CACHE_QUERY_SIZE);
-            if (size != null) {
-                deprecationLogger.deprecated("The [" + DEPRECATED_INDICES_CACHE_QUERY_SIZE
-                        + "] settings is now deprecated, use [" + INDICES_CACHE_QUERY_SIZE + "] instead");
-            }
-        }
-        if (size == null) {
-            // this cache can be very small yet still be very effective
-            size = "1%";
-        }
-        this.size = size;
+        this.size = settings.get(INDICES_CACHE_QUERY_SIZE, "1%");
 
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
         buildCache();
@@ -135,18 +119,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     }
 
     private boolean isCacheEnabled(Settings settings, boolean defaultEnable) {
-        Boolean enable = settings.getAsBoolean(INDEX_CACHE_REQUEST_ENABLED, null);
-        if (enable == null) {
-            enable = settings.getAsBoolean(DEPRECATED_INDEX_CACHE_REQUEST_ENABLED, null);
-            if (enable != null) {
-                deprecationLogger.deprecated("The [" + DEPRECATED_INDEX_CACHE_REQUEST_ENABLED
-                        + "] settings is now deprecated, use [" + INDEX_CACHE_REQUEST_ENABLED + "] instead");
-            }
-        }
-        if (enable == null) {
-            enable = defaultEnable;
-        }
-        return enable;
+        return settings.getAsBoolean(INDEX_CACHE_REQUEST_ENABLED, defaultEnable);
     }
 
     private void buildCache() {

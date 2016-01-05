@@ -80,7 +80,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * The field name.
      */
-    MappedFieldType.Names getFieldNames();
+    String getFieldName();
 
     /**
      * The field data type.

@@ -77,7 +77,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().names().indexName()), equalTo(expected));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().name()), equalTo(expected));
     }
 
     public void testFrDetection() throws Exception {
@@ -122,6 +122,6 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().names().indexName()), equalTo("en"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().name()), equalTo("en"));
     }
 }

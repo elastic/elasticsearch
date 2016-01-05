@@ -144,7 +144,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
                 List<String> conflicts, boolean strict) {
             super.checkCompatibility(other, conflicts, strict);
             if (numericPrecisionStep() != other.numericPrecisionStep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [precision_step] values");
+                conflicts.add("mapper [" + name() + "] has different [precision_step] values");
             }
         }
 
@@ -243,7 +243,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
-        fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value));
+        fields.add(new SortedNumericDocValuesField(fieldType().name(), value));
     }
 
     /**
@@ -329,7 +329,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         };
 
         public CustomNumericField(Number value, MappedFieldType fieldType) {
-            super(fieldType.names().indexName(), fieldType);
+            super(fieldType.name(), fieldType);
             if (value != null) {
                 this.fieldsData = value;
             }

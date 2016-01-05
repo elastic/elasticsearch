@@ -81,8 +81,8 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
                 .put(Storage.CONTAINER, "snapshots");
 
         // We use sometime deprecated settings in tests
-        builder.put(Storage.ACCOUNT, "mock_azure_account")
-                .put(Storage.KEY, "mock_azure_key");
+        builder.put(Storage.ACCOUNT_DEPRECATED, "mock_azure_account")
+                .put(Storage.KEY_DEPRECATED, "mock_azure_key");
 
         return builder.build();
     }

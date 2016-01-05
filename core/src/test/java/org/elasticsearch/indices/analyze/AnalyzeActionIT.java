@@ -503,4 +503,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     }
 
+    public void testNonExistTokenizer() {
+        try {
+            AnalyzeResponse analyzeResponse = client().admin().indices()
+                .prepareAnalyze("this is a test")
+                .setAnalyzer("not_exist_analyzer")
+                .get();
+            fail("shouldn't get here");
+        } catch (Throwable t) {
+            assertThat(t, instanceOf(IllegalArgumentException.class));
+            assertThat(t.getMessage(), startsWith("failed to find global analyzer"));
+
+        }
+
+    }
+
 }

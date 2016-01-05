@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.TaskManager;
 
 import java.util.List;
 
@@ -145,6 +146,11 @@ public class NoopClusterService implements ClusterService {
     @Override
     public TimeValue getMaxTaskWaitTime() {
         return TimeValue.timeValueMillis(0);
+    }
+
+    @Override
+    public TaskManager getTaskManager() {
+        return null;
     }
 
     @Override

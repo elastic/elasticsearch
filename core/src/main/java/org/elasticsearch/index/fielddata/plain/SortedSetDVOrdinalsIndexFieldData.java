@@ -31,9 +31,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
@@ -43,8 +42,8 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
 
-    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, Names fieldNames, CircuitBreakerService breakerService, FieldDataType fieldDataType) {
-        super(indexSettings.getIndex(), fieldNames, fieldDataType);
+    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName, CircuitBreakerService breakerService, FieldDataType fieldDataType) {
+        super(indexSettings.getIndex(), fieldName, fieldDataType);
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
@@ -57,7 +56,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldNames.indexName());
+        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName);
     }
 
     @Override
@@ -73,7 +72,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         }
         boolean fieldFound = false;
         for (LeafReaderContext context : indexReader.leaves()) {
-            if (context.reader().getFieldInfos().fieldInfo(getFieldNames().indexName()) != null) {
+            if (context.reader().getFieldInfos().fieldInfo(getFieldName()) != null) {
                 fieldFound = true;
                 break;
             }

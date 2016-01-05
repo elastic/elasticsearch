@@ -251,11 +251,11 @@ public class QueryShardContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, mapperService.smartNameFieldType(name, getTypes()));
+        return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService.getObjectMapper(name, getTypes());
+        return mapperService.getObjectMapper(name);
     }
 
     /**

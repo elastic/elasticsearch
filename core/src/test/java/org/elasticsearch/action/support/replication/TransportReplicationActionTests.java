@@ -862,6 +862,16 @@ public class TransportReplicationActionTests extends ESTestCase {
             public void sendResponse(Throwable error) throws IOException {
                 listener.onFailure(error);
             }
+
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+
+            @Override
+            public String getChannelType() {
+                return "replica_test";
+            }
         };
     }
 

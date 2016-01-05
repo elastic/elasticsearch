@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,8 +31,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -367,17 +373,52 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testReuseExistingMappings() throws IOException, Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY, "type", "my_field1", "type=string,store=yes", "my_field2", "type=integer,precision_step=10");
+        IndexService indexService = createIndex("test", Settings.EMPTY, "type",
+                "my_field1", "type=string,store=yes",
+                "my_field2", "type=integer,precision_step=10",
+                "my_field3", "type=long,doc_values=false",
+                "my_field4", "type=float,index_options=freqs",
+                "my_field5", "type=double,precision_step=14",
+                "my_field6", "type=date,doc_values=false");
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
         DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2").getDocumentMapper();
         Mapper update = parse(newMapper, indexService.mapperService().documentMapperParser(),
-                XContentFactory.jsonBuilder().startObject().field("my_field1", 42).endObject());
+                XContentFactory.jsonBuilder().startObject()
+                    .field("my_field1", 42)
+                    .field("my_field2", 43)
+                    .field("my_field3", 44)
+                    .field("my_field4", 45)
+                    .field("my_field5", 46)
+                    .field("my_field6", 47)
+                .endObject());
         Mapper myField1Mapper = null;
+        Mapper myField2Mapper = null;
+        Mapper myField3Mapper = null;
+        Mapper myField4Mapper = null;
+        Mapper myField5Mapper = null;
+        Mapper myField6Mapper = null;
         for (Mapper m : update) {
-            if (m.name().equals("my_field1")) {
+            switch (m.name()) {
+            case "my_field1":
                 myField1Mapper = m;
+                break;
+            case "my_field2":
+                myField2Mapper = m;
+                break;
+            case "my_field3":
+                myField3Mapper = m;
+                break;
+            case "my_field4":
+                myField4Mapper = m;
+                break;
+            case "my_field5":
+                myField5Mapper = m;
+                break;
+            case "my_field6":
+                myField6Mapper = m;
+                break;
             }
         }
         assertNotNull(myField1Mapper);
@@ -388,19 +429,27 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         // Even if dynamic mappings would map a numeric field as a long, here it should map it as a integer
         // since we already have a mapping of type integer
-        update = parse(newMapper, indexService.mapperService().documentMapperParser(),
-                XContentFactory.jsonBuilder().startObject().field("my_field2", 42).endObject());
-        Mapper myField2Mapper = null;
-        for (Mapper m : update) {
-            if (m.name().equals("my_field2")) {
-                myField2Mapper = m;
-            }
-        }
         assertNotNull(myField2Mapper);
         // same type
         assertTrue(myField2Mapper instanceof IntegerFieldMapper);
         // and same option
         assertEquals(10, ((IntegerFieldMapper) myField2Mapper).fieldType().numericPrecisionStep());
+
+        assertNotNull(myField3Mapper);
+        assertTrue(myField3Mapper instanceof LongFieldMapper);
+        assertFalse(((LongFieldType) ((LongFieldMapper) myField3Mapper).fieldType()).hasDocValues());
+
+        assertNotNull(myField4Mapper);
+        assertTrue(myField4Mapper instanceof FloatFieldMapper);
+        assertEquals(IndexOptions.DOCS_AND_FREQS, ((FieldMapper) myField4Mapper).fieldType().indexOptions());
+
+        assertNotNull(myField5Mapper);
+        assertTrue(myField5Mapper instanceof DoubleFieldMapper);
+        assertEquals(14, ((DoubleFieldMapper) myField5Mapper).fieldType().numericPrecisionStep());
+
+        assertNotNull(myField6Mapper);
+        assertTrue(myField6Mapper instanceof DateFieldMapper);
+        assertFalse(((DateFieldType) ((DateFieldMapper) myField6Mapper).fieldType()).hasDocValues());
 
         // This can't work
         try {
@@ -410,6 +459,54 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             // expected
         }
+    }
+
+    public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
+        IndexService indexService = createIndex("test");
+        XContentBuilder mappings1 = jsonBuilder().startObject()
+                .startObject("type1")
+                    .startArray("dynamic_templates")
+                        .startObject()
+                            .startObject("template1")
+                                .field("match_mapping_type", "string")
+                                .startObject("mapping")
+                                    .field("type", "string")
+                                    .startObject("fields")
+                                        .startObject("raw")
+                                            .field("type", "string")
+                                            .field("index", "not_analyzed")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endArray()
+                .endObject().endObject();
+        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), true, false);
+        XContentBuilder mappings2 = jsonBuilder().startObject()
+                .startObject("type2")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject();
+        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), true, false);
+
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject()
+                    .field("field", "foo")
+                .endObject();
+        SourceToParse source = SourceToParse.source(json.bytes()).id("1");
+        DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
+        assertNull(mapper.mappers().getMapper("field.raw"));
+        ParsedDocument parsed = mapper.parse(source);
+        assertNotNull(parsed.dynamicMappingsUpdate());
+
+        indexService.mapperService().merge("type1", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()), false, false);
+        mapper = indexService.mapperService().documentMapper("type1");
+        assertNotNull(mapper.mappers().getMapper("field.raw"));
+        parsed = mapper.parse(source);
+        assertNull(parsed.dynamicMappingsUpdate());
     }
 
     public void testDefaultFloatingPointMappings() throws IOException {

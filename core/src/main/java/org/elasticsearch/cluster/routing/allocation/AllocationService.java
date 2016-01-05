@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -180,7 +182,10 @@ public class AllocationService extends AbstractComponent {
         routingNodes.unassigned().shuffle();
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
-        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
+        // as failing primaries also fail associated replicas, we fail replicas first here so that their nodes are added to ignore list
+        List<FailedRerouteAllocation.FailedShard> orderedFailedShards = new ArrayList<>(failedShards);
+        orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.shard.primary()));
+        for (FailedRerouteAllocation.FailedShard failedShard : orderedFailedShards) {
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
                     System.nanoTime(), System.currentTimeMillis()));
         }
@@ -364,35 +369,17 @@ public class AllocationService extends AbstractComponent {
 
     private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
-        RoutingNodes routingNodes = allocation.routingNodes();
+        final RoutingNodes routingNodes = allocation.routingNodes();
         if (routingNodes.unassigned().getNumPrimaries() == 0) {
             // move out if we don't have unassigned primaries
             return changed;
         }
-
-        // go over and remove dangling replicas that are initializing for primary shards
-        List<ShardRouting> shardsToFail = new ArrayList<>();
-        for (ShardRouting shardEntry : routingNodes.unassigned()) {
-            if (shardEntry.primary()) {
-                for (ShardRouting routing : routingNodes.assignedShards(shardEntry)) {
-                    if (!routing.primary() && routing.initializing()) {
-                        shardsToFail.add(routing);
-                    }
-                }
-
-            }
-        }
-        for (ShardRouting shardToFail : shardsToFail) {
-            changed |= applyFailedShard(allocation, shardToFail, false,
-                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
-                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
-        }
-
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
         // routingNodes.hasUnassignedPrimaries() will potentially be false
-
         for (ShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
+                // remove dangling replicas that are initializing for primary shards
+                changed |= failReplicasForUnassignedPrimary(allocation, shardEntry);
                 ShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
                     IndexMetaData index = allocation.metaData().index(candidate.index());
@@ -453,6 +440,22 @@ public class AllocationService extends AbstractComponent {
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes
             it.remove();
+        }
+        return changed;
+    }
+
+    private boolean failReplicasForUnassignedPrimary(RoutingAllocation allocation, ShardRouting primary) {
+        List<ShardRouting> replicas = new ArrayList<>();
+        for (ShardRouting routing : allocation.routingNodes().assignedShards(primary)) {
+            if (!routing.primary() && routing.initializing()) {
+                replicas.add(routing);
+            }
+        }
+        boolean changed = false;
+        for (ShardRouting routing : replicas) {
+            changed |= applyFailedShard(allocation, routing, false,
+                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
+                    null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
         }
         return changed;
     }
@@ -523,7 +526,6 @@ public class AllocationService extends AbstractComponent {
             logger.debug("{} ignoring shard failure, unknown index in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
             return false;
         }
-
         RoutingNodes routingNodes = allocation.routingNodes();
 
         RoutingNodes.RoutingNodeIterator matchedNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
@@ -546,7 +548,10 @@ public class AllocationService extends AbstractComponent {
             logger.debug("{} ignoring shard failure, unknown allocation id in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
             return false;
         }
-
+        if (failedShard.primary()) {
+            // fail replicas first otherwise we move RoutingNodes into an inconsistent state
+            failReplicasForUnassignedPrimary(allocation, failedShard);
+        }
         // replace incoming instance to make sure we work on the latest one. Copy it to maintain information during modifications.
         failedShard = new ShardRouting(matchedNode.current());
 

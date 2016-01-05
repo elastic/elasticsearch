@@ -62,15 +62,38 @@ compileJava.options.compilerArgs << '-Xlint:-deprecation'
 // TODO: and why does this static not show up in maven...
 compileTestJava.options.compilerArgs << '-Xlint:-static'
 
-// classes are missing, e.g. org.osgi.framework.BundleActivator
-thirdPartyAudit.missingClasses = true
-// TODO: figure out what is happening and fix this!!!!!!!!!!!
-// there might be still some undetected jar hell!
-// we need to fix https://github.com/policeman-tools/forbidden-apis/issues/91 first
 thirdPartyAudit.excludes = [
-    // uses internal java api: com.sun.xml.fastinfoset.stax.StAXDocumentParser
-    'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector',
-    'com.sun.xml.bind.v2.runtime.unmarshaller.FastInfosetConnector$CharSequenceImpl',
-    // uses internal java api: com.sun.xml.fastinfoset.stax.StAXDocumentSerializer
-    'com.sun.xml.bind.v2.runtime.output.FastInfosetStreamWriterOutput',
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger', 
+  'org.eclipse.persistence.descriptors.ClassDescriptor', 
+  'org.eclipse.persistence.internal.oxm.MappingNodeValue', 
+  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder', 
+  'org.eclipse.persistence.internal.oxm.XPathFragment', 
+  'org.eclipse.persistence.internal.oxm.XPathNode', 
+  'org.eclipse.persistence.internal.queries.ContainerPolicy', 
+  'org.eclipse.persistence.jaxb.JAXBContext', 
+  'org.eclipse.persistence.jaxb.JAXBHelper', 
+  'org.eclipse.persistence.mappings.DatabaseMapping', 
+  'org.eclipse.persistence.mappings.converters.TypeConversionConverter', 
+  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping', 
+  'org.eclipse.persistence.oxm.XMLContext', 
+  'org.eclipse.persistence.oxm.XMLDescriptor', 
+  'org.eclipse.persistence.oxm.XMLField', 
+  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping', 
+  'org.eclipse.persistence.sessions.DatabaseSession', 
+  'org.jvnet.fastinfoset.VocabularyApplicationData', 
+  'org.jvnet.staxex.Base64Data', 
+  'org.jvnet.staxex.XMLStreamReaderEx', 
+  'org.jvnet.staxex.XMLStreamWriterEx', 
+  'org.osgi.framework.Bundle', 
+  'org.osgi.framework.BundleActivator', 
+  'org.osgi.framework.BundleContext', 
+  'org.osgi.framework.BundleEvent', 
+  'org.osgi.framework.SynchronousBundleListener',
+  'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
+  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
 ]

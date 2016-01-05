@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -133,6 +134,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final ClusterBlocks.Builder initialBlocks;
 
+    private final TaskManager taskManager;
+
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject
@@ -159,6 +162,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
         initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
+
+        taskManager = transportService.getTaskManager();
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -372,6 +377,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return updateTasksExecutor.getMaxTaskWaitTime();
     }
 
+    @Override
+    public TaskManager getTaskManager() {
+        return taskManager;
+    }
 
     /** asserts that the current thread is the cluster state update thread */
     public boolean assertClusterStateThread() {

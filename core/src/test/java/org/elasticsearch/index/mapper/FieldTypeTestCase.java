@@ -173,7 +173,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     MappedFieldType createNamedDefaultFieldType() {
         MappedFieldType fieldType = createDefaultFieldType();
-        fieldType.setNames(new MappedFieldType.Names("foo"));
+        fieldType.setName("foo");
         return fieldType;
     }
 
@@ -213,7 +213,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     protected String toString(MappedFieldType ft) {
         return "MappedFieldType{" +
-            "names=" + ft.names() +
+            "name=" + ft.name() +
             ", boost=" + ft.boost() +
             ", docValues=" + ft.hasDocValues() +
             ", indexAnalyzer=" + ft.indexAnalyzer() +

@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -166,7 +167,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -176,7 +177,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             short iValue = parseValue(value);
             short iSim = fuzziness.asShort();
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -243,7 +244,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).shortValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Short.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Short.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -254,9 +255,10 @@ public class ShortFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Short objValue = fieldType().nullValue();
@@ -283,7 +285,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

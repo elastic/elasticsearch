@@ -48,10 +48,10 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
-[[default-similarity]]
-==== Default similarity
+[[classic-similarity]]
+==== Classic similarity
 
-The default similarity that is based on the TF/IDF model. This
+The classic similarity that is based on the TF/IDF model. This
 similarity has the following option:
 
 `discount_overlaps`::
@@ -59,7 +59,7 @@ similarity has the following option:
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
 
-Type name: `default`
+Type name: `classic`
 
 [float]
 [[bm25]]

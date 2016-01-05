@@ -287,13 +287,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             request.readFrom(stream);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, transportChannel);
+                        reg.processMessageReceived(request, transportChannel);
                     }
 
                     @Override

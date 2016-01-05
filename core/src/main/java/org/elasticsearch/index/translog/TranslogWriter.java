@@ -153,7 +153,7 @@ public class TranslogWriter extends TranslogReader {
                         throw ex;
                     }
                     lastSyncedOffset = offsetToSync;
-                }finally{
+                } finally {
                     channelReference.decRef();
                 }
             }

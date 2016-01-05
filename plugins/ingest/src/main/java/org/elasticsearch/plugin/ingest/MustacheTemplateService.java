@@ -30,13 +30,13 @@ import org.elasticsearch.script.ScriptService;
 import java.util.Collections;
 import java.util.Map;
 
-class InternalTemplateService implements TemplateService {
+class MustacheTemplateService implements TemplateService {
 
     public static final ScriptContext.Plugin INGEST_SCRIPT_CONTEXT = new ScriptContext.Plugin("elasticsearch-ingest", "ingest");
 
     private final ScriptService scriptService;
 
-    InternalTemplateService(ScriptService scriptService) {
+    MustacheTemplateService(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 

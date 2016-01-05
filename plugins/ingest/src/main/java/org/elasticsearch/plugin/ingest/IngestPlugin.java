@@ -170,6 +170,6 @@ public class IngestPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.registerScriptContext(InternalTemplateService.INGEST_SCRIPT_CONTEXT);
+        module.registerScriptContext(MustacheTemplateService.INGEST_SCRIPT_CONTEXT);
     }
 }

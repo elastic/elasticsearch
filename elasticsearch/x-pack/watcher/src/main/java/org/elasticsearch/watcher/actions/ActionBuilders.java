@@ -10,6 +10,8 @@ import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEvent;
 import org.elasticsearch.watcher.actions.slack.SlackAction;
 import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
@@ -86,5 +88,17 @@ public final class ActionBuilders {
 
     public static SlackAction.Builder slackAction(String account, SlackMessage.Template message) {
         return SlackAction.builder(account, message);
+    }
+
+    public static PagerDutyAction.Builder triggerPagerDutyAction(String account, String description) {
+        return pagerDutyAction(IncidentEvent.templateBuilder(description).setAccount(account));
+    }
+
+    public static PagerDutyAction.Builder pagerDutyAction(IncidentEvent.Template.Builder event) {
+        return PagerDutyAction.builder(event.build());
+    }
+
+    public static PagerDutyAction.Builder pagerDutyAction(IncidentEvent.Template event) {
+        return PagerDutyAction.builder(event);
     }
 }

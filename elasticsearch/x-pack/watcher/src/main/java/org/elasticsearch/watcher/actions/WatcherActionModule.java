@@ -20,6 +20,10 @@ import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.logging.LoggingActionFactory;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyActionFactory;
+import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
 import org.elasticsearch.watcher.actions.slack.SlackAction;
 import org.elasticsearch.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
@@ -43,6 +47,7 @@ public class WatcherActionModule extends AbstractModule {
         registerAction(LoggingAction.TYPE, LoggingActionFactory.class);
         registerAction(HipChatAction.TYPE, HipChatActionFactory.class);
         registerAction(SlackAction.TYPE, SlackActionFactory.class);
+        registerAction(PagerDutyAction.TYPE, PagerDutyActionFactory.class);
     }
 
     public void registerAction(String type, Class<? extends ActionFactory> parserType) {
@@ -60,11 +65,21 @@ public class WatcherActionModule extends AbstractModule {
 
         bind(ActionRegistry.class).asEagerSingleton();
 
+        // email
         bind(HtmlSanitizer.class).asEagerSingleton();
+        bind(InternalEmailService.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
-        bind(HipChatService.class).to(InternalHipChatService.class).asEagerSingleton();
-        bind(SlackService.class).to(InternalSlackService.class).asEagerSingleton();
+
+        // hipchat
+        bind(InternalHipChatService.class).asEagerSingleton();
+        bind(HipChatService.class).to(InternalHipChatService.class);
+
+        // slack
+        bind(InternalSlackService.class).asEagerSingleton();
+        bind(SlackService.class).to(InternalSlackService.class);
+
+        // pager duty
+        bind(InternalPagerDutyService.class).asEagerSingleton();
+        bind(PagerDutyService.class).to(InternalPagerDutyService.class);
     }
-
-
 }

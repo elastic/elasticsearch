@@ -21,14 +21,14 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.env.Environment;
 
+import java.util.function.BiFunction;
+
 /**
- * The ingest framework (pipeline, processor and processor factory) can't rely on ES specific code. However some
- * processors rely on reading files from the config directory. We can't add Environment as a constructor parameter,
- * so we need some code that provides the physical location of the configuration directory to the processor factories
- * that need this and this is what this processor factory provider does.
+ * Functional interface that allows to create a {@link org.elasticsearch.ingest.Processor.Factory} once all the needed
+ * components are available at a later stage, more specifically the {@link Environment} and the {@link TemplateService}
+ * which some processors need.
  */
-//TODO this abstraction could be removed once ingest-core is part of es core?
 @FunctionalInterface
-public interface ProcessorFactoryProvider {
-    Processor.Factory get(Environment environment, TemplateService templateService);
+public interface ProcessorFactoryProvider extends BiFunction<Environment, TemplateService, Processor.Factory> {
+
 }

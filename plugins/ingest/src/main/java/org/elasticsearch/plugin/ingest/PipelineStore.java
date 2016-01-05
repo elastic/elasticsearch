@@ -89,7 +89,7 @@ public class PipelineStore extends AbstractComponent implements Closeable {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         TemplateService templateService = new MustacheTemplateService(scriptService);
         for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
-            Processor.Factory processorFactory = entry.getValue().get(environment, templateService);
+            Processor.Factory processorFactory = entry.getValue().apply(environment, templateService);
             processorFactories.put(entry.getKey(), processorFactory);
         }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);

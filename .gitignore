@@ -4,8 +4,11 @@ data/
 logs/
 build/
 target/
+generated-resources/
 .DS_Store
 *-execution-hints.log
+*-execution-times.log
+.gradle/
 
 # IDEA ignores
 .idea/

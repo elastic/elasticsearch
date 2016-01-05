@@ -13,6 +13,7 @@
  */
 
 package org.elasticsearch.examples.nativescript.script;
+
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -40,27 +41,27 @@ public class LookupScriptTests extends AbstractSearchScriptTestCase {
 
         // Create a new lookup index
         String lookup_mapping = XContentFactory.jsonBuilder().startObject().startObject("state")
-                .startObject("properties")
-                .startObject("name").field("type", "string").endObject()
-                .startObject("capital").field("type", "string").endObject()
-                .startObject("nickname").field("type", "string").endObject()
-                .endObject().endObject().endObject()
-                .string();
-        
+            .startObject("properties")
+            .startObject("name").field("type", "string").endObject()
+            .startObject("capital").field("type", "string").endObject()
+            .startObject("nickname").field("type", "string").endObject()
+            .endObject().endObject().endObject()
+            .string();
+
         assertAcked(prepareCreate("lookup")
-                .addMapping("state", lookup_mapping));
+            .addMapping("state", lookup_mapping));
 
         // Create a new test index
         String test_mapping = XContentFactory.jsonBuilder().startObject().startObject("city")
-                .startObject("properties")
-                .startObject("city").field("type", "string").endObject()
-                .startObject("state").field("type", "string").field("index", "not_analyzed").endObject()
-                .startObject("population").field("type", "integer").endObject()
-                .endObject().endObject().endObject()
-                .string();
-        
+            .startObject("properties")
+            .startObject("city").field("type", "string").endObject()
+            .startObject("state").field("type", "string").field("index", "not_analyzed").endObject()
+            .startObject("population").field("type", "integer").endObject()
+            .endObject().endObject().endObject()
+            .string();
+
         assertAcked(prepareCreate("test")
-                .addMapping("city", test_mapping));
+            .addMapping("city", test_mapping));
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
         // Index Lookup records:
@@ -87,34 +88,34 @@ public class LookupScriptTests extends AbstractSearchScriptTestCase {
 
         // Script parameters
         Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder()
-                .put("lookup_index", "lookup")
-                .put("lookup_type", "state")
-                .put("field", "state")
-                .map();
+            .put("lookup_index", "lookup")
+            .put("lookup_type", "state")
+            .put("field", "state")
+            .map();
 
 
         // Find smallest city with word
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setTypes("city")
-                .setQuery(matchQuery("city", "south burlington"))
-                .addField("city")
-                .addScriptField("state_info", new Script("lookup", ScriptService.ScriptType.INLINE, "native", params))
-                .setSize(10)
-                .addSort("population", SortOrder.DESC)
-                .execute().actionGet();
-        
+            .setTypes("city")
+            .setQuery(matchQuery("city", "south burlington"))
+            .setFetchSource(true)
+            .addScriptField("state_info", new Script("lookup", ScriptService.ScriptType.INLINE, "native", params))
+            .setSize(10)
+            .addSort("population", SortOrder.DESC)
+            .execute().actionGet();
+
         assertNoFailures(searchResponse);
 
         // There should be 3 cities
         assertHitCount(searchResponse, 3);
 
-        assertThat(searchResponse.getHits().getAt(0).field("city").getValue().toString(), equalTo("Burlington"));
+        assertThat(searchResponse.getHits().getAt(0).getSource().get("city"), equalTo("Burlington"));
         assertThat(((Map<String, Object>) searchResponse.getHits().getAt(0).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
 
-        assertThat(searchResponse.getHits().getAt(1).field("city").getValue().toString(), equalTo("South Portland"));
+        assertThat(searchResponse.getHits().getAt(1).getSource().get("city"), equalTo("South Portland"));
         assertThat(((Map<String, Object>) searchResponse.getHits().getAt(1).field("state_info").getValue()).get("name").toString(), equalTo("Maine"));
 
-        assertThat(searchResponse.getHits().getAt(2).field("city").getValue().toString(), equalTo("South Burlington"));
+        assertThat(searchResponse.getHits().getAt(2).getSource().get("city"), equalTo("South Burlington"));
         assertThat(((Map<String, Object>) searchResponse.getHits().getAt(2).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
     }
 

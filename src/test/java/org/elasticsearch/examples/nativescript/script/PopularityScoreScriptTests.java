@@ -83,7 +83,7 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script("popularity", ScriptService.ScriptType.INLINE, "native", params)))})
                         .boostMode(CombineFunction.REPLACE))
                 .setSize(10)
-                .addField("name")
+                .setFetchSource("name", null)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -93,7 +93,7 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
 
         // Verify that first 5 hits are sorted from 4 to 0
         for (int i = 0; i < 5; i++) {
-            assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo("rec " + (4 - i)));
+            assertThat(searchResponse.getHits().getAt(i).sourceAsMap().get("name"), equalTo("rec " + (4 - i)));
         }
 
         // Verify that hit 5 has non-zero score

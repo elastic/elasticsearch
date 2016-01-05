@@ -15,6 +15,7 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -68,7 +69,7 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
         private final Random random;
 
         private RandomSortScript() {
-            random = new Random();
+            random = Randomness.get();
         }
 
         @Override

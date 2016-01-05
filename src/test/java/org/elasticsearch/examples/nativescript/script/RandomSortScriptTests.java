@@ -36,79 +36,79 @@ import org.elasticsearch.search.sort.SortBuilders;
 public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
 
     public void testPseudoRandomScript() throws Exception {
-      
+
         // Create a new index
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("name").field("type", "string").endObject()
-                .endObject().endObject().endObject()
-                .string();
-        
+            .startObject("properties")
+            .startObject("name").field("type", "string").endObject()
+            .endObject().endObject().endObject()
+            .string();
+
         assertAcked(prepareCreate("test")
-                .addMapping("type", mapping));
+            .addMapping("type", mapping));
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-        
+
         // Index 100 records (0..99)
         for (int i = 0; i < 100; i++) {
             indexBuilders.add(
-                    client().prepareIndex("test", "type", Integer.toString(i))
+                client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
-                            .field("name", "rec " + i)
-                            .endObject()));
+                        .field("name", "rec " + i)
+                        .endObject()));
         }
 
         indexRandom(true, indexBuilders);
 
         // Retrieve first 10 records
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .addField("name")
-                .setSize(10)
-                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
-                .execute().actionGet();
-        
+            .setQuery(matchAllQuery())
+            .setFetchSource("name", null)
+            .setSize(10)
+            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
+            .execute().actionGet();
+
         assertNoFailures(searchResponse);
 
         // Check that random order was applied
-        assertThat(searchResponse.getHits().getAt(0).field("name").getValue().toString(), not(equalTo("rec0")));
+        assertThat(searchResponse.getHits().getAt(0).getSource().get("name"), not(equalTo("rec0")));
 
         String[] records = new String[10];
 
         // Store sort order
         for (int i = 0; i < 10; i++) {
-            records[i] = searchResponse.getHits().getAt(i).field("name").getValue().toString();
+            records[i] = searchResponse.getHits().getAt(i).getSource().get("name").toString();
         }
 
         // Retrieve first 10 records again
         searchResponse = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .addField("name")
-                .setSize(10)
-                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
-                .execute().actionGet();
-        
+            .setQuery(matchAllQuery())
+            .setFetchSource("name", null)
+            .setSize(10)
+            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
+            .execute().actionGet();
+
         assertNoFailures(searchResponse);
 
         // Verify the same sort order
         for (int i = 0; i < 10; i++) {
-            assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo(records[i]));
+            assertThat(searchResponse.getHits().getAt(i).getSource().get("name"), equalTo(records[i]));
         }
 
         // Retrieve first 10 records without salt
         searchResponse = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .addField("name")
-                .setSize(10)
-                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", null), "number"))
-                .execute().actionGet();
-        
+            .setQuery(matchAllQuery())
+            .setFetchSource("name", null)
+            .setSize(10)
+            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", null), "number"))
+            .execute().actionGet();
+
         assertNoFailures(searchResponse);
 
         // Verify different sort order
         boolean different = false;
         for (int i = 0; i < 10; i++) {
-            if (!records[i].equals(searchResponse.getHits().getAt(i).field("name").getValue().toString())) {
+            if (!records[i].equals(searchResponse.getHits().getAt(i).getSource().get("name"))) {
                 different = true;
                 break;
             }

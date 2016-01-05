@@ -15,6 +15,7 @@
 package org.elasticsearch.examples.nativescript;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +24,10 @@ import org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
@@ -31,6 +35,8 @@ import java.util.concurrent.CountDownLatch;
  * Main class to easily run the the plugin from a IDE.
  */
 public class ElasticsearchWithPluginLauncher {
+
+    @SuppressForbidden(reason = "not really code or a test")
     public static void main(String[] args) throws Throwable {
         System.setProperty("es.logger.prefix", "");
         Settings settings = Settings.builder()
@@ -45,7 +51,7 @@ public class ElasticsearchWithPluginLauncher {
         LogConfigurator.configure(environment.settings(), true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings, Version.CURRENT, Collections.singletonList(NativeScriptExamplesPlugin.class));
+        final Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(NativeScriptExamplesPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

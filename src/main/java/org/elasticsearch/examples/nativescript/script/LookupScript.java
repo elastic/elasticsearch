@@ -57,6 +57,7 @@ public class LookupScript extends AbstractSearchScript {
          * This constructor will be called by guice during initialization
          *
          * @param node injecting the reference to current node to get access to node's client
+         * @param settings current node settings
          */
         @SuppressWarnings("unchecked")
         @Inject

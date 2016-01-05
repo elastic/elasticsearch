@@ -97,7 +97,8 @@ false if its string value is equal to `false` (ignore case) and it will throw ex
 --------------------------------------------------
 {
   "convert": {
-    "foo": "integer"
+    "field" : "foo"
+    "type": "integer"
   }
 }
 --------------------------------------------------

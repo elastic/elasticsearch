@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * {@link SortingNumericDoubleValues} implementation which is based on a script
@@ -34,6 +35,8 @@ import java.util.Iterator;
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
     final LeafSearchScript script;
+
+    Map extendedScriptResult;
 
     public ScriptDoubleValues(LeafSearchScript script) {
         super();
@@ -68,6 +71,26 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
                 values[i] = ((Number) it.next()).doubleValue();
             }
             assert i == count();
+        } else if(value instanceof Map) {
+            // Map containing one or several values + some optional extended properties.
+            // Aggregators can use these extended properties to implement specific behaviors (eg: AvgAggregator using
+            // the property weight(s) to compute a weighted average instead of standard average).
+            extendedScriptResult = (Map)value;
+            Object scriptValue = extendedScriptResult.remove("value");
+            Object scriptValues = extendedScriptResult.remove("values");
+            if(scriptValues != null && scriptValues instanceof Collection) {
+                resize(((Collection)scriptValues).size());
+                int i = 0;
+                for (Iterator<?> it = ((Collection<?>) scriptValues).iterator(); it.hasNext(); ++i) {
+                    values[i] = ((Number) it.next()).doubleValue();
+                }
+                assert i == count();
+            } else if(scriptValue != null && scriptValue instanceof Number) {
+                resize(1);
+                values[0] = ((Number)scriptValue).doubleValue();
+            } else {
+                throw new AggregationExecutionException("Unsupported script value [" + value + "]");
+            }
         }
 
         else {
@@ -75,6 +98,14 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
         }
 
         sort();
+    }
+
+    public Map getExtendedScriptResult() {
+        return extendedScriptResult;
+    }
+
+    public final boolean hasExtendedScriptResult() {
+        return extendedScriptResult != null && !extendedScriptResult.isEmpty();
     }
 
     @Override

@@ -348,7 +348,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         } else {
             assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
         }
-        assertThat(f.fieldType().stored(), equalTo(stored));
+        assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getFields("b")[1];
@@ -359,7 +359,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         } else {
             assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(b.lon(), b.lat())));
         }
-        assertThat(f.fieldType().stored(), equalTo(stored));
+        assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");

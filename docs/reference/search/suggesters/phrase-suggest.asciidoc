@@ -192,8 +192,10 @@ curl -XPOST 'localhost:9200/_search' -d {
          } ],
          "collate": {
            "query": { <1>
-             "match": {
-                 "{{field_name}}" : "{{suggestion}}" <2>
+             "inline" : {
+               "match": {
+                   "{{field_name}}" : "{{suggestion}}" <2>
+               }
              }
            },
            "params": {"field_name" : "title"}, <3>

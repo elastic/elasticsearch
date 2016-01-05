@@ -1148,11 +1148,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
         String filterString = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("match_phrase")
-                            .field("title", "{{suggestion}}")
+                            .field("{{field}}", "{{suggestion}}")
                         .endObject()
                     .endObject()
                 .string();
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
+        filteredQuerySuggest.collateParams(Collections.singletonMap("field", (Object)"title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 

@@ -60,6 +60,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -680,6 +681,18 @@ public abstract class StreamInput extends InputStream {
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a list of objects
+     */
+    public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(reader.read(this));
+        }
+        return builder;
     }
 
     public static StreamInput wrap(BytesReference reference) {

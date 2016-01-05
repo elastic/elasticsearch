@@ -19,7 +19,10 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 
+import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
@@ -32,14 +35,16 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final boolean forceExecution;
     private final String executor;
     private final Supplier<Request> requestFactory;
+    private final TaskManager taskManager;
 
-    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
+    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
         this.action = action;
         this.requestFactory = requestFactory;
         assert newRequest() != null;
         this.handler = handler;
         this.forceExecution = forceExecution;
         this.executor = executor;
+        this.taskManager = taskManager;
     }
 
     public String getAction() {
@@ -50,8 +55,21 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             return requestFactory.get();
     }
 
-    public TransportRequestHandler<Request> getHandler() {
-        return handler;
+    public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
+        final Task task = taskManager.register(channel.getChannelType(), action, request);
+        if (task == null) {
+            handler.messageReceived(request, channel);
+        } else {
+            boolean success = false;
+            try {
+                handler.messageReceived(request, new TransportChannelWrapper(taskManager, task, channel), task);
+                success = true;
+            } finally {
+                if (success == false) {
+                    taskManager.unregister(task);
+                }
+            }
+        }
     }
 
     public boolean isForceExecution() {
@@ -60,5 +78,45 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public String getExecutor() {
         return executor;
+    }
+
+    @Override
+    public String toString() {
+        return handler.toString();
+    }
+
+    private static class TransportChannelWrapper extends DelegatingTransportChannel {
+
+        private final Task task;
+
+        private final TaskManager taskManager;
+
+        public TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
+            super(channel);
+            this.task = task;
+            this.taskManager = taskManager;
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response) throws IOException {
+            endTask();
+            super.sendResponse(response);
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+            endTask();
+            super.sendResponse(response, options);
+        }
+
+        @Override
+        public void sendResponse(Throwable error) throws IOException {
+            endTask();
+            super.sendResponse(error);
+        }
+
+        private void endTask() {
+            taskManager.unregister(task);
+        }
     }
 }

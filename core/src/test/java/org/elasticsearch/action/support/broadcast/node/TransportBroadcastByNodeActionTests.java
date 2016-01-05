@@ -470,5 +470,16 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public void sendResponse(Throwable error) throws IOException {
         }
+
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "test";
+        }
+
     }
 }

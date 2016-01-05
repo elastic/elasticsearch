@@ -41,6 +41,10 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -966,6 +970,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
             return new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public ActionFuture<ListTasksResponse> listTasks(final ListTasksRequest request) {
+            return execute(ListTasksAction.INSTANCE, request);
+        }
+
+        @Override
+        public void listTasks(final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
+            execute(ListTasksAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ListTasksRequestBuilder prepareListTasks(String... nodesIds) {
+            return new ListTasksRequestBuilder(this, ListTasksAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         @Override

@@ -132,6 +132,16 @@ public class NettyTransportChannel implements TransportChannel {
         transportServiceAdapter.onResponseSent(requestId, action, error);
     }
 
+    @Override
+    public long getRequestId() {
+        return requestId;
+    }
+
+    @Override
+    public String getChannelType() {
+        return "netty";
+    }
+
     /**
      * Returns the underlying netty channel. This method is intended be used for access to netty to get additional
      * details when processing the request and may be used by plugins. Responses should be sent using the methods

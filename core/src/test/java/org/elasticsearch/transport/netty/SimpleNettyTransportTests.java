@@ -36,6 +36,7 @@ import java.net.UnknownHostException;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
+
     @Override
     protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         settings = Settings.builder().put(settings).put("transport.tcp.port", "0").build();

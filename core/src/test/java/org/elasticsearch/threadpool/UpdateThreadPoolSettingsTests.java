@@ -20,6 +20,7 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -154,6 +155,14 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         }
     }
 
+    private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
+        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+            return Math.min(size, EsExecutors.boundedNumberOfProcessors(settings));
+        } else {
+            return size;
+        }
+    }
+
     @Test
     public void testFixedExecutorType() throws InterruptedException {
         String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
@@ -167,12 +176,14 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             threadPool.updateSettings(settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", "15")
                     .build());
+
+            int expectedSize = getExpectedThreadPoolSize(settingsBuilder().build(), threadPoolName, 15);
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(15));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(15));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
             assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
 
@@ -182,20 +193,23 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             // Make sure keep alive value is not used
             assertThat(info(threadPool, threadPoolName).getKeepAlive(), nullValue());
             // Make sure keep pool size value were reused
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(15));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(15));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(15));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
 
             // Change size
             Executor oldExecutor = threadPool.executor(threadPoolName);
             threadPool.updateSettings(settingsBuilder().put("threadpool." + threadPoolName + ".size", "10").build());
+
+            expectedSize = getExpectedThreadPoolSize(settingsBuilder().build(), threadPoolName, 10);
+
             // Make sure size values changed
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(10));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(10));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(10));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
             // Make sure executor didn't change
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             assertThat(threadPool.executor(threadPoolName), sameInstance(oldExecutor));

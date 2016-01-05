@@ -89,6 +89,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         buildersByTypeBuilder.put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder());
         buildersByTypeBuilder.put("binary", new DisabledIndexFieldData.Builder());
         buildersByTypeBuilder.put(BooleanFieldMapper.CONTENT_TYPE, MISSING_DOC_VALUES_BUILDER);
+        buildersByTypeBuilder.put("fixed", MISSING_DOC_VALUES_BUILDER);
         buildersByType = unmodifiableMap(buildersByTypeBuilder);
 
 
@@ -103,6 +104,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 .put("geo_point", new AbstractGeoPointDVIndexFieldData.Builder())
                 .put("binary", new BytesBinaryDVIndexFieldData.Builder())
                 .put(BooleanFieldMapper.CONTENT_TYPE, new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BOOLEAN))
+                .put("fixed", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FIXED))
                 .immutableMap();
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
@@ -137,6 +139,9 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
                 .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BOOLEAN))
                 .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+
+                .put(Tuple.tuple("fixed", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FIXED))
+                .put(Tuple.tuple("fixed", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
                 .immutableMap();
     }

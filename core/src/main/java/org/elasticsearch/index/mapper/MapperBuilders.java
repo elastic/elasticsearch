@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.fixed.FixedPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -106,5 +107,9 @@ public final class MapperBuilders {
 
     public static CompletionFieldMapper.Builder completionField(String name) {
         return new CompletionFieldMapper.Builder(name);
+    }
+
+    public static FixedPointFieldMapper.Builder fixedPointField(String name) {
+        return new FixedPointFieldMapper.Builder(name);
     }
 }

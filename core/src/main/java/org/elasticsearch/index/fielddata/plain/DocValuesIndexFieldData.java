@@ -102,7 +102,7 @@ public abstract class DocValuesIndexFieldData {
                 assert numericType == null;
                 return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName, fieldType.fieldDataType());
             } else if (numericType != null) {
-                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType, fieldType.fieldDataType());
+                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType, fieldType);
             } else {
                 return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, fieldType.fieldDataType());
             }

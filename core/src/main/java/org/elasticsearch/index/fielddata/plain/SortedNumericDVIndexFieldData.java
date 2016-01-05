@@ -38,6 +38,8 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.fixed.FixedPointFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -50,13 +52,15 @@ import java.util.Collections;
  */
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
+    private final MappedFieldType fieldType;
 
-    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType, FieldDataType fieldDataType) {
-        super(index, fieldNames, fieldDataType);
+    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType, MappedFieldType fieldType) {
+        super(index, fieldNames, fieldType.fieldDataType());
         if (numericType == null) {
             throw new IllegalArgumentException("numericType must be non-null");
         }
         this.numericType = numericType;
+        this.fieldType = fieldType;
     }
 
     @Override
@@ -66,6 +70,8 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE:
                 return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case FIXED:
+                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
                 assert !numericType.isFloatingPoint();
                 return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
@@ -92,6 +98,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 return new SortedNumericFloatFieldData(reader, field);
             case DOUBLE:
                 return new SortedNumericDoubleFieldData(reader, field);
+            case FIXED:
+                long decimalFactor = ((FixedPointFieldMapper.FixedPointFieldType)fieldType).getDecimalFactor();
+                return new SortedNumericFixedPointFieldData(reader, field, decimalFactor);
             default:
                 return new SortedNumericLongFieldData(reader, field);
         }
@@ -262,6 +271,87 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
+        }
+    }
+
+    /*
+    static final class SortedNumericFixedPointFieldData extends AtomicLongFieldData {
+        final LeafReader reader;
+        final String field;
+
+        SortedNumericFixedPointFieldData(LeafReader reader, String field) {
+            super(0L);
+            this.reader = reader;
+            this.field = field;
+        }
+
+        @Override
+        public SortedNumericDocValues getLongValues() {
+            try {
+                return DocValues.getSortedNumeric(reader, field);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
+    }
+    */
+
+    static final class SortedNumericFixedPointFieldData extends AtomicDoubleFieldData {
+        final LeafReader reader;
+        final String field;
+        final long decimalFactor;
+
+        SortedNumericFixedPointFieldData(LeafReader reader, String field, long decimalFactor) {
+            super(0L);
+            this.reader = reader;
+            this.field = field;
+            this.decimalFactor = decimalFactor;
+        }
+
+        @Override
+        public SortedNumericDoubleValues getDoubleValues() {
+            try {
+                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
+                return new SortedNumericFixedPointDocValues(raw, decimalFactor);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
+
+        public static class SortedNumericFixedPointDocValues extends SortedNumericDoubleValues {
+            private final long decimalFactor;
+            private final SortedNumericDocValues dv;
+
+            protected SortedNumericFixedPointDocValues(SortedNumericDocValues dv, long decimalFactor) {
+                super();
+                this.decimalFactor = decimalFactor;
+                this.dv = dv;
+            }
+
+            @Override
+            public void setDocument(int doc) {
+                dv.setDocument(doc);
+            }
+
+            @Override
+            public double valueAt(int index) {
+                return ((double)dv.valueAt(index)) / decimalFactor;
+            }
+
+            @Override
+            public int count() {
+                return dv.count();
+            }
         }
     }
 }

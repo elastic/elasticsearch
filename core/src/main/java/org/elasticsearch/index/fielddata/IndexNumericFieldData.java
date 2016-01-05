@@ -150,6 +150,22 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
             public Number toNumber(BytesRef indexForm) {
                 return NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(indexForm));
             }
+        },
+        FIXED(64, false, SortField.Type.LONG, Long.MIN_VALUE, Long.MAX_VALUE) {
+            @Override
+            public long toLong(BytesRef indexForm) {
+                return NumericUtils.prefixCodedToLong(indexForm);
+            }
+
+            @Override
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
+                NumericUtils.longToPrefixCodedBytes(number.longValue(), 0, bytes);
+            }
+
+            @Override
+            public Number toNumber(BytesRef indexForm) {
+                return NumericUtils.prefixCodedToLong(indexForm);
+            }
         };
 
         private final int requiredBits;

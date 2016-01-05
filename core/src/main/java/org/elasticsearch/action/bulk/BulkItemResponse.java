@@ -314,10 +314,7 @@ public class BulkItemResponse implements Streamable {
             response.readFrom(in);
         }
 
-        if (in.readBoolean()) {
-            failure = new Failure();
-            failure.readFrom(in);
-        }
+        failure = in.readOptionalStreamable(Failure::new);
     }
 
     @Override
@@ -337,11 +334,6 @@ public class BulkItemResponse implements Streamable {
             }
             response.writeTo(out);
         }
-        if (failure == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            failure.writeTo(out);
-        }
+        out.writeOptionalStreamable(failure);
     }
 }

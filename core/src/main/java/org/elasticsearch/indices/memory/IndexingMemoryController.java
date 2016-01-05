@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -81,9 +82,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    /** Maps each shard to how many bytes it is currently, asynchronously, writing to disk */
-    private final Map<IndexShard,Long> writingBytes = new ConcurrentHashMap<>();
-
     @Inject
     public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this(settings, threadPool, indicesService, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
@@ -124,21 +122,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                      this.indexingBuffer,
                      SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
-    }
-
-    /** Shard calls this when it starts writing its indexing buffer to disk to notify us */
-    public void addWritingBytes(IndexShard shard, long numBytes) {
-        writingBytes.put(shard, numBytes);
-        logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(numBytes), shard.shardId());
-    }
-
-    /** Shard calls when it's done writing these bytes to disk */
-    public void removeWritingBytes(IndexShard shard, long numBytes) {
-        writingBytes.remove(shard);
-        logger.debug("clear [{}] writing bytes for shard [{}]", new ByteSizeValue(numBytes), shard.shardId());
-
-        // Since some bytes just freed up, now we check again to give throttling a chance to stop:
-        forceCheck();
     }
 
     @Override
@@ -184,12 +167,17 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return shard.getIndexBufferRAMBytesUsed();
     }
 
+    /** returns how many bytes this shard is currently writing to disk */
+    protected long getShardWritingBytes(IndexShard shard) {
+        return shard.getWritingBytes();
+    }
+
     /** ask this shard to refresh, in the background, to free up heap */
     protected void writeIndexingBufferAsync(IndexShard shard) {
         shard.writeIndexingBufferAsync();
     }
 
-    /** used by tests to check if any shards active status changed, now. */
+    /** force checker to run now */
     public void forceCheck() {
         statusChecker.run();
     }
@@ -225,25 +213,42 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
     }
 
-    class ShardsIndicesStatusChecker implements Runnable {
+    /** not static because we need access to many fields/methods from our containing class (IMC): */
+    final class ShardsIndicesStatusChecker implements Runnable {
 
-        long bytesWrittenSinceCheck;
+        final AtomicLong bytesWrittenSinceCheck = new AtomicLong();
+        final ReentrantLock runLock = new ReentrantLock();
 
         /** Shard calls this on each indexing/delete op */
-        public synchronized void bytesWritten(int bytes) {
-            bytesWrittenSinceCheck += bytes;
-            if (bytesWrittenSinceCheck > indexingBuffer.bytes()/30) {
-                // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
-                // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
-                // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
-                // processed by indexing:
-                run();
+        public void bytesWritten(int bytes) {
+            long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
+            if (totalBytes > indexingBuffer.bytes()/30) {
+                if (runLock.tryLock()) {
+                    try {
+                        bytesWrittenSinceCheck.addAndGet(-totalBytes);
+                        // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
+                        // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
+                        // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
+                        // processed by indexing:
+                        run();
+                    } finally {
+                        runLock.unlock();
+                    }
+                }
             }
         }
 
         @Override
-        public synchronized void run() {
+        public void run() {
+            runLock.lock();
+            try {
+                runUnlocked();
+            } finally {
+                runLock.unlock();
+            }
+        }
 
+        private void runUnlocked() {
             // NOTE: even if we hit an errant exc here, our ThreadPool.scheduledWithFixedDelay will log the exception and re-invoke us
             // again, on schedule
 
@@ -257,20 +262,18 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 checkIdle(shard, inactiveTime.nanos());
 
                 // How many bytes this shard is currently (async'd) moving from heap to disk:
-                Long shardWritingBytes = writingBytes.get(shard);
+                long shardWritingBytes = getShardWritingBytes(shard);
 
                 // How many heap bytes this shard is currently using
                 long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                if (shardWritingBytes != null) {
-                    shardBytesUsed -= shardWritingBytes;
-                    totalBytesWriting += shardWritingBytes;
+                shardBytesUsed -= shardWritingBytes;
+                totalBytesWriting += shardWritingBytes;
 
-                    // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                    // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
-                    if (shardBytesUsed < 0) {
-                        continue;
-                    }
+                // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+                // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+                if (shardBytesUsed < 0) {
+                    continue;
                 }
 
                 totalBytesUsed += shardBytesUsed;
@@ -293,25 +296,23 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
                 for (IndexShard shard : availableShards()) {
                     // How many bytes this shard is currently (async'd) moving from heap to disk:
-                    Long shardWritingBytes = writingBytes.get(shard);
+                    long shardWritingBytes = getShardWritingBytes(shard);
 
                     // How many heap bytes this shard is currently using
                     long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
 
-                    if (shardWritingBytes != null) {
-                        // Only count up bytes not already being refreshed:
-                        shardBytesUsed -= shardWritingBytes;
+                    // Only count up bytes not already being refreshed:
+                    shardBytesUsed -= shardWritingBytes;
 
-                        // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                        // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
-                        if (shardBytesUsed < 0) {
-                            continue;
-                        }
+                    // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+                    // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+                    if (shardBytesUsed < 0) {
+                        continue;
                     }
 
                     if (shardBytesUsed > 0) {
                         if (logger.isTraceEnabled()) {
-                            if (shardWritingBytes != null) {
+                            if (shardWritingBytes != 0) {
                                 logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed, shardWritingBytes);
                             } else {
                                 logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
@@ -341,8 +342,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 }
                 throttled.clear();
             }
-
-            bytesWrittenSinceCheck = 0;
         }
     }
 

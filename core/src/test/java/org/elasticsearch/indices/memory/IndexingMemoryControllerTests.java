@@ -74,6 +74,16 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
+        protected long getShardWritingBytes(IndexShard shard) {
+            Long bytes = writingBytes.get(shard);
+            if (bytes == null) {
+                return 0;
+            } else {
+                return bytes;
+            }
+        }
+
+        @Override
         protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         }
 
@@ -81,7 +91,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         public void writeIndexingBufferAsync(IndexShard shard) {
             long bytes = indexBufferRAMBytesUsed.put(shard, 0L);
             writingBytes.put(shard, writingBytes.get(shard) + bytes);
-            addWritingBytes(shard, bytes);
             indexBufferRAMBytesUsed.put(shard, 0L);
         }
 
@@ -96,8 +105,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         public void doneWriting(IndexShard shard) {
-            long bytes = writingBytes.put(shard, 0L);
-            removeWritingBytes(shard, bytes);
+            writingBytes.put(shard, 0L);
         }
 
         public void assertBuffer(IndexShard shard, int expectedMB) {
@@ -281,6 +289,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         // Both shards finally finish writing, and throttling should stop:
         controller.doneWriting(shard0);
         controller.doneWriting(shard1);
+        controller.forceCheck();
         controller.assertNotThrottled(shard0);
         controller.assertNotThrottled(shard1);
     }

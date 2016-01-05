@@ -19,6 +19,18 @@
 
 package org.elasticsearch.index.shard;
 
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
@@ -81,8 +93,8 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -103,17 +115,6 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.channels.ClosedByInterruptException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 
 public class IndexShard extends AbstractIndexShardComponent {
@@ -147,6 +148,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
     private final NodeServicesProvider provider;
+
+    /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh */
+    private final AtomicLong writingBytes = new AtomicLong();
 
     private TimeValue refreshInterval;
 
@@ -542,15 +546,17 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void refresh(String source) {
         verifyNotClosed();
         if (canIndex()) {
-            long ramBytesUsed = getEngine().indexBufferRAMBytesUsed();
-            indexingMemoryController.addWritingBytes(this, ramBytesUsed);
+            long bytes = getEngine().getIndexBufferRAMBytesUsed();
+            writingBytes.addAndGet(bytes);
             try {
-                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(ramBytesUsed));
+                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
             } finally {
-                indexingMemoryController.removeWritingBytes(this, ramBytesUsed);
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                // nocommit but we don't promptly stop index throttling anymore?
+                writingBytes.addAndGet(-bytes);
             }
         } else {
             logger.debug("refresh with source [{}]", source);
@@ -558,6 +564,11 @@ public class IndexShard extends AbstractIndexShardComponent {
             getEngine().refresh(source);
             refreshMetric.inc(System.nanoTime() - time);
         }
+    }
+
+    /** Returns how many bytes we are currently moving from heap to disk */
+    public long getWritingBytes() {
+        return writingBytes.get();
     }
 
     public RefreshStats refreshStats() {
@@ -1008,7 +1019,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             return 0;
         }
         try {
-            return engine.indexBufferRAMBytesUsed();
+            return engine.getIndexBufferRAMBytesUsed();
         } catch (AlreadyClosedException ex) {
             return 0;
         }
@@ -1262,15 +1273,18 @@ public class IndexShard extends AbstractIndexShardComponent {
                 public void run() {
                     try {
                         Engine engine = getEngine();
-                        long bytes = engine.indexBufferRAMBytesUsed();
+                        long bytes = engine.getIndexBufferRAMBytesUsed();
                         // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
                         // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
                         // there's still up to the 20% being used and continue writing if necessary:
-                        indexingMemoryController.addWritingBytes(IndexShard.this, bytes);
+                        writingBytes.addAndGet(bytes);
+                        logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
                         try {
                             getEngine().writeIndexingBuffer();
                         } finally {
-                            indexingMemoryController.removeWritingBytes(IndexShard.this, bytes);
+                            logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                            // nocommit but we don't promptly stop index throttling anymore?
+                            writingBytes.addAndGet(-bytes);
                         }
                     } catch (Exception e) {
                         handleRefreshException(e);

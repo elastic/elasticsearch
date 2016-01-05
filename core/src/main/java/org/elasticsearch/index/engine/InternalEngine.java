@@ -522,11 +522,11 @@ public class InternalEngine extends Engine {
 
             // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
             // searcher managers, one for searching which is only refreshed by the schedule the user requested (refresh_interval, or invoking
-            // refresh API), and another for version map interactions:
-            long versionMapBytes = versionMap.ramBytesUsedForRefresh();
-            long indexingBufferBytes = indexWriter.ramBytesUsed();
+            // refresh API), and another for version map interactions.  See #15768.
+            final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+            final long indexingBufferBytes = indexWriter.ramBytesUsed();
 
-            boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
+            final boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
                 logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
@@ -823,7 +823,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long indexBufferRAMBytesUsed() {
+    public long getIndexBufferRAMBytesUsed() {
         return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
@@ -1050,7 +1050,7 @@ public class InternalEngine extends Engine {
     @Override
     public void activateThrottling() {
         int count = throttleRequestCount.incrementAndGet();
-        assert count >= 1;
+        assert count >= 1: "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
             throttle.activate();
         }
@@ -1059,7 +1059,7 @@ public class InternalEngine extends Engine {
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
-        assert count >= 0;
+        assert count >= 0: "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();
         }

@@ -375,7 +375,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
-    abstract public long indexBufferRAMBytesUsed();
+    abstract public long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();

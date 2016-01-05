@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -168,9 +169,10 @@ public class DnRoleMapper {
         Set<String> rolesMappedToUserDn = dnRoles.get(userDn);
         if (rolesMappedToUserDn != null) {
             roles.addAll(rolesMappedToUserDn);
-            if (logger.isDebugEnabled()) {
-                logger.debug("the roles [{}], are mapped from the user [{}] for realm [{}/{}]", roles, realmType, userDnString, realmType, config.name());
-            }
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("the roles [{}], are mapped from the user [{}] for realm [{}/{}]",
+                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, realmType, userDnString, realmType, config.name());
         }
         return roles;
     }

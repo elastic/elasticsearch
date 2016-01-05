@@ -146,9 +146,6 @@ public class TranslogWriter extends TranslogReader {
                     outputStream.flush();
                     offsetToSync = totalOffset;
                     opsCounter = operationCounter;
-                    // we can do this outside of the write lock but we have to protect from
-                    // concurrent syncs
-                    ensureOpen(); // just for kicks - the checkpoint happens or not either way
                     try {
                         checkpoint(offsetToSync, opsCounter, channelReference);
                     } catch (Throwable ex) {

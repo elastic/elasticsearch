@@ -51,9 +51,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -798,7 +800,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     // test that for a single thread, tasks are executed in the order
     // that they are submitted
-    public void testClusterStateUpdateTasksAreExecutedInOrder() throws InterruptedException {
+    public void testClusterStateUpdateTasksAreExecutedInOrder() throws BrokenBarrierException, InterruptedException {
         Settings settings = settingsBuilder()
             .put("discovery.type", "local")
             .build();
@@ -845,34 +847,28 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
         };
 
-        CountDownLatch startGate = new CountDownLatch(1);
-        CountDownLatch endGate = new CountDownLatch(numberOfThreads);
-        AtomicBoolean interrupted = new AtomicBoolean();
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
 
         for (int i = 0; i < numberOfThreads; i++) {
             final int index = i;
             Thread thread = new Thread(() -> {
-                for (int j = 0; j < tasksSubmittedPerThread; j++) {
-                    try {
-                        try {
-                            startGate.await();
-                        } catch (InterruptedException e) {
-                            interrupted.set(true);
-                            return;
-                        }
+                try {
+                    barrier.await();
+                    for (int j = 0; j < tasksSubmittedPerThread; j++) {
                         clusterService.submitStateUpdateTask("[" + index + "][" + j + "]", j, ClusterStateTaskConfig.build(randomFrom(Priority.values())), executors[index], listener);
-                    } finally {
-                        endGate.countDown();
                     }
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new AssertionError(e);
                 }
             });
             thread.start();
         }
 
-        startGate.countDown();
-        endGate.await();
-
-        assertFalse(interrupted.get());
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
 
         updateLatch.await();
 

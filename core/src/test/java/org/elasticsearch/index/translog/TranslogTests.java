@@ -1790,4 +1790,96 @@ public class TranslogTests extends ESTestCase {
             // all is well
         }
     }
+
+    public void testRecoverWithUnbackedNextGen() throws IOException {
+        translog.add(new Translog.Index("test", "" + 0, Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        translog.close();
+        TranslogConfig config = translog.getConfig();
+
+        Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
+        Checkpoint read = Checkpoint.read(ckp);
+        Files.copy(ckp, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)));
+        Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 1) + ".tlog"));
+        config.setTranslogGeneration(translogGeneration);
+        try (Translog tlog = new Translog(config)) {
+            assertNotNull(translogGeneration);
+            assertFalse(tlog.syncNeeded());
+            try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
+                for (int i = 0; i < 1; i++) {
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null", next);
+                    assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+            tlog.add(new Translog.Index("test", "" + 1, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+        }
+        try (Translog tlog = new Translog(config)) {
+            assertNotNull(translogGeneration);
+            assertFalse(tlog.syncNeeded());
+            try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
+                for (int i = 0; i < 2; i++) {
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null", next);
+                    assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+        }
+    }
+
+    public void testRecoverWithUnbackedNextGenInIllegalState() throws IOException {
+        translog.add(new Translog.Index("test", "" + 0, Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        translog.close();
+        TranslogConfig config = translog.getConfig();
+        Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
+        Checkpoint read = Checkpoint.read(ckp);
+        // don't copy the new file
+        Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 1) + ".tlog"));
+        config.setTranslogGeneration(translogGeneration);
+
+        try  {
+            Translog tlog = new Translog(config);
+            fail("file already exists?");
+        } catch (TranslogException ex) {
+            // all is well
+            assertEquals(ex.getMessage(), "failed to create new translog file");
+            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
+        }
+    }
+    public void testRecoverWithUnbackedNextGenAndFutureFile() throws IOException {
+        translog.add(new Translog.Index("test", "" + 0, Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        translog.close();
+        TranslogConfig config = translog.getConfig();
+
+        Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
+        Checkpoint read = Checkpoint.read(ckp);
+        Files.copy(ckp, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)));
+        Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 1) + ".tlog"));
+        // we add N+1 and N+2 to ensure we only delete the N+1 file and never jump ahead and wipe without the right condition
+        Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 2) + ".tlog"));
+        config.setTranslogGeneration(translogGeneration);
+        try (Translog tlog = new Translog(config)) {
+            assertNotNull(translogGeneration);
+            assertFalse(tlog.syncNeeded());
+            try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
+                for (int i = 0; i < 1; i++) {
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null", next);
+                    assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+            tlog.add(new Translog.Index("test", "" + 1, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+        }
+
+        try  {
+            Translog tlog = new Translog(config);
+            fail("file already exists?");
+        } catch (TranslogException ex) {
+            // all is well
+            assertEquals(ex.getMessage(), "failed to create new translog file");
+            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
+        }
+    }
 }

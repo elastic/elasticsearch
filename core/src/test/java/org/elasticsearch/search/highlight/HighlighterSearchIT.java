@@ -19,6 +19,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -2530,6 +2531,24 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             String prefix = prefixes.get(hit.id());
             assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
+        }
+    }
+
+    public void testDoesNotHighlightTypeName() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("typename").startObject("properties")
+                .startObject("foo").field("type", "string")
+                    .field("index_options", "offsets")
+                    .field("term_vector", "with_positions_offsets")
+                .endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("typename", mapping));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "typename").setSource("foo", "test typename"));
+
+        for (String highlighter: new String[] {"plain", "fvh", "postings"}) {
+            SearchResponse response = client().prepareSearch("test").setTypes("typename").setQuery(matchQuery("foo", "test"))
+                    .highlighter(new HighlightBuilder().field("foo").highlighterType(highlighter).requireFieldMatch(false)).get();
+            assertHighlight(response, 0, "foo", 0, 1, equalTo("<em>test</em> typename"));
         }
     }
 

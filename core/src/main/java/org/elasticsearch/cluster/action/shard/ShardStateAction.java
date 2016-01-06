@@ -243,7 +243,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    static class ShardRoutingEntry extends TransportRequest {
+    public static class ShardRoutingEntry extends TransportRequest {
 
         ShardRouting shardRouting;
         String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -260,6 +260,10 @@ public class ShardStateAction extends AbstractComponent {
             this.indexUUID = indexUUID;
             this.message = message;
             this.failure = failure;
+        }
+
+        public ShardRouting getShardRouting() {
+            return shardRouting;
         }
 
         @Override

@@ -72,7 +72,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query, field.fieldOptions().requireFieldMatch() ? mapper.fieldType().names().indexName() : null);
+            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query, field.fieldOptions().requireFieldMatch() ? mapper.fieldType().name() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -108,7 +108,7 @@ public class PlainHighlighter implements Highlighter {
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
 
-                try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().names().indexName(), text)) {
+                try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {
                     if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                         // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                         continue;
@@ -165,7 +165,7 @@ public class PlainHighlighter implements Highlighter {
             String fieldContents = textsToHighlight.get(0).toString();
             int end;
             try {
-                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, mapper.fieldType().names().indexName(), fieldContents);
+                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, mapper.fieldType().name(), fieldContents);
             } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }

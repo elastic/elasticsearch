@@ -21,7 +21,11 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -49,7 +53,7 @@ public final class MockEngineSupport {
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
     public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
-    
+
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ESLogger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;

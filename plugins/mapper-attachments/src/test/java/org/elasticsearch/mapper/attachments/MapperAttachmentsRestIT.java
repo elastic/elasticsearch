@@ -22,7 +22,6 @@ package org.elasticsearch.mapper.attachments;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.mapper.attachments.MapperAttachmentsPlugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;

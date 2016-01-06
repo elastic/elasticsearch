@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.OneMergeHelper;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -144,7 +148,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     @Override
     public MergeScheduler clone() {
-        // Lucene IW makes a clone internally but since we hold on to this instance 
+        // Lucene IW makes a clone internally but since we hold on to this instance
         // the clone will just be the identity.
         return this;
     }

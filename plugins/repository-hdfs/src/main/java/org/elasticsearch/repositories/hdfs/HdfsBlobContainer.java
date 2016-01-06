@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.hadoop.fs.CreateFlag;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.elasticsearch.common.Nullable;
@@ -27,35 +30,35 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
-public class HdfsBlobContainer extends AbstractBlobContainer {
+final class HdfsBlobContainer extends AbstractBlobContainer {
+    private final HdfsBlobStore store;
+    private final Path path;
+    private final int bufferSize;
 
-    protected final HdfsBlobStore blobStore;
-    protected final Path path;
-
-    public HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore blobStore, Path path) {
+    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize) {
         super(blobPath);
-        this.blobStore = blobStore;
+        this.store = store;
         this.path = path;
+        this.bufferSize = bufferSize;
     }
 
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<Boolean>() {
+            return store.execute(new Operation<Boolean>() {
                 @Override
-                public Boolean doInHdfs(FileSystem fs) throws IOException {
-                    return fs.exists(new Path(path, blobName));
+                public Boolean run(FileContext fileContext) throws IOException {
+                    return fileContext.util().exists(new Path(path, blobName));
                 }
             });
         } catch (Exception e) {
@@ -65,46 +68,62 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<Boolean>() {
-            @Override
-            public Boolean doInHdfs(FileSystem fs) throws IOException {
-                return fs.delete(new Path(path, blobName), true);
-            }
-        });
+        try {
+            store.execute(new Operation<Boolean>() {
+                @Override
+                public Boolean run(FileContext fileContext) throws IOException {
+                    return fileContext.delete(new Path(path, blobName), true);
+                }
+            });
+        } catch (FileNotFoundException ok) {
+            // behaves like Files.deleteIfExists
+        }
     }
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        boolean rename = SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<Boolean>() {
+        store.execute(new Operation<Void>() {
             @Override
-            public Boolean doInHdfs(FileSystem fs) throws IOException {
-                return fs.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
+            public Void run(FileContext fileContext) throws IOException {
+                fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
+                return null;
             }
         });
-        
-        if (!rename) {
-            throw new IOException(String.format(Locale.ROOT, "can not move blob from [%s] to [%s]", sourceBlobName, targetBlobName));
-        }
     }
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         // FSDataInputStream does buffering internally
-        return SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<InputStream>() {
+        return store.execute(new Operation<InputStream>() {
             @Override
-            public InputStream doInHdfs(FileSystem fs) throws IOException {
-                return fs.open(new Path(path, blobName), blobStore.bufferSizeInBytes());
+            public InputStream run(FileContext fileContext) throws IOException {
+                return fileContext.open(new Path(path, blobName), bufferSize);
             }
         });
     }
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<Void>() {
+        store.execute(new Operation<Void>() {
             @Override
-            public Void doInHdfs(FileSystem fs) throws IOException {
-                try (OutputStream stream = createOutput(blobName)) {
-                    Streams.copy(inputStream, stream);
+            public Void run(FileContext fileContext) throws IOException {
+                Path blob = new Path(path, blobName);
+                // we pass CREATE, which means it fails if a blob already exists.
+                // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
+                // that should be fixed there, no need to bring truncation into this, give the user an error.
+                EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
+                CreateOpts[] opts = { CreateOpts.bufferSize(bufferSize) };
+                try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
+                    int bytesRead;
+                    byte[] buffer = new byte[bufferSize];
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        stream.write(buffer, 0, bytesRead);
+                        //  For safety we also hsync each write as well, because of its docs:
+                        //  SYNC_BLOCK - to force closed blocks to the disk device
+                        // "In addition Syncable.hsync() should be called after each write,
+                        //  if true synchronous behavior is required"
+                        stream.hsync();
+                    }
                 }
                 return null;
             }
@@ -112,40 +131,18 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<Void>() {
+    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String prefix) throws IOException {
+        FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
             @Override
-            public Void doInHdfs(FileSystem fs) throws IOException {
-                try (OutputStream stream = createOutput(blobName)) {
-                    bytes.writeTo(stream);
-                }
-                return null;
-            }
-        });
-    }
-    
-    private OutputStream createOutput(String blobName) throws IOException {
-        Path file = new Path(path, blobName);
-        // FSDataOutputStream does buffering internally
-        return blobStore.fileSystemFactory().getFileSystem().create(file, true, blobStore.bufferSizeInBytes());
-    }
-
-    @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
-        FileStatus[] files = SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<FileStatus[]>() {
-            @Override
-            public FileStatus[] doInHdfs(FileSystem fs) throws IOException {
-                return fs.listStatus(path, new PathFilter() {
+            public FileStatus[] run(FileContext fileContext) throws IOException {
+                return (fileContext.util().listStatus(path, new PathFilter() {
                     @Override
                     public boolean accept(Path path) {
-                        return path.getName().startsWith(blobNamePrefix);
+                        return prefix == null || path.getName().startsWith(prefix);
                     }
-                });
+                }));
             }
         });
-        if (files == null || files.length == 0) {
-            return Collections.emptyMap();
-        }
         Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
         for (FileStatus file : files) {
             map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
@@ -155,19 +152,6 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
-        FileStatus[] files = SecurityUtils.execute(blobStore.fileSystemFactory(), new FsCallback<FileStatus[]>() {
-            @Override
-            public FileStatus[] doInHdfs(FileSystem fs) throws IOException {
-                return fs.listStatus(path);
-            }
-        });
-        if (files == null || files.length == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
-        for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
-        }
-        return Collections.unmodifiableMap(map);
+        return listBlobsByPrefix(null);
     }
 }

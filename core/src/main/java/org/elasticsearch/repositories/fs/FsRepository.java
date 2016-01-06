@@ -33,7 +33,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Shared file system implementation of the BlobStoreRepository

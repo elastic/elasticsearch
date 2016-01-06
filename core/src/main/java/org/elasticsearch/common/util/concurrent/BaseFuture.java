@@ -23,7 +23,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public abstract class BaseFuture<V> implements Future<V> {

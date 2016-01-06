@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;

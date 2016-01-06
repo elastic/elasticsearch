@@ -26,7 +26,14 @@ import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.*;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LineString;
+import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.MultiLineString;
+import com.vividsolutions.jts.geom.Point;
+import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -312,7 +319,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
         parser.nextToken();
         Shape shape = ShapeBuilder.parse(parser).build();
-        
+
         ElasticsearchGeoAssertions.assertPolygon(shape);
 
         // test 2: ccw poly crossing dateline
@@ -332,7 +339,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
         parser.nextToken();
         shape = ShapeBuilder.parse(parser).build();
-        
+
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
 
         // test 3: cw poly not crossing dateline
@@ -484,7 +491,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
 
     public void testParse_invalidPolygon() throws IOException {
         /**
-         * The following 3 test cases ensure proper error handling of invalid polygons 
+         * The following 3 test cases ensure proper error handling of invalid polygons
          * per the GeoJSON specification
          */
         // test case 1: create an invalid polygon with only 2 points

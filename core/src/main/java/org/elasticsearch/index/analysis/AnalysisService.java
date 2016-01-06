@@ -21,16 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -81,7 +78,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
              * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
+            int overridePositionIncrementGap = StringFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*

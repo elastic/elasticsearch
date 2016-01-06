@@ -20,24 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -56,23 +51,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .addMapping(type, field, "type=string")
                 .execute()
                 .actionGet();
-    }
-
-    public void testThatLongTypeNameIsNotRejectedOnPreElasticsearchVersionTwo() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        CreateIndexResponse response =
-                client()
-                        .admin()
-                        .indices()
-                        .prepareCreate(index)
-                        .setSettings(settings(randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(Version.V_2_0_0_beta1))))
-                        .addMapping(type, field, "type=string")
-                        .execute()
-                        .actionGet();
-        assertNotNull(response);
     }
 
     public void testTypeNameTooLong() {

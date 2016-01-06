@@ -26,7 +26,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState.*;
+import org.elasticsearch.indices.recovery.RecoveryState.File;
+import org.elasticsearch.indices.recovery.RecoveryState.Index;
+import org.elasticsearch.indices.recovery.RecoveryState.Stage;
+import org.elasticsearch.indices.recovery.RecoveryState.Timer;
+import org.elasticsearch.indices.recovery.RecoveryState.Translog;
+import org.elasticsearch.indices.recovery.RecoveryState.Type;
+import org.elasticsearch.indices.recovery.RecoveryState.VerifyIndex;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -37,7 +43,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RecoveryStateTests extends ESTestCase {
     abstract class Streamer<T extends Streamable> extends Thread {

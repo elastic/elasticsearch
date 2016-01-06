@@ -27,3 +27,24 @@ test.enabled = false
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 
+configurations {
+  exampleFixture
+}
+
+dependencies {
+  exampleFixture project(':test:fixtures:example-fixture')
+}
+
+task exampleFixture(type: org.elasticsearch.gradle.test.Fixture) {
+  dependsOn project.configurations.exampleFixture
+  executable = new File(project.javaHome, 'bin/java')
+  args '-cp', "${ -> project.configurations.exampleFixture.asPath }",
+       'example.ExampleTestFixture',
+       baseDir
+}
+
+integTest {
+  dependsOn exampleFixture
+  systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
+}
+

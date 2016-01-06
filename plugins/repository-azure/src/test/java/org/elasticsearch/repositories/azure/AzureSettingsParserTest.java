@@ -27,7 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AzureSettingsParserTest extends LuceneTestCase {
 
@@ -65,8 +68,8 @@ public class AzureSettingsParserTest extends LuceneTestCase {
 
     public void testDeprecatedSettings() {
         Settings settings = Settings.builder()
-                .put(Storage.ACCOUNT, "myaccount1")
-                .put(Storage.KEY, "mykey1")
+                .put(Storage.ACCOUNT_DEPRECATED, "myaccount1")
+                .put(Storage.KEY_DEPRECATED, "mykey1")
                 .build();
 
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);

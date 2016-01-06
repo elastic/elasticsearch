@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.analysis.kuromoji;
 
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
 import org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.analysis.KuromojiKatakanaStemmerFactory;
 import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 
 /**

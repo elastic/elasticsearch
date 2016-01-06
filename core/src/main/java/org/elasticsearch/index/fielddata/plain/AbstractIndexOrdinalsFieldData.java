@@ -18,18 +18,25 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilteredTermsEnum;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -44,9 +51,9 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     protected Settings regex;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType,
+    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType,
                                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, fieldDataType, cache);
         final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
         frequency = groups.get("frequency");
         regex = groups.get("regex");
@@ -66,7 +73,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         }
         boolean fieldFound = false;
         for (LeafReaderContext context : indexReader.leaves()) {
-            if (context.reader().getFieldInfos().fieldInfo(getFieldNames().indexName()) != null) {
+            if (context.reader().getFieldInfos().fieldInfo(getFieldName()) != null) {
                 fieldFound = true;
                 break;
             }

@@ -22,7 +22,12 @@ package org.elasticsearch.index.analysis.phonetic;
 import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.StringEncoder;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,7 +41,7 @@ import java.util.regex.Pattern;
  * Java-Programmierung von J&ouml;rg Reiher
  *
  * mit &Auml;nderungen von Jörg Prante
- * 
+ *
  */
 public class KoelnerPhonetik implements StringEncoder {
 
@@ -59,7 +64,7 @@ public class KoelnerPhonetik implements StringEncoder {
     public KoelnerPhonetik() {
         init();
     }
-    
+
     public KoelnerPhonetik(boolean useOnlyPrimaryCode) {
         this();
         this.primary = useOnlyPrimaryCode;
@@ -67,7 +72,7 @@ public class KoelnerPhonetik implements StringEncoder {
 
     /**
      * Get variation patterns
-     * 
+     *
      * @return string array of variations
      */
     protected String[] getPatterns() {
@@ -99,7 +104,7 @@ public class KoelnerPhonetik implements StringEncoder {
     public Object encode(Object str) throws EncoderException {
         return encode((String) str);
     }
-    
+
     @Override
     public String encode(String str) throws EncoderException {
         if (str == null) return null;
@@ -114,14 +119,14 @@ public class KoelnerPhonetik implements StringEncoder {
         return sb.toString();
     }
 
-    
+
     private void init() {
         this.variationsPatterns = new Pattern[getPatterns().length];
         for (int i = 0; i < getPatterns().length; i++) {
             this.variationsPatterns[i] = Pattern.compile(getPatterns()[i]);
         }
     }
-    
+
     private String[] code(String str) {
         List<String> parts = partition(str);
         String[] codes = new String[parts.size()];

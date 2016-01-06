@@ -19,19 +19,18 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-
+import com.spatial4j.core.shape.Shape;
+import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 public class MultiPolygonBuilder extends ShapeBuilder {
 

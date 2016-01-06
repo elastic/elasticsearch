@@ -42,7 +42,13 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,7 +59,13 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Transport action used to execute analyze requests
@@ -114,13 +126,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (indexService == null) {
                     throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
                 }
-                MappedFieldType fieldType = indexService.mapperService().smartNameFieldType(request.field());
+                MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
                     if (fieldType.isNumeric()) {
                         throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                     }
                     analyzer = fieldType.indexAnalyzer();
-                    field = fieldType.names().indexName();
+                    field = fieldType.name();
                 }
             }
             if (field == null) {

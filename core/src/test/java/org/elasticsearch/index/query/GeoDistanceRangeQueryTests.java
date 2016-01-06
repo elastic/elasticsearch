@@ -21,8 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.GeoDistanceUtils;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -55,7 +55,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
         }
         GeoPoint point = builder.point();
-        final double maxRadius = GeoUtils.maxRadialDistance(point);
+        final double maxRadius = GeoDistanceUtils.maxRadialDistanceMeters(point.lon(), point.lat());
         final int fromValueMeters = randomInt((int)(maxRadius*0.5));
         final int toValueMeters = randomIntBetween(fromValueMeters + 1, (int)maxRadius);
         DistanceUnit fromToUnits = randomFrom(DistanceUnit.values());
@@ -298,19 +298,19 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"geo_distance_range\" : {\n" + 
-                "    \"pin.location\" : [ -70.0, 40.0 ],\n" + 
-                "    \"from\" : \"200km\",\n" + 
-                "    \"to\" : \"400km\",\n" + 
-                "    \"include_lower\" : true,\n" + 
-                "    \"include_upper\" : true,\n" + 
-                "    \"unit\" : \"m\",\n" + 
-                "    \"distance_type\" : \"sloppy_arc\",\n" + 
-                "    \"optimize_bbox\" : \"memory\",\n" + 
-                "    \"validation_method\" : \"STRICT\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         GeoDistanceRangeQueryBuilder parsed = (GeoDistanceRangeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

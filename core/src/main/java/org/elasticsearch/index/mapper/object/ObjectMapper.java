@@ -30,12 +30,24 @@ import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.object;
@@ -480,6 +492,28 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             }
             putMapper(merged);
         }
+    }
+
+    @Override
+    public ObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        List<Mapper> updatedMappers = null;
+        for (Mapper mapper : this) {
+            Mapper updated = mapper.updateFieldType(fullNameToFieldType);
+            if (mapper != updated) {
+                if (updatedMappers == null) {
+                    updatedMappers = new ArrayList<>();
+                }
+                updatedMappers.add(updated);
+            }
+        }
+        if (updatedMappers == null) {
+            return this;
+        }
+        ObjectMapper updated = clone();
+        for (Mapper updatedMapper : updatedMappers) {
+            updated.putMapper(updatedMapper);
+        }
+        return updated;
     }
 
     @Override

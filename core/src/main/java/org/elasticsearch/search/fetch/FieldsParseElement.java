@@ -20,9 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**

@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -59,7 +58,6 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -550,18 +548,11 @@ public class TestSearchContext extends SearchContext {
         return null;
     }
 
+
     @Override
     public MappedFieldType smartNameFieldType(String name) {
         if (mapperService() != null) {
-            return mapperService().smartNameFieldType(name, types());
-        }
-        return null;
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        if (mapperService() != null) {
-            return mapperService().smartNameFieldType(name);
+            return mapperService().fullName(name);
         }
         return null;
     }
@@ -569,7 +560,7 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ObjectMapper getObjectMapper(String name) {
         if (mapperService() != null) {
-            return mapperService().getObjectMapper(name, types);
+            return mapperService().getObjectMapper(name);
         }
         return null;
     }

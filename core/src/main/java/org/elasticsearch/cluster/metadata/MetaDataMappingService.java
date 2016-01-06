@@ -22,7 +22,11 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -42,7 +46,13 @@ import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 /**
  * Service responsible for submitting mapping changes
  */
@@ -249,9 +259,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 } else {
                     newMapper = indexService.mapperService().parse(request.type(), mappingUpdateSource, existingMapper == null);
                     if (existingMapper != null) {
-                        // first, simulate
-                        // this will just throw exceptions in case of problems
-                        existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
+                        // first, simulate: just call merge and ignore the result
+                        existingMapper.merge(newMapper.mapping(), request.updateAllTypes());
                     } else {
                         // TODO: can we find a better place for this validation?
                         // The reason this validation is here is that the mapper service doesn't learn about

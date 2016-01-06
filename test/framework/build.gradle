@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 
-apply plugin: 'elasticsearch.build'
+import org.elasticsearch.gradle.precommit.PrecommitTasks;
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
@@ -46,5 +45,19 @@ forbiddenApisMain {
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
 
-// we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
-thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger', 
+   // we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
+  'org.apache.tools.ant.BuildException', 
+  'org.apache.tools.ant.DirectoryScanner', 
+  'org.apache.tools.ant.Task', 
+  'org.apache.tools.ant.types.FileSet', 
+  'org.easymock.EasyMock', 
+  'org.easymock.IArgumentMatcher', 
+  'org.jmock.core.Constraint',
+]

@@ -34,7 +34,6 @@ import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

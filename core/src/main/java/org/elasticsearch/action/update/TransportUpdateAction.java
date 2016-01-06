@@ -101,7 +101,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        request.routing((state.metaData().resolveIndexRouting(request.routing(), request.index())));
+        request.routing((state.metaData().resolveIndexRouting(request.parent(), request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.type(), request.id());

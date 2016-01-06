@@ -18,9 +18,6 @@
  */
 package org.elasticsearch;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -30,7 +27,12 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
+import org.elasticsearch.cluster.routing.RoutingTableValidation;
+import org.elasticsearch.cluster.routing.RoutingValidationException;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
@@ -82,11 +84,20 @@ import org.elasticsearch.transport.ConnectTransportException;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -544,17 +555,17 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
 
         Throwable[] unknowns = new Throwable[]{
-                new JsonParseException("foobar", new JsonLocation(new Object(), 1, 2, 3, 4)),
+                new Exception("foobar"),
                 new ClassCastException("boom boom boom"),
-                new IOException("booom")
+                new UnsatisfiedLinkError("booom")
         };
         for (Throwable t : unknowns) {
             if (randomBoolean()) {
-                t.addSuppressed(new IOException("suppressed"));
+                t.addSuppressed(new UnsatisfiedLinkError("suppressed"));
                 t.addSuppressed(new NullPointerException());
             }
             Throwable deserialized = serialize(t);
-            assertTrue(deserialized instanceof NotSerializableExceptionWrapper);
+            assertTrue(deserialized.getClass().toString(), deserialized instanceof NotSerializableExceptionWrapper);
             assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
             assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
             if (t.getSuppressed().length > 0) {
@@ -788,6 +799,38 @@ public class ExceptionSerializationTests extends ESTestCase {
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
                 assertEquals((int) entry.getKey(), ElasticsearchException.getId(entry.getValue()));
+            }
+        }
+    }
+
+    public void testIOException() throws IOException {
+        IOException serialize = serialize(new IOException("boom", new NullPointerException()));
+        assertEquals("boom", serialize.getMessage());
+        assertTrue(serialize.getCause() instanceof NullPointerException);
+    }
+
+
+    public void testFileSystemExceptions() throws IOException {
+        for (FileSystemException ex : Arrays.asList(new FileSystemException("a", "b", "c"),
+            new NoSuchFileException("a", "b", "c"),
+            new NotDirectoryException("a"),
+            new DirectoryNotEmptyException("a"),
+            new AtomicMoveNotSupportedException("a", "b", "c"),
+            new FileAlreadyExistsException("a", "b", "c"),
+            new AccessDeniedException("a", "b", "c"),
+            new FileSystemLoopException("a"))) {
+
+            FileSystemException serialize = serialize(ex);
+            assertEquals(serialize.getClass(), ex.getClass());
+            assertEquals("a", serialize.getFile());
+            if (serialize.getClass() == NotDirectoryException.class ||
+                serialize.getClass() == FileSystemLoopException.class ||
+                serialize.getClass() == DirectoryNotEmptyException.class) {
+                assertNull(serialize.getOtherFile());
+                assertNull(serialize.getReason());
+            } else {
+                assertEquals(serialize.getClass().toString(), "b", serialize.getOtherFile());
+                assertEquals(serialize.getClass().toString(), "c", serialize.getReason());
             }
         }
     }

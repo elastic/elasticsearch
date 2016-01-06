@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 
 /**
  * Produces construction proxies that invoke the class constructor.

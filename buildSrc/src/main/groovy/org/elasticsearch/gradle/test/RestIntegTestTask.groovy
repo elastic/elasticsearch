@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
-import org.gradle.api.Project
+import org.gradle.api.GradleException
 import org.gradle.api.Task
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.plugins.JavaBasePlugin
@@ -81,5 +81,26 @@ public class RestIntegTestTask extends RandomizedTestingTask {
 
     public ClusterConfiguration getCluster() {
         return clusterConfig
+    }
+
+    @Override
+    public Task dependsOn(Object... dependencies) {
+        super.dependsOn(dependencies)
+        for (Object dependency : dependencies) {
+            if (dependency instanceof Fixture) {
+                finalizedBy(((Fixture)dependency).stopTask)
+            }
+        }
+        return this
+    }
+
+    @Override
+    public void setDependsOn(Iterable<?> dependencies) {
+        super.setDependsOn(dependencies)
+        for (Object dependency : dependencies) {
+            if (dependency instanceof Fixture) {
+                finalizedBy(((Fixture)dependency).stopTask)
+            }
+        }
     }
 }

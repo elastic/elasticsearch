@@ -19,13 +19,12 @@ package org.apache.lucene.store;
  * under the License.
  */
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
-
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 /**
  * Extends Lucene's BaseDirectoryTestCase with ES test behavior.

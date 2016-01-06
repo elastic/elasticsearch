@@ -32,7 +32,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
-import java.util.concurrent.*;
+import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -164,9 +168,8 @@ public class BulkProcessor implements Closeable {
     }
 
     public static Builder builder(Client client, Listener listener) {
-        if (client == null) {
-            throw new NullPointerException("The client you specified while building a BulkProcessor is null");
-        }
+        Objects.requireNonNull(client, "client");
+        Objects.requireNonNull(listener, "listener");
 
         return new Builder(client, listener);
     }

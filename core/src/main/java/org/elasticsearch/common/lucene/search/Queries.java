@@ -20,8 +20,14 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -173,8 +179,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return (optionalClauseCount < result ?
-                optionalClauseCount : (result < 0 ? 0 : result));
-
+        return result < 0 ? 0 : result;
     }
 }

@@ -19,50 +19,50 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.test.ESTestCase;
+
 import java.nio.charset.StandardCharsets;
 import java.util.zip.Adler32;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.Directory;
-import org.elasticsearch.test.ESTestCase;
-
-/** 
+/**
  * Simple tests for LegacyVerification (old segments)
- * @deprecated remove this test when support for lucene 4.x 
- *             segments is not longer needed. 
+ * @deprecated remove this test when support for lucene 4.x
+ *             segments is not longer needed.
  */
 @Deprecated
 public class LegacyVerificationTests extends ESTestCase {
-    
+
     public void testAdler32() throws Exception {
         Adler32 expected = new Adler32();
         byte bytes[] = "abcdefgh".getBytes(StandardCharsets.UTF_8);
         expected.update(bytes);
         String expectedString = Store.digestToString(expected.getValue());
-        
+
         Directory dir = newDirectory();
-        
+
         IndexOutput o = dir.createOutput("legacy", IOContext.DEFAULT);
         VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, expectedString, 8);
         out.writeBytes(bytes, 0, bytes.length);
         out.verify();
         out.close();
         out.verify();
-        
+
         dir.close();
     }
-    
+
     public void testAdler32Corrupt() throws Exception {
         Adler32 expected = new Adler32();
         byte bytes[] = "abcdefgh".getBytes(StandardCharsets.UTF_8);
         expected.update(bytes);
         String expectedString = Store.digestToString(expected.getValue());
-        
+
         byte corruptBytes[] = "abcdefch".getBytes(StandardCharsets.UTF_8);
         Directory dir = newDirectory();
-        
+
         IndexOutput o = dir.createOutput("legacy", IOContext.DEFAULT);
         VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, expectedString, 8);
         out.writeBytes(corruptBytes, 0, bytes.length);
@@ -73,33 +73,33 @@ public class LegacyVerificationTests extends ESTestCase {
             // expected exception
         }
         out.close();
-        
+
         try {
             out.verify();
             fail();
         } catch (CorruptIndexException e) {
             // expected exception
         }
-        
+
         dir.close();
     }
-    
+
     public void testLengthOnlyOneByte() throws Exception {
         Directory dir = newDirectory();
-        
+
         IndexOutput o = dir.createOutput("oneByte", IOContext.DEFAULT);
         VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, 1);
         out.writeByte((byte) 3);
         out.verify();
         out.close();
         out.verify();
-        
+
         dir.close();
     }
-    
+
     public void testLengthOnlyCorrupt() throws Exception {
         Directory dir = newDirectory();
-        
+
         IndexOutput o = dir.createOutput("oneByte", IOContext.DEFAULT);
         VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, 2);
         out.writeByte((byte) 3);
@@ -109,16 +109,16 @@ public class LegacyVerificationTests extends ESTestCase {
         } catch (CorruptIndexException expected) {
             // expected exception
         }
-        
+
         out.close();
-        
+
         try {
             out.verify();
             fail();
         } catch (CorruptIndexException expected) {
             // expected exception
         }
-        
+
         dir.close();
     }
 }

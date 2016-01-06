@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -62,19 +60,16 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
         public static final boolean REQUIRED = false;
-        public static final String PATH = null;
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, RoutingFieldMapper> {
 
         private boolean required = Defaults.REQUIRED;
-
-        private String path = Defaults.PATH;
 
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
@@ -85,14 +80,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             return builder;
         }
 
-        public Builder path(String path) {
-            this.path = path;
-            return builder;
-        }
-
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, path, context.indexSettings());
+            return new RoutingFieldMapper(fieldType, required, context.indexSettings());
         }
     }
 
@@ -100,18 +90,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                parseField(builder, builder.name, node, parserContext);
-            }
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
                     builder.required(nodeBooleanValue(fieldNode));
-                    iterator.remove();
-                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.path(fieldNode.toString());
                     iterator.remove();
                 }
             }
@@ -154,16 +138,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     private boolean required;
-    private final String path;
 
     private RoutingFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.REQUIRED, Defaults.PATH, indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.REQUIRED, indexSettings);
     }
 
-    private RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
+    private RoutingFieldMapper(MappedFieldType fieldType, boolean required, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.required = required;
-        this.path = path;
     }
 
     public void markAsRequired() {
@@ -174,12 +156,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return this.required;
     }
 
-    public String path() {
-        return this.path;
-    }
-
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -205,11 +183,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
-                    context.ignoredValue(fieldType().names().indexName(), routing);
-                    return;
+                if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                    fields.add(new Field(fieldType().name(), routing, fieldType()));
                 }
-                fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
             }
         }
     }
@@ -224,24 +200,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
-        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
-        if (!includeDefaults && indexed == indexedDefault &&
-                fieldType().stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
+        if (!includeDefaults && required == Defaults.REQUIRED) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexCreatedBefore2x && (includeDefaults || indexed != indexedDefault)) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
-        }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
-            builder.field("store", fieldType().stored());
-        }
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || path != Defaults.PATH)) {
-            builder.field("path", path);
         }
         builder.endObject();
         return builder;

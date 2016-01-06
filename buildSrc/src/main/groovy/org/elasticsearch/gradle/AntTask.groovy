@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle
 
-import org.apache.tools.ant.BuildException
 import org.apache.tools.ant.BuildListener
 import org.apache.tools.ant.BuildLogger
 import org.apache.tools.ant.DefaultLogger
@@ -27,7 +26,6 @@ import org.apache.tools.ant.Project
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.charset.Charset
@@ -37,7 +35,7 @@ import java.nio.charset.Charset
  *
  * Logging for the task is customizable for subclasses by overriding makeLogger.
  */
-public class AntTask extends DefaultTask {
+public abstract class AntTask extends DefaultTask {
 
     /**
      * A buffer that will contain the output of the ant code run,
@@ -60,14 +58,17 @@ public class AntTask extends DefaultTask {
             ant.project.removeBuildListener(listener)
         }
 
-        final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : (logger.isInfoEnabled() ? Project.MSG_INFO : Project.MSG_WARN)
+        // otherwise groovy replaces System.out, and you have no chance to debug
+        // ant.saveStreams = false
+
+        final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : Project.MSG_INFO
         final PrintStream stream = useStdout() ? System.out : new PrintStream(outputBuffer, true, Charset.defaultCharset().name())
         BuildLogger antLogger = makeLogger(stream, outputLevel)
 
         ant.project.addBuildListener(antLogger)
         try {
             runAnt(ant)
-        } catch (BuildException e) {
+        } catch (Exception e) {
             // ant failed, so see if we have buffered output to emit, then rethrow the failure
             String buffer = outputBuffer.toString()
             if (buffer.isEmpty() == false) {
@@ -78,12 +79,7 @@ public class AntTask extends DefaultTask {
     }
 
     /** Runs the doAnt closure. This can be overridden by subclasses instead of having to set a closure. */
-    protected void runAnt(AntBuilder ant) {
-        if (doAnt == null) {
-            throw new GradleException("Missing doAnt for ${name}")
-        }
-        doAnt(ant)
-    }
+    protected abstract void runAnt(AntBuilder ant)
 
     /** Create the logger the ant runner will use, with the given stream for error/output. */
     protected BuildLogger makeLogger(PrintStream stream, int outputLevel) {

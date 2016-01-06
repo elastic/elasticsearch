@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.memory.breaker;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;

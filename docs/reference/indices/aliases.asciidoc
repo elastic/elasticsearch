@@ -193,8 +193,8 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 As shown in the example above, search routing may contain several values
 separated by comma. Index routing can contain only a single value.
 
-If an operation that uses routing alias also has a routing parameter, an
-intersection of both alias routing and routing specified in the
+If a search operation that uses routing alias also has a routing parameter, an
+intersection of both search alias routing and routing specified in the
 parameter is used. For example the following command will use "2" as a
 routing value:
 
@@ -202,6 +202,9 @@ routing value:
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
 --------------------------------------------------
+
+If an index operation that uses index routing alias also has a parent routing, the
+parent routing is ignored.
 
 [float]
 [[alias-adding]]

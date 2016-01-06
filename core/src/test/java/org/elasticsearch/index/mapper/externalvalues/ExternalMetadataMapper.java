@@ -24,7 +24,6 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -46,7 +45,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     private static MappedFieldType FIELD_TYPE = new BooleanFieldMapper.BooleanFieldType();
     static {
-        FIELD_TYPE.setNames(new MappedFieldType.Names(FIELD_NAME));
+        FIELD_TYPE.setName(FIELD_NAME);
         FIELD_TYPE.freeze();
     }
 
@@ -55,20 +54,8 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public String name() {
-        return CONTENT_TYPE;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         // handled in post parse
-    }
-
-    @Override
-    public void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        if (!(mergeWith instanceof ExternalMetadataMapper)) {
-            throw new IllegalArgumentException("Trying to merge " + mergeWith + " with " + this);
-        }
     }
 
     @Override
@@ -98,14 +85,14 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
 
         protected Builder() {
-            super(CONTENT_TYPE, FIELD_TYPE, FIELD_TYPE);
+            super(FIELD_NAME, FIELD_TYPE, FIELD_TYPE);
         }
 
         @Override
         public ExternalMetadataMapper build(BuilderContext context) {
             return new ExternalMetadataMapper(context.indexSettings());
         }
-        
+
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
@@ -119,7 +106,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
             return new ExternalMetadataMapper(indexSettings);
         }
-        
+
     }
 
 }

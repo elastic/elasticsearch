@@ -28,7 +28,9 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link ContextMapping} defines criteria that can be used to

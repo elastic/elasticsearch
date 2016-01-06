@@ -20,7 +20,17 @@ package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,9 +47,13 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 
@@ -47,6 +61,7 @@ import java.util.concurrent.ScheduledFuture;
 public class TestClusterService implements ClusterService {
 
     volatile ClusterState state;
+    private volatile TaskManager taskManager;
     private final List<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
@@ -59,6 +74,7 @@ public class TestClusterService implements ClusterService {
 
     public TestClusterService(ThreadPool threadPool) {
         this(ClusterState.builder(new ClusterName("test")).build(), threadPool);
+        taskManager = new TaskManager(Settings.EMPTY);
     }
 
     public TestClusterService(ClusterState state) {
@@ -171,9 +187,11 @@ public class TestClusterService implements ClusterService {
         if (threadPool == null) {
             throw new UnsupportedOperationException("TestClusterService wasn't initialized with a thread pool");
         }
-        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-        onGoingTimeouts.add(notifyTimeout);
+        if (timeout != null) {
+            NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+            notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+            onGoingTimeouts.add(notifyTimeout);
+        }
         listeners.add(listener);
         listener.postAdded();
     }
@@ -213,6 +231,11 @@ public class TestClusterService implements ClusterService {
     @Override
     public TimeValue getMaxTaskWaitTime() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TaskManager getTaskManager() {
+        return taskManager;
     }
 
     @Override

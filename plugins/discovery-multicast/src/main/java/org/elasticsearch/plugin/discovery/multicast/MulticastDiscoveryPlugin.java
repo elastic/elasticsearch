@@ -19,13 +19,9 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.plugin.discovery.multicast.MulticastZenPing;
 import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
 
 public class MulticastDiscoveryPlugin extends Plugin {
 
@@ -44,7 +40,7 @@ public class MulticastDiscoveryPlugin extends Plugin {
     public String description() {
         return "Multicast Discovery Plugin";
     }
-    
+
     public void onModule(DiscoveryModule module) {
         if (settings.getAsBoolean("discovery.zen.ping.multicast.enabled", false)) {
             module.addZenPing(MulticastZenPing.class);

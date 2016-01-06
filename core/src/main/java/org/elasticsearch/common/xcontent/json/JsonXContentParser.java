@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -80,7 +79,10 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public String text() throws IOException {
-        return parser.getText();
+        if (currentToken().isValue()) {
+            return parser.getText();
+        }
+        throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
     }
 
     @Override

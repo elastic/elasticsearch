@@ -22,7 +22,6 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
-
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;

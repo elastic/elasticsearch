@@ -60,7 +60,10 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
@@ -340,12 +343,10 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         }
     }
 
-    public abstract MappedFieldType smartNameFieldType(String name);
-
     /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
-    public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
+    public abstract MappedFieldType smartNameFieldType(String name);
 
     public abstract ObjectMapper getObjectMapper(String name);
 

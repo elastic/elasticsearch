@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 
 import java.io.IOException;

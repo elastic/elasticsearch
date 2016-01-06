@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
-
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.is;

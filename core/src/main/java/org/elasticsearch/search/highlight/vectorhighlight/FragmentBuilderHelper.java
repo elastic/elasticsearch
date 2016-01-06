@@ -27,7 +27,14 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.S
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
+import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
+import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
+import org.elasticsearch.index.analysis.NGramTokenizerFactory;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.Comparator;
@@ -41,14 +48,14 @@ public final class FragmentBuilderHelper {
     private FragmentBuilderHelper() {
       // no instance
     }
-    
+
     /**
      * Fixes problems with broken analysis chains if positions and offsets are messed up that can lead to
      * {@link StringIndexOutOfBoundsException} in the {@link FastVectorHighlighter}
      */
     public static WeightedFragInfo fixWeightedFragInfo(FieldMapper mapper, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
-        assert mapper.fieldType().names().indexName().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
+        assert mapper.fieldType().name().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
         if (!fragInfo.getSubInfos().isEmpty() && (containsBrokenAnalysis(mapper.fieldType().indexAnalyzer()))) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
@@ -70,7 +77,7 @@ public final class FragmentBuilderHelper {
             return fragInfo;
         }
     }
-    
+
     private static int compare(int x, int y) {
         return (x < y) ? -1 : ((x == y) ? 0 : 1);
     }
@@ -82,19 +89,19 @@ public final class FragmentBuilderHelper {
         }
         if (analyzer instanceof CustomAnalyzer) {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            if (a.tokenizerFactory() instanceof EdgeNGramTokenizerFactory 
-                    || (a.tokenizerFactory() instanceof NGramTokenizerFactory 
+            if (a.tokenizerFactory() instanceof EdgeNGramTokenizerFactory
+                    || (a.tokenizerFactory() instanceof NGramTokenizerFactory
                             && !((NGramTokenizerFactory)a.tokenizerFactory()).version().onOrAfter(Version.LUCENE_4_2))) {
                 // ngram tokenizer is broken before 4.2
                 return true;
             }
             TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory 
+                if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory
                         || tokenFilterFactory instanceof EdgeNGramTokenFilterFactory) {
                     return true;
                 }
-                if (tokenFilterFactory instanceof NGramTokenFilterFactory 
+                if (tokenFilterFactory instanceof NGramTokenFilterFactory
                         && !((NGramTokenFilterFactory)tokenFilterFactory).version().onOrAfter(Version.LUCENE_4_2)) {
                     // ngram token filter is broken before 4.2
                     return true;

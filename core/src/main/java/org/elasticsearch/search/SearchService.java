@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -80,16 +79,29 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -959,7 +971,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final String indexName = fieldMapper.fieldType().names().indexName();
+                    final String indexName = fieldMapper.fieldType().name();
                     Loading normsLoading = fieldMapper.fieldType().normsLoading();
                     if (normsLoading == null) {
                         normsLoading = defaultLoading;
@@ -1035,10 +1047,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         fieldDataType = joinFieldType.fieldDataType();
                         // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
                         // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     } else {
                         fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     }
 
                     if (fieldDataType == null) {
@@ -1067,10 +1079,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                                 final long start = System.nanoTime();
                                 indexFieldDataService.getForField(fieldType).load(ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.names().fullName());
+                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.name());
                             } finally {
                                 latch.countDown();
                             }
@@ -1103,10 +1115,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         fieldDataType = joinFieldType.fieldDataType();
                         // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
                         // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     } else {
                         fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().names().indexName();
+                        indexName = fieldMapper.fieldType().name();
                     }
                     if (fieldDataType == null) {
                         continue;
@@ -1132,10 +1144,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
                             ifd.loadGlobal(searcher.getDirectoryReader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
                         } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.names().fullName());
+                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.name());
                         } finally {
                             latch.countDown();
                         }

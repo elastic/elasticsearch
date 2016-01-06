@@ -19,11 +19,11 @@ package org.elasticsearch.plan.a;
  * under the License.
  */
 
-import java.text.ParseException;
-
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.misc.Interval;
+
+import java.text.ParseException;
 
 class ErrorHandlingLexer extends PlanALexer {
     public ErrorHandlingLexer(CharStream charStream) {

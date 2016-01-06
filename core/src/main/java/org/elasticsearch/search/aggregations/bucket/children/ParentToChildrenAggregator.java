@@ -21,7 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.children;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -41,10 +45,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
@@ -132,10 +134,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     protected void doPostCollection() throws IOException {
         IndexReader indexReader = context().searchContext().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
-            DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
-            if (childDocsIter == null) {
+            Scorer childDocsScorer = childFilter.scorer(ctx);
+            if (childDocsScorer == null) {
                 continue;
             }
+            DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
             final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);

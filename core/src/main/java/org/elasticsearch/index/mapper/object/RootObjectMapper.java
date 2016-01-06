@@ -26,11 +26,21 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
@@ -205,14 +215,6 @@ public class RootObjectMapper extends ObjectMapper {
         this.numericDetection = numericDetection;
     }
 
-    /** Return a copy of this mapper that has the given {@code mapper} as a
-     *  sub mapper. */
-    public RootObjectMapper copyAndPutMapper(Mapper mapper) {
-        RootObjectMapper clone = (RootObjectMapper) clone();
-        clone.putMapper(mapper);
-        return clone;
-    }
-
     @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
@@ -284,6 +286,11 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+    }
+
+    @Override
+    public RootObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        return (RootObjectMapper) super.updateFieldType(fullNameToFieldType);
     }
 
     @Override

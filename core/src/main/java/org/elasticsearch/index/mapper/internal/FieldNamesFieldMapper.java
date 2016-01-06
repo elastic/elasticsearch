@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
@@ -69,7 +67,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -107,14 +105,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_1_3_0)) {
-                throw new IllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0. Is your cluster running multiple datanode versions?");
-            }
-            
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                parseField(builder, builder.name, node, parserContext);
-            }
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -175,7 +166,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (strict) {
                 FieldNamesFieldType other = (FieldNamesFieldType)fieldType;
                 if (isEnabled() != other.isEnabled()) {
-                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
                 }
             }
         }
@@ -203,21 +194,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
-
     private FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), indexSettings);
     }
 
     private FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
-        this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
-        if (this.pre13Index) {
-            FieldNamesFieldType newFieldType = fieldType().clone();
-            newFieldType.setEnabled(false);
-            newFieldType.freeze();
-            fieldTypeRef.set(newFieldType);
-        }
     }
 
     @Override
@@ -290,7 +272,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
                     if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                        document.add(new Field(fieldType().names().indexName(), fieldName, fieldType()));
+                        document.add(new Field(fieldType().name(), fieldName, fieldType()));
                     }
                 }
             }
@@ -304,9 +286,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (pre13Index) {
-            return builder;
-        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         if (includeDefaults == false && fieldType().isEnabled() == Defaults.ENABLED) {
@@ -316,9 +295,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         builder.startObject(NAME);
         if (includeDefaults || fieldType().isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", fieldType().isEnabled());
-        }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false)) {
-            super.doXContentBody(builder, includeDefaults, params);
         }
         
         builder.endObject();

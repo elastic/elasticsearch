@@ -46,7 +46,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         String fieldInQuery = queryBuilder.fieldName();
         MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
         if (fieldType != null) {
-            fieldInQuery = fieldType.names().indexName();
+            fieldInQuery = fieldType.name();
         }
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;

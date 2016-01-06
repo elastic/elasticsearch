@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
+import groovy.lang.MissingPropertyException;
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +27,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-
-import groovy.lang.MissingPropertyException;
 
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
@@ -84,8 +83,6 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
-        // serialization to json (this is best effort considering the unsafe etc at play)
-        assertSuccess("def x = 5; groovy.json.JsonOutput.toJson(x)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections

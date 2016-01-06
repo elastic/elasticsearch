@@ -19,7 +19,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;

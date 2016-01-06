@@ -20,7 +20,6 @@
 package org.elasticsearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;

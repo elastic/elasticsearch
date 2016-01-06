@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
@@ -27,6 +26,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 public class StreamsUtils {
 

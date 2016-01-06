@@ -9,6 +9,8 @@ List projects = [
   'distribution:deb',
   'distribution:rpm',
   'test:framework',
+  'test:fixtures:example-fixture',
+  'test:fixtures:hdfs-fixture',
   'modules:lang-expression',
   'modules:lang-groovy',
   'modules:lang-mustache',

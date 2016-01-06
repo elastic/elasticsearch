@@ -262,7 +262,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         String indexFieldName;
         if (fieldType != null) {
-            indexFieldName = fieldType.names().indexName();
+            indexFieldName = fieldType.name();
         } else {
             indexFieldName = fieldName;
         }

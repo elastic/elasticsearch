@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Map;

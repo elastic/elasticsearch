@@ -20,7 +20,6 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -95,7 +94,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
         }
         // can't derive exact mapping type
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.indexName(entry.getKey());
+            MappedFieldType fieldType = mapperService.fullName(entry.getKey());
             if (fieldType == null) {
                 continue;
             }
@@ -113,7 +112,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
             if (fieldMapper == null) {
                 // it's possible index name doesn't match field name (legacy feature)
                 for (FieldMapper mapper : documentMapper.mappers()) {
-                    if (mapper.fieldType().names().indexName().equals(indexName)) {
+                    if (mapper.fieldType().name().equals(indexName)) {
                         fieldMapper = mapper;
                         break;
                     }

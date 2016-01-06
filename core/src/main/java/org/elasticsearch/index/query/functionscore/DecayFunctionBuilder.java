@@ -37,7 +37,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -370,7 +374,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
 
         @Override
         protected String getFieldName() {
-            return fieldData.getFieldNames().fullName();
+            return fieldData.getFieldName();
         }
 
         @Override
@@ -446,7 +450,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
 
         @Override
         protected String getFieldName() {
-            return fieldData.getFieldNames().fullName();
+            return fieldData.getFieldName();
         }
 
         @Override

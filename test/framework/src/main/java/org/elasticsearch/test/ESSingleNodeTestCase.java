@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -37,14 +38,21 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,13 +67,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private static void reset() {
+    private void reset() {
         assert NODE != null;
         stopNode();
         startNode();
     }
 
-    private static void startNode() {
+    private void startNode() {
         assert NODE == null;
         NODE = newNode();
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
@@ -80,7 +88,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Releasables.close(node);
     }
 
-    static void cleanup(boolean resetNode) {
+    private void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
             reset();
@@ -92,7 +100,19 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 metaData.transientSettings().getAsMap().size(), equalTo(0));
     }
 
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
+        // only the cluster name. This allows us to have overriden properties for plugins and the version to use.
+        if (NODE == null) {
+            startNode();
+        }
+    }
+
     @After
+    @Override
     public void tearDown() throws Exception {
         logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
@@ -102,7 +122,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @BeforeClass
     public static void setUpClass() throws Exception {
         stopNode();
-        startNode();
     }
 
     @AfterClass
@@ -119,25 +138,42 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-    private static Node newNode() {
-        Node build = new Node(Settings.builder()
-                .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-                .put("path.home", createTempDir())
-                // TODO: use a consistent data path for custom paths
-                // This needs to tie into the ESIntegTestCase#indexSettings() method
-                .put("path.shared_data", createTempDir().getParent())
-                .put("node.name", nodeName())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("script.inline", "on")
-                .put("script.indexed", "on")
-                .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-                .put("http.enabled", false)
-                .put("node.local", true)
-                .put("node.data", true)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-                .build()
-        );
+    /** The version of elasticsearch the node should act like. */
+    protected Version getVersion() {
+        return Version.CURRENT;
+    }
+
+    /** The plugin classes that should be added to the node. */
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.emptyList();
+    }
+
+    /** Helper method to create list of plugins without specifying generic types. */
+    @SafeVarargs
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+        return Arrays.asList(plugins);
+    }
+
+    private Node newNode() {
+        Settings settings = Settings.builder()
+            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put("path.home", createTempDir())
+            // TODO: use a consistent data path for custom paths
+            // This needs to tie into the ESIntegTestCase#indexSettings() method
+            .put("path.shared_data", createTempDir().getParent())
+            .put("node.name", nodeName())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("script.inline", "on")
+            .put("script.indexed", "on")
+            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put("http.enabled", false)
+            .put("node.local", true)
+            .put("node.data", true)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+            .build();
+        Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

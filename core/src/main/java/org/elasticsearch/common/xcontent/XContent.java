@@ -21,7 +21,10 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.bytes.BytesReference;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.

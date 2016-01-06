@@ -17,23 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.processor.RemoveProcessor;
-import org.hamcrest.CoreMatchers;
+/**
+ * Processor that trims the content of string fields.
+ * Throws exception is the field is not of type string.
+ */
+public class TrimProcessor extends AbstractStringProcessor {
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+    public static final String TYPE = "trim";
 
-public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTests {
-
-    public void testRemoveProcessorMustacheExpression() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(templateService);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "field{{var}}");
-        RemoveProcessor processor = factory.create(config);
-        assertThat(processor.getField().execute(Collections.singletonMap("var", "_value")), CoreMatchers.equalTo("field_value"));
+    TrimProcessor(String field) {
+        super(field);
     }
 
+    @Override
+    protected String process(String value) {
+        return value.trim();
+    }
+
+    @Override
+    public String getType() {
+        return TYPE;
+    }
+
+    public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
+        @Override
+        protected TrimProcessor newProcessor(String field) {
+            return new TrimProcessor(field);
+        }
+    }
 }
+

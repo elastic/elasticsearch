@@ -23,7 +23,7 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.set.SetProcessor;
+import org.elasticsearch.ingest.processor.SetProcessor;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;

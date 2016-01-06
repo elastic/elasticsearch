@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
@@ -255,6 +257,7 @@ public class ActionModule extends AbstractModule {
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
+        registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
 
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);

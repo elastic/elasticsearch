@@ -54,7 +54,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
-        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()

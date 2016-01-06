@@ -50,14 +50,14 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper documentMapper = parser.parse(mapping);
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
-        documentMapper = parser.parse(mapping);
+        documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
@@ -74,7 +74,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
                 .build();
 
         DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        parser.parse(mapping); // no exception
+        parser.parse("type", new CompressedXContent(mapping)); // no exception
     }
 
     public void testIncludes() throws Exception {
@@ -82,7 +82,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
             .startObject("_source").field("includes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
@@ -103,7 +103,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
             .startObject("_source").field("excludes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
@@ -137,7 +137,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
             // all is well
         }
         try {
-            mapper = parser.parse(null, "{}", defaultMapping);
+            mapper = parser.parse(null, new CompressedXContent("{}"), defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             fail();
@@ -156,7 +156,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", mapping, defaultMapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", new CompressedXContent(mapping), defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
@@ -193,13 +193,13 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
     }
 
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
-        DocumentMapper docMapper = parser.parse(mapping1);
-        docMapper = parser.parse(docMapper.mappingSource().string());
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
+        docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
         } else {
             try {
-                docMapper.merge(parser.parse(mapping2).mapping(), true, false);
+                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
                 fail();
             } catch (IllegalArgumentException e) {
                 for (String conflict : conflicts) {
@@ -264,27 +264,27 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
     public void testComplete() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        assertTrue(parser.parse(mapping).sourceMapper().isComplete());
+        assertTrue(parser.parse("type", new CompressedXContent(mapping)).sourceMapper().isComplete());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", false).endObject()
             .endObject().endObject().string();
-        assertFalse(parser.parse(mapping).sourceMapper().isComplete());
+        assertFalse(parser.parse("type", new CompressedXContent(mapping)).sourceMapper().isComplete());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject().string();
-        assertFalse(parser.parse(mapping).sourceMapper().isComplete());
+        assertFalse(parser.parse("type", new CompressedXContent(mapping)).sourceMapper().isComplete());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject().string();
-        assertFalse(parser.parse(mapping).sourceMapper().isComplete());
+        assertFalse(parser.parse("type", new CompressedXContent(mapping)).sourceMapper().isComplete());
     }
 
     public void testSourceObjectContainsExtraTokens() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             documentMapper.parse("test", "type", "1", new BytesArray("{}}")); // extra end object (invalid JSON)

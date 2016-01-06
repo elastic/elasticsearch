@@ -60,7 +60,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
@@ -150,10 +149,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     protected void doPostCollection() throws IOException {
         IndexReader indexReader = context().searchContext().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
-            DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
-            if (childDocsIter == null) {
+            Scorer childDocsScorer = childFilter.scorer(ctx);
+            if (childDocsScorer == null) {
                 continue;
             }
+            DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
             final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
@@ -252,7 +252,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
                     childFilter = childDocMapper.typeFilter();
                     ParentChildIndexFieldData parentChildIndexFieldData = aggregationContext.searchContext().fieldData()
                             .getForField(parentFieldMapper.fieldType());
-                    config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData,
+                    config.fieldContext(new FieldContext(parentFieldMapper.fieldType().name(), parentChildIndexFieldData,
                             parentFieldMapper.fieldType()));
                 } else {
                     config.unmapped(true);

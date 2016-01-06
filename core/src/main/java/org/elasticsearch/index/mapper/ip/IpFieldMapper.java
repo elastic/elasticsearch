@@ -229,7 +229,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -244,7 +244,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             } catch (IllegalArgumentException e) {
                 iSim = fuzziness.asLong();
             }
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -287,7 +287,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().names().fullName(), ipAsString, fieldType().boost());
+            context.allEntries().addText(fieldType().name(), ipAsString, fieldType().boost());
         }
 
         final long value = ipToLong(ipAsString);

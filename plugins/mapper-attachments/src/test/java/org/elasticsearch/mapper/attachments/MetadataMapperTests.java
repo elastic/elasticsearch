@@ -20,6 +20,7 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -52,7 +53,7 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/metadata/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename);
 
         BytesReference json = jsonBuilder()
@@ -64,21 +65,21 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.name").fieldType().names().indexName()), equalTo(filename));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.name").fieldType().name()), equalTo(filename));
         if (expectedDate == null) {
-            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().names().indexName()), nullValue());
+            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().name()), nullValue());
         } else {
-            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().names().indexName()).numericValue().longValue(), is(expectedDate));
+            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().name()).numericValue().longValue(), is(expectedDate));
         }
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.author").fieldType().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("text/html;"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.author").fieldType().name()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").fieldType().name()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("text/html;"));
         if (expectedLength == null) {
-          assertNull(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue());
+          assertNull(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().name()).numericValue().longValue());
         } else {
-          assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), greaterThan(0L));
+          assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().name()).numericValue().longValue(), greaterThan(0L));
         }
     }
 

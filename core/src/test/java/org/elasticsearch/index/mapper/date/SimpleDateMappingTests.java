@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -79,7 +80,9 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = mapper("test", "type", mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -93,6 +96,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         DateFieldMapper dateFieldMapper = (DateFieldMapper)fieldMapper;
@@ -336,7 +340,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -383,7 +387,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
-        defaultMapper.merge(mergeMapper.mapping(), false, false);
+        defaultMapper = defaultMapper.merge(mergeMapper.mapping(), false);
 
         assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
 
@@ -429,51 +433,6 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         throw new AssertionError("missing");
     }
 
-    public void testNumericResolutionBackwardsCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_time").field("numeric_resolution", "seconds").endObject().endObject()
-            .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = mapper("test1", "type", mapping, Version.V_0_90_0);
-
-        // provided as an int
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", 42)
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(42000L));
-
-        // provided as a string
-        doc = defaultMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", "43")
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(43000L));
-
-        // but formatted dates still parse as milliseconds
-        doc = defaultMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", "1970-01-01T00:00:44.000Z")
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(44000L));
-
-        // expected to fail due to field epoch date formatters not being set
-        DocumentMapper currentMapper = mapper("test2", "type", mapping);
-        try {
-            currentMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("date_field", randomBoolean() ? "43" : 43)
-                    .endObject()
-                    .bytes());
-            fail("expected parse failure");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse [date_field]"));
-        }
-    }
-
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "yyyyMMddHH").endObject().endObject()
@@ -499,31 +458,6 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
         assertThat(indexResponse.isCreated(), is(true));
-    }
-
-    public void testThatOlderIndicesAllowNonStrictDates() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
-                .endObject().endObject().string();
-
-        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
-        IndexService index = createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        assertDateFormat("epoch_millis||date_optional_time");
-        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
-
-        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "1-1-1T00:00:44.000Z")
-                .endObject()
-                .bytes());
-
-        // also test normal date
-        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "2015-06-06T00:00:44.000Z")
-                .endObject()
-                .bytes());
     }
 
     public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {
@@ -553,34 +487,6 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
-    }
-
-    public void testThatUpgradingAnOlderIndexToStrictDateWorks() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_optional_time").endObject().endObject()
-                .endObject().endObject().string();
-
-        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
-        createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        assertDateFormat("epoch_millis||date_optional_time");
-
-        // index doc
-        client().prepareIndex("test", "type", "1").setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "2015-06-06T00:00:44.000Z")
-                .endObject()).get();
-
-        // update mapping
-        String newMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field")
-                .field("type", "date")
-                .field("format", "strict_date_optional_time||epoch_millis")
-                .endObject().endObject().endObject().endObject().string();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(newMapping).get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        assertDateFormat("strict_date_optional_time||epoch_millis");
     }
 
     private void assertDateFormat(String expectedFormat) throws IOException {

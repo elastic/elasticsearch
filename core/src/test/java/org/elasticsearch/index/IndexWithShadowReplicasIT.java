@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -179,7 +181,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true)
+                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB))
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)

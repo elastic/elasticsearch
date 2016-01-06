@@ -886,5 +886,15 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.error.set(error);
             assertThat(response.get(), nullValue());
         }
+
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "capturing";
+        }
     }
 }

@@ -29,9 +29,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -55,7 +55,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
-        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
+        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
@@ -108,7 +108,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
-        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
+        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
@@ -159,7 +159,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     public void testRecoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
-        assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
+        assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
@@ -230,7 +230,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int numReplicas = 0;
         logger.info("--> creating test index ...");
         int allowNodes = 2;
-        assertAcked(prepareCreate("test", 3, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, numReplicas).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
+        assertAcked(prepareCreate("test", 3, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, numReplicas).put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)));
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 

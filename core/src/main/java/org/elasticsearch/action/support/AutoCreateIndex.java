@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 
 /**
  * Encapsulates the logic of whether a new index should be automatically created when
@@ -35,6 +36,7 @@ public final class AutoCreateIndex {
 
     private final boolean needToCheck;
     private final boolean globallyDisabled;
+    private final boolean dynamicMappingDisabled;
     private final String[] matches;
     private final String[] matches2;
     private final IndexNameExpressionResolver resolver;
@@ -42,6 +44,7 @@ public final class AutoCreateIndex {
     @Inject
     public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
+        dynamicMappingDisabled = !settings.getAsBoolean(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, MapperService.INDEX_MAPPER_DYNAMIC_DEFAULT);
         String value = settings.get("action.auto_create_index");
         if (value == null || Booleans.isExplicitTrue(value)) {
             needToCheck = true;
@@ -82,7 +85,7 @@ public final class AutoCreateIndex {
         if (exists) {
             return false;
         }
-        if (globallyDisabled) {
+        if (globallyDisabled || dynamicMappingDisabled) {
             return false;
         }
         // matches not set, default value of "true"

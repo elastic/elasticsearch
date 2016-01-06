@@ -171,7 +171,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("The required field option is missing");
         }
 
-        MappedFieldType fieldType = mapperService.smartNameFieldType(suggestion.getField());
+        MappedFieldType fieldType = mapperService.fullName(suggestion.getField());
         if (fieldType == null) {
             throw new IllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         } else if (suggestion.getAnalyzer() == null) {
@@ -329,7 +329,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator, parseFieldMatcher)) {
             if ("field".equals(fieldName)) {
                 generator.setField(parser.text());
-                if (mapperService.smartNameFieldType(generator.field()) == null) {
+                if (mapperService.fullName(generator.field()) == null) {
                     throw new IllegalArgumentException("No mapping found for field [" + generator.field() + "]");
                 }
             } else if ("size".equals(fieldName)) {

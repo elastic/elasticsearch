@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.GeoDistanceUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -263,7 +264,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {
-            toValue = GeoUtils.maxRadialDistance(point);
+            toValue = GeoDistanceUtils.maxRadialDistanceMeters(point.lon(), point.lat());
         }
 
         if (indexCreatedBeforeV2_2 == true) {
@@ -273,7 +274,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                     indexFieldData, optimizeBbox);
         }
 
-        return new GeoPointDistanceRangeQuery(fieldType.names().fullName(), point.lon(), point.lat(),
+        return new GeoPointDistanceRangeQuery(fieldType.name(), point.lon(), point.lat(),
                 (includeLower) ? fromValue : fromValue + TOLERANCE,
                 (includeUpper) ? toValue : toValue - TOLERANCE);
     }

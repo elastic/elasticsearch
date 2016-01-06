@@ -81,7 +81,7 @@ public class NestedChildrenFilterTests extends ESTestCase {
         int checkedParents = 0;
         final Weight parentsWeight = searcher.createNormalizedWeight(new TermQuery(new Term("type", "parent")), false);
         for (LeafReaderContext leaf : reader.leaves()) {
-            DocIdSetIterator parents = parentsWeight.scorer(leaf);
+            DocIdSetIterator parents = parentsWeight.scorer(leaf).iterator();
             for (int parentDoc = parents.nextDoc(); parentDoc != DocIdSetIterator.NO_MORE_DOCS ; parentDoc = parents.nextDoc()) {
                 int expectedChildDocs = leaf.reader().document(parentDoc).getField("num_child_docs").numericValue().intValue();
                 hitContext.reset(null, leaf, parentDoc, searcher);

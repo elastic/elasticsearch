@@ -45,7 +45,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     private static MappedFieldType FIELD_TYPE = new BooleanFieldMapper.BooleanFieldType();
     static {
-        FIELD_TYPE.setNames(new MappedFieldType.Names(FIELD_NAME));
+        FIELD_TYPE.setName(FIELD_NAME);
         FIELD_TYPE.freeze();
     }
 
@@ -54,20 +54,8 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public String name() {
-        return CONTENT_TYPE;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         // handled in post parse
-    }
-
-    @Override
-    public void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        if (!(mergeWith instanceof ExternalMetadataMapper)) {
-            throw new IllegalArgumentException("Trying to merge " + mergeWith + " with " + this);
-        }
     }
 
     @Override
@@ -97,7 +85,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
 
         protected Builder() {
-            super(CONTENT_TYPE, FIELD_TYPE, FIELD_TYPE);
+            super(FIELD_NAME, FIELD_TYPE, FIELD_TYPE);
         }
 
         @Override

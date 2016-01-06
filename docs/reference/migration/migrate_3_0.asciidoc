@@ -200,6 +200,34 @@ If you are using any of these settings please take the time and review their pur
 _expert settings_ and should only be used if absolutely necessary. If you have set any of the above setting as persistent
 cluster settings please use the settings update API and set their superseded keys accordingly.
 
+The following settings have been removed without replacement
+
+ * `indices.recovery.concurrent_small_file_streams` - recoveries are now single threaded. The number of concurrent outgoing recoveries are throttled via allocation deciders
+ * `indices.recovery.concurrent_file_streams` - recoveries are now single threaded. The number of concurrent outgoing recoveries are throttled via allocation deciders
+
+==== Translog settings
+
+The `index.translog.flush_threshold_ops` setting is not supported anymore. In order to control flushes based on the transaction log
+growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
+anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
+
+==== Request Cache Settings
+
+The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
+`index.requests.cache.enable` and `indices.requests.cache.size` respectively.
+
+==== Allocation settings
+
+Allocation settings deprecated in 1.x have been removed:
+
+ * `cluster.routing.allocation.concurrent_recoveries` is superseded by `cluster.routing.allocation.node_concurrent_recoveries`
+
+Please change the setting in your configuration files or in the clusterstate to use the new settings instead.
+
+==== Similarity settings
+
+The 'default' similarity has been renamed to 'classic'.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
@@ -220,6 +248,20 @@ The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward
 compatibility, but it will have no effect. Indices created on or after 3.0 will
 reject this option.
+
+==== Object notation
+
+Core types don't support the object notation anymore, which allowed to provide
+values as follows:
+
+[source,json]
+-----
+{
+  "value": "field_value",
+  "boost": 42
+}
+----
+
 
 [[breaking_30_plugins]]
 === Plugin changes

@@ -20,6 +20,7 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,7 +50,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
         byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
@@ -60,25 +61,25 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.content").fieldType().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().names().indexName()), startsWith("text/html;"));
-        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").fieldType().names().indexName()).numericValue().longValue(), greaterThan(0L));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content").fieldType().name()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().name()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().name()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").fieldType().name()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().name()), startsWith("text/html;"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").fieldType().name()).numericValue().longValue(), greaterThan(0L));
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file2").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().names().indexName()), nullValue());
-        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").fieldType().names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().name()), nullValue());
+        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").fieldType().name()), nullValue());
     }
 
     public void testMultipleDocsEncryptedFirst() throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
         byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
@@ -89,19 +90,19 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file1").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").fieldType().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().names().indexName()), nullValue());
-        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").fieldType().names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").fieldType().name()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().name()), nullValue());
+        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").fieldType().name()), nullValue());
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.content").fieldType().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").fieldType().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").fieldType().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().names().indexName()), startsWith("text/html;"));
-        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").fieldType().names().indexName()).numericValue().longValue(), greaterThan(0L));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content").fieldType().name()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").fieldType().name()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").fieldType().name()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").fieldType().name()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().name()), startsWith("text/html;"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").fieldType().name()).numericValue().longValue(), greaterThan(0L));
     }
 
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
@@ -111,7 +112,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
                 getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
-            DocumentMapper docMapper = mapperParser.parse(mapping);
+            DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
             byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
             byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 

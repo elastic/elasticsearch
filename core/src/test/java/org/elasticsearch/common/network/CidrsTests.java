@@ -133,8 +133,9 @@ public class CidrsTests extends ESTestCase {
 
     public void testValidCombinations() {
         for (long i = 0; i < (1 << 16); i++) {
+            String octetsString = Cidrs.octetsToString(Cidrs.longToOctets(i << 16));
             for (int mask = 16; mask <= 32; mask++) {
-                String test = Cidrs.octetsToCIDR(Cidrs.longToOctets(i << 16), mask);
+                String test = octetsString + "/" + mask;
                 long[] actual = Cidrs.cidrMaskToMinMax(test);
                 assertNotNull(test, actual);
                 assertEquals(test, 2, actual.length);

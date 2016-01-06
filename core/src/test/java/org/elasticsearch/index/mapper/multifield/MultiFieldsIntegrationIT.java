@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.multifield;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -121,12 +122,13 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("type").toString(), equalTo("string"));
         assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
 
-        client().prepareIndex("my-index", "my-type", "1").setSource("a", "51,19").setRefresh(true).get();
+        GeoPoint point = new GeoPoint(51, 19);
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", point.toString()).setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0)
                 .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
                 .get();
         assertThat(countResponse.getHits().totalHits(), equalTo(1l));
-        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "51,19")).get();
+        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.toString())).get();
         assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 

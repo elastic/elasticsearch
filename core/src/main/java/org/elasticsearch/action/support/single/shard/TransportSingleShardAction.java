@@ -66,7 +66,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Supplier<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -177,7 +177,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                     @Override
                     public void handleException(TransportException exp) {
-                        perform(exp);
+                        listener.onFailure(exp);
                     }
                 });
             } else {

@@ -44,6 +44,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
     public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.concurrent_source_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .build());
 

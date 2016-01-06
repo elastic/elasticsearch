@@ -126,13 +126,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (indexService == null) {
                     throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
                 }
-                MappedFieldType fieldType = indexService.mapperService().smartNameFieldType(request.field());
+                MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
                     if (fieldType.isNumeric()) {
                         throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                     }
                     analyzer = fieldType.indexAnalyzer();
-                    field = fieldType.names().indexName();
+                    field = fieldType.name();
                 }
             }
             if (field == null) {

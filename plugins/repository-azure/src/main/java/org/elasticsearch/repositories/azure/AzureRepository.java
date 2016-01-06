@@ -43,6 +43,10 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getRepositorySettings;
+import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getRepositorySettingsAsBoolean;
+import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getRepositorySettingsAsBytesSize;
+
 /**
  * Azure file system implementation of the BlobStoreRepository
  * <p>
@@ -57,7 +61,13 @@ import java.util.Locale;
 public class AzureRepository extends BlobStoreRepository {
 
     public final static String TYPE = "azure";
-    public final static String CONTAINER_DEFAULT = "elasticsearch-snapshots";
+
+    static public final class Defaults {
+        public static final String CONTAINER = "elasticsearch-snapshots";
+        public static final ByteSizeValue CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
+        public static final Boolean COMPRESS = false;
+    }
+
 
     static public final class Repository {
         public static final String ACCOUNT = "account";
@@ -83,21 +93,18 @@ public class AzureRepository extends BlobStoreRepository {
                            AzureBlobStore azureBlobStore) throws IOException, URISyntaxException, StorageException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
-        String container = repositorySettings.settings().get(Repository.CONTAINER,
-                settings.get(Storage.CONTAINER, CONTAINER_DEFAULT));
+        String container = getRepositorySettings(repositorySettings, Repository.CONTAINER, Storage.CONTAINER, Defaults.CONTAINER);
 
         this.blobStore = azureBlobStore;
-        this.chunkSize = repositorySettings.settings().getAsBytesSize(Repository.CHUNK_SIZE,
-                settings.getAsBytesSize(Storage.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
+        this.chunkSize = getRepositorySettingsAsBytesSize(repositorySettings, Repository.CHUNK_SIZE, Storage.CHUNK_SIZE, Defaults.CHUNK_SIZE);
 
         if (this.chunkSize.getMb() > 64) {
             logger.warn("azure repository does not support yet size > 64mb. Fall back to 64mb.");
             this.chunkSize = new ByteSizeValue(64, ByteSizeUnit.MB);
         }
 
-        this.compress = repositorySettings.settings().getAsBoolean(Repository.COMPRESS,
-                settings.getAsBoolean(Storage.COMPRESS, false));
-        String modeStr = repositorySettings.settings().get(Repository.LOCATION_MODE, null);
+        this.compress = getRepositorySettingsAsBoolean(repositorySettings, Repository.COMPRESS, Storage.COMPRESS, Defaults.COMPRESS);
+        String modeStr = getRepositorySettings(repositorySettings, Repository.LOCATION_MODE, Storage.LOCATION_MODE, null);
         if (modeStr != null) {
             LocationMode locationMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
             if (locationMode == LocationMode.SECONDARY_ONLY) {
@@ -109,7 +116,7 @@ public class AzureRepository extends BlobStoreRepository {
             readonly = false;
         }
 
-        String basePath = repositorySettings.settings().get(Repository.BASE_PATH, null);
+        String basePath = getRepositorySettings(repositorySettings, Repository.BASE_PATH, Storage.BASE_PATH, null);
 
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any

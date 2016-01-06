@@ -743,6 +743,59 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
     }
 
+    /*
+     * test that a listener throwing an exception while handling a
+     * notification does not prevent publication notification to the
+     * executor
+     */
+    public void testClusterStateTaskListenerThrowingExceptionIsOkay() throws InterruptedException {
+        Settings settings = settingsBuilder()
+            .put("discovery.type", "local")
+            .build();
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean published = new AtomicBoolean();
+
+        clusterService.submitStateUpdateTask(
+            "testClusterStateTaskListenerThrowingExceptionIsOkay",
+            new Object(),
+            ClusterStateTaskConfig.build(Priority.NORMAL),
+            new ClusterStateTaskExecutor<Object>() {
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return false;
+                }
+
+                @Override
+                public BatchResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                    ClusterState newClusterState = ClusterState.builder(currentState).build();
+                    return BatchResult.builder().successes(tasks).build(newClusterState);
+                }
+
+                @Override
+                public void clusterStatePublished(ClusterState newClusterState) {
+                    published.set(true);
+                    latch.countDown();
+                }
+            },
+            new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    throw new IllegalStateException(source);
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                }
+            }
+        );
+
+        latch.await();
+        assertTrue(published.get());
+    }
+
     public void testClusterStateBatchedUpdates() throws InterruptedException {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -831,30 +884,38 @@ public class ClusterServiceIT extends ESIntegTestCase {
             counts.merge(executor, 1, (previous, one) -> previous + one);
         }
 
-        CountDownLatch startingGun = new CountDownLatch(1 + numberOfThreads);
-        List<Thread> threads = new ArrayList<>();
+        CountDownLatch startGate = new CountDownLatch(1);
+        CountDownLatch endGate = new CountDownLatch(numberOfThreads);
+        AtomicBoolean interrupted = new AtomicBoolean();
         for (int i = 0; i < numberOfThreads; i++) {
             final int index = i;
             Thread thread = new Thread(() -> {
-                startingGun.countDown();
-                for (int j = 0; j < tasksSubmittedPerThread; j++) {
-                    ClusterStateTaskExecutor<Task> executor = assignments.get(index * tasksSubmittedPerThread + j);
-                    clusterService.submitStateUpdateTask(
-                            Thread.currentThread().getName(),
-                            new Task(),
-                            ClusterStateTaskConfig.build(randomFrom(Priority.values())),
-                            executor,
-                            listener);
+                try {
+                    try {
+                        startGate.await();
+                    } catch (InterruptedException e) {
+                        interrupted.set(true);
+                        return;
+                    }
+                    for (int j = 0; j < tasksSubmittedPerThread; j++) {
+                        ClusterStateTaskExecutor<Task> executor = assignments.get(index * tasksSubmittedPerThread + j);
+                        clusterService.submitStateUpdateTask(
+                                Thread.currentThread().getName(),
+                                new Task(),
+                                ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                                executor,
+                                listener);
+                    }
+                } finally {
+                    endGate.countDown();
                 }
             });
-            threads.add(thread);
             thread.start();
         }
 
-        startingGun.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startGate.countDown();
+        endGate.await();
+        assertFalse(interrupted.get());
 
         // wait until all the cluster state updates have been processed
         updateLatch.await();

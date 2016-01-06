@@ -118,7 +118,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, filter, aggregationContext,
+                        (ValuesSource.Bytes.WithOrdinals) valuesSource, order, bucketCountThresholds, filter, aggregationContext,
                         parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
             }
 
@@ -135,7 +135,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
                     boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-                if (includeExclude != null || factories.count() > 0) {
+                if (includeExclude != null || factories.count() > 0
+                        // we need the FieldData impl to be able to extract the
+                        // segment to global ord mapping
+                        || valuesSource.getClass() != ValuesSource.Bytes.FieldData.class) {
                     return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude,
                             aggregationContext, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
                 }

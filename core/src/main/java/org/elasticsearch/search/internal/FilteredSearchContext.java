@@ -503,11 +503,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return in.smartNameFieldTypeFromAnyType(name);
-    }
-
-    @Override
     public ObjectMapper getObjectMapper(String name) {
         return in.getObjectMapper(name);
     }

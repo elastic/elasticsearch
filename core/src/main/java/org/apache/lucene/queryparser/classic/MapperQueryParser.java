@@ -226,7 +226,7 @@ public class MapperQueryParser extends QueryParser {
                         }
                     }
                     if (query == null) {
-                        query = super.getFieldQuery(currentFieldType.names().indexName(), queryText, quoted);
+                        query = super.getFieldQuery(currentFieldType.name(), queryText, quoted);
                     }
                     return query;
                 }
@@ -466,7 +466,7 @@ public class MapperQueryParser extends QueryParser {
                     query = currentFieldType.prefixQuery(termStr, multiTermRewriteMethod, context);
                 }
                 if (query == null) {
-                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.names().indexName(), termStr);
+                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
                 }
                 return query;
             }
@@ -592,7 +592,7 @@ public class MapperQueryParser extends QueryParser {
                 if (!settings.forceAnalyzer()) {
                     setAnalyzer(context.getSearchAnalyzer(currentFieldType));
                 }
-                indexedNameField = currentFieldType.names().indexName();
+                indexedNameField = currentFieldType.name();
                 return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
             }
             return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);

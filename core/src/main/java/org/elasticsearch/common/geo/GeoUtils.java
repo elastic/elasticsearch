@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.util.GeoDistanceUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -65,19 +66,11 @@ public class GeoUtils {
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
 
-    /** Returns the maximum distance/radius from the point 'center' before overlapping */
-    public static double maxRadialDistance(GeoPoint center) {
-        if (Math.abs(center.lat()) == 90.0) {
-            return SloppyMath.haversin(center.lat(), center.lon(), 0, center.lon())*1000.0;
-        }
-        return SloppyMath.haversin(center.lat(), center.lon(), center.lat(), (180.0 + center.lon()) % 360)*1000.0;
-    }
-
     /** Returns the minimum between the provided distance 'initialRadius' and the
      * maximum distance/radius from the point 'center' before overlapping
      **/
     public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = maxRadialDistance(center);
+        final double maxRadius = GeoDistanceUtils.maxRadialDistanceMeters(center.lon(), center.lat());
         return Math.min(initialRadius, maxRadius);
     }
 
@@ -384,7 +377,7 @@ public class GeoUtils {
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
                 if(parser.currentToken() == Token.FIELD_NAME) {
-                    String field = parser.text();
+                    String field = parser.currentName();
                     if(LATITUDE.equals(field)) {
                         parser.nextToken();
                         switch (parser.currentToken()) {

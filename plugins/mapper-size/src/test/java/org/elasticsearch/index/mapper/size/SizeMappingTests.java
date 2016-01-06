@@ -22,18 +22,24 @@ package org.elasticsearch.index.mapper.size;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -42,25 +48,25 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SizeMappingTests extends ESSingleNodeTestCase {
 
-    MapperRegistry mapperRegistry;
     IndexService indexService;
+    MapperService mapperService;
     DocumentMapperParser parser;
 
     @Before
     public void before() {
         indexService = createIndex("test");
-        mapperRegistry = new MapperRegistry(
-                Collections.emptyMap(),
-                Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new HashMap<>();
+        IndicesModule indices = new IndicesModule();
+        indices.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry());
+        parser = mapperService.documentMapperParser();
     }
 
     public void testSizeEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -80,12 +86,12 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
         indexService = createIndex("test2", indexSettings);
-        mapperRegistry = new MapperRegistry(
+        MapperRegistry mapperRegistry = new MapperRegistry(
                 Collections.emptyMap(),
                 Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
+        parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
                 indexService.analysisService(), indexService.similarityService(), mapperRegistry);
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -102,7 +108,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -117,7 +123,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
     public void testSizeNotSet() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -133,14 +139,13 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = parser.parse(enabledMapping);
+        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = parser.parse(disabledMapping);
+        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
 
-        enabledMapper.merge(disabledMapper.mapping(), false, false);
-        assertThat(enabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
+        assertThat(disabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }
 }

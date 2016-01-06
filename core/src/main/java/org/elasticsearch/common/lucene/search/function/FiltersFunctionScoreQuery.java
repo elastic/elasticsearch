@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -142,7 +143,7 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        if (needsScores == false) {
+        if (needsScores == false && minScore == null) {
             return subQuery.createWeight(searcher, needsScores);
         }
 
@@ -184,11 +185,7 @@ public class FiltersFunctionScoreQuery extends Query {
             subQueryWeight.normalize(norm, boost);
         }
 
-        @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            // we ignore scoreDocsInOrder parameter, because we need to score in
-            // order if documents are scored with a script. The
-            // ShardLookup depends on in order scoring.
+        private FiltersFunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
             Scorer subQueryScorer = subQueryWeight.scorer(context);
             if (subQueryScorer == null) {
                 return null;
@@ -201,15 +198,24 @@ public class FiltersFunctionScoreQuery extends Query {
                 Scorer filterScorer = filterWeights[i].scorer(context);
                 docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
-            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore, needsScores);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, needsScores);
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            Scorer scorer = functionScorer(context);
+            if (scorer != null && minScore != null) {
+                scorer = new MinScoreScorer(this, scorer, minScore);
+            }
+            return scorer;
         }
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
 
-            Explanation subQueryExpl = subQueryWeight.explain(context, doc);
-            if (!subQueryExpl.isMatch()) {
-                return subQueryExpl;
+            Explanation expl = subQueryWeight.explain(context, doc);
+            if (!expl.isMatch()) {
+                return expl;
             }
             // First: Gather explanations for all filters
             List<Explanation> filterExplanations = new ArrayList<>();
@@ -218,7 +224,7 @@ public class FiltersFunctionScoreQuery extends Query {
                         filterWeights[i].scorer(context));
                 if (docSet.get(doc)) {
                     FilterFunction filterFunction = filterFunctions[i];
-                    Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
+                    Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, expl);
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
                     Explanation filterExplanation = Explanation.match(sc, "function score, product of:",
@@ -226,46 +232,52 @@ public class FiltersFunctionScoreQuery extends Query {
                     filterExplanations.add(filterExplanation);
                 }
             }
-            if (filterExplanations.size() == 0) {
-                return subQueryExpl;
+            if (filterExplanations.size() > 0) {
+                FiltersFunctionFactorScorer scorer = functionScorer(context);
+                int actualDoc = scorer.iterator().advance(doc);
+                assert (actualDoc == doc);
+                double score = scorer.computeScore(doc, expl.getValue());
+                Explanation factorExplanation = Explanation.match(
+                        CombineFunction.toFloat(score),
+                        "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
+                        filterExplanations);
+                expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             }
-
-            FiltersFunctionFactorScorer scorer = (FiltersFunctionFactorScorer)scorer(context);
-            int actualDoc = scorer.advance(doc);
-            assert (actualDoc == doc);
-            double score = scorer.computeScore(doc, subQueryExpl.getValue());
-            Explanation factorExplanation = Explanation.match(
-                    CombineFunction.toFloat(score),
-                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
-                    filterExplanations);
-            return combineFunction.explain(subQueryExpl, factorExplanation, maxBoost);
+            if (minScore != null && minScore > expl.getValue()) {
+                expl = Explanation.noMatch("Score value is too low, expected at least " + minScore + " but got " + expl.getValue(), expl);
+            }
+            return expl;
         }
     }
 
-    static class FiltersFunctionFactorScorer extends CustomBoostFactorScorer {
+    static class FiltersFunctionFactorScorer extends FilterScorer {
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
         private final LeafScoreFunction[] functions;
         private final Bits[] docSets;
+        private final CombineFunction scoreCombiner;
+        private final float maxBoost;
         private final boolean needsScores;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore, boolean needsScores) throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner, minScore);
+                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, boolean needsScores) throws IOException {
+            super(scorer, w);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
             this.functions = functions;
             this.docSets = docSets;
+            this.scoreCombiner = scoreCombiner;
+            this.maxBoost = maxBoost;
             this.needsScores = needsScores;
         }
 
         @Override
-        public float innerScore() throws IOException {
-            int docId = scorer.docID();
+        public float score() throws IOException {
+            int docId = docID();
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
             // are needed
-            float subQueryScore = needsScores ? scorer.score() : 0f;
+            float subQueryScore = needsScores ? super.score() : 0f;
             double factor = computeScore(docId, subQueryScore);
             return scoreCombiner.combine(subQueryScore, factor, maxBoost);
         }
@@ -357,12 +369,13 @@ public class FiltersFunctionScoreQuery extends Query {
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
         return Objects.equals(this.subQuery, other.subQuery) && this.maxBoost == other.maxBoost &&
-                Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
-                Arrays.equals(this.filterFunctions, other.filterFunctions);
+            Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
+            Objects.equals(this.scoreMode, other.scoreMode) &&
+            Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, filterFunctions);
+        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
     }
 }

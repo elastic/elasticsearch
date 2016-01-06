@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -58,7 +59,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
@@ -79,7 +80,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -96,7 +97,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
@@ -112,7 +113,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -129,7 +130,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
@@ -143,7 +144,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -164,7 +165,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         MappedFieldType completionFieldType = fieldMapper.fieldType();
         XContentBuilder builder = jsonBuilder()
@@ -181,7 +182,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", builder.bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 

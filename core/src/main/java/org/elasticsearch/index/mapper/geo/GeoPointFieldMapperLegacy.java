@@ -127,30 +127,11 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     }
 
     public static Builder parse(Builder builder, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        final boolean indexCreatedBeforeV2_0 = parserContext.indexVersionCreated().before(Version.V_2_0_0);
         for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             String propName = Strings.toUnderscoreCase(entry.getKey());
             Object propNode = entry.getValue();
-            if (indexCreatedBeforeV2_0 && propName.equals("validate")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lon")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lat")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (propName.equals(Names.COERCE)) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize")) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lat")) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lon")) {
+            if (propName.equals(Names.COERCE)) {
                 builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             }
@@ -301,7 +282,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         GeoPointFieldMapperLegacy gpfmMergeWith = (GeoPointFieldMapperLegacy) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
-                throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
+                throw new IllegalArgumentException("mapper [" + fieldType().name() + "] has different [coerce]");
             }
         }
 
@@ -330,17 +311,17 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
+            Field field = new Field(fieldType().name(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
             context.doc().add(field);
         }
 
         super.parse(context, point, geoHash);
 
         if (fieldType().hasDocValues()) {
-            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().names().indexName());
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomGeoPointDocValuesField(fieldType().names().indexName(), point.lat(), point.lon());
-                context.doc().addWithKey(fieldType().names().indexName(), field);
+                field = new CustomGeoPointDocValuesField(fieldType().name(), point.lat(), point.lon());
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(point.lat(), point.lon());
             }

@@ -74,7 +74,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -272,7 +272,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!source.hasArray()) {
             source = source.toBytesArray();
         }
-        fields.add(new StoredField(fieldType().names().indexName(), source.array(), source.arrayOffset(), source.length()));
+        fields.add(new StoredField(fieldType().name(), source.array(), source.arrayOffset(), source.length()));
     }
 
     @Override

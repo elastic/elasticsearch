@@ -43,6 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * A field mapper for boolean fields.
@@ -106,6 +107,8 @@ public class BooleanFieldMapper extends FieldMapper {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(nodeBooleanValue(propNode));
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -222,9 +225,9 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), value ? "T" : "F", fieldType()));
+        fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value ? 1 : 0));
+            fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         }
     }
 

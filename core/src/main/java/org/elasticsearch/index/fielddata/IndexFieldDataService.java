@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -61,7 +60,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
 
     private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = (indexProperties, fieldType, cache, breakerService, mapperService1) -> {
-        throw new IllegalStateException("Can't load fielddata on [" + fieldType.names().fullName()
+        throw new IllegalStateException("Can't load fielddata on [" + fieldType.name()
                 + "] of index [" + indexProperties.getIndex().getName() + "] because fielddata is unsupported on fields of type ["
                 + fieldType.fieldDataType().getType() + "]. Use doc values instead.");
     };
@@ -148,11 +147,11 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
-        public void onCache(ShardId shardId, Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+        public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
         }
 
         @Override
-        public void onRemoval(ShardId shardId, Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+        public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         }
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
@@ -195,22 +194,22 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        final Names fieldNames = fieldType.names();
+        final String fieldName = fieldType.name();
         final FieldDataType type = fieldType.fieldDataType();
         if (type == null) {
-            throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
+            throw new IllegalArgumentException("found no fielddata type for field [" + fieldName + "]");
         }
         final boolean docValues = fieldType.hasDocValues();
         IndexFieldData.Builder builder = null;
         String format = type.getFormat(indexSettings.getSettings());
         if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-            logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
+            logger.warn("field [" + fieldName + "] has no doc values, will use default field data format");
             format = null;
         }
         if (format != null) {
             builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
             if (builder == null) {
-                logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
+                logger.warn("failed to find format [" + format + "] for field [" + fieldName + "], will use default");
             }
         }
         if (builder == null && docValues) {
@@ -220,24 +219,24 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             builder = buildersByType.get(type.getType());
         }
         if (builder == null) {
-            throw new IllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
+            throw new IllegalArgumentException("failed to find field data builder for field " + fieldName + ", and type " + type.getType());
         }
 
         IndexFieldDataCache cache;
         synchronized (this) {
-            cache = fieldDataCaches.get(fieldNames.indexName());
+            cache = fieldDataCaches.get(fieldName);
             if (cache == null) {
                 //  we default to node level cache, which in turn defaults to be unbounded
                 // this means changing the node level settings is simple, just set the bounds there
                 String cacheType = type.getSettings().get("cache", indexSettings.getSettings().get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldNames, type);
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName, type);
                 } else if ("none".equals(cacheType)){
                     cache = new IndexFieldDataCache.None();
                 } else {
-                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
                 }
-                fieldDataCaches.put(fieldNames.indexName(), cache);
+                fieldDataCaches.put(fieldName, cache);
             }
         }
 

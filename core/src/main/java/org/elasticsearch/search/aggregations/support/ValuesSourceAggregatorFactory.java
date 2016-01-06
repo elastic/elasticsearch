@@ -241,7 +241,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
             return config;
         }
 
-        MappedFieldType fieldType = context.searchContext().smartNameFieldTypeFromAnyType(field);
+        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

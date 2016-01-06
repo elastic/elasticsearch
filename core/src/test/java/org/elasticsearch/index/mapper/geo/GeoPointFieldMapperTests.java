@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -57,7 +59,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -67,7 +69,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
-        final boolean stored = indexCreatedBefore22 == false;
+        final boolean stored = false;
         assertThat(doc.rootDoc().getField("point.lat").fieldType().stored(), is(stored));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").fieldType().stored(), is(stored));
@@ -87,7 +89,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -107,7 +109,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -127,7 +129,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -147,7 +149,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -171,7 +173,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         mapping.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
 
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -220,7 +222,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         mapping.field("ignore_malformed", false).endObject().endObject().endObject().endObject().string();
 
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
 
         defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -283,7 +285,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         mapping.field("ignore_malformed", true).endObject().endObject().endObject().endObject().string();
 
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
 
         defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -323,7 +325,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -350,7 +352,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -386,7 +388,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -410,7 +412,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -436,7 +438,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -472,7 +474,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -497,7 +499,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -521,7 +523,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -547,7 +549,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -590,7 +592,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("validate", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(validateMapping);
+            parser.parse("type", new CompressedXContent(validateMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate : true]");
@@ -601,7 +603,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("validate_lat", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(validateMapping);
+            parser.parse("type", new CompressedXContent(validateMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lat : true]");
@@ -612,7 +614,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("validate_lon", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(validateMapping);
+            parser.parse("type", new CompressedXContent(validateMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lon : true]");
@@ -624,7 +626,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("normalize", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(normalizeMapping);
+            parser.parse("type", new CompressedXContent(normalizeMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize : true]");
@@ -635,7 +637,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("normalize_lat", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(normalizeMapping);
+            parser.parse("type", new CompressedXContent(normalizeMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lat : true]");
@@ -646,65 +648,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
                     .field("normalize_lon", true).endObject().endObject()
                     .endObject().endObject().string();
-            parser.parse(normalizeMapping);
+            parser.parse("type", new CompressedXContent(normalizeMapping));
             fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lon : true]");
         }
-    }
-
-    /**
-     * Test backward compatibility
-     */
-    public void testBackwardCompatibleOptions() throws Exception {
-        // backward compatibility testing
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
-                Version.V_1_7_1)).build();
-
-        // validate
-        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate_lat", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("validate_lon", false).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"ignore_malformed\":true"));
-
-        // normalize
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"coerce\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize_lat", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"coerce\":true"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("normalize_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        parser.parse(mapping);
-        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"coerce\":true"));
     }
 
     public void testGeoPointMapperMerge() throws Exception {
@@ -786,5 +734,33 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         for(int i=0; i<numHashes; ++i) {
             assertEquals("dr5regy6rc6y".substring(0, numHashes-i), hashes.get(i));
         }
+    }
+
+    public void testMultiField() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+            .field("type", "geo_point").startObject("fields")
+            .startObject("geohash").field("type", "geo_point").field("geohash_precision", 12).field("geohash_prefix", true).endObject()
+            .startObject("latlon").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
+            .addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+
+        // create index and add random test points
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        for (int i=0; i<numDocs; ++i) {
+            final GeoPoint pt = RandomGeoGenerator.randomPoint(random());
+            client().prepareIndex("test", "pin").setSource(jsonBuilder().startObject().startObject("location").field("lat", pt.lat())
+                .field("lon", pt.lon()).endObject().endObject()).setRefresh(true).execute().actionGet();
+        }
+
+        // query by geohash subfield
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        assertEquals(numDocs, searchResponse.getHits().totalHits());
+
+        // query by latlon subfield
+        searchResponse = client().prepareSearch().addField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
+        assertEquals(numDocs, searchResponse.getHits().totalHits());
     }
 }

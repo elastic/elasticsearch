@@ -44,7 +44,15 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.ClosedChannelException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -567,11 +575,28 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof FileNotFoundException) {
                 writeVInt(13);
                 writeCause = false;
-            } else if (throwable instanceof NoSuchFileException) {
+            } else if (throwable instanceof FileSystemException) {
                 writeVInt(14);
-                writeOptionalString(((NoSuchFileException) throwable).getFile());
-                writeOptionalString(((NoSuchFileException) throwable).getOtherFile());
-                writeOptionalString(((NoSuchFileException) throwable).getReason());
+                if (throwable instanceof NoSuchFileException) {
+                    writeVInt(0);
+                } else if (throwable instanceof NotDirectoryException) {
+                    writeVInt(1);
+                } else if (throwable instanceof DirectoryNotEmptyException) {
+                    writeVInt(2);
+                } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                    writeVInt(3);
+                } else if (throwable instanceof FileAlreadyExistsException) {
+                    writeVInt(4);
+                } else if (throwable instanceof AccessDeniedException) {
+                    writeVInt(5);
+                } else if (throwable instanceof FileSystemLoopException) {
+                    writeVInt(6);
+                } else {
+                    writeVInt(7);
+                }
+                writeOptionalString(((FileSystemException) throwable).getFile());
+                writeOptionalString(((FileSystemException) throwable).getOtherFile());
+                writeOptionalString(((FileSystemException) throwable).getReason());
                 writeCause = false;
             } else if (throwable instanceof OutOfMemoryError) {
                 writeVInt(15);
@@ -583,6 +608,8 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof InterruptedException) {
                 writeVInt(18);
                 writeCause = false;
+            } else if (throwable instanceof IOException) {
+                writeVInt(19);
             } else {
                 ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
@@ -655,5 +682,15 @@ public abstract class StreamOutput extends OutputStream {
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
         writeDouble(geoPoint.lat());
         writeDouble(geoPoint.lon());
+    }
+
+    /**
+     * Writes a list of {@link Writeable} objects
+     */
+    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+        writeVInt(list.size());
+        for (T obj: list) {
+            obj.writeTo(this);
+        }
     }
 }

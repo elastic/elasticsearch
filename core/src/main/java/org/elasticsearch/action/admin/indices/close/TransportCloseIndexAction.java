@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -75,12 +76,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
+    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
             throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
         }
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override

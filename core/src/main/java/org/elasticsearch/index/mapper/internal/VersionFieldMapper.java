@@ -22,8 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -35,7 +33,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +48,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
 
         static {
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
@@ -73,16 +70,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                if (fieldName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // ignore in 1.x, reject in 2.x
-                    iterator.remove();
-                }
-            }
-            return builder;
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override

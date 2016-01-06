@@ -31,7 +31,7 @@ grant codeBase "${codebase.securesm-1.0.jar}" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-5.5.0-snapshot-1719088.jar}" {
+grant codeBase "${codebase.lucene-core-5.5.0-snapshot-1721183.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";

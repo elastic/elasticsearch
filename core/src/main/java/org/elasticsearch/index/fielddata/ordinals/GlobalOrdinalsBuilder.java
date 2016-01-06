@@ -64,12 +64,12 @@ public enum GlobalOrdinalsBuilder {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Global-ordinals[{}][{}] took {} ms",
-                    indexFieldData.getFieldNames().fullName(),
+                    indexFieldData.getFieldName(),
                     ordinalMap.getValueCount(),
                     TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
             );
         }
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldNames(),
+        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 indexFieldData.getFieldDataType(), atomicFD, ordinalMap, memorySizeInBytes
         );
     }
@@ -103,7 +103,7 @@ public enum GlobalOrdinalsBuilder {
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldNames(),
+        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 indexFieldData.getFieldDataType(), atomicFD, ordinalMap, 0
         );
     }

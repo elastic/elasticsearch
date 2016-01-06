@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
-    public final static String DEFAULT_SIMILARITY = "default";
+    public final static String DEFAULT_SIMILARITY = "classic";
     private final Similarity defaultSimilarity;
     private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;
@@ -44,9 +44,9 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, BiFunction<String, Settings, SimilarityProvider>> defaults = new HashMap<>();
         Map<String, BiFunction<String, Settings, SimilarityProvider>> buildIn = new HashMap<>();
-        defaults.put("default", DefaultSimilarityProvider::new);
+        defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("default", DefaultSimilarityProvider::new);
+        buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("BM25", BM25SimilarityProvider::new);
         buildIn.put("DFR", DFRSimilarityProvider::new);
         buildIn.put("IB", IBSimilarityProvider::new);
@@ -129,7 +129,7 @@ public final class SimilarityService extends AbstractIndexComponent {
 
         @Override
         public Similarity get(String name) {
-            MappedFieldType fieldType = mapperService.smartNameFieldType(name);
+            MappedFieldType fieldType = mapperService.fullName(name);
             return (fieldType != null && fieldType.similarity() != null) ? fieldType.similarity().get() : defaultSimilarity;
         }
     }

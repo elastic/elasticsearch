@@ -76,7 +76,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), false, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), false, false);
         // make sure mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
@@ -99,7 +99,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         try {
-            indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), true, false);
+            indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), true, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -123,14 +123,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
+            assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
         }
 
         try {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
+            assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
         }
 
         assertTrue(mapperService.documentMapper("type").mapping().root().getMapper("foo") instanceof LongFieldMapper);
@@ -247,23 +247,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIndexFieldParsingBackcompat() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
-        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
-        boolean enabled = randomBoolean();
-        indexMapping.startObject()
-                .startObject("type")
-                .startObject("_index")
-                .field("enabled", enabled)
-                .endObject()
-                .endObject()
-                .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
-        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
-        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-    }
-
     public void testTimestampParsing() throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
@@ -272,10 +255,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .startObject("_timestamp")
                 .field("enabled", enabled)
-                .field("store", true)
-                .startObject("fielddata")
-                .field("format", "doc_values")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();

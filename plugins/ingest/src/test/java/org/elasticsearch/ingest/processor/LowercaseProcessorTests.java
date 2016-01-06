@@ -17,23 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.processor.RemoveProcessor;
-import org.hamcrest.CoreMatchers;
+import java.util.Locale;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTests {
-
-    public void testRemoveProcessorMustacheExpression() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(templateService);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "field{{var}}");
-        RemoveProcessor processor = factory.create(config);
-        assertThat(processor.getField().execute(Collections.singletonMap("var", "_value")), CoreMatchers.equalTo("field_value"));
+public class LowercaseProcessorTests extends AbstractStringProcessorTestCase {
+    @Override
+    protected AbstractStringProcessor newProcessor(String field) {
+        return new LowercaseProcessor(field);
     }
 
+    @Override
+    protected String expectedResult(String input) {
+        return input.toLowerCase(Locale.ROOT);
+    }
 }

@@ -31,7 +31,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.processor.CompoundProcessor;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.set.SetProcessor;
+import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;

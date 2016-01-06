@@ -19,13 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-import static org.elasticsearch.plugin.reindex.RestReindexAction.parseCommon;
-import static org.elasticsearch.plugin.reindex.UpdateByQueryAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-
-import java.util.Map;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +37,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
+
+import java.util.Map;
+
+import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.plugin.reindex.RestReindexAction.parseCommon;
+import static org.elasticsearch.plugin.reindex.UpdateByQueryAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateByQueryAction extends BaseRestHandler {
     private IndicesQueriesRegistry indicesQueriesRegistry;
@@ -106,7 +106,6 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         parseCommon(internalRequest, request);
 
         internalRequest.size(internalRequest.source().source().size());
-        internalRequest.source().source().size(scrollSize);
         internalRequest.source().source().size(request.paramAsInt("scroll_size", scrollSize));
 
         client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));

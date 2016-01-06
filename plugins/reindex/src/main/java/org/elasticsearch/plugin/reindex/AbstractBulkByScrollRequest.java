@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -34,6 +28,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
@@ -97,6 +97,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         ActionRequestValidationException e = source.validate();
         if (source.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
+        }
+        if (false == (size == -1 || size > 0)) {
+            e = addValidationError(
+                    "size should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
+                            + size + "]",
+                    e);
         }
         return e;
     }

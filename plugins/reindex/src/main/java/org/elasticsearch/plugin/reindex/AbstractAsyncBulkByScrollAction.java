@@ -19,23 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static java.lang.Math.max;
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-import static org.elasticsearch.rest.RestStatus.CONFLICT;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -55,6 +38,23 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.lang.Math.max;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.rest.RestStatus.CONFLICT;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all
@@ -166,7 +166,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void onScrollResponse(SearchResponse searchResponse) {
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             try {
                 scroll.set(searchResponse.getScrollId());
                 SearchHit[] docs = searchResponse.getHits().getHits();
@@ -242,18 +242,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
                 }
                 // Track the indexes we've seen so we can refresh them if requested
-                destinationIndicesThisBatch.add(item.getIndex());
+                destinationIndices.add(item.getIndex());
             }
-            if (false == destinationIndicesThisBatch.isEmpty()) {
-                destinationIndices.addAll(destinationIndicesThisBatch);
-            }
+            destinationIndices.addAll(destinationIndicesThisBatch);
 
             if (false == failures.isEmpty()) {
                 startNormalTermination();
                 return;
             }
 
-            if (mainRequest.size() != -1 && successfullyProcessed() >= mainRequest.size()) {
+            if (mainRequest.size() != SIZE_ALL_MATCHES && successfullyProcessed() >= mainRequest.size()) {
                 // We've processed all the requested docs.
                 startNormalTermination();
                 return;

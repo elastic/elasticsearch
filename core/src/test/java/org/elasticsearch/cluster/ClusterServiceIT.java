@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -54,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
@@ -63,6 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -830,14 +833,14 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         int tasksSubmittedPerThread = randomIntBetween(2, 1024);
 
-        AtomicBoolean failure = new AtomicBoolean();
+        CopyOnWriteArrayList<Tuple<String, Throwable>> failures = new CopyOnWriteArrayList<>();
         CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
 
         ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.debug("unexpected failure: [{}]", t, source);
-                failure.set(true);
+                logger.error("unexpected failure: [{}]", t, source);
+                failures.add(new Tuple<>(source, t));
                 updateLatch.countDown();
             }
 
@@ -872,7 +875,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         updateLatch.await();
 
-        assertFalse(failure.get());
+        assertThat(failures, empty());
 
         for (int i = 0; i < numberOfThreads; i++) {
             assertEquals(tasksSubmittedPerThread, executors[i].tasks.size());

@@ -32,11 +32,13 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -133,6 +135,7 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                     allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
                 }
                 resolveParentChildJoinFields(allowedFields);
+                resolvePercolatorFields(allowedFields);
                 reader = FieldSubsetReader.wrap(reader, allowedFields);
             }
 
@@ -222,6 +225,13 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                 String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
                 allowedFields.add(joinField);
             }
+        }
+    }
+
+    private void resolvePercolatorFields(Set<String> allowedFields) {
+        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+            allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
+            allowedFields.add(PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME);
         }
     }
 

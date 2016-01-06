@@ -37,6 +37,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.ProcessorFactoryProvider;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,16 +59,16 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
     private final Environment environment;
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
-    private final Map<String, ProcessorFactoryProvider> processorFactoryProvider;
+    private final ProcessorsRegistry processorsRegistry;
 
     @Inject
     public IngestBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
                               ClusterService clusterService, TransportService transportService,
-                              Map<String, ProcessorFactoryProvider> processorFactoryProvider) {
+                              ProcessorsRegistry processorsRegistry) {
         super(settings);
         this.threadPool = threadPool;
         this.environment = environment;
-        this.processorFactoryProvider = processorFactoryProvider;
+        this.processorsRegistry = processorsRegistry;
         this.pipelineStore = new PipelineStore(settings, clusterService, transportService);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
 
@@ -83,7 +84,7 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         clusterService.add(this);
         this.pipelineStore = pipelineStore;
         this.pipelineExecutionService = pipelineExecutionService;
-        this.processorFactoryProvider = null;
+        this.processorsRegistry = null;
     }
 
     public PipelineStore getPipelineStore() {
@@ -102,7 +103,7 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
 
     @Inject
     public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorFactoryProvider, environment, scriptService);
+        pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, environment, scriptService);
     }
 
     @Override

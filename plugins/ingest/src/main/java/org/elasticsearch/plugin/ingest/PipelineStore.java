@@ -42,6 +42,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.ProcessorFactoryProvider;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequest;
@@ -85,10 +86,10 @@ public class PipelineStore extends AbstractComponent implements Closeable {
         this.client = client;
     }
 
-    public void buildProcessorFactoryRegistry(Map<String, ProcessorFactoryProvider> processorFactoryProviders, Environment environment, ScriptService scriptService) {
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, Environment environment, ScriptService scriptService) {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         TemplateService templateService = new InternalTemplateService(scriptService);
-        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
+        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorsRegistry.entrySet()) {
             Processor.Factory processorFactory = entry.getValue().apply(environment, templateService);
             processorFactories.put(entry.getKey(), processorFactory);
         }

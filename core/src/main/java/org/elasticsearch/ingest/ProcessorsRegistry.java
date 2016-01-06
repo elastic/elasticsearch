@@ -19,30 +19,26 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
-/**
- * Registry for processor factories
- * @see org.elasticsearch.ingest.Processor.Factory
- * @see ProcessorFactoryProvider
- */
-public class ProcessorsModule extends AbstractModule {
+public class ProcessorsRegistry {
 
-    private final ProcessorsRegistry processorsRegistry;
-
-    public ProcessorsModule() {
-        this.processorsRegistry = new ProcessorsRegistry();
-    }
-
-    @Override
-    protected void configure() {
-        bind(ProcessorsRegistry.class).toInstance(processorsRegistry);
-    }
+    private final Map<String, ProcessorFactoryProvider> processorFactoryProviders = new HashMap<>();
 
     /**
      * Adds a processor factory under a specific type name.
      */
     public void addProcessor(String type, ProcessorFactoryProvider processorFactoryProvider) {
-        processorsRegistry.addProcessor(type, processorFactoryProvider);
+        processorFactoryProviders.put(type, processorFactoryProvider);
+    }
+
+    public ProcessorFactoryProvider getProcessor(String type) {
+        return processorFactoryProviders.get(type);
+    }
+
+    public Set<Map.Entry<String, ProcessorFactoryProvider>> entrySet() {
+        return processorFactoryProviders.entrySet();
     }
 }

@@ -25,14 +25,13 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
-
-import java.util.Collections;
 
 public class IngestTemplateTests extends ESSingleNodeTestCase {
 
@@ -51,7 +50,7 @@ public class IngestTemplateTests extends ESSingleNodeTestCase {
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         TransportService transportService = Mockito.mock(TransportService.class);
         bootstrapper = new IngestBootstrapper(
-            Settings.EMPTY, threadPool, environment, clusterService, transportService, Collections.emptyMap()
+            Settings.EMPTY, threadPool, environment, clusterService, transportService, new ProcessorsRegistry()
         );
         bootstrapper.setClient(client());
     }

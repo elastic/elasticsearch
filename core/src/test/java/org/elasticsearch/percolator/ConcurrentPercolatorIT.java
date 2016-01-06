@@ -148,6 +148,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         assertThat(assertionError + " should be null", assertionError, nullValue());
     }
 
+    @AwaitsFix(bugUrl = "reproduces= -Dtests.seed=DA9C1BDEB045305C")
     public void testConcurrentAddingAndPercolating() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();

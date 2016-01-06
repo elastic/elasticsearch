@@ -60,7 +60,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
         @Override
         protected boolean matchesSafely(ReindexResponse item) {
-            return super.matchesSafely(item) && createdMatcher.matches(item.created());
+            return super.matchesSafely(item) && createdMatcher.matches(item.getCreated());
         }
 
         @Override

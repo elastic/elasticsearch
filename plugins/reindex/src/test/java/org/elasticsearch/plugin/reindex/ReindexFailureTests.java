@@ -60,7 +60,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         assertThat(response, responseMatcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
-        for (Failure failure: response.failures()) {
+        for (Failure failure: response.getFailures()) {
             assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
         }
     }
@@ -78,7 +78,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
         ReindexResponse response = copy.get();
         assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
-        for (Failure failure: response.failures()) {
+        for (Failure failure: response.getFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
         }
     }

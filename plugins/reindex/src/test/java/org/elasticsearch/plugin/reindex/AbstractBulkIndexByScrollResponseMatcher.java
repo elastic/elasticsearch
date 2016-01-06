@@ -94,10 +94,10 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<Response extends 
 
     @Override
     protected boolean matchesSafely(Response item) {
-        return updatedMatcher.matches(item.updated()) &&
-            (batchesMatcher == null || batchesMatcher.matches(item.batches())) &&
-            versionConflictsMatcher.matches(item.versionConflicts()) &&
-            failuresMatcher.matches(item.failures().size());
+        return updatedMatcher.matches(item.getUpdated()) &&
+            (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
+            versionConflictsMatcher.matches(item.getVersionConflicts()) &&
+            failuresMatcher.matches(item.getFailures().size());
     }
 
     @Override

@@ -69,7 +69,7 @@ public class RoundTripTests extends ESTestCase {
         ReindexResponse tripped = new ReindexResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
-        assertEquals(response.created(), tripped.created());
+        assertEquals(response.getCreated(), tripped.getCreated());
     }
 
     public void testBulkIndexByScrollResponse() throws IOException {
@@ -109,15 +109,15 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse response, BulkIndexByScrollResponse tripped) {
-        assertEquals(response.took(), tripped.took());
-        assertEquals(response.updated(), tripped.updated());
-        assertEquals(response.batches(), tripped.batches());
-        assertEquals(response.versionConflicts(), tripped.versionConflicts());
-        assertEquals(response.noops(), tripped.noops());
-        assertEquals(response.failures().size(), tripped.failures().size());
-        for (int i = 0; i < response.failures().size(); i++) {
-            Failure expected = response.failures().get(i);
-            Failure actual = tripped.failures().get(i);
+        assertEquals(response.getTook(), tripped.getTook());
+        assertEquals(response.getUpdated(), tripped.getUpdated());
+        assertEquals(response.getBatches(), tripped.getBatches());
+        assertEquals(response.getVersionConflicts(), tripped.getVersionConflicts());
+        assertEquals(response.getNoops(), tripped.getNoops());
+        assertEquals(response.getFailures().size(), tripped.getFailures().size());
+        for (int i = 0; i < response.getFailures().size(); i++) {
+            Failure expected = response.getFailures().get(i);
+            Failure actual = tripped.getFailures().get(i);
             assertEquals(expected.getIndex(), actual.getIndex());
             assertEquals(expected.getType(), actual.getType());
             assertEquals(expected.getId(), actual.getId());

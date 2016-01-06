@@ -42,7 +42,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
         this.created = created;
     }
 
-    public long created() {
+    public long getCreated() {
         return created;
     }
 
@@ -73,11 +73,11 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("ReindexResponse[");
-        builder.append("took=").append(took());
+        builder.append("took=").append(getTook());
         builder.append(",created=").append(created);
-        builder.append(",updated=").append(updated());
-        builder.append(",batches=").append(batches());
-        builder.append(",versionConflicts=").append(versionConflicts());
+        builder.append(",updated=").append(getUpdated());
+        builder.append(",batches=").append(getBatches());
+        builder.append(",versionConflicts=").append(getVersionConflicts());
         truncatedFailures(builder);
         return builder.append("]").toString();
     }
@@ -87,7 +87,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
      */
     protected void truncatedFailures(StringBuilder builder) {
         builder.append(",failures=[");
-        Iterator<Failure> failures = failures().iterator();
+        Iterator<Failure> failures = getFailures().iterator();
         int written = 0;
         while (failures.hasNext() && written < 3) {
             Failure failure = failures.next();

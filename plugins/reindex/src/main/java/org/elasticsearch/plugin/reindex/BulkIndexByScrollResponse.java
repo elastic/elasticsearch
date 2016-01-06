@@ -63,30 +63,30 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         this.failures = unmodifiableList(failures);
     }
 
-    public long took() {
+    public long getTook() {
         return took;
     }
 
-    public long updated() {
+    public long getUpdated() {
         return updated;
     }
 
-    public int batches() {
+    public int getBatches() {
         return batches;
     }
 
-    public long versionConflicts() {
+    public long getVersionConflicts() {
         return versionConflicts;
     }
 
-    public long noops() {
+    public long getNoops() {
         return noops;
     }
 
     /**
      * All recorded failures.
      */
-    public List<Failure> failures() {
+    public List<Failure> getFailures() {
         return failures;
     }
 
@@ -157,7 +157,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         builder.append(",batches=").append(batches);
         builder.append(",versionConflicts=").append(versionConflicts);
         builder.append(",noops=").append(noops);
-        builder.append(",failures=").append(failures().subList(0, min(3, failures().size())));
+        builder.append(",failures=").append(getFailures().subList(0, min(3, getFailures().size())));
         return builder.append("]").toString();
     }
 }

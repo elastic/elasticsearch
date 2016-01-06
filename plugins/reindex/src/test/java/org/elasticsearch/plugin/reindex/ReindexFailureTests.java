@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
@@ -112,6 +113,28 @@ public class ReindexFailureTests extends ReindexTestCase {
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
+    }
+
+    public void testSettingTtlIsValidationFailure() throws Exception {
+        indexDocs(1);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
+        copy.destination().setTTL(123);
+        try {
+            copy.get();
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("setting ttl on destination isn't supported. use scripts instead."));
+        }
+    }
+
+    public void testSettingTimestampIsValidationFailure() throws Exception {
+        indexDocs(1);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
+        copy.destination().setTimestamp("now");
+        try {
+            copy.get();
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("setting timestamp on destination isn't supported. use scripts instead."));
+        }
     }
 
     private void indexDocs(int count) throws Exception {

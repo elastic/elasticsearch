@@ -144,3 +144,39 @@
           dest:
             index: dest
           size: -4
+
+---
+"can't set ttl":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /setting ttl on destination isn't supported. use scripts instead./
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+            ttl: 3m
+
+---
+"can't set timestamp":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /setting timestamp on destination isn't supported. use scripts instead./
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+            timestamp: "123"

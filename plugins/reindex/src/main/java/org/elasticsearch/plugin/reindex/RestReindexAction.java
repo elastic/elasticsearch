@@ -31,6 +31,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +47,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -83,6 +85,10 @@ public class RestReindexAction extends BaseRestHandler {
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("opType"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("versionType"));
+
+        // These exist just so the user can get a nice validation error:
+        destParser.declareString(IndexRequest::timestamp, new ParseField("timestamp"));
+        destParser.declareString((i, ttl) -> i.ttl(parseTimeValue(ttl, TimeValue.timeValueMillis(-1), "ttl").millis()), new ParseField("ttl"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("src"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("source"), ValueType.OBJECT);

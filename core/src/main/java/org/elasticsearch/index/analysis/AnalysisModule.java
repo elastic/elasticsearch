@@ -381,6 +381,7 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("standard", StandardTokenizerFactory.class);
             tokenizersBindings.processTokenizer("uax_url_email", UAX29URLEmailTokenizerFactory.class);
             tokenizersBindings.processTokenizer("path_hierarchy", PathHierarchyTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("PathHierarchy", PathHierarchyTokenizerFactory.class);
             tokenizersBindings.processTokenizer("keyword", KeywordTokenizerFactory.class);
             tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);
@@ -450,7 +451,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_width", CJKWidthFilterFactory.class);
-            
+
             tokenFiltersBindings.processTokenFilter("apostrophe", ApostropheFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("classic", ClassicFilterFactory.class);
 

@@ -254,7 +254,7 @@ public class PercolatorService extends AbstractComponent {
         }
         PercolatorQuery percolatorQuery = builder.build();
 
-        if (context.isOnlyCount()) {
+        if (context.isOnlyCount() || context.size() == 0) {
             TotalHitCountCollector collector = new TotalHitCountCollector();
             context.searcher().search(percolatorQuery, MultiCollector.wrap(collector, aggregatorCollector));
             if (aggregatorCollector != null) {

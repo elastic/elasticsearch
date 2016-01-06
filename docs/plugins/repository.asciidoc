@@ -30,7 +30,7 @@ as a repository.
 
 The following plugin has been contributed by our community:
 
-* https://github.com/wikimedia/search-repository-swift[Openstack Swift] (by http://en.cam4.es/youngqcmeat/Wikimedia Foundation)
+* https://github.com/wikimedia/search-repository-swift[Openstack Swift] (by Wikimedia Foundation)
 
 This community plugin appears to have been abandoned:
 

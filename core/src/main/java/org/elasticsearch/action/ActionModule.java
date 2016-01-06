@@ -155,6 +155,12 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
+import org.elasticsearch.action.ingest.delete.DeletePipelineAction;
+import org.elasticsearch.action.ingest.delete.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.get.GetPipelineAction;
+import org.elasticsearch.action.ingest.get.GetPipelineTransportAction;
+import org.elasticsearch.action.ingest.put.PutPipelineAction;
+import org.elasticsearch.action.ingest.put.PutPipelineTransportAction;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
@@ -192,6 +198,11 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.action.ingest.IngestActionFilter;
+import org.elasticsearch.action.ingest.IngestDisabledActionFilter;
+import org.elasticsearch.action.ingest.simulate.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.simulate.SimulatePipelineTransportAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -220,9 +231,11 @@ public class ActionModule extends AbstractModule {
 
     }
 
+    private final boolean ingestEnabled;
     private final boolean proxy;
 
-    public ActionModule(boolean proxy) {
+    public ActionModule(Settings settings, boolean proxy) {
+        this.ingestEnabled = settings.getAsBoolean("node.ingest", false);
         this.proxy = proxy;
     }
 
@@ -349,6 +362,11 @@ public class ActionModule extends AbstractModule {
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
 
+        registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+        registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+        registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
+
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder
                 = MapBinder.newMapBinder(binder(), String.class, GenericAction.class);
@@ -359,6 +377,11 @@ public class ActionModule extends AbstractModule {
         // register GenericAction -> transportAction Map that can be injected to instances.
         // also register any supporting classes
         if (!proxy) {
+            if (ingestEnabled) {
+                registerFilter(IngestActionFilter.class);
+            } else {
+                registerFilter(IngestDisabledActionFilter.class);
+            }
             bind(TransportLivenessAction.class).asEagerSingleton();
             MapBinder<GenericAction, TransportAction> transportActionsBinder
                     = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);

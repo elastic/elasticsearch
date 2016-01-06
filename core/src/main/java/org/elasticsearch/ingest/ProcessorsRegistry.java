@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.core.TemplateService;
 
 import java.util.HashMap;
 import java.util.Map;

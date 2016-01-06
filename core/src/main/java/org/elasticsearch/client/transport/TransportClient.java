@@ -147,7 +147,7 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(true));
+                modules.add(new ActionModule(this.settings, true));
                 modules.add(new CircuitBreakerModule(this.settings));
 
                 pluginsService.processModules(modules);

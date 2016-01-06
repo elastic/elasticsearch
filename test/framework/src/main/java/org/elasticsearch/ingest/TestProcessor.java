@@ -19,6 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;

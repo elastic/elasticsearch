@@ -20,9 +20,9 @@
 package org.elasticsearch.plugin.ingest;
 
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ValueSource;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.ValueSource;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.processor.SetProcessor;
 import org.hamcrest.Matchers;
 

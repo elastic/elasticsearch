@@ -87,6 +87,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String INGEST = "ingest";
     }
 
     public enum ThreadPoolType {
@@ -145,6 +146,7 @@ public class ThreadPool extends AbstractComponent {
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
+        map.put(Names.INGEST, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -234,6 +236,7 @@ public class ThreadPool extends AbstractComponent {
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.FORCE_MERGE).size(1));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.FETCH_SHARD_STARTED).size(availableProcessors * 2).keepAlive("5m"));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.FETCH_SHARD_STORE).size(availableProcessors * 2).keepAlive("5m"));
+        add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.INGEST).size(availableProcessors).queueSize(200));
 
         this.defaultExecutorTypeSettings = unmodifiableMap(defaultExecutorTypeSettings);
 

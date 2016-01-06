@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.core.TemplateService;
 
 import java.util.Collections;
 import java.util.HashMap;

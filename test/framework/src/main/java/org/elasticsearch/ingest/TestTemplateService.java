@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ingest.core.TemplateService;
+
 import java.util.Map;
 
 public class TestTemplateService implements TemplateService {

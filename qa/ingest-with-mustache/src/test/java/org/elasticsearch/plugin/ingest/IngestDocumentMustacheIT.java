@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.ValueSource;
 
 import java.util.ArrayList;
 import java.util.Arrays;

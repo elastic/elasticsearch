@@ -19,14 +19,8 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.ProcessorsModule;
+import org.elasticsearch.ingest.IngestModule;
 import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
 import org.elasticsearch.ingest.processor.DateProcessor;
@@ -42,45 +36,16 @@ import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.ingest.processor.SplitProcessor;
 import org.elasticsearch.ingest.processor.TrimProcessor;
 import org.elasticsearch.ingest.processor.UppercaseProcessor;
-import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
-import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
-import org.elasticsearch.plugin.ingest.rest.RestIngestDisabledAction;
-import org.elasticsearch.plugin.ingest.rest.RestPutPipelineAction;
-import org.elasticsearch.plugin.ingest.rest.RestSimulatePipelineAction;
-import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
-import org.elasticsearch.plugin.ingest.transport.IngestDisabledActionFilter;
-import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
-import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineTransportAction;
-import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
-import org.elasticsearch.plugin.ingest.transport.get.GetPipelineTransportAction;
-import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
-import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptModule;
-
-import java.util.Collection;
-import java.util.Collections;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class IngestPlugin extends Plugin {
 
-    public static final String PIPELINE_ID_PARAM_CONTEXT_KEY = "__pipeline_id__";
-    public static final String PIPELINE_ID_PARAM = "pipeline";
-    public static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
     public static final String NAME = "ingest";
-    public static final String NODE_INGEST_SETTING = "node.ingest";
 
-    private final Settings nodeSettings;
     private final boolean ingestEnabled;
-    private final boolean transportClient;
 
     public IngestPlugin(Settings nodeSettings) {
-        this.nodeSettings = nodeSettings;
-        this.ingestEnabled = nodeSettings.getAsBoolean(NODE_INGEST_SETTING, false);
-        this.transportClient = TransportClient.CLIENT_TYPE.equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
+        this.ingestEnabled = nodeSettings.getAsBoolean("node.ingest", false);
     }
 
     @Override
@@ -90,86 +55,26 @@ public class IngestPlugin extends Plugin {
 
     @Override
     public String description() {
-        return "Plugin that allows to configure pipelines to preprocess documents before indexing";
+        return "Plugin that allows to plug in ingest processors";
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        if (transportClient) {
-            return Collections.emptyList();
-        } else {
-            return Collections.singletonList(new IngestModule(ingestEnabled));
-        }
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (transportClient|| ingestEnabled == false) {
-            return Collections.emptyList();
-        } else {
-            return Collections.singletonList(IngestBootstrapper.class);
-        }
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return settingsBuilder()
-                .put(PipelineExecutionService.additionalSettings(nodeSettings))
-                .build();
-    }
-
-    public void onModule(ProcessorsModule processorsModule) {
+    public void onModule(IngestModule ingestModule) {
         if (ingestEnabled) {
-            processorsModule.addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
-            processorsModule.addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
-            processorsModule.addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
-            processorsModule.addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
-            processorsModule.addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
-            processorsModule.addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
-            processorsModule.addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
-            processorsModule.addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
-            processorsModule.addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
-            processorsModule.addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
-            processorsModule.addProcessor(LowercaseProcessor.TYPE, (environment, templateService) -> new LowercaseProcessor.Factory());
-            processorsModule.addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
-            processorsModule.addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
-            processorsModule.addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
-            processorsModule.addProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
+            ingestModule.addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+            ingestModule.addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));
+            ingestModule.addProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
+            ingestModule.addProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
+            ingestModule.addProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
+            ingestModule.addProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
+            ingestModule.addProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
+            ingestModule.addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
+            ingestModule.addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
+            ingestModule.addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
+            ingestModule.addProcessor(LowercaseProcessor.TYPE, (environment, templateService) -> new LowercaseProcessor.Factory());
+            ingestModule.addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
+            ingestModule.addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
+            ingestModule.addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
+            ingestModule.addProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
         }
-    }
-
-    public void onModule(ActionModule module) {
-        if (transportClient == false) {
-            if (ingestEnabled) {
-                module.registerFilter(IngestActionFilter.class);
-            } else {
-                module.registerFilter(IngestDisabledActionFilter.class);
-            }
-        }
-        if (ingestEnabled) {
-            module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
-            module.registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
-            module.registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
-            module.registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
-        }
-    }
-
-    public void onModule(NetworkModule networkModule) {
-        if (transportClient) {
-            return;
-        }
-
-        if (ingestEnabled) {
-            networkModule.registerRestHandler(RestPutPipelineAction.class);
-            networkModule.registerRestHandler(RestGetPipelineAction.class);
-            networkModule.registerRestHandler(RestDeletePipelineAction.class);
-            networkModule.registerRestHandler(RestSimulatePipelineAction.class);
-        } else {
-            networkModule.registerRestHandler(RestIngestDisabledAction.class);
-        }
-    }
-
-    public void onModule(ScriptModule module) {
-        module.registerScriptContext(InternalTemplateService.INGEST_SCRIPT_CONTEXT);
     }
 }

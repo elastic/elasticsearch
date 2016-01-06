@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

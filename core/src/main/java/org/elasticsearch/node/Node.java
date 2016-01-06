@@ -72,7 +72,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.ingest.ProcessorsModule;
+import org.elasticsearch.ingest.IngestModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -189,7 +189,7 @@ public class Node implements Releasable {
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
             modules.add(new SearchModule());
-            modules.add(new ActionModule(false));
+            modules.add(new ActionModule(this.settings, false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());
@@ -197,7 +197,7 @@ public class Node implements Releasable {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
-            modules.add(new ProcessorsModule());
+            modules.add(new IngestModule());
 
             pluginsService.processModules(modules);
 

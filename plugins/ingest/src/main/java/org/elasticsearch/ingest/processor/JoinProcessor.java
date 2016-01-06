@@ -19,9 +19,9 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.Processor;
 
 import java.util.List;
 import java.util.Map;

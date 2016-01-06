@@ -19,12 +19,12 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.ValueSource;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.core.ValueSource;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

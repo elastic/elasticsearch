@@ -116,6 +116,10 @@ import org.elasticsearch.rest.action.get.RestGetSourceAction;
 import org.elasticsearch.rest.action.get.RestHeadAction;
 import org.elasticsearch.rest.action.get.RestMultiGetAction;
 import org.elasticsearch.rest.action.index.RestIndexAction;
+import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
+import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
@@ -263,7 +267,13 @@ public class NetworkModule extends AbstractModule {
         RestCatAction.class,
 
         // Tasks API
-        RestListTasksAction.class
+        RestListTasksAction.class,
+
+        // Ingest API
+        RestPutPipelineAction.class,
+        RestGetPipelineAction.class,
+        RestDeletePipelineAction.class,
+        RestSimulatePipelineAction.class
     );
 
     private static final List<Class<? extends AbstractCatAction>> builtinCatHandlers = Arrays.asList(

@@ -21,7 +21,8 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.InternalTemplateService;
+import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -41,9 +42,7 @@ public abstract class AbstractMustacheTests extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptContextRegistry registry = new ScriptContextRegistry(
-            Collections.singletonList(InternalTemplateService.INGEST_SCRIPT_CONTEXT)
-        );
+        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.emptyList());
         ScriptService scriptService = new ScriptService(
             settings, new Environment(settings), Collections.singleton(mustache), null, registry
         );

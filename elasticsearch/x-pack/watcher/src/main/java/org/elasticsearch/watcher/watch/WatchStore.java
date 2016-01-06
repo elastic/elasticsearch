@@ -205,12 +205,7 @@ public class WatchStore extends AbstractComponent {
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {
         IndexRequest indexRequest = new IndexRequest(INDEX, DOC_TYPE, id);
-        // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
-        if (source.hasArray()) {
-            indexRequest.source(source.array(), source.arrayOffset(), source.length());
-        } else {
-            indexRequest.source(source.toBytes());
-        }
+        indexRequest.source(source.toBytes());
         indexRequest.version(version);
         return indexRequest;
     }

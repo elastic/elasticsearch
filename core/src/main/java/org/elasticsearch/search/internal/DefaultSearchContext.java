@@ -125,7 +125,20 @@ public class DefaultSearchContext extends SearchContext {
     private Sort sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    /**
+     * The original query as sent by the user without the types and aliases
+     * applied. Putting things in here leaks them into highlighting so don't add
+     * things like the type filter or alias filters.
+     */
     private ParsedQuery originalQuery;
+    /**
+     * Just like originalQuery but with the filters from types and aliases
+     * applied.
+     */
+    private ParsedQuery filteredQuery;
+    /**
+     * The query to actually execute.
+     */
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
@@ -209,27 +222,32 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        Query searchFilter = searchFilter(types());
-        if (searchFilter != null) {
-            if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new ConstantScoreQuery(searchFilter);
-                if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                    q = new BoostQuery(q, query().getBoost());
-                }
-                parsedQuery(new ParsedQuery(q, parsedQuery()));
-            } else {
-                BooleanQuery filtered = new BooleanQuery.Builder()
-                    .add(query(), Occur.MUST)
-                    .add(searchFilter, Occur.FILTER)
-                    .build();
-                parsedQuery(new ParsedQuery(filtered, parsedQuery()));
-            }
-        }
+        filteredQuery(buildFilteredQuery());
         try {
             this.query = searcher().rewrite(this.query);
         } catch (IOException e) {
             throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
         }
+    }
+
+    private ParsedQuery buildFilteredQuery() {
+        Query searchFilter = searchFilter(types());
+        if (searchFilter == null) {
+            return originalQuery;
+        }
+        Query result;
+        if (Queries.isConstantMatchAllQuery(query())) {
+            result = new ConstantScoreQuery(searchFilter);
+            if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                result = new BoostQuery(result, query().getBoost());
+            }
+        } else {
+            result = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
+        }
+        return new ParsedQuery(result, originalQuery);
     }
 
     @Override
@@ -544,6 +562,15 @@ public class DefaultSearchContext extends SearchContext {
         this.originalQuery = query;
         this.query = query.query();
         return this;
+    }
+
+    public ParsedQuery filteredQuery() {
+        return filteredQuery;
+    }
+
+    private void filteredQuery(ParsedQuery filteredQuery) {
+        this.filteredQuery = filteredQuery;
+        this.query = filteredQuery.query();
     }
 
     @Override

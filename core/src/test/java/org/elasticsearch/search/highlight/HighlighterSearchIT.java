@@ -2571,7 +2571,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
-
     @AwaitsFix(bugUrl="Broken now that BoostingQuery does not extend BooleanQuery anymore")
     public void testFastVectorHighlighterPhraseBoost() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));

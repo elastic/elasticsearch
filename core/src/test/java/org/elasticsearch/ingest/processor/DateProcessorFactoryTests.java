@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.processor.DateProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -95,6 +94,21 @@ public class DateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getLocale().toLanguageTag(), equalTo(locale.toLanguageTag()));
     }
 
+    public void testParseInvalidLocale() throws Exception {
+        DateProcessor.Factory factory = new DateProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        config.put("match_field", sourceField);
+        config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("locale", "invalid_locale");
+        try {
+            factory.create(config);
+            fail("should fail with invalid locale");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Invalid language tag specified: invalid_locale"));
+        }
+    }
+
     public void testParseTimezone() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
@@ -106,6 +120,21 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("timezone", timezone.getID());
         DateProcessor processor = factory.create(config);
         assertThat(processor.getTimezone(), equalTo(timezone));
+    }
+
+    public void testParseInvalidTimezone() throws Exception {
+        DateProcessor.Factory factory = new DateProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        config.put("match_field", sourceField);
+        config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("timezone", "invalid_timezone");
+        try {
+            factory.create(config);
+            fail("invalid timezone should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
+        }
     }
 
     //we generate a timezone out of the available ones in joda, some available in the jdk are not available in joda by default

@@ -293,7 +293,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
 
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
                 .execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
@@ -311,10 +311,10 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testContainsShapeQuery() throws Exception {
         // Create a random geometry collection.
-        Rectangle mbr = xRandomRectangle(getRandom(), xRandomPoint(getRandom()));
+        Rectangle mbr = xRandomRectangle(getRandom(), xRandomPoint(getRandom()), true);
         GeometryCollectionBuilder gcb = createGeometryCollectionWithin(getRandom(), mbr);
 
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree" )
                 .execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
@@ -327,7 +327,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", filterShape)
-                .relation(ShapeRelation.INTERSECTS);
+                .relation(ShapeRelation.CONTAINS);
         SearchResponse response = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(response);
@@ -337,7 +337,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
                 .execute().actionGet();
 
         XContentBuilder docSource = jsonBuilder().startObject().startObject("location")

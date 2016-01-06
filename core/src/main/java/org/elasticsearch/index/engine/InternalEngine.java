@@ -901,8 +901,26 @@ public class InternalEngine extends Engine {
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
-        try (final Searcher searcher = acquireSearcher("load_version")) {
-            return Versions.loadVersion(searcher.reader(), uid);
+        boolean success = false;
+
+        // TODO: shouldn't something higher take care of not closing our store until we are closed?
+
+         /* Acquire order here is store -> manager since we need
+          * to make sure that the store is not closed before
+          * the searcher is acquired. */
+        store.incRef();
+        IndexSearcher searcher = null;
+        try {
+            searcher = searcherManager.acquire();
+            return Versions.loadVersion(searcher.getIndexReader(), uid);
+        } finally {
+            try {
+                if (searcher != null) {
+                    searcherManager.release(searcher);
+                }
+            } finally {
+                store.decRef();
+            }
         }
     }
 

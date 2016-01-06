@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -43,7 +44,7 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/date/date-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
         // Our mapping should be kept as a String
         assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(StringFieldMapper.class));

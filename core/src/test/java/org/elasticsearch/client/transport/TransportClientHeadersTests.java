@@ -32,15 +32,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -114,12 +115,12 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             public String description() {
                 return "a mock transport service";
             }
-            public void onModule(TransportModule transportModule) {
-                transportModule.addTransportService("internal", InternalTransportService.class);
+            public void onModule(NetworkModule transportModule) {
+                transportModule.registerTransportService("internal", InternalTransportService.class);
             }
             @Override
             public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "internal").build();
+                return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "internal").build();
             }
         }
 

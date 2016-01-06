@@ -18,7 +18,13 @@
  */
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
+import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.elasticsearch.common.inject.spi.UntargettedBinding;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.annotation.Annotation;
@@ -58,6 +64,24 @@ public abstract class ModuleTestCase extends ESTestCase {
             s.append(element + "\n");
         }
         fail("Did not find any binding to " + to.getName() + ". Found these bindings:\n" + s);
+    }
+
+    /** Configures the module and asserts "clazz" is not bound to anything. */
+    public void assertNotBound(Module module, Class clazz) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof LinkedKeyBinding) {
+                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
+                    fail("Found binding for " + clazz.getName() + " to " + binding.getKey().getTypeLiteral().getType().getTypeName());
+                }
+            } else if (element instanceof UntargettedBinding) {
+                UntargettedBinding binding = (UntargettedBinding) element;
+                if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
+                    fail("Found binding for " + clazz.getName());
+                }
+            }
+        }
     }
 
     /**

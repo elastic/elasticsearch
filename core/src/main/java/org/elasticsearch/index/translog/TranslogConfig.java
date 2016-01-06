@@ -20,13 +20,13 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.TranslogGeneration;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
@@ -38,105 +38,38 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
-    public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
-    public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
-
-    private final TimeValue syncInterval;
+    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(8, ByteSizeUnit.KB);
     private final BigArrays bigArrays;
-    private final ThreadPool threadPool;
-    private final boolean syncOnEachOperation;
-    private final int bufferSizeBytes;
     private volatile TranslogGeneration translogGeneration;
-    private volatile Translog.Durabilty durabilty = Translog.Durabilty.REQUEST;
-    private volatile TranslogWriter.Type type;
     private final IndexSettings indexSettings;
     private final ShardId shardId;
     private final Path translogPath;
+    private final ByteSizeValue bufferSize;
 
     /**
      * Creates a new TranslogConfig instance
      * @param shardId the shard ID this translog belongs to
      * @param translogPath the path to use for the transaction log files
      * @param indexSettings the index settings used to set internal variables
-     * @param durabilty the default durability setting for the translog
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
-     * @param threadPool a {@link ThreadPool} to schedule async sync durability
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, Translog.Durabilty durabilty, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
+    }
+
+    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
+        this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
-        this.durabilty = durabilty;
-        this.threadPool = threadPool;
         this.bigArrays = bigArrays;
-        this.type = TranslogWriter.Type.fromString(indexSettings.getSettings().get(INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.BUFFERED.name()));
-        this.bufferSizeBytes = (int) IndexingMemoryController.SHARD_TRANSLOG_BUFFER.bytes();
-
-        syncInterval = indexSettings.getSettings().getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
-        if (syncInterval.millis() > 0 && threadPool != null) {
-            syncOnEachOperation = false;
-        } else if (syncInterval.millis() == 0) {
-            syncOnEachOperation = true;
-        } else {
-            syncOnEachOperation = false;
-        }
-    }
-
-    /**
-     * Returns a {@link ThreadPool} to schedule async durability operations
-     */
-    public ThreadPool getThreadPool() {
-        return threadPool;
-    }
-
-    /**
-     * Returns the current durability mode of this translog.
-     */
-    public Translog.Durabilty getDurabilty() {
-        return durabilty;
-    }
-
-    /**
-     * Sets the current durability mode for the translog.
-     */
-    public void setDurabilty(Translog.Durabilty durabilty) {
-        this.durabilty = durabilty;
-    }
-
-    /**
-     * Returns the translog type
-     */
-    public TranslogWriter.Type getType() {
-        return type;
-    }
-
-    /**
-     * Sets the TranslogType for this Translog. The change will affect all subsequent translog files.
-     */
-    public void setType(TranslogWriter.Type type) {
-        this.type = type;
     }
 
     /**
      * Returns <code>true</code> iff each low level operation shoudl be fsynced
      */
     public boolean isSyncOnEachOperation() {
-        return syncOnEachOperation;
-    }
-
-    /**
-     * Returns the current translog buffer size.
-     */
-    public int getBufferSizeBytes() {
-        return bufferSizeBytes;
-    }
-
-    /**
-     * Returns the current async fsync interval
-     */
-    public TimeValue getSyncInterval() {
-        return syncInterval;
+        return indexSettings.getTranslogSyncInterval().millis() == 0;
     }
 
     /**
@@ -183,5 +116,12 @@ public final class TranslogConfig {
      */
     public void setTranslogGeneration(TranslogGeneration translogGeneration) {
         this.translogGeneration = translogGeneration;
+    }
+
+    /**
+     * The translog buffer size. Default is <tt>8kb</tt>
+     */
+    public ByteSizeValue getBufferSize() {
+        return bufferSize;
     }
 }

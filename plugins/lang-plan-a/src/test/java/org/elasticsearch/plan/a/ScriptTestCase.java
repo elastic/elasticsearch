@@ -25,6 +25,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -34,17 +35,10 @@ import java.util.Map;
  */
 public abstract class ScriptTestCase extends ESTestCase {
     protected PlanAScriptEngineService scriptEngine;
-    
-    /** Override to provide different compiler settings */
-    protected Settings getSettings() {
-        Settings.Builder builder = Settings.builder();
-        builder.put(PlanAScriptEngineService.NUMERIC_OVERFLOW, random().nextBoolean());
-        return builder.build();
-    }
 
     @Before
     public void setup() {
-        scriptEngine = new PlanAScriptEngineService(getSettings());
+        scriptEngine = new PlanAScriptEngineService(Settings.EMPTY);
     }
 
     /** Compiles and returns the result of {@code script} */
@@ -54,7 +48,12 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
-        Object object = scriptEngine.compile(script);
+        return exec(script, vars, Collections.singletonMap(PlanAScriptEngineService.NUMERIC_OVERFLOW, Boolean.toString(random().nextBoolean())));
+    }
+
+    /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams) {
+        Object object = scriptEngine.compile(script, compileParams);
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "plan-a", object);
         return scriptEngine.executable(compiled, vars).run();
     }

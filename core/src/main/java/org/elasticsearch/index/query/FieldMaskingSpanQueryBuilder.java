@@ -87,7 +87,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            fieldInQuery = fieldType.names().indexName();
+            fieldInQuery = fieldType.name();
         }
         Query innerQuery = queryBuilder.toQuery(context);
         assert innerQuery instanceof SpanQuery;

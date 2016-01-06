@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
-
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

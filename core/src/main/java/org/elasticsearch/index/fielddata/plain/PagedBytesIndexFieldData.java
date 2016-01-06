@@ -20,7 +20,12 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
@@ -28,7 +33,12 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,13 +57,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
                                                                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PagedBytesIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
+            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 
-    public PagedBytesIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
+    public PagedBytesIndexFieldData(IndexSettings indexSettings, String fieldName,
                                     FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache, breakerService);
+        super(indexSettings, fieldName, fieldDataType, cache, breakerService);
     }
 
     @Override
@@ -61,8 +71,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldNames().fullName());
-        Terms terms = reader.terms(getFieldNames().indexName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        Terms terms = reader.terms(getFieldName());
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -157,10 +167,10 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         public long estimateStringFieldData() {
             try {
                 LeafReader reader = context.reader();
-                Terms terms = reader.terms(getFieldNames().indexName());
+                Terms terms = reader.terms(getFieldName());
 
                 Fields fields = reader.fields();
-                final Terms fieldTerms = fields.terms(getFieldNames().indexName());
+                final Terms fieldTerms = fields.terms(getFieldName());
 
                 if (fieldTerms instanceof FieldReader) {
                     final Stats stats = ((FieldReader) fieldTerms).getStats();

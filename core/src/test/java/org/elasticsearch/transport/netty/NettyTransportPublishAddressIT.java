@@ -21,22 +21,19 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportModule;
 
 import java.net.Inet4Address;
-import java.net.Inet6Address;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Checks that Elasticsearch produces a sane publish_address when it binds to
@@ -48,7 +45,7 @@ public class NettyTransportPublishAddressIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network").build();
     }
 

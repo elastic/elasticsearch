@@ -20,6 +20,8 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -53,6 +56,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
+    private List<ProfileShardResult> profileShardResults;
 
     public QuerySearchResult() {
 
@@ -118,6 +122,22 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
+    }
+
+    /**
+     * Returns the profiled results for this search, or potentially null if result was empty
+     * @return The profiled results, or null
+     */
+    public @Nullable List<ProfileShardResult> profileResults() {
+        return profileShardResults;
+    }
+
+    /**
+     * Sets the finalized profiling results for this query
+     * @param shardResults The finalized profile
+     */
+    public void profileResults(List<ProfileShardResult> shardResults) {
+        this.profileShardResults = shardResults;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -191,6 +211,15 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
+            int profileSize = in.readVInt();
+            profileShardResults = new ArrayList<>(profileSize);
+            for (int i = 0; i < profileSize; i++) {
+                ProfileShardResult result = new ProfileShardResult(in);
+                profileShardResults.add(result);
+            }
+        }
     }
 
     @Override
@@ -229,5 +258,17 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
+
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (profileShardResults == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeVInt(profileShardResults.size());
+                for (ProfileShardResult shardResult : profileShardResults) {
+                    shardResult.writeTo(out);
+                }
+            }
+        }
     }
 }

@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -60,7 +59,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createShardContext().getMapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+                if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(randomTimeZone());
                     }
@@ -336,17 +335,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"range\" : {\n" + 
-                "    \"timestamp\" : {\n" + 
-                "      \"from\" : \"2015-01-01 00:00:00\",\n" + 
-                "      \"to\" : \"now\",\n" + 
-                "      \"include_lower\" : true,\n" + 
-                "      \"include_upper\" : true,\n" + 
-                "      \"time_zone\" : \"+01:00\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"range\" : {\n" +
+                "    \"timestamp\" : {\n" +
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
+                "      \"to\" : \"now\",\n" +
+                "      \"include_lower\" : true,\n" +
+                "      \"include_upper\" : true,\n" +
+                "      \"time_zone\" : \"+01:00\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         RangeQueryBuilder parsed = (RangeQueryBuilder) parseQuery(json);

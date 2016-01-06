@@ -29,6 +29,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -120,7 +121,7 @@ public final class AllTermQuery extends Query {
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 AllTermScorer scorer = scorer(context);
                 if (scorer != null) {
-                    int newDoc = scorer.advance(doc);
+                    int newDoc = scorer.iterator().advance(doc);
                     if (newDoc == doc) {
                         float score = scorer.score();
                         float freq = scorer.freq();
@@ -149,6 +150,10 @@ public final class AllTermQuery extends Query {
                     return null;
                 }
                 final TermState state = termStates.get(context.ord);
+                if (state == null) {
+                    // Term does not exist in this segment
+                    return null;
+                }
                 termsEnum.seekExact(term.bytes(), state);
                 PostingsEnum docs = termsEnum.postings(null, PostingsEnum.PAYLOADS);
                 assert docs != null;
@@ -209,18 +214,8 @@ public final class AllTermQuery extends Query {
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            return postings.nextDoc();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return postings.advance(target);
-        }
-
-        @Override
-        public long cost() {
-            return postings.cost();
+        public DocIdSetIterator iterator() {
+            return postings;
         }
     }
 

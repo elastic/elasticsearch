@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.unit;
 
-import java.util.Objects;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+
+import java.util.Objects;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 

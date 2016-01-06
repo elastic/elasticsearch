@@ -19,16 +19,16 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -80,13 +80,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
             return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
-                
+
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
                     final RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
@@ -104,7 +104,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                         return new ReplaceMissing(selectedValues, missingBytes);
                     }
                 }
-                
+
                 @Override
                 public void setScorer(Scorer scorer) {
                     BytesRefFieldComparatorSource.this.setScorer(scorer);
@@ -148,10 +148,10 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
         };
     }
-    
-    /** 
-     * A view of a SortedDocValues where missing values 
-     * are replaced with the specified term  
+
+    /**
+     * A view of a SortedDocValues where missing values
+     * are replaced with the specified term
      */
     // TODO: move this out if we need it for other reasons
     static class ReplaceMissing extends SortedDocValues {
@@ -159,7 +159,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         final int substituteOrd;
         final BytesRef substituteTerm;
         final boolean exists;
-        
+
         ReplaceMissing(SortedDocValues in, BytesRef term) {
             this.in = in;
             this.substituteTerm = term;
@@ -204,7 +204,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 return in.lookupOrd(ord);
             }
         }
-        
+
         // we let termsenum etc fall back to the default implementation
     }
 }

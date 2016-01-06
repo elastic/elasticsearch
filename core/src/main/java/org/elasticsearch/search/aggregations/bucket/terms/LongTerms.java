@@ -91,7 +91,7 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
 
         @Override
         public String getKeyAsString() {
-            return String.valueOf(term);
+            return formatter.format(term);
         }
 
         @Override

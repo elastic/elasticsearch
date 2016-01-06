@@ -19,8 +19,21 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -62,7 +75,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -294,15 +312,6 @@ public class InternalEngine extends Engine {
             if (success == false) { // release everything we created on a failure
                 IOUtils.closeWhileHandlingException(searcherManager, indexWriter);
             }
-        }
-    }
-
-    private void updateIndexWriterSettings() {
-        try {
-            final LiveIndexWriterConfig iwc = indexWriter.getConfig();
-            iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
-        } catch (AlreadyClosedException ex) {
-            // ignore
         }
     }
 
@@ -934,7 +943,7 @@ public class InternalEngine extends Engine {
              * here but with 1s poll this is only executed twice at most
              * in combination with the default writelock timeout*/
             iwc.setWriteLockTimeout(5000);
-            iwc.setUseCompoundFile(this.engineConfig.isCompoundOnFlush());
+            iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             iwc.setMergedSegmentWarmer(new IndexReaderWarmer() {
@@ -1134,20 +1143,18 @@ public class InternalEngine extends Engine {
         @Override
         protected void handleMergeException(final Directory dir, final Throwable exc) {
             logger.error("failed to merge", exc);
-            if (config().getMergeSchedulerConfig().isNotifyOnMergeFailure()) {
-                engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("merge failure action rejected", t);
-                    }
+            engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("merge failure action rejected", t);
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
-                        failEngine("merge failed", e);
-                    }
-                });
-            }
+                @Override
+                protected void doRun() throws Exception {
+                    MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
+                    failEngine("merge failed", e);
+                }
+            });
         }
     }
 
@@ -1175,7 +1182,6 @@ public class InternalEngine extends Engine {
 
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
-        updateIndexWriterSettings();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletedTombstones();
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,6 +40,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -48,13 +49,21 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,7 +82,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
+public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
@@ -93,7 +102,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
 
-    @Inject
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
                         ShardStoreDeleter shardStoreDeleter,
@@ -146,7 +154,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      */
     @Nullable
     public IndexShard getShardOrNull(int shardId) {
-         return shards.get(shardId);
+        return shards.get(shardId);
     }
 
     /**
@@ -160,13 +168,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return indexShard;
     }
 
-    public Set<Integer> shardIds() { return shards.keySet(); }
+    public Set<Integer> shardIds() {
+        return shards.keySet();
+    }
 
     public IndexCache cache() {
         return indexCache;
     }
 
-    public IndexFieldDataService fieldData() { return indexFieldData; }
+    public IndexFieldDataService fieldData() {
+        return indexFieldData;
+    }
 
     public AnalysisService analysisService() {
         return this.analysisService;
@@ -207,7 +219,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private long getAvgShardSizeInBytes() throws IOException {
         long sum = 0;
         int count = 0;
-        for(IndexShard indexShard : this) {
+        for (IndexShard indexShard : this) {
             sum += indexShard.store().stats().sizeInBytes();
             count++;
         }
@@ -254,17 +266,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
                 // that's being relocated/replicated we know how large it will become once it's done copying:
                 // Count up how many shards are currently on each data path:
-                Map<Path,Integer> dataPathToShardCount = new HashMap<>();
-                for(IndexShard shard : this) {
+                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
+                for (IndexShard shard : this) {
                     Path dataPath = shard.shardPath().getRootStatePath();
                     Integer curCount = dataPathToShardCount.get(dataPath);
                     if (curCount == null) {
                         curCount = 0;
                     }
-                    dataPathToShardCount.put(dataPath, curCount+1);
+                    dataPathToShardCount.put(dataPath, curCount + 1);
                 }
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
-                                                       dataPathToShardCount);
+                    dataPathToShardCount);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
@@ -277,7 +289,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
-                    (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
+                (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> nodeServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
@@ -288,6 +300,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             indexShard.updateRoutingEntry(routing, true);
+            if (shards.isEmpty() && this.indexSettings.getTranslogSyncInterval().millis() != 0) {
+                ThreadPool threadPool = nodeServicesProvider.getThreadPool();
+                new AsyncTranslogFSync(this, threadPool).schedule(); // kick this off if we are the first shard in this service.
+            }
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
@@ -443,25 +459,26 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         @Override
-        public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+        public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onCache(shardId, fieldNames, fieldDataType, ramUsage);
+                    shard.fieldData().onCache(shardId, fieldName, fieldDataType, ramUsage);
                 }
             }
         }
 
         @Override
-        public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+        public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onRemoval(shardId, fieldNames, fieldDataType, wasEvicted, sizeInBytes);
+                    shard.fieldData().onRemoval(shardId, fieldName, fieldDataType, wasEvicted, sizeInBytes);
                 }
             }
         }
     }
+
     /**
      * Returns the filter associated with listed filtering aliases.
      * <p>
@@ -555,6 +572,58 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     final IndexStore getIndexStore() {
         return indexStore;
     } // pkg private for testing
+
+    private void maybeFSyncTranslogs() {
+        if (indexSettings.getTranslogDurability() == Translog.Durability.ASYNC) {
+            for (IndexShard shard : this.shards.values()) {
+                try {
+                    Translog translog = shard.getTranslog();
+                    if (translog.syncNeeded()) {
+                        translog.sync();
+                    }
+                } catch (EngineClosedException | AlreadyClosedException ex) {
+                    // fine - continue;
+                } catch (IOException e) {
+                    logger.warn("failed to sync translog", e);
+                }
+            }
+        }
+    }
+
+
+    /**
+     * FSyncs the translog for all shards of this index in a defined interval.
+     */
+    final static class AsyncTranslogFSync implements Runnable {
+        private final IndexService indexService;
+        private final ThreadPool threadPool;
+
+        AsyncTranslogFSync(IndexService indexService, ThreadPool threadPool) {
+            this.indexService = indexService;
+            this.threadPool = threadPool;
+        }
+
+        boolean mustRun() {
+            // don't re-schedule if its closed or if we dont' have a single shard here..., we are done
+            return (indexService.closed.get() || indexService.shards.isEmpty()) == false;
+        }
+
+        void schedule() {
+            threadPool.schedule(indexService.getIndexSettings().getTranslogSyncInterval(), ThreadPool.Names.SAME, AsyncTranslogFSync.this);
+        }
+
+        @Override
+        public void run() {
+            if (mustRun()) {
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
+                    indexService.maybeFSyncTranslogs();
+                    if (mustRun()) {
+                        schedule();
+                    }
+                });
+            }
+        }
+    }
 
 
 }

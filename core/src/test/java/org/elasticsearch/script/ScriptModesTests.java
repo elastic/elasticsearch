@@ -33,7 +33,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -252,7 +251,7 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return null;
         }
 

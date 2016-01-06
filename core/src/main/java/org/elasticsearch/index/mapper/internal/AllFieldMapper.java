@@ -36,7 +36,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -58,11 +57,24 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     public interface IncludeInAll {
 
-        void includeInAll(Boolean includeInAll);
+        /**
+         * If {@code includeInAll} is not null then return a copy of this mapper
+         * that will include values in the _all field according to {@code includeInAll}.
+         */
+        Mapper includeInAll(Boolean includeInAll);
 
-        void includeInAllIfNotSet(Boolean includeInAll);
+        /**
+         * If {@code includeInAll} is not null and not set on this mapper yet, then
+         * return a copy of this mapper that will include values in the _all field
+         * according to {@code includeInAll}.
+         */
+        Mapper includeInAllIfNotSet(Boolean includeInAll);
 
-        void unsetIncludeInAll();
+        /**
+         * If {@code includeInAll} was already set on this mapper then return a copy
+         * of this mapper that has {@code includeInAll} not set.
+         */
+        Mapper unsetIncludeInAll();
     }
 
     public static final String NAME = "_all";
@@ -79,7 +91,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -89,7 +101,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             builder = this;
             indexName = Defaults.INDEX_NAME;
         }
@@ -141,9 +153,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                } else if (fieldName.equals("auto_boost") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // Old 1.x setting which is now ignored
                     iterator.remove();
                 }
             }
@@ -234,7 +243,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         // reset the entries
         context.allEntries().reset();
         Analyzer analyzer = findAnalyzer(context);
-        fields.add(new AllField(fieldType().names().indexName(), context.allEntries(), analyzer, fieldType()));
+        fields.add(new AllField(fieldType().name(), context.allEntries(), analyzer, fieldType()));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
@@ -309,11 +318,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
-        super.merge(mergeWith, mergeResult);
+        super.doMerge(mergeWith, updateAllTypes);
     }
 
     @Override

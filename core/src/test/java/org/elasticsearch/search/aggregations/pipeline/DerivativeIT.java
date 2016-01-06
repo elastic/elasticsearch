@@ -185,7 +185,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
@@ -224,7 +224,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
             Derivative docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
@@ -267,7 +267,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                                          // overwritten
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             long expectedSum = valueCounts[i] * (i * interval);
@@ -312,7 +312,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                                          // overwritten
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             long expectedSum = valueCounts[i] * (i * interval);
@@ -366,7 +366,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
@@ -395,7 +395,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty[i] == null) {
                 assertThat(docCountDeriv, nullValue());
@@ -425,7 +425,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty_rnd[i] == null) {
                 assertThat(docCountDeriv, nullValue());
@@ -454,7 +454,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i + ": ", bucket, i, valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i + ": ", bucket, i, valueCounts_empty[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty[i] == null) {
                 assertThat(docCountDeriv, nullValue());
@@ -484,7 +484,7 @@ public class DerivativeIT extends ESIntegTestCase {
         double lastSumValue = Double.NaN;
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
             Sum sum = bucket.getAggregations().get("sum");
             double thisSumValue = sum.value();
             if (bucket.getDocCount() == 0) {
@@ -526,7 +526,7 @@ public class DerivativeIT extends ESIntegTestCase {
         double lastSumValue = Double.NaN;
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
             Sum sum = bucket.getAggregations().get("sum");
             double thisSumValue = sum.value();
             if (bucket.getDocCount() == 0) {
@@ -565,7 +565,7 @@ public class DerivativeIT extends ESIntegTestCase {
         double lastSumValue = Double.NaN;
         for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+            checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
             Sum sum = bucket.getAggregations().get("sum");
             double thisSumValue = sum.value();
             if (bucket.getDocCount() == 0) {

@@ -33,7 +33,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends ESTestCase {
 

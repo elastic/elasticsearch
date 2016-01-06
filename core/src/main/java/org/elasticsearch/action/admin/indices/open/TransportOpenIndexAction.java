@@ -32,11 +32,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.Arrays;
 
 /**
  * Open index action
@@ -49,7 +47,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                    NodeSettingsService nodeSettingsService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     DestructiveOperations destructiveOperations) {
         super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest::new);
         this.indexStateService = indexStateService;
@@ -68,9 +66,9 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+    protected void doExecute(Task task, OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override

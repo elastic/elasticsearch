@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
+import groovy.lang.MissingPropertyException;
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +27,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-
-import groovy.lang.MissingPropertyException;
 
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
@@ -84,8 +83,6 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
-        // serialization to json (this is best effort considering the unsafe etc at play)
-        assertSuccess("def x = 5; groovy.json.JsonOutput.toJson(x)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
@@ -99,7 +96,7 @@ public class GroovySecurityTests extends ESTestCase {
         // filtered directly by our classloader
         assertFailure("getClass().getClassLoader().loadClass(\"java.lang.Runtime\").availableProcessors()", PrivilegedActionException.class);
         // unfortunately, we have access to other classloaders (due to indy mechanism needing getClassLoader permission)
-        // but we can't do much with them directly at least. 
+        // but we can't do much with them directly at least.
         assertFailure("myobject.getClass().getClassLoader().loadClass(\"java.lang.Runtime\").availableProcessors()", SecurityException.class);
         assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\"year\").setAccessible(true)", SecurityException.class);
         assertFailure("d = new DateTime(); d.\"${'get' + 'Class'}\"()." +
@@ -133,9 +130,9 @@ public class GroovySecurityTests extends ESTestCase {
         vars.put("myarray", Arrays.asList("foo"));
         vars.put("myobject", new MyObject());
 
-        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script)), vars).run();
+        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script, Collections.emptyMap())), vars).run();
     }
-    
+
     public static class MyObject {
         public int getPrimitive() { return 0; }
         public Object getObject() { return "value"; }

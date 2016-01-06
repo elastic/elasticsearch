@@ -25,7 +25,6 @@ import org.apache.lucene.queries.function.ValueSource;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Map;
@@ -68,6 +67,6 @@ public class CountMethodValueSource extends ValueSource {
 
     @Override
     public String description() {
-        return "count: field(" + fieldData.getFieldNames().toString() + ")";
+        return "count: field(" + fieldData.getFieldName() + ")";
     }
 }

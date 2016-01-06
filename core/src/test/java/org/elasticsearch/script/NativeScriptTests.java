@@ -36,6 +36,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -62,7 +63,7 @@ public class NativeScriptTests extends ESTestCase {
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
         ExecutableScript executable = scriptService.executable(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null),
-                ScriptContext.Standard.SEARCH, contextAndHeaders);
+                ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap());
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
@@ -88,7 +89,7 @@ public class NativeScriptTests extends ESTestCase {
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
-                    contextAndHeaders), notNullValue());
+                    contextAndHeaders, Collections.emptyMap()), notNullValue());
         }
     }
 

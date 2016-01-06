@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -59,7 +60,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                     .field("type", "murmur3")
                 .endObject().endObject().endObject().endObject().string();
-        DocumentMapper mapper = parser.parse(mapping);
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDoc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes());
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
@@ -76,7 +77,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .field("doc_values", false)
             .endObject().endObject().endObject().endObject().string();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("Setting [doc_values] cannot be modified"));
@@ -89,7 +90,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .field("doc_values", true)
             .endObject().endObject().endObject().endObject().string();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("Setting [doc_values] cannot be modified"));
@@ -103,7 +104,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .field("index", "not_analyzed")
             .endObject().endObject().endObject().endObject().string();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("Setting [index] cannot be modified"));
@@ -116,7 +117,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .field("index", "no")
             .endObject().endObject().endObject().endObject().string();
         try {
-            parser.parse(mapping);
+            parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("Setting [index] cannot be modified"));
@@ -134,7 +135,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .field("doc_values", false)
             .endObject().endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
         Murmur3FieldMapper mapper = (Murmur3FieldMapper)docMapper.mappers().getMapper("field");
         assertFalse(mapper.fieldType().hasDocValues());
     }
@@ -150,7 +151,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
             .field("index", "not_analyzed")
             .endObject().endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
         Murmur3FieldMapper mapper = (Murmur3FieldMapper)docMapper.mappers().getMapper("field");
         assertEquals(IndexOptions.DOCS, mapper.fieldType().indexOptions());
     }

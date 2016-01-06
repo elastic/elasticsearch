@@ -55,7 +55,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -858,6 +861,16 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void sendResponse(Throwable error) throws IOException {
                 listener.onFailure(error);
+            }
+
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+
+            @Override
+            public String getChannelType() {
+                return "replica_test";
             }
         };
     }

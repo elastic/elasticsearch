@@ -21,8 +21,12 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Rectangle;
-
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.GeoPointInBBoxQuery;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -443,16 +447,16 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"geo_bbox\" : {\n" + 
-                "    \"pin.location\" : {\n" + 
-                "      \"top_left\" : [ -74.1, 40.73 ],\n" + 
-                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" + 
-                "    },\n" + 
-                "    \"validation_method\" : \"STRICT\",\n" + 
-                "    \"type\" : \"MEMORY\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"geo_bbox\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

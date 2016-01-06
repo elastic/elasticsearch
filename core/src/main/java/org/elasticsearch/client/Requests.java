@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -43,9 +44,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -131,7 +133,7 @@ public class Requests {
     public static SuggestRequest suggestRequest(String... indices) {
         return new SuggestRequest(indices);
     }
-    
+
     /**
      * Creates a search request against one or more indices. Note, the search source must be set either using the
      * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.
@@ -266,6 +268,17 @@ public class Requests {
     }
 
     /**
+     * Creates a synced flush indices request.
+     *
+     * @param indices The indices to sync flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The synced flush request
+     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
+     */
+    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
+        return new SyncedFlushRequest(indices);
+    }
+
+    /**
      * Creates a force merge request.
      *
      * @param indices The indices to force merge. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
@@ -390,6 +403,27 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against all the nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
+     */
+    public static ListTasksRequest listTasksRequest() {
+        return new ListTasksRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @param nodesIds The nodes ids to get the tasks for
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     */
+    public static ListTasksRequest listTasksRequest(String... nodesIds) {
+        return new ListTasksRequest(nodesIds);
     }
 
     /**

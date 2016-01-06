@@ -149,7 +149,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             lats[i] = p.lat();
             lons[i] = p.lon();
         }
-        return new GeoPointInPolygonQuery(fieldType.names().fullName(), lons, lats);
+        return new GeoPointInPolygonQuery(fieldType.name(), lons, lats);
     }
 
     @Override

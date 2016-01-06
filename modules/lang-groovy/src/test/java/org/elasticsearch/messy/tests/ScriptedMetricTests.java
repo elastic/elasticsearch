@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ClusterScope(scope = Scope.SUITE)
@@ -739,6 +738,10 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         ScriptedMetric scriptedMetric = bucket.getAggregations().get("scripted");
         assertThat(scriptedMetric, notNullValue());
         assertThat(scriptedMetric.getName(), equalTo("scripted"));
-        assertThat(scriptedMetric.aggregation(), nullValue());
+        assertThat(scriptedMetric.aggregation(), notNullValue());
+        assertThat(scriptedMetric.aggregation(), instanceOf(List.class));
+        List<Integer> aggregationResult = (List<Integer>) scriptedMetric.aggregation();
+        assertThat(aggregationResult.size(), equalTo(1));
+        assertThat(aggregationResult.get(0), equalTo(0));
     }
 }

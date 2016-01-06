@@ -22,7 +22,11 @@ package org.elasticsearch.common.cli;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.Console;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.util.Locale;
 
 /**

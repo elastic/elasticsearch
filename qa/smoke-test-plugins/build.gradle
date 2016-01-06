@@ -22,15 +22,16 @@ import org.elasticsearch.gradle.MavenFilteringHack
 apply plugin: 'elasticsearch.rest-test'
 
 ext.pluginsCount = 0
-project.rootProject.subprojects.findAll { it.path.startsWith(':projects:') }.each { subproj ->
+project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   integTest {
     cluster {
       // need to get a non-decorated project object, so must re-lookup the project by path
       plugin subproj.name, project(subproj.path)
     }
   }
-  pluginCount += 1
+  pluginsCount += 1
 }
+assert pluginsCount > 0
 
 ext.expansions = [
   'expected.plugins.count': pluginsCount

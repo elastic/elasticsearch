@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.cache.query;
 
-import java.io.IOException;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -41,6 +39,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 

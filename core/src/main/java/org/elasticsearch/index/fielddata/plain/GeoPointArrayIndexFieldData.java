@@ -54,17 +54,17 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
-            return new GeoPointArrayIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
+            return new GeoPointArrayIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache,
                     breakerService, fieldType.fieldDataType().getSettings()
                     .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_2_2_0) ||
                     indexSettings.getIndexVersionCreated().before(Version.V_2_2_0));
         }
     }
 
-    public GeoPointArrayIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
+    public GeoPointArrayIndexFieldData(IndexSettings indexSettings, String fieldName,
                                        FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        final boolean indexCreatedBefore22) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, fieldDataType, cache);
         this.breakerService = breakerService;
         this.indexCreatedBefore22 = indexCreatedBefore22;
     }
@@ -73,7 +73,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
     public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
         LeafReader reader = context.reader();
 
-        Terms terms = reader.terms(getFieldNames().indexName());
+        Terms terms = reader.terms(getFieldName());
         AtomicGeoPointFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));

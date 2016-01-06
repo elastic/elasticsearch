@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Point;
-
 import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.GeoUtils;
@@ -33,7 +32,9 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDistanceQueryBuilder> {
 

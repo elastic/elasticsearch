@@ -17,10 +17,10 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.vagrant.VagrantCommandTask
-import org.elasticsearch.gradle.vagrant.BatsOverVagrantTask
+
 import org.elasticsearch.gradle.FileContentsTask
-import org.gradle.api.InvalidUserDataException
+import org.elasticsearch.gradle.vagrant.BatsOverVagrantTask
+import org.elasticsearch.gradle.vagrant.VagrantCommandTask
 
 String testScripts = '*.bats'
 String testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"

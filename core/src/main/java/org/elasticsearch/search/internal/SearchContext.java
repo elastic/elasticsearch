@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,11 +55,15 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
@@ -304,6 +307,11 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
     public abstract FetchSearchResult fetchResult();
 
     /**
+     * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
+     */
+    public abstract Profilers getProfilers();
+
+    /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
      * is function of the provided {@link Lifetime}.
      */
@@ -335,12 +343,10 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         }
     }
 
-    public abstract MappedFieldType smartNameFieldType(String name);
-
     /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
-    public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
+    public abstract MappedFieldType smartNameFieldType(String name);
 
     public abstract ObjectMapper getObjectMapper(String name);
 
@@ -367,5 +373,4 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         CONTEXT
     }
 
-    public abstract QueryCache getQueryCache();
 }

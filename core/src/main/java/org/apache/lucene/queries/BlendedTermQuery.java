@@ -18,9 +18,19 @@
  */
 package org.apache.lucene.queries;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermState;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.ToStringUtils;
@@ -44,7 +54,7 @@ import java.util.Objects;
  * While aggregating the total term frequency is trivial since it
  * can be summed up not every {@link org.apache.lucene.search.similarities.Similarity}
  * makes use of this statistic. The document frequency which is used in the
- * {@link org.apache.lucene.search.similarities.DefaultSimilarity}
+ * {@link org.apache.lucene.search.similarities.ClassicSimilarity}
  * can only be estimated as an lower-bound since it is a document based statistic. For
  * the document frequency the maximum frequency across all fields per term is used
  * which is the minimum number of documents the terms occurs in.

@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -44,10 +43,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.stream.StreamSupport;
 
-public abstract class FieldMapper extends Mapper {
+public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
 
@@ -64,10 +63,10 @@ public abstract class FieldMapper extends Mapper {
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo;
 
-        protected Builder(String name, MappedFieldType fieldType) {
+        protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name);
             this.fieldType = fieldType.clone();
-            this.defaultFieldType = fieldType.clone();
+            this.defaultFieldType = defaultFieldType.clone();
             this.defaultOptions = fieldType.indexOptions(); // we have to store it the fieldType is mutable
             multiFieldsBuilder = new MultiFields.Builder();
         }
@@ -84,8 +83,13 @@ public abstract class FieldMapper extends Mapper {
                      * if the fieldType has a non-null option we are all good it might have been set through a different
                      * call.
                      */
-                    final IndexOptions options = getDefaultIndexOption();
-                    assert options != IndexOptions.NONE : "default IndexOptions is NONE can't enable indexing";
+                    IndexOptions options = getDefaultIndexOption();
+                    if (options == IndexOptions.NONE) {
+                        // can happen when an existing type on the same index has disabled indexing
+                        // since we inherit the default field type from the first mapper that is
+                        // created on an index
+                        throw new IllegalArgumentException("mapper [" + name + "] has different [index] values from other types of the same index");
+                    }
                     fieldType.setIndexOptions(options);
                 }
             } else {
@@ -202,11 +206,6 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
-        public T multiFieldPathType(ContentPath.Type pathType) {
-            multiFieldsBuilder.pathType(pathType);
-            return builder;
-        }
-
         public T addMultiField(Mapper.Builder mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
@@ -217,31 +216,12 @@ public abstract class FieldMapper extends Mapper {
             return builder;
         }
 
-        protected MappedFieldType.Names buildNames(BuilderContext context) {
-            return new MappedFieldType.Names(buildIndexName(context), buildIndexNameClean(context), buildFullName(context));
-        }
-
-        protected String buildIndexName(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-                return buildFullName(context);
-            }
-            String actualIndexName = indexName == null ? name : indexName;
-            return context.path().pathAsText(actualIndexName);
-        }
-
-        protected String buildIndexNameClean(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-                return buildFullName(context);
-            }
-            return indexName == null ? name : indexName;
-        }
-
         protected String buildFullName(BuilderContext context) {
-            return context.path().fullPathAsText(name);
+            return context.path().pathAsText(name);
         }
 
         protected void setupFieldType(BuilderContext context) {
-            fieldType.setNames(buildNames(context));
+            fieldType.setName(buildFullName(context));
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -250,10 +230,7 @@ public abstract class FieldMapper extends Mapper {
                 Settings settings = Settings.builder().put(fieldType.fieldDataType().getSettings()).put(fieldDataSettings).build();
                 fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
             }
-            boolean defaultDocValues = false; // pre 2.0
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-                defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
-            }
+            boolean defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
             // backcompat for "fielddata: format: docvalues" for now...
             boolean fieldDataDocValues = fieldType.fieldDataType() != null
                 && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldType.fieldDataType().getFormat(context.indexSettings()));
@@ -268,17 +245,16 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    protected MappedFieldTypeReference fieldTypeRef;
+    protected MappedFieldType fieldType;
     protected final MappedFieldType defaultFieldType;
-    protected final MultiFields multiFields;
+    protected MultiFields multiFields;
     protected CopyTo copyTo;
-    protected final boolean indexCreatedBefore2x;
 
     protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         assert indexSettings != null;
-        this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
-        this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // the reference ctor freezes the field type
+        fieldType.freeze();
+        this.fieldType = fieldType;
         defaultFieldType.freeze();
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
@@ -287,27 +263,11 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public String name() {
-        return fieldType().names().fullName();
+        return fieldType().name();
     }
 
     public MappedFieldType fieldType() {
-        return fieldTypeRef.get();
-    }
-
-    /** Returns a reference to the MappedFieldType for this mapper. */
-    public MappedFieldTypeReference fieldTypeReference() {
-        return fieldTypeRef;
-    }
-
-    /**
-     * Updates the reference to this field's MappedFieldType.
-     * Implementations should assert equality of the underlying field type
-     */
-    public void setFieldTypeReference(MappedFieldTypeReference ref) {
-        if (ref.get().equals(fieldType()) == false) {
-            throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
-        }
-        this.fieldTypeRef = ref;
+        return fieldType;
     }
 
     /**
@@ -333,7 +293,7 @@ public abstract class FieldMapper extends Mapper {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
         }
         multiFields.parse(this, context);
         return null;
@@ -351,34 +311,65 @@ public abstract class FieldMapper extends Mapper {
         return false;
     }
 
+    @Override
     public Iterator<Mapper> iterator() {
-        if (multiFields == null) {
-            return Collections.emptyIterator();
-        }
         return multiFields.iterator();
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected FieldMapper clone() {
+        try {
+            return (FieldMapper) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Override
+    public FieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        FieldMapper merged = clone();
+        merged.doMerge(mergeWith, updateAllTypes);
+        return merged;
+    }
+
+    /**
+     * Merge changes coming from {@code mergeWith} in place.
+     * @param updateAllTypes TODO
+     */
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();
             }
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
-            // different types, return
-            return;
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
         }
         FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
-        multiFields.merge(mergeWith, mergeResult);
+        multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            // apply changeable values
-            MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
-            fieldType.freeze();
-            fieldTypeRef.set(fieldType);
-            this.copyTo = fieldMergeWith.copyTo;
+        // apply changeable values
+        this.fieldType = fieldMergeWith.fieldType;
+        this.copyTo = fieldMergeWith.copyTo;
+    }
+
+    @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());
+        if (newFieldType == null) {
+            // this field does not exist in the mappings yet
+            // this can happen if this mapper represents a mapping update
+            return this;
+        } else if (fieldType.getClass() != newFieldType.getClass()) {
+            throw new IllegalStateException("Mixing up field types: " + fieldType.getClass() + " != " + newFieldType.getClass());
         }
+        MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
+        if (fieldType == newFieldType && multiFields == updatedMultiFields) {
+            return this; // no change
+        }
+        FieldMapper updated = clone();
+        updated.fieldType = newFieldType;
+        updated.multiFields = updatedMultiFields;
+        return updated;
     }
 
     @Override
@@ -392,9 +383,6 @@ public abstract class FieldMapper extends Mapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (indexCreatedBefore2x && (includeDefaults || !simpleName().equals(fieldType().names().originalIndexName()))) {
-            builder.field("index_name", fieldType().names().originalIndexName());
-        }
 
         if (includeDefaults || fieldType().boost() != 1.0f) {
             builder.field("boost", fieldType().boost());
@@ -520,18 +508,12 @@ public abstract class FieldMapper extends Mapper {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(ContentPath.Type.FULL, ImmutableOpenMap.<String, FieldMapper>of());
+            return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
 
             private final ImmutableOpenMap.Builder<String, Mapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
-            private ContentPath.Type pathType = ContentPath.Type.FULL;
-
-            public Builder pathType(ContentPath.Type pathType) {
-                this.pathType = pathType;
-                return this;
-            }
 
             public Builder add(Mapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder);
@@ -540,13 +522,9 @@ public abstract class FieldMapper extends Mapper {
 
             @SuppressWarnings("unchecked")
             public MultiFields build(FieldMapper.Builder mainFieldBuilder, BuilderContext context) {
-                if (pathType == ContentPath.Type.FULL && mapperBuilders.isEmpty()) {
+                if (mapperBuilders.isEmpty()) {
                     return empty();
-                } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
-                    ContentPath.Type origPathType = context.path().pathType();
-                    context.path().pathType(pathType);
                     context.path().add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
@@ -557,26 +535,25 @@ public abstract class FieldMapper extends Mapper {
                         mapperBuilders.put(key, mapper);
                     }
                     context.path().remove();
-                    context.path().pathType(origPathType);
                     ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
-                    return new MultiFields(pathType, mappers.build());
+                    return new MultiFields(mappers.build());
                 }
             }
         }
 
-        private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
+        private final ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
-            this.pathType = pathType;
-            this.mappers = mappers;
+        private MultiFields(ImmutableOpenMap<String, FieldMapper> mappers) {
+            ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+            for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
                 FieldMapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                    ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
+                    mapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
                 }
+                builder.put(cursor.key, mapper);
             }
+            this.mappers = builder.build();
         }
 
         public void parse(FieldMapper mainField, ParseContext context) throws IOException {
@@ -587,58 +564,54 @@ public abstract class FieldMapper extends Mapper {
 
             context = context.createMultiFieldContext();
 
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(pathType);
-
             context.path().add(mainField.simpleName());
             for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
             context.path().remove();
-            context.path().pathType(origPathType);
         }
 
-        // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeResult mergeResult) {
-            FieldMapper mergeWithMultiField = (FieldMapper) mergeWith;
+        public MultiFields merge(MultiFields mergeWith) {
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = ImmutableOpenMap.builder(mappers);
 
-            List<FieldMapper> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
-
-            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mergeWith.mappers.values()) {
                 FieldMapper mergeWithMapper = cursor.value;
-                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+                FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
-                    // no mapping, simply add it if not simulating
-                    if (!mergeResult.simulate()) {
-                        // we disable the all in multi-field mappers
-                        if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
-                            ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
-                        }
-                        if (newMappersBuilder == null) {
-                            newMappersBuilder = ImmutableOpenMap.builder(mappers);
-                        }
-                        newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
-                        if (mergeWithMapper instanceof FieldMapper) {
-                            if (newFieldMappers == null) {
-                                newFieldMappers = new ArrayList<>(2);
-                            }
-                            newFieldMappers.add(mergeWithMapper);
-                        }
+                    // we disable the all in multi-field mappers
+                    if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
+                        mergeWithMapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
                     }
+                    newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeResult);
+                    FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
+                    newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
             }
 
-            // first add all field mappers
-            if (newFieldMappers != null) {
-                mergeResult.addFieldMappers(newFieldMappers);
+            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
+            return new MultiFields(mappers);
+        }
+
+        public MultiFields updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
+
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                FieldMapper updated = cursor.value.updateFieldType(fullNameToFieldType);
+                if (updated != cursor.value) {
+                    if (newMappersBuilder == null) {
+                        newMappersBuilder = ImmutableOpenMap.builder(mappers);
+                    }
+                    newMappersBuilder.put(updated.simpleName(), updated);
+                }
             }
-            // now publish mappers
-            if (newMappersBuilder != null) {
-                mappers = newMappersBuilder.build();
+
+            if (newMappersBuilder == null) {
+                return this;
             }
+
+            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
+            return new MultiFields(mappers);
         }
 
         public Iterator<Mapper> iterator() {
@@ -646,9 +619,6 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (pathType != ContentPath.Type.FULL) {
-                builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
-            }
             if (!mappers.isEmpty()) {
                 // sort the mappers so we get consistent serialization format
                 Mapper[] sortedMappers = mappers.values().toArray(Mapper.class);

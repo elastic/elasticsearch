@@ -22,7 +22,11 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -37,13 +41,18 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 /**
  * Service responsible for submitting mapping changes
  */
@@ -237,8 +246,8 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request) throws IOException {
-            Map<String, DocumentMapper> newMappers = new HashMap<>();
-            Map<String, DocumentMapper> existingMappers = new HashMap<>();
+            String mappingType = request.type();
+            CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
             for (String index : request.indices()) {
                 IndexService indexService = indicesService.indexServiceSafe(index);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
@@ -246,16 +255,12 @@ public class MetaDataMappingService extends AbstractComponent {
                 DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
                 if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), false);
+                    newMapper = indexService.mapperService().parse(request.type(), mappingUpdateSource, false);
                 } else {
-                    newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), existingMapper == null);
+                    newMapper = indexService.mapperService().parse(request.type(), mappingUpdateSource, existingMapper == null);
                     if (existingMapper != null) {
-                        // first, simulate
-                        MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
-                        // if we have conflicts, throw an exception
-                        if (mergeResult.hasConflicts()) {
-                            throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(mergeResult.buildConflicts()) + "}");
-                        }
+                        // first, simulate: just call merge and ignore the result
+                        existingMapper.merge(newMapper.mapping(), request.updateAllTypes());
                     } else {
                         // TODO: can we find a better place for this validation?
                         // The reason this validation is here is that the mapper service doesn't learn about
@@ -274,36 +279,31 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
                 }
-                newMappers.put(index, newMapper);
-                if (existingMapper != null) {
-                    existingMappers.put(index, existingMapper);
+                if (mappingType == null) {
+                    mappingType = newMapper.type();
+                } else if (mappingType.equals(newMapper.type()) == false) {
+                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                 }
             }
+            assert mappingType != null;
 
-            String mappingType = request.type();
-            if (mappingType == null) {
-                mappingType = newMappers.values().iterator().next().type();
-            } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
-                throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
-            }
             if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
             final Map<String, MappingMetaData> mappings = new HashMap<>();
-            for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
-                String index = entry.getKey();
+            for (String index : request.indices()) {
                 // do the actual merge here on the master, and update the mapping source
-                DocumentMapper newMapper = entry.getValue();
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService == null) {
                     continue;
                 }
 
                 CompressedXContent existingSource = null;
-                if (existingMappers.containsKey(entry.getKey())) {
-                    existingSource = existingMappers.get(entry.getKey()).mappingSource();
+                DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
+                if (existingMapper != null) {
+                    existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = indexService.mapperService().merge(newMapper.type(), newMapper.mappingSource(), false, request.updateAllTypes());
+                DocumentMapper mergedMapper = indexService.mapperService().merge(mappingType, mappingUpdateSource, true, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -322,9 +322,9 @@ public class MetaDataMappingService extends AbstractComponent {
                 } else {
                     mappings.put(index, new MappingMetaData(mergedMapper));
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), updatedSource);
+                        logger.debug("[{}] create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
                     } else if (logger.isInfoEnabled()) {
-                        logger.info("[{}] create_mapping [{}]", index, newMapper.type());
+                        logger.info("[{}] create_mapping [{}]", index, mappingType);
                     }
                 }
             }

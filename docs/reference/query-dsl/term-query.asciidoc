@@ -137,7 +137,7 @@ GET my_index/my_type/_search
 {
   "query": {
     "term": {
-      "exact_value": "foxes" <3>
+      "full_text": "foxes" <3>
     }
   }
 }

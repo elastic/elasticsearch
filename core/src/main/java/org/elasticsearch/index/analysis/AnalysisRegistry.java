@@ -29,7 +29,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.indices.analysis.*;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
 import java.io.IOException;

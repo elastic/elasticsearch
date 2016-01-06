@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -85,7 +84,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String template) {
+    public Object compile(String template, Map<String, String> params) {
         /** Factory to generate Mustache objects from. */
         return (new JsonEscapingMustacheFactory()).compile(new FastStringReader(template), "query-template");
     }

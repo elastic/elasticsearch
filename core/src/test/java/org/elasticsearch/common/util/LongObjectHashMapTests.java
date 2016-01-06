@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class LongObjectHashMapTests extends ESSingleNodeTestCase {

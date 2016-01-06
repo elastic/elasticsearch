@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -56,14 +59,29 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  *
@@ -116,12 +134,12 @@ public class TranslogTests extends ESTestCase {
         return new Translog(getTranslogConfig(path));
     }
 
-    protected TranslogConfig getTranslogConfig(Path path) {
+    private TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.settingsBuilder()
-                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
-        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
+        ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
+        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -1242,11 +1260,11 @@ public class TranslogTests extends ESTestCase {
         private final CountDownLatch downLatch;
         private final int opsPerThread;
         private final int threadId;
-        private final BlockingQueue<LocationOperation> writtenOperations;
+        private final Collection<LocationOperation> writtenOperations;
         private final Throwable[] threadExceptions;
         private final Translog translog;
 
-        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, BlockingQueue<LocationOperation> writtenOperations, Throwable[] threadExceptions) {
+        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, Collection<LocationOperation> writtenOperations, Throwable[] threadExceptions) {
             this.translog = translog;
             this.downLatch = downLatch;
             this.opsPerThread = opsPerThread;
@@ -1276,76 +1294,58 @@ public class TranslogTests extends ESTestCase {
                             throw new ElasticsearchException("not supported op type");
                     }
 
-                    Translog.Location loc = translog.add(op);
+                    Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));
+                    afterAdd();
                 }
             } catch (Throwable t) {
                 threadExceptions[threadId] = t;
             }
         }
+
+        protected Translog.Location add(Translog.Operation op) throws IOException {
+            return translog.add(op);
+        }
+
+        protected void afterAdd() throws IOException {}
     }
 
     public void testFailFlush() throws IOException {
         Path tempDir = createTempDir();
-        final AtomicBoolean simulateDiskFull = new AtomicBoolean();
+        final AtomicBoolean fail = new AtomicBoolean();
         TranslogConfig config = getTranslogConfig(tempDir);
-        Translog translog = new Translog(config) {
-            @Override
-            TranslogWriter.ChannelFactory getChannelFactory() {
-                final TranslogWriter.ChannelFactory factory = super.getChannelFactory();
-
-                return new TranslogWriter.ChannelFactory() {
-                    @Override
-                    public FileChannel open(Path file) throws IOException {
-                        FileChannel channel = factory.open(file);
-                        return new FilterFileChannel(channel) {
-
-                            @Override
-                            public int write(ByteBuffer src) throws IOException {
-                                if (simulateDiskFull.get()) {
-                                    if (src.limit() > 1) {
-                                        final int pos = src.position();
-                                        final int limit = src.limit();
-                                        src.limit(limit / 2);
-                                        super.write(src);
-                                        src.position(pos);
-                                        src.limit(limit);
-                                        throw new IOException("__FAKE__ no space left on device");
-                                    }
-                                }
-                                return super.write(src);
-                            }
-                        };
-                    }
-                };
-            }
-        };
+        Translog translog = getFailableTranslog(fail, config);
 
         List<Translog.Location> locations = new ArrayList<>();
         int opsSynced = 0;
-        int opsAdded = 0;
         boolean failed = false;
         while(failed == false) {
             try {
                 locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
-                opsAdded++;
                 translog.sync();
                 opsSynced++;
+            } catch (MockDirectoryWrapper.FakeIOException ex) {
+                failed = true;
+                assertFalse(translog.isOpen());
             } catch (IOException ex) {
                 failed = true;
                 assertFalse(translog.isOpen());
                 assertEquals("__FAKE__ no space left on device", ex.getMessage());
              }
-            simulateDiskFull.set(randomBoolean());
+            fail.set(randomBoolean());
         }
-        simulateDiskFull.set(false);
+        fail.set(false);
         if (randomBoolean()) {
             try {
                 locations.add(translog.add(new Translog.Index("test", "" + opsSynced, Integer.toString(opsSynced).getBytes(Charset.forName("UTF-8")))));
                 fail("we are already closed");
             } catch (AlreadyClosedException ex) {
                 assertNotNull(ex.getCause());
-                assertEquals(ex.getCause().getMessage(), "__FAKE__ no space left on device");
+                if (ex.getCause() instanceof MockDirectoryWrapper.FakeIOException) {
+                    assertNull(ex.getCause().getMessage());
+                } else {
+                    assertEquals(ex.getCause().getMessage(), "__FAKE__ no space left on device");
+                }
             }
 
         }
@@ -1400,6 +1400,217 @@ public class TranslogTests extends ESTestCase {
                     assertNotNull("operation " + i + " must be non-null", next);
                 }
             }
+        }
+    }
+
+    public void testTragicEventCanBeAnyException() throws IOException {
+        Path tempDir = createTempDir();
+        final AtomicBoolean fail = new AtomicBoolean();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        assumeFalse("this won't work if we sync on any op",config.isSyncOnEachOperation());
+        Translog translog = getFailableTranslog(fail, config, false, true);
+        LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
+        translog.add(new Translog.Index("test", "1", lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
+        fail.set(true);
+        try {
+            Translog.Location location = translog.add(new Translog.Index("test", "2", lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
+            if (randomBoolean()) {
+                translog.ensureSynced(location);
+            } else {
+                translog.sync();
+            }
+            //TODO once we have a mock FS that can simulate we can also fail on plain sync
+            fail("WTF");
+        } catch (UnknownException ex) {
+            // w00t
+        } catch (TranslogException ex) {
+            assertTrue(ex.getCause() instanceof UnknownException);
+        }
+        assertFalse(translog.isOpen());
+        assertTrue(translog.getTragicException() instanceof  UnknownException);
+    }
+
+    public void testFatalIOExceptionsWhileWritingConcurrently() throws IOException, InterruptedException {
+        Path tempDir = createTempDir();
+        final AtomicBoolean fail = new AtomicBoolean(false);
+
+        TranslogConfig config = getTranslogConfig(tempDir);
+        Translog translog = getFailableTranslog(fail, config);
+
+        final int threadCount = randomIntBetween(1, 5);
+        Thread[] threads = new Thread[threadCount];
+        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final CountDownLatch downLatch = new CountDownLatch(1);
+        final CountDownLatch added = new CountDownLatch(randomIntBetween(10, 100));
+        List<LocationOperation> writtenOperations = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < threadCount; i++) {
+            final int threadId = i;
+            threads[i] = new TranslogThread(translog, downLatch, 200, threadId, writtenOperations, threadExceptions) {
+                @Override
+                protected Translog.Location add(Translog.Operation op) throws IOException {
+                    Translog.Location add = super.add(op);
+                    added.countDown();
+                    return add;
+                }
+
+                @Override
+                protected void afterAdd() throws IOException {
+                    if (randomBoolean()) {
+                        translog.sync();
+                    }
+                }
+            };
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+        downLatch.countDown();
+        added.await();
+        try (Translog.View view = translog.newView()) {
+            // this holds a reference to the current tlog channel such that it's not closed
+            // if we hit a tragic event. this is important to ensure that asserts inside the Translog#add doesn't trip
+            // otherwise our assertions here are off by one sometimes.
+            fail.set(true);
+            for (int i = 0; i < threadCount; i++) {
+                threads[i].join();
+            }
+            boolean atLeastOneFailed = false;
+            for (Throwable ex : threadExceptions) {
+                assertTrue(ex.toString(), ex instanceof IOException || ex instanceof AlreadyClosedException);
+                if (ex != null) {
+                    atLeastOneFailed = true;
+                }
+            }
+            if (atLeastOneFailed == false) {
+                try {
+                    boolean syncNeeded = translog.syncNeeded();
+                    translog.close();
+                    assertFalse("should have failed if sync was needed", syncNeeded);
+                } catch (IOException ex) {
+                    // boom now we failed
+                }
+            }
+            Collections.sort(writtenOperations, (a, b) -> a.location.compareTo(b.location));
+            assertFalse(translog.isOpen());
+            final Checkpoint checkpoint = Checkpoint.read(config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME));
+            Iterator<LocationOperation> iterator = writtenOperations.iterator();
+            while (iterator.hasNext()) {
+                LocationOperation next = iterator.next();
+                if (checkpoint.offset < (next.location.translogLocation + next.location.size)) {
+                    // drop all that haven't been synced
+                    iterator.remove();
+                }
+            }
+            config.setTranslogGeneration(translog.getGeneration());
+            try (Translog tlog = new Translog(config)) {
+                try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
+                    if (writtenOperations.size() != snapshot.estimatedTotalOperations()) {
+                        for (int i = 0; i < threadCount; i++) {
+                            if (threadExceptions[i] != null)
+                                threadExceptions[i].printStackTrace();
+                        }
+                    }
+                    assertEquals(writtenOperations.size(), snapshot.estimatedTotalOperations());
+                    for (int i = 0; i < writtenOperations.size(); i++) {
+                        assertEquals("expected operation" + i + " to be in the previous translog but wasn't", tlog.currentFileGeneration() - 1, writtenOperations.get(i).location.generation);
+                        Translog.Operation next = snapshot.next();
+                        assertNotNull("operation " + i + " must be non-null", next);
+                        assertEquals(next, writtenOperations.get(i).operation);
+                    }
+                }
+            }
+        }
+    }
+    private Translog getFailableTranslog(final AtomicBoolean fail, final TranslogConfig config) throws IOException {
+        return getFailableTranslog(fail, config, randomBoolean(), false);
+    }
+
+    private Translog getFailableTranslog(final AtomicBoolean fail, final TranslogConfig config, final boolean paritalWrites, final boolean throwUnknownException) throws IOException {
+        return new Translog(config) {
+            @Override
+            TranslogWriter.ChannelFactory getChannelFactory() {
+                final TranslogWriter.ChannelFactory factory = super.getChannelFactory();
+
+                return new TranslogWriter.ChannelFactory() {
+                    @Override
+                    public FileChannel open(Path file) throws IOException {
+                        FileChannel channel = factory.open(file);
+                        return new ThrowingFileChannel(fail, paritalWrites, throwUnknownException, channel);
+                    }
+                };
+            }
+        };
+    }
+
+    public static class ThrowingFileChannel extends FilterFileChannel {
+        private final AtomicBoolean fail;
+        private final boolean partialWrite;
+        private final boolean throwUnknownException;
+
+        public ThrowingFileChannel(AtomicBoolean fail, boolean partialWrite, boolean throwUnknownException, FileChannel delegate) {
+            super(delegate);
+            this.fail = fail;
+            this.partialWrite = partialWrite;
+            this.throwUnknownException = throwUnknownException;
+        }
+
+        @Override
+        public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int write(ByteBuffer src, long position) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+
+        public int write(ByteBuffer src) throws IOException {
+            if (fail.get()) {
+                if (partialWrite) {
+                    if (src.hasRemaining()) {
+                        final int pos = src.position();
+                        final int limit = src.limit();
+                        src.limit(randomIntBetween(pos, limit));
+                        super.write(src);
+                        src.limit(limit);
+                        src.position(pos);
+                        throw new IOException("__FAKE__ no space left on device");
+                    }
+                }
+                if (throwUnknownException) {
+                    throw new UnknownException();
+                } else {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
+            }
+            return super.write(src);
+        }
+    }
+
+    private static final class UnknownException extends RuntimeException {
+
+    }
+
+    // see https://github.com/elastic/elasticsearch/issues/15754
+    public void testFailWhileCreateWriteWithRecoveredTLogs() throws IOException {
+        Path tempDir = createTempDir();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        Translog translog = new Translog(config);
+        translog.add(new Translog.Index("test", "boom", "boom".getBytes(Charset.forName("UTF-8"))));
+        Translog.TranslogGeneration generation = translog.getGeneration();
+        translog.close();
+        config.setTranslogGeneration(generation);
+        try {
+            new Translog(config) {
+                @Override
+                protected TranslogWriter createWriter(long fileGeneration) throws IOException {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
+            };
+            // if we have a LeakFS here we fail if not all resources are closed
+            fail("should have been failed");
+        } catch (MockDirectoryWrapper.FakeIOException ex) {
+            // all is well
         }
     }
 }

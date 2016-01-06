@@ -19,19 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.channels.ClosedByInterruptException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -73,7 +65,16 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -82,7 +83,12 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
@@ -103,7 +109,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesWarmer;
@@ -116,6 +121,20 @@ import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -155,7 +174,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture<?> refreshScheduledFuture;
-    private volatile ScheduledFuture<?> mergeScheduleFuture;
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
@@ -170,18 +188,14 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
     private volatile boolean flushOnClose = true;
-    private volatile int flushThresholdOperations;
     private volatile ByteSizeValue flushThresholdSize;
-    private volatile boolean disableFlush;
 
     /**
      * Index setting to control if a flush is executed before engine is closed
      * This setting is realtime updateable.
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
     public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     private final ShardPath path;
@@ -237,8 +251,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = settings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, settings, Translog.Durabilty.REQUEST),
-            provider.getBigArrays(), threadPool);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
+            provider.getBigArrays());
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -249,9 +263,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, settings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
         this.flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        this.disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.indexingMemoryController = provider.getIndexingMemoryController();
         this.provider = provider;
@@ -788,8 +800,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (state != IndexShardState.CLOSED) {
                     FutureUtils.cancel(refreshScheduledFuture);
                     refreshScheduledFuture = null;
-                    FutureUtils.cancel(mergeScheduleFuture);
-                    mergeScheduleFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
                 indexShardOperationCounter.decRef();
@@ -1065,7 +1075,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        final boolean shouldExist = shardRouting.allocatedPostIndexCreate();
+        boolean shouldExist = shardRouting.allocatedPostIndexCreate(idxSettings.getIndexMetaData());
+
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
     }
@@ -1081,15 +1092,13 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Otherwise <code>false</code>.
      */
     boolean shouldFlush() {
-        if (disableFlush == false) {
-            Engine engine = getEngineOrNull();
-            if (engine != null) {
-                try {
-                    Translog translog = engine.getTranslog();
-                    return translog.totalOperations() > flushThresholdOperations || translog.sizeInBytes() > flushThresholdSize.bytes();
-                } catch (AlreadyClosedException | EngineClosedException ex) {
-                    // that's fine we are already close - no need to flush
-                }
+        Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                Translog translog = engine.getTranslog();
+                return translog.sizeInBytes() > flushThresholdSize.bytes();
+            } catch (AlreadyClosedException | EngineClosedException ex) {
+                // that's fine we are already close - no need to flush
             }
         }
         return false;
@@ -1101,20 +1110,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
                 return;
             }
-            int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.flushThresholdOperations);
-            if (flushThresholdOperations != this.flushThresholdOperations) {
-                logger.info("updating flush_threshold_ops from [{}] to [{}]", this.flushThresholdOperations, flushThresholdOperations);
-                this.flushThresholdOperations = flushThresholdOperations;
-            }
             ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
             if (!flushThresholdSize.equals(this.flushThresholdSize)) {
                 logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
                 this.flushThresholdSize = flushThresholdSize;
-            }
-            boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, this.disableFlush);
-            if (disableFlush != this.disableFlush) {
-                logger.info("updating disable_flush from [{}] to [{}]", this.disableFlush, disableFlush);
-                this.disableFlush = disableFlush;
             }
 
             final EngineConfig config = engineConfig;
@@ -1122,18 +1121,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (flushOnClose != this.flushOnClose) {
                 logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
                 this.flushOnClose = flushOnClose;
-            }
-
-            TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
-            if (type != translogConfig.getType()) {
-                logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
-                translogConfig.setType(type);
-            }
-
-            final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
-            if (durabilty != translogConfig.getDurabilty()) {
-                logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
-                translogConfig.setDurabilty(durabilty);
             }
 
             TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, this.refreshInterval);
@@ -1156,13 +1143,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
                 logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
                 config.setGcDeletesInMillis(gcDeletesInMillis);
-                change = true;
-            }
-
-            final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
-            if (compoundOnFlush != config.isCompoundOnFlush()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
-                config.setCompoundOnFlush(compoundOnFlush);
                 change = true;
             }
 
@@ -1556,18 +1536,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * Returns the current translog durability mode
      */
-    public Translog.Durabilty getTranslogDurability() {
-        return translogConfig.getDurabilty();
-    }
-
-    private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {
-        final String value = settings.get(TranslogConfig.INDEX_TRANSLOG_DURABILITY, defaultValue.name());
-        try {
-            return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
-            return defaultValue;
-        }
+    public Translog.Durability getTranslogDurability() {
+        return indexSettings.getTranslogDurability();
     }
 
     private final AtomicBoolean asyncFlushRunning = new AtomicBoolean();

@@ -85,26 +85,44 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestTests extends ESIntegTestCase {
@@ -127,7 +145,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     protected Settings nodeSettings(int ordinal) {
         // must set this independently of the plugin so it overrides MockTransportService
         return Settings.builder().put(super.nodeSettings(ordinal))
-            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
+            .put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
     }
 
     @Override
@@ -756,8 +774,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
             public String description() {
                 return "an intercepting transport service for testing";
             }
-            public void onModule(TransportModule transportModule) {
-                transportModule.addTransportService("intercepting", InterceptingTransportService.class);
+            public void onModule(NetworkModule module) {
+                module.registerTransportService("intercepting", InterceptingTransportService.class);
             }
         }
 

@@ -67,7 +67,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "all")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
@@ -219,7 +219,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "write")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
                 .build();
 
         internalCluster().startNode(settings);

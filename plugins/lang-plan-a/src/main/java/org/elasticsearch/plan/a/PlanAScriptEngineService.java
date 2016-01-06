@@ -37,15 +37,16 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PlanAScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "plan-a";
-    // TODO: this should really be per-script since scripts do so many different things?
-    private static final CompilerSettings compilerSettings = new CompilerSettings();
-    
-    public static final String NUMERIC_OVERFLOW = "plan-a.numeric_overflow";
+    // default settings, used unless otherwise specified
+    private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
+
+    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
 
     // TODO: how should custom definitions be specified?
     private Definition definition = null;
@@ -53,7 +54,6 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     @Inject
     public PlanAScriptEngineService(Settings settings) {
         super(settings);
-        compilerSettings.setNumericOverflow(settings.getAsBoolean(NUMERIC_OVERFLOW, compilerSettings.getNumericOverflow()));
     }
 
     public void setDefinition(final Definition definition) {
@@ -86,7 +86,23 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
+        final CompilerSettings compilerSettings;
+        if (params.isEmpty()) {
+            compilerSettings = DEFAULT_COMPILER_SETTINGS;
+        } else {
+            // custom settings
+            compilerSettings = new CompilerSettings();
+            Map<String,String> clone = new HashMap<>(params);
+            String value = clone.remove(NUMERIC_OVERFLOW);
+            if (value != null) {
+                // TODO: can we get a real boolean parser in here?
+                compilerSettings.setNumericOverflow(Boolean.parseBoolean(value));
+            }
+            if (!clone.isEmpty()) {
+                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + clone);
+            }
+        }
         // check we ourselves are not being called by unprivileged code
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

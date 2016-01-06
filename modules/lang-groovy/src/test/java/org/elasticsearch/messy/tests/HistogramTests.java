@@ -19,7 +19,6 @@
 package org.elasticsearch.messy.tests;
 
 import com.carrotsearch.hppc.LongHashSet;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;

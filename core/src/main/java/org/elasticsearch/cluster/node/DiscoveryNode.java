@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -45,12 +44,6 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  * A discovery node represents a node that is part of the cluster.
  */
 public class DiscoveryNode implements Streamable, ToXContent {
-
-    /**
-     * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
-     * of the current elasticsearch major version.
-     */
-    public static final Version MINIMUM_DISCOVERY_NODE_VERSION = Version.CURRENT.minimumCompatibilityVersion();
 
     public static boolean localNode(Settings settings) {
         if (settings.get("node.local") != null) {
@@ -110,7 +103,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -127,7 +120,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -146,7 +139,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -179,7 +172,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.

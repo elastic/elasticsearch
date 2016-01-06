@@ -43,6 +43,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -190,7 +191,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        MappedFieldType fieldType = context.smartNameFieldTypeFromAnyType(input.field);
+        MappedFieldType fieldType = context.smartNameFieldType(input.field);
         if (fieldType == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -227,7 +228,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.script, ScriptContext.Standard.AGGS);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), input.script, ScriptContext.Standard.AGGS, Collections.emptyMap());
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

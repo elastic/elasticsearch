@@ -54,7 +54,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
-        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()
@@ -98,8 +98,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testAllocateCommand() {
         AllocationService allocation = createAllocationService(settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build());
 
         logger.info("--> building initial routing table");
@@ -186,8 +186,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testCancelCommand() {
         AllocationService allocation = createAllocationService(settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build());
 
         logger.info("--> building initial routing table");

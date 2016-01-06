@@ -21,7 +21,7 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -91,6 +91,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField EXT_FIELD = new ParseField("ext");
+    public static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
 
@@ -157,6 +158,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private List<String> stats;
 
     private BytesReference ext = null;
+
+    private boolean profile = false;
+
 
     /**
      * Constructs a new search source builder.
@@ -476,6 +480,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
+     * Should the query be profiled. Defaults to <tt>false</tt>
+     */
+    public SearchSourceBuilder profile(boolean profile) {
+        this.profile = profile;
+        return this;
+    }
+
+    /**
+     * Return whether to profile query execution, or {@code null} if
+     * unspecified.
+     */
+    public boolean profile() {
+        return profile;
+    }
+
+    /**
      * Gets the bytes representing the rescore builders for this request.
      */
     public List<BytesReference> rescores() {
@@ -723,6 +743,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     builder.fieldNames = fieldNames;
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     builder.sort(parser.text());
+                } else if (context.parseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
+                    builder.profile = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -929,6 +951,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (explain != null) {
             builder.field(EXPLAIN_FIELD.getPreferredName(), explain);
+        }
+
+        if (profile) {
+            builder.field("profile", true);
         }
 
         if (fetchSourceContext != null) {
@@ -1212,6 +1238,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.readBoolean()) {
             builder.ext = in.readBytesReference();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            builder.profile = in.readBoolean();
+        } else {
+            builder.profile = false;
+        }
         return builder;
     }
 
@@ -1325,13 +1356,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasExt) {
             out.writeBytesReference(ext);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeBoolean(profile);
+        }
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
+                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
     }
 
     @Override
@@ -1364,6 +1398,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(terminateAfter, other.terminateAfter)
                 && Objects.equals(timeoutInMillis, other.timeoutInMillis)
                 && Objects.equals(trackScores, other.trackScores)
-                && Objects.equals(version, other.version);
+                && Objects.equals(version, other.version)
+                && Objects.equals(profile, other.profile);
     }
 }

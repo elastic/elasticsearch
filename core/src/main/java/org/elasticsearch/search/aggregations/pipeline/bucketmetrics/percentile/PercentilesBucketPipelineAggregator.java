@@ -31,7 +31,10 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetric
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 

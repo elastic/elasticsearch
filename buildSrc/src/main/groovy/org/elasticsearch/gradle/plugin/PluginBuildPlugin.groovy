@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -60,7 +60,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void configureDependencies(Project project) {
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch:test-framework:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
@@ -101,6 +101,11 @@ public class PluginBuildPlugin extends BuildPlugin {
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
             from project.configurations.runtime - project.configurations.provided // the dep jars
+            // hack just for slf4j, in case it is "upgrade" from provided to compile,
+            // since it is not actually provided in distributions
+            from project.configurations.runtime.fileCollection { Dependency dep ->
+                return dep.name == 'slf4j-api' && project.configurations.compile.dependencies.contains(dep)
+            }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

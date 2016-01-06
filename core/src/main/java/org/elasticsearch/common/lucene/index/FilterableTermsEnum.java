@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -99,11 +100,12 @@ public class FilterableTermsEnum extends TermsEnum {
             }
             BitSet bits = null;
             if (weight != null) {
-                DocIdSetIterator docs = weight.scorer(context);
-                if (docs == null) {
+                Scorer scorer = weight.scorer(context);
+                if (scorer == null) {
                     // fully filtered, none matching, no need to iterate on this
                     continue;
                 }
+                DocIdSetIterator docs = scorer.iterator();
 
                 // we want to force apply deleted docs
                 final Bits liveDocs = context.reader().getLiveDocs();

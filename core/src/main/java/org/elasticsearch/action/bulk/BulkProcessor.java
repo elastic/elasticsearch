@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,7 +32,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
-import java.util.concurrent.*;
+import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -48,7 +51,7 @@ public class BulkProcessor implements Closeable {
     /**
      * A listener for the execution.
      */
-    public static interface Listener {
+    public interface Listener {
 
         /**
          * Callback before the bulk is executed.
@@ -62,6 +65,9 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Callback after a failed execution of bulk request.
+         *
+         * Note that in case an instance of <code>InterruptedException</code> is passed, which means that request processing has been
+         * cancelled externally, the thread's interruption status has been restored prior to calling this method.
          */
         void afterBulk(long executionId, BulkRequest request, Throwable failure);
     }
@@ -79,6 +85,7 @@ public class BulkProcessor implements Closeable {
         private int bulkActions = 1000;
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
+        private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
@@ -137,53 +144,57 @@ public class BulkProcessor implements Closeable {
         }
 
         /**
+         * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
+         * in case they have failed due to resource constraints (i.e. a thread pool was full).
+         *
+         * The default is to back off exponentially.
+         *
+         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         */
+        public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
+            if (backoffPolicy == null) {
+                throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
+            }
+            this.backoffPolicy = backoffPolicy;
+            return this;
+        }
+
+        /**
          * Builds a new bulk processor.
          */
         public BulkProcessor build() {
-            return new BulkProcessor(client, listener, name, concurrentRequests, bulkActions, bulkSize, flushInterval);
+            return new BulkProcessor(client, backoffPolicy, listener, name, concurrentRequests, bulkActions, bulkSize, flushInterval);
         }
     }
 
     public static Builder builder(Client client, Listener listener) {
-        if (client == null) {
-            throw new NullPointerException("The client you specified while building a BulkProcessor is null");
-        }
-        
+        Objects.requireNonNull(client, "client");
+        Objects.requireNonNull(listener, "listener");
+
         return new Builder(client, listener);
     }
 
-    private final Client client;
-    private final Listener listener;
-
-    private final String name;
-
-    private final int concurrentRequests;
     private final int bulkActions;
     private final long bulkSize;
-    private final TimeValue flushInterval;
 
-    private final Semaphore semaphore;
+
     private final ScheduledThreadPoolExecutor scheduler;
     private final ScheduledFuture scheduledFuture;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
     private BulkRequest bulkRequest;
+    private final BulkRequestHandler bulkRequestHandler;
 
     private volatile boolean closed = false;
 
-    BulkProcessor(Client client, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
-        this.client = client;
-        this.listener = listener;
-        this.name = name;
-        this.concurrentRequests = concurrentRequests;
+    BulkProcessor(Client client, BackoffPolicy backoffPolicy, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.bytes();
 
-        this.semaphore = new Semaphore(concurrentRequests);
         this.bulkRequest = new BulkRequest();
+        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(client, backoffPolicy, listener) : BulkRequestHandler.asyncHandler(client, backoffPolicy, listener, concurrentRequests);
 
-        this.flushInterval = flushInterval;
         if (flushInterval != null) {
             this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
             this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
@@ -231,14 +242,7 @@ public class BulkProcessor implements Closeable {
         if (bulkRequest.numberOfActions() > 0) {
             execute();
         }
-        if (this.concurrentRequests < 1) {
-            return true;
-        }
-        if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
-            semaphore.release(this.concurrentRequests);
-            return true;
-        }
-        return false;
+        return this.bulkRequestHandler.awaitClose(timeout, unit);
     }
 
     /**
@@ -308,58 +312,7 @@ public class BulkProcessor implements Closeable {
         final long executionId = executionIdGen.incrementAndGet();
 
         this.bulkRequest = new BulkRequest();
-
-        if (concurrentRequests == 0) {
-            // execute in a blocking fashion...
-            boolean afterCalled = false;
-            try {
-                listener.beforeBulk(executionId, bulkRequest);
-                BulkResponse bulkItemResponses = client.bulk(bulkRequest).actionGet();
-                afterCalled = true;
-                listener.afterBulk(executionId, bulkRequest, bulkItemResponses);
-            } catch (Exception e) {
-                if (!afterCalled) {
-                    listener.afterBulk(executionId, bulkRequest, e);
-                }
-            }
-        } else {
-            boolean success = false;
-            boolean acquired = false;
-            try {
-                listener.beforeBulk(executionId, bulkRequest);
-                semaphore.acquire();
-                acquired = true;
-                client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse response) {
-                        try {
-                            listener.afterBulk(executionId, bulkRequest, response);
-                        } finally {
-                            semaphore.release();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        try {
-                            listener.afterBulk(executionId, bulkRequest, e);
-                        } finally {
-                            semaphore.release();
-                        }
-                    }
-                });
-                success = true;
-            } catch (InterruptedException e) {
-                Thread.interrupted();
-                listener.afterBulk(executionId, bulkRequest, e);
-            } catch (Throwable t) {
-                listener.afterBulk(executionId, bulkRequest, t);
-            } finally {
-                 if (!success && acquired) {  // if we fail on client.bulk() release the semaphore
-                     semaphore.release();
-                 }
-            }
-        }
+        this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 
     private boolean isOverTheLimit() {

@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile 'org.codehaus.groovy:groovy-all:2.4.4:indy'
+  compile 'org.codehaus.groovy:groovy:2.4.4:indy'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked,-cast,-deprecation'
@@ -35,3 +35,34 @@ integTest {
     systemProperty 'es.script.indexed', 'on'
   }
 }
+
+thirdPartyAudit.excludes = [
+  // classes are missing, we bring in a minimal groovy dist
+  // for example we do not need ivy, scripts arent allowed to download code
+  'com.thoughtworks.xstream.XStream', 
+  'groovyjarjarasm.asm.util.Textifiable', 
+  'org.apache.ivy.Ivy', 
+  'org.apache.ivy.core.event.IvyListener', 
+  'org.apache.ivy.core.event.download.PrepareDownloadEvent', 
+  'org.apache.ivy.core.event.resolve.StartResolveEvent', 
+  'org.apache.ivy.core.module.descriptor.Configuration', 
+  'org.apache.ivy.core.module.descriptor.DefaultDependencyArtifactDescriptor', 
+  'org.apache.ivy.core.module.descriptor.DefaultDependencyDescriptor', 
+  'org.apache.ivy.core.module.descriptor.DefaultExcludeRule', 
+  'org.apache.ivy.core.module.descriptor.DefaultModuleDescriptor', 
+  'org.apache.ivy.core.module.id.ArtifactId', 
+  'org.apache.ivy.core.module.id.ModuleId', 
+  'org.apache.ivy.core.module.id.ModuleRevisionId', 
+  'org.apache.ivy.core.report.ResolveReport', 
+  'org.apache.ivy.core.resolve.ResolveOptions', 
+  'org.apache.ivy.core.settings.IvySettings', 
+  'org.apache.ivy.plugins.matcher.ExactPatternMatcher', 
+  'org.apache.ivy.plugins.matcher.PatternMatcher', 
+  'org.apache.ivy.plugins.resolver.IBiblioResolver', 
+  'org.apache.ivy.util.DefaultMessageLogger', 
+  'org.apache.ivy.util.Message', 
+  'org.fusesource.jansi.Ansi$Attribute', 
+  'org.fusesource.jansi.Ansi$Color', 
+  'org.fusesource.jansi.Ansi', 
+  'org.fusesource.jansi.AnsiRenderWriter',
+]

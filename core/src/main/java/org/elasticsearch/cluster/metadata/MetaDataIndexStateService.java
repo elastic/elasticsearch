@@ -29,25 +29,19 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Service responsible for submitting open/close index requests
@@ -92,14 +86,6 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     }
 
                     if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
-                        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                        for (IndexShardRoutingTable shard : indexRoutingTable) {
-                            for (ShardRouting shardRouting : shard) {
-                                if (shardRouting.primary() == true && shardRouting.allocatedPostIndexCreate() == false) {
-                                    throw new IndexPrimaryShardNotAllocatedException(new Index(index));
-                                }
-                            }
-                        }
                         indicesToClose.add(index);
                     }
                 }

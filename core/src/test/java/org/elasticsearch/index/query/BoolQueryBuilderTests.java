@@ -19,18 +19,27 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -243,6 +252,24 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
         assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
+    }
+
+    public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch("3")
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+
+        bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch(3)
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
     public void testFromJson() throws IOException {

@@ -21,6 +21,10 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
  *
@@ -30,15 +34,36 @@ public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
     private final SettingsFilter settingsFilter;
+    private final Map<String, Setting<?>> clusterDynamicSettings = new HashMap<>();
+
 
     public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
         this.settings = settings;
         this.settingsFilter = settingsFilter;
+        for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
+            registerSetting(setting);
+        }
     }
 
     @Override
     protected void configure() {
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
+        bind(ClusterSettings.class).toInstance(clusterSettings);
     }
+
+    public void registerSetting(Setting<?> setting) {
+        switch (setting.getScope()) {
+            case CLUSTER:
+                if (clusterDynamicSettings.containsKey(setting.getKey())) {
+                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+                }
+                clusterDynamicSettings.put(setting.getKey(), setting);
+                break;
+            case INDEX:
+                throw new UnsupportedOperationException("not yet implemented");
+        }
+    }
+
 }

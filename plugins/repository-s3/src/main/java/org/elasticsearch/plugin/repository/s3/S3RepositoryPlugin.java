@@ -30,7 +30,6 @@ import org.elasticsearch.repositories.s3.S3Repository;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

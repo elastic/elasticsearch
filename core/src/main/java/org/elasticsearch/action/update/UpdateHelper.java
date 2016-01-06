@@ -50,6 +50,7 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -245,7 +246,7 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(UpdateRequest request, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE, request);
+                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE, request, Collections.emptyMap());
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...

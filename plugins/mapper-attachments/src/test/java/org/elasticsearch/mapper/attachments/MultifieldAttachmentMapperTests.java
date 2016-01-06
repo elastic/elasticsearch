@@ -20,6 +20,7 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MapperTestUtils;
@@ -36,7 +37,10 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -59,7 +63,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
 
         assertThat(docMapper.mappers().getMapper("file.content"), instanceOf(StringFieldMapper.class));
@@ -95,7 +99,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = mapperService.documentMapperParser().parse("person", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("person", "person", "1", XContentFactory.jsonBuilder()
                 .startObject()

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plan.a;
 
+import java.util.Collections;
+
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
         try {
@@ -37,5 +39,14 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("double x = 15F; x <<= 2; return x;");
             fail("should have hit cce");
         } catch (ClassCastException expected) {}
+    }
+    
+    public void testBogusParameter() {
+        try {
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
+            fail("should have hit IAE");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
+        }
     }
 }

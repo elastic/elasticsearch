@@ -19,10 +19,16 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -67,7 +73,7 @@ abstract class QueryCollector extends SimpleCollector {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
-        final MappedFieldType uidMapper = context.mapperService().smartNameFieldType(UidFieldMapper.NAME);
+        final MappedFieldType uidMapper = context.mapperService().fullName(UidFieldMapper.NAME);
         this.uidFieldData = context.fieldData().getForField(uidMapper);
         this.isNestedDoc = isNestedDoc;
 

@@ -27,10 +27,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -64,12 +64,12 @@ public enum GlobalOrdinalsBuilder {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Global-ordinals[{}][{}] took {} ms",
-                    indexFieldData.getFieldNames().fullName(),
+                    indexFieldData.getFieldName(),
                     ordinalMap.getValueCount(),
                     TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
             );
         }
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldNames(),
+        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 indexFieldData.getFieldDataType(), atomicFD, ordinalMap, memorySizeInBytes
         );
     }
@@ -103,7 +103,7 @@ public enum GlobalOrdinalsBuilder {
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldNames(),
+        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 indexFieldData.getFieldDataType(), atomicFD, ordinalMap, 0
         );
     }

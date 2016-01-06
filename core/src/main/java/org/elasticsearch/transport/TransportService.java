@@ -29,6 +29,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,7 +39,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -46,11 +48,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -65,6 +67,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final AtomicBoolean started = new AtomicBoolean(false);
     protected final Transport transport;
     protected final ThreadPool threadPool;
+    protected final TaskManager taskManager;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -88,14 +91,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final String SETTING_TRACE_LOG_INCLUDE = "transport.tracer.include";
-    public static final String SETTING_TRACE_LOG_EXCLUDE = "transport.tracer.exclude";
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = Setting.listSetting("transport.tracer.include", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = Setting.listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME), Function.identity(), true, Setting.Scope.CLUSTER);
+
 
     private final ESLogger tracerLog;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracelLogExclude;
-    private final ApplySettings settingsListener = new ApplySettings();
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -109,10 +112,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
-        this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
-        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", TransportLivenessAction.NAME}, true);
+        setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
+        setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
+        taskManager = new TaskManager(settings);
     }
 
     /**
@@ -128,40 +132,28 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return localNode;
     }
 
+    public TaskManager getTaskManager() {
+        return taskManager;
+    }
+
     protected Adapter createAdapter() {
         return new Adapter();
     }
 
     // These need to be optional as they don't exist in the context of a transport client
     @Inject(optional = true)
-    public void setDynamicSettings(NodeSettingsService nodeSettingsService) {
-        nodeSettingsService.addListener(settingsListener);
+    public void setDynamicSettings(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
+        clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
     }
 
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            String[] newTracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, TransportService.this.tracerLogInclude, true);
-            String[] newTracerLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, TransportService.this.tracelLogExclude, true);
-            if (newTracerLogInclude == TransportService.this.tracerLogInclude && newTracerLogExclude == TransportService.this.tracelLogExclude) {
-                return;
-            }
-            if (Arrays.equals(newTracerLogInclude, TransportService.this.tracerLogInclude) &&
-                    Arrays.equals(newTracerLogExclude, TransportService.this.tracelLogExclude)) {
-                return;
-            }
-            TransportService.this.tracerLogInclude = newTracerLogInclude;
-            TransportService.this.tracelLogExclude = newTracerLogExclude;
-            logger.info("tracer log updated to use include: {}, exclude: {}", newTracerLogInclude, newTracerLogExclude);
-        }
+    void setTracerLogInclude(List<String> tracerLogInclude) {
+        this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
 
-    // used for testing
-    public void applySettings(Settings settings) {
-        settingsListener.onRefreshSettings(settings);
+    void setTracerLogExclude(List<String> tracelLogExclude) {
+        this.tracelLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
-
     @Override
     protected void doStart() {
         adapter.rxMetric.clear();
@@ -341,13 +333,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, channel);
+                reg.processMessageReceived(request, channel);
             } else {
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, channel);
+                        reg.processMessageReceived(request, channel);
                     }
 
                     @Override
@@ -406,7 +398,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, handler, executor, false);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
         registerRequestHandler(reg);
     }
 
@@ -419,7 +411,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, handler, executor, forceExecution);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
         registerRequestHandler(reg);
     }
 
@@ -428,7 +420,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             RequestHandlerRegistry replaced = requestHandlers.get(reg.getAction());
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
             if (replaced != null) {
-                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg.getHandler(), replaced.getHandler());
+                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg, replaced);
             }
         }
     }
@@ -812,6 +804,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.error("failed to handle exception for action [{}], handler [{}]", e, action, handler);
             }
         }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "direct";
+        }
+
     }
 
 }

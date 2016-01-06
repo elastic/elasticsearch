@@ -32,49 +32,37 @@ public class RecoverySettingsTests extends ESSingleNodeTestCase {
     }
 
     public void testAllSettingsAreDynamicallyUpdatable() {
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, randomIntBetween(1, 200), new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.concurrentStreamPool().getMaximumPoolSize());
-            }
-        });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, randomIntBetween(1, 200), new Validator() {
-            @Override
-            public void validate(RecoverySettings recoverySettings, int expectedValue) {
-                assertEquals(expectedValue, recoverySettings.concurrentSmallFileStreamPool().getMaximumPoolSize());
-            }
-        });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, 0, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(null, recoverySettings.rateLimiter());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.retryDelayStateSync().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.retryDelayNetwork().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.activityTimeout().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.internalActionTimeout().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.internalActionLongTimeout().millis());

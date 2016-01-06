@@ -95,7 +95,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -184,7 +184,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         throw new ScriptException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                     }
 
-                    MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
+                    MappedFieldType fieldType = mapper.fullName(fieldname);
 
                     if (fieldType == null) {
                         throw new ScriptException("Field [" + fieldname + "] used in expression does not exist in mappings");

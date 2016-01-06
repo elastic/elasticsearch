@@ -106,7 +106,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         this.allShardsStarted = allShardsStarted;
-
         this.primary = primary;
         if (primary != null) {
             this.primaryAsList = Collections.singletonList(primary);

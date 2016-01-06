@@ -239,6 +239,6 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
                 ", size:" + size +
                 ", timeout:" + timeout +
                 ", routing:" + routing +
-                ", query:" + query.toString();
+                ", query:" + query;
     }
 }

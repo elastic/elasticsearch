@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -84,6 +85,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
+    /**
+     * Override this operation if access to the task parameter is needed
+     */
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        masterOperation(request, state, listener);
+    }
+
     protected boolean localExecute(Request request) {
         return false;
     }
@@ -91,8 +99,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     @Override
-    protected void doExecute(final Request request, ActionListener<Response> listener) {
-        new AsyncSingleAction(request, listener).start();
+    protected final void doExecute(final Request request, ActionListener<Response> listener) {
+        logger.warn("attempt to execute a master node operation without task");
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
+        new AsyncSingleAction(task, request, listener).start();
     }
 
     class AsyncSingleAction {
@@ -100,6 +114,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         private final ActionListener<Response> listener;
         private final Request request;
         private volatile ClusterStateObserver observer;
+        private final Task task;
 
         private final ClusterStateObserver.ChangePredicate retryableOrNoBlockPredicate = new ClusterStateObserver.ValidationPredicate() {
             @Override
@@ -109,7 +124,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         };
 
-        AsyncSingleAction(Request request, ActionListener<Response> listener) {
+        AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
+            this.task = task;
             this.request = request;
             // TODO do we really need to wrap it in a listener? the handlers should be cheap
             if ((listener instanceof ThreadedActionListener) == false) {
@@ -157,7 +173,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
-                            masterOperation(request, clusterService.state(), delegate);
+                            masterOperation(task, request, clusterService.state(), delegate);
                         }
                     });
                 }

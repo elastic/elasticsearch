@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -119,9 +120,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(final Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener));
+            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener));
         }
 
         @Override
@@ -159,7 +160,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 if (masterOperationFailure) {
                     listener.onFailure(exception);
                 } else {

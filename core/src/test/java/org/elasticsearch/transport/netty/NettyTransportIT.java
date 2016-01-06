@@ -146,7 +146,7 @@ public class NettyTransportIT extends ESIntegTestCase {
                             }
                             if (reg.getExecutor() == ThreadPool.Names.SAME) {
                                 //noinspection unchecked
-                                reg.getHandler().messageReceived(request, transportChannel);
+                                reg.processMessageReceived(request, transportChannel);
                             } else {
                                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
                             }
@@ -176,7 +176,7 @@ public class NettyTransportIT extends ESIntegTestCase {
                         @SuppressWarnings({"unchecked"})
                         @Override
                         protected void doRun() throws Exception {
-                            reg.getHandler().messageReceived(request, transportChannel);
+                            reg.processMessageReceived(request, transportChannel);
                         }
 
                         @Override

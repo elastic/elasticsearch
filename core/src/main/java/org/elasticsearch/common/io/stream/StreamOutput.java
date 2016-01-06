@@ -667,4 +667,14 @@ public abstract class StreamOutput extends OutputStream {
         writeDouble(geoPoint.lat());
         writeDouble(geoPoint.lon());
     }
+
+    /**
+     * Writes a list of {@link Writeable} objects
+     */
+    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+        writeVInt(list.size());
+        for (T obj: list) {
+            obj.writeTo(this);
+        }
+    }
 }

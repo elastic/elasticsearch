@@ -71,11 +71,9 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine.Searcher;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
@@ -272,7 +270,7 @@ public class InternalEngineTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
 
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, INDEX_SETTINGS), indexSettings
+        EngineConfig config = new EngineConfig(shardId, threadPool, indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), new Engine.EventListener() {
             @Override
@@ -1977,7 +1975,7 @@ public class InternalEngineTests extends ESTestCase {
         /* create a TranslogConfig that has been created with a different UUID */
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE);
 
-        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
+        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(null, logger), config.getEventListener()
                 , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));

@@ -55,6 +55,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -95,7 +96,6 @@ public class InternalEngine extends Engine {
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private final ShardIndexingService indexingService;
     private final Engine.Warmer warmer;
     private final Translog translog;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
@@ -131,7 +131,6 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
-            this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
@@ -422,8 +421,6 @@ public class InternalEngine extends Engine {
 
             versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
             index.setTranslogLocation(translogLocation);
-
-            indexingService.postIndexUnderLock(index);
             return created;
         }
     }
@@ -524,7 +521,6 @@ public class InternalEngine extends Engine {
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
             versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
             delete.setTranslogLocation(translogLocation);
-            indexingService.postDeleteUnderLock(delete);
         }
     }
 
@@ -1059,6 +1055,10 @@ public class InternalEngine extends Engine {
         throttle.deactivate();
     }
 
+    public long getIndexThrottleTimeInMillis() {
+        return throttle.getThrottleTimeInMillis();
+    }
+
     long getGcDeletesInMillis() {
         return engineConfig.getGcDeletesInMillis();
     }
@@ -1081,7 +1081,6 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    indexingService.throttlingActivated();
                     activateThrottling();
                 }
             }
@@ -1093,7 +1092,6 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    indexingService.throttlingDeactivated();
                     deactivateThrottling();
                 }
             }

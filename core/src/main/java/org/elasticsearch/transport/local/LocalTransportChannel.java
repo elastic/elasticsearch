@@ -106,6 +106,16 @@ public class LocalTransportChannel implements TransportChannel {
         sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
     }
 
+    @Override
+    public long getRequestId() {
+        return requestId;
+    }
+
+    @Override
+    public String getChannelType() {
+        return "local";
+    }
+
     private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
         stream.writeLong(requestId);
         byte status = 0;

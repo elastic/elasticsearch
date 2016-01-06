@@ -65,9 +65,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -76,10 +76,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -490,34 +493,37 @@ public class TransportReplicationActionTests extends ESTestCase {
         transport.clear();
 
         assertThat(capturedRequests.length, equalTo(assignedReplicas));
-        Set<String> nodesSentTo = new HashSet<>();
+        HashMap<String, Request> nodesSentTo = new HashMap<>();
         boolean executeOnReplica =
             action.shouldExecuteReplication(clusterService.state().getMetaData().index(shardId.getIndex()).getSettings());
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
             // no duplicate requests
-            assertTrue(nodesSentTo.add(capturedRequest.node.getId()));
+            Request replicationRequest = (Request) capturedRequest.request;
+            assertNull(nodesSentTo.put(capturedRequest.node.getId(), replicationRequest));
             // the request is hitting the correct shard
-            Request replicationRequest = (Request)capturedRequest.request;
             assertEquals(request.shardId, replicationRequest.shardId);
         }
 
+        // no request was sent to the local node
+        assertThat(nodesSentTo.keySet(), not(hasItem(clusterService.state().getNodes().localNodeId())));
+
         // requests were sent to the correct shard copies
-        List<ShardRouting> shards =
-            clusterService.state().getRoutingTable().index(shardId.getIndex()).shard(shardId.id()).shards();
-        for (ShardRouting shard : shards) {
-            if (!shard.primary() && !executeOnReplica) {
+        for (ShardRouting shard : clusterService.state().getRoutingTable().shardRoutingTable(shardId.getIndex(), shardId.id())) {
+            if (shard.primary() == false && executeOnReplica == false) {
                 continue;
             }
             if (shard.unassigned()) {
                 continue;
             }
-            if (!clusterService.state().getNodes().localNodeId().equals(shard.currentNodeId())) {
-                assertThat(nodesSentTo, hasItem(shard.currentNodeId()));
+            if (shard.primary() == false) {
+                nodesSentTo.remove(shard.currentNodeId());
             }
             if (shard.relocating()) {
-                assertThat(nodesSentTo, hasItem(shard.relocatingNodeId()));
+                nodesSentTo.remove(shard.relocatingNodeId());
             }
         }
+
+        assertThat(nodesSentTo.entrySet(), is(empty()));
 
         if (assignedReplicas > 0) {
             assertThat("listener is done, but there are outstanding replicas", listener.isDone(), equalTo(false));
@@ -548,7 +554,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     // and the shard that was requested to be failed
                     ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry)shardFailedRequest.request;
                     // the shard the request was sent to and the shard to be failed should be the same
-                    assertTrue(shardRoutingEntry.getShardRouting().isSameAllocation(routing));
+                    assertEquals(shardRoutingEntry.getShardRouting(), routing);
                     failures.add(shardFailedRequest);
                     transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
                 }

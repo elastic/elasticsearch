@@ -329,7 +329,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().put(newNode).put(oldNode1).put(oldNode2)).build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new NodeVersionAllocationDecider(Settings.EMPTY)});
-        AllocationService strategy = new MockAllocationService(Settings.EMPTY,
+        AllocationService strategy = new AllocationService(Settings.EMPTY,
             allocationDeciders,
             new ShardsAllocators(Settings.EMPTY, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
         RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true);

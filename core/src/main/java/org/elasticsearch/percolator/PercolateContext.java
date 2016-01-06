@@ -88,11 +88,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class PercolateContext extends SearchContext {
 
-    private final PercolatorQueriesRegistry percolateQueryRegistry;
-    public boolean limit;
-    private int size;
-    public boolean doSort;
-    public byte percolatorTypeId;
+    private int size = 10;
     private boolean trackScores;
 
     private final SearchShardTarget searchShardTarget;
@@ -102,10 +98,12 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final MapperService mapperService;
     private final int numberOfShards;
     private final Query aliasFilter;
     private final long originNanoTime = System.nanoTime();
     private final long startTime;
+    private final boolean onlyCount;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -131,8 +129,8 @@ public class PercolateContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
+        this.mapperService = indexService.mapperService();
         this.searchShardTarget = searchShardTarget;
-        this.percolateQueryRegistry = indexShard.percolateRegistry();
         this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -143,6 +141,24 @@ public class PercolateContext extends SearchContext {
         this.numberOfShards = request.getNumberOfShards();
         this.aliasFilter = aliasFilter;
         this.startTime = request.getStartTime();
+        this.onlyCount = request.onlyCount();
+    }
+
+    // for testing:
+    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
+        super(null, request);
+        this.searchShardTarget = searchShardTarget;
+        this.mapperService = mapperService;
+        this.indexService = null;
+        this.indexShard = null;
+        this.fieldDataService = null;
+        this.pageCacheRecycler = null;
+        this.bigArrays = null;
+        this.scriptService = null;
+        this.aliasFilter = null;
+        this.startTime = 0;
+        this.numberOfShards = 0;
+        this.onlyCount = true;
     }
 
     public IndexSearcher docSearcher() {
@@ -177,10 +193,6 @@ public class PercolateContext extends SearchContext {
         return indexService;
     }
 
-    public ConcurrentMap<BytesRef, Query> percolateQueries() {
-        return percolateQueryRegistry.percolateQueries();
-    }
-
     public Query percolateQuery() {
         return percolateQuery;
     }
@@ -194,6 +206,14 @@ public class PercolateContext extends SearchContext {
             hitContext = new FetchSubPhase.HitContext();
         }
         return hitContext;
+    }
+
+    public boolean isOnlyCount() {
+        return onlyCount;
+    }
+
+    public Query percolatorTypeFilter(){
+        return indexService().mapperService().documentMapper(PercolatorService.TYPE_NAME).typeFilter();
     }
 
     @Override
@@ -230,7 +250,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return indexService.mapperService();
+        return mapperService;
     }
 
     @Override
@@ -531,7 +551,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext size(int size) {
         this.size = size;
-        this.limit = true;
         return this;
     }
 

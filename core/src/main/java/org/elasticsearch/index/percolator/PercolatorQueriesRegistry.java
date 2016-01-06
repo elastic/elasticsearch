@@ -31,17 +31,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.indexing.IndexingOperationListener;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -56,7 +50,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Each shard will have a percolator registry even if there isn't a {@link PercolatorService#TYPE_NAME} document type in the index.
@@ -67,12 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
-    public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
-
-    // This is a shard level service, but these below are index level service:
-    private final MapperService mapperService;
-    private final IndexFieldDataService indexFieldDataService;
-
+    public final static String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final QueryShardContext queryShardContext;
@@ -81,16 +69,13 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final CounterMetric currentMetric = new CounterMetric();
     private final CounterMetric numberOfQueries = new CounterMetric();
 
-    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings, MapperService mapperService,
-                                     QueryShardContext queryShardContext, IndexFieldDataService indexFieldDataService) {
+    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings, QueryShardContext queryShardContext) {
         super(shardId, indexSettings);
-        this.mapperService = mapperService;
         this.queryShardContext = queryShardContext;
-        this.indexFieldDataService = indexFieldDataService;
         this.mapUnmappedFieldsAsString = this.indexSettings.getSettings().getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
     }
 
-    public ConcurrentMap<BytesRef, Query> percolateQueries() {
+    public ConcurrentMap<BytesRef, Query> getPercolateQueries() {
         return percolateQueries;
     }
 
@@ -120,9 +105,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         }
     }
 
-    Query parsePercolatorDocument(String id, BytesReference source) {
-        String type = null;
-        BytesReference querySource = null;
+    public Query parsePercolatorDocument(String id, BytesReference source) {
         try (XContentParser sourceParser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
@@ -134,38 +117,21 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
                     currentFieldName = sourceParser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        if (type != null) {
-                            return parseQuery(type, sourceParser);
-                        } else {
-                            XContentBuilder builder = XContentFactory.contentBuilder(sourceParser.contentType());
-                            builder.copyCurrentStructure(sourceParser);
-                            querySource = builder.bytes();
-                            builder.close();
-                        }
+                        return parseQuery(queryShardContext, mapUnmappedFieldsAsString, sourceParser);
                     } else {
                         sourceParser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     sourceParser.skipChildren();
-                } else if (token.isValue()) {
-                    if ("type".equals(currentFieldName)) {
-                        type = sourceParser.text();
-                    }
                 }
-            }
-            try (XContentParser queryParser = XContentHelper.createParser(querySource)) {
-                return parseQuery(type, queryParser);
             }
         } catch (Exception e) {
             throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
         }
+        return null;
     }
 
-    private Query parseQuery(String type, XContentParser parser) {
-        String[] previousTypes = null;
-        if (type != null) {
-            previousTypes = QueryShardContext.setTypesWithPrevious(type);
-        }
+    public static Query parseQuery(QueryShardContext queryShardContext, boolean mapUnmappedFieldsAsString, XContentParser parser) {
         QueryShardContext context = new QueryShardContext(queryShardContext);
         try {
             context.reset(parser);
@@ -187,9 +153,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {
-            if (type != null) {
-                QueryShardContext.setTypes(previousTypes);
-            }
             context.reset(null);
         }
     }
@@ -199,7 +162,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         final int loadedQueries;
         try {
             Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
-            QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
+            QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger);
             IndexSearcher indexSearcher = new IndexSearcher(reader);
             indexSearcher.setQueryCache(null);
             indexSearcher.search(query, queryCollector);

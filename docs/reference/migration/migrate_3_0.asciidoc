@@ -578,3 +578,19 @@ balancing into account but don't assign the shard if the allocation deciders are
 in the case where shard copies can be found. Previously, a node not holding the shard copy was chosen if none of the nodes
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
+
+=== Percolator
+
+Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
+to the percolator. A refresh is required to run before the changes are visible to the percolator.
+
+The reason that this has changed is that on newly created indices the percolator automatically indexes the query terms
+and these query terms are used at percolate time to reduce the amount of queries the percolate API needs evaluate.
+This optimization didn't work in the percolate API mode where modifications to queries are immediately visible.
+
+The percolator by defaults sets the `size` option to `10` whereas before this was set to unlimited.
+
+The percolate api can no longer accept documents that have fields that don't exist in the mapping.
+
+When percolating an existing document then specifying a document in the source of the percolate request is not allowed
+any more.

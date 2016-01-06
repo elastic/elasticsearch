@@ -55,7 +55,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -101,7 +101,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -160,7 +160,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")

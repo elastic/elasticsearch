@@ -30,6 +30,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile 'org.elasticsearch:securemock:1.2'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked'

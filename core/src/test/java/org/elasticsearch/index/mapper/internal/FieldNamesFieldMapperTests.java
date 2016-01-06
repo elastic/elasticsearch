@@ -236,9 +236,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         IndicesModule indicesModule = new IndicesModule();
         indicesModule.registerMetadataMapper("_dummy", new DummyMetadataFieldMapper.TypeParser());
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDocument = mapper.parse("index", "type", "id", new BytesArray("{}"));

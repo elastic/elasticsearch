@@ -73,6 +73,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -146,6 +147,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -214,6 +216,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("field", "a"))
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);
@@ -221,7 +224,9 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type")
+                            .setSize(numQueries)
+            );
         }
 
         MultiPercolateResponse response = builder.execute().actionGet();
@@ -238,7 +243,8 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("2"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type").setSize(numQueries)
+            );
         }
 
         response = builder.execute().actionGet();
@@ -255,12 +261,14 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("2"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type").setSize(numQueries)
+            );
         }
         builder.add(
                 client().preparePercolate()
                         .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                        .setIndices("test").setDocumentType("type"));
+                        .setIndices("test").setDocumentType("type").setSize(numQueries)
+        );
 
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest + 1));
@@ -282,6 +290,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);
@@ -289,6 +298,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setIndices("test").setDocumentType("type")
+                            .setSize(numQueries)
                             .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
         }
 
@@ -331,6 +341,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         }
         builder.add(
                 client().preparePercolate()
+                        .setSize(numQueries)
                         .setIndices("test").setDocumentType("type")
                         .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
 

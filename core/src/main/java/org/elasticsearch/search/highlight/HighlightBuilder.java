@@ -427,7 +427,7 @@ public class HighlightBuilder implements ToXContent {
                     builder.field("boundary_max_scan", field.boundaryMaxScan);
                 }
                 if (field.boundaryChars != null) {
-                    builder.field("boundary_chars", field.boundaryChars);
+                    builder.field("boundary_chars", new String(field.boundaryChars));
                 }
                 if (field.highlighterType != null) {
                     builder.field("type", field.highlighterType);

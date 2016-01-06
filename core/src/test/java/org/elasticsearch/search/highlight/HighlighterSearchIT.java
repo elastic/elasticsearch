@@ -842,6 +842,14 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over"));
 
+        logger.info("--> searching with boundary characters on field");
+        source = searchSource()
+                .query(matchQuery("field2", "quick"))
+                .highlight(highlight().field(new Field("field2").fragmentSize(30).numOfFragments(1).boundaryChars(new char[] {' '})));
+        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+
+        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over"));
+
     }
 
     /**

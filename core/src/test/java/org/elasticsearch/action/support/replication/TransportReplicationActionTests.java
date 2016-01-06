@@ -418,6 +418,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15790")
     public void testReplication() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -441,6 +442,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15790")
     public void testReplicationWithShadowIndex() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -511,6 +513,12 @@ public class TransportReplicationActionTests extends ESTestCase {
                     transport.clear();
                     assertEquals(1, shardFailedRequests.length);
                     CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
+                    // get the shard the request was sent to
+                    ShardRouting routing = clusterService.state().getRoutingNodes().node(capturedRequest.node.id()).get(request.shardId.id());
+                    // and the shard that was requested to be failed
+                    ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry)shardFailedRequest.request;
+                    // the shard the request was sent to and the shard to be failed should be the same
+                    assertTrue(shardRoutingEntry.getShardRouting().isSameAllocation(routing));
                     failures.add(shardFailedRequest);
                     transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
                 }

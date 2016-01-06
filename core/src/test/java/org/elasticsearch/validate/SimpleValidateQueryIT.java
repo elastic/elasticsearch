@@ -108,7 +108,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         }
 
         for (Client client : internalCluster()) {
-                ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+            ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();

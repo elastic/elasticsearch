@@ -130,7 +130,7 @@ public class IngestPlugin extends Plugin {
             processorsModule.addProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
             processorsModule.addProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
             processorsModule.addProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
-            processorsModule.addProcessor(LowercaseProcessor.TYPE, (environment, mustacheFactory) -> new LowercaseProcessor.Factory());
+            processorsModule.addProcessor(LowercaseProcessor.TYPE, (environment, templateService) -> new LowercaseProcessor.Factory());
             processorsModule.addProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
             processorsModule.addProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
             processorsModule.addProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
@@ -170,6 +170,6 @@ public class IngestPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.registerScriptContext(MustacheTemplateService.INGEST_SCRIPT_CONTEXT);
+        module.registerScriptContext(InternalTemplateService.INGEST_SCRIPT_CONTEXT);
     }
 }

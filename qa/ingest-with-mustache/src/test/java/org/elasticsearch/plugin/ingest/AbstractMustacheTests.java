@@ -42,12 +42,12 @@ public abstract class AbstractMustacheTests extends ESTestCase {
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
         ScriptContextRegistry registry = new ScriptContextRegistry(
-            Collections.singletonList(MustacheTemplateService.INGEST_SCRIPT_CONTEXT)
+            Collections.singletonList(InternalTemplateService.INGEST_SCRIPT_CONTEXT)
         );
         ScriptService scriptService = new ScriptService(
             settings, new Environment(settings), Collections.singleton(mustache), null, registry
         );
-        templateService = new MustacheTemplateService(scriptService);
+        templateService = new InternalTemplateService(scriptService);
     }
 
 }

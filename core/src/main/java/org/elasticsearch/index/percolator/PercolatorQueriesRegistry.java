@@ -62,11 +62,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
 
     public final static String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
-    // This is a shard level service, but these below are index level service:
-    private final MapperService mapperService;
-    private final IndexFieldDataService indexFieldDataService;
-
-
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final QueryShardContext queryShardContext;
     private boolean mapUnmappedFieldsAsString;
@@ -74,12 +69,9 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final CounterMetric currentMetric = new CounterMetric();
     private final CounterMetric numberOfQueries = new CounterMetric();
 
-    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings, MapperService mapperService,
-                                     QueryShardContext queryShardContext, IndexFieldDataService indexFieldDataService) {
+    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings, QueryShardContext queryShardContext) {
         super(shardId, indexSettings);
-        this.mapperService = mapperService;
         this.queryShardContext = queryShardContext;
-        this.indexFieldDataService = indexFieldDataService;
         this.mapUnmappedFieldsAsString = this.indexSettings.getSettings().getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
     }
 
@@ -170,7 +162,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         final int loadedQueries;
         try {
             Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
-            QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
+            QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger);
             IndexSearcher indexSearcher = new IndexSearcher(reader);
             indexSearcher.setQueryCache(null);
             indexSearcher.search(query, queryCollector);

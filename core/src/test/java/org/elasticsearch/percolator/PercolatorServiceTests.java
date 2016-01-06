@@ -166,14 +166,9 @@ public class PercolatorServiceTests extends ESTestCase {
                 .build(),
                 Settings.EMPTY, Collections.emptyList()
         );
-        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
-        IndicesModule indicesModule = new IndicesModule();
-        MapperService mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()), indicesModule.getMapperRegistry(), () -> null);
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,
-                mapperService,
-                null,
                 null
         );
     }

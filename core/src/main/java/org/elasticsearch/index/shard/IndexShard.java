@@ -267,7 +267,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, mapperService, newQueryShardContext(), indexFieldDataService);
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, newQueryShardContext());
         // We start up inactive
         active.set(false);
     }

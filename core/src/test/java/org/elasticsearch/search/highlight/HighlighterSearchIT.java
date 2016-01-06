@@ -2552,6 +2552,26 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testDoesNotHighlightAliasFilters() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("typename").startObject("properties")
+                .startObject("foo").field("type", "string")
+                    .field("index_options", "offsets")
+                    .field("term_vector", "with_positions_offsets")
+                .endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("typename", mapping));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "typename").setSource("foo", "test japanese"));
+
+        for (String highlighter: new String[] {"plain", "fvh", "postings"}) {
+            SearchResponse response = client().prepareSearch("filtered_alias").setTypes("typename").setQuery(matchQuery("foo", "test"))
+                    .highlighter(new HighlightBuilder().field("foo").highlighterType(highlighter).requireFieldMatch(false)).get();
+            assertHighlight(response, 0, "foo", 0, 1, equalTo("<em>test</em> japanese"));
+        }
+    }
+
+
     @AwaitsFix(bugUrl="Broken now that BoostingQuery does not extend BooleanQuery anymore")
     public void testFastVectorHighlighterPhraseBoost() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));

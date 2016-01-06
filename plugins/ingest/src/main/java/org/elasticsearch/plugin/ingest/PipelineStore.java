@@ -41,10 +41,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.ProcessorFactoryProvider;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequest;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequest;
 import org.elasticsearch.plugin.ingest.transport.reload.ReloadPipelinesAction;
@@ -61,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public class PipelineStore extends AbstractComponent implements Closeable {
 
@@ -89,7 +89,7 @@ public class PipelineStore extends AbstractComponent implements Closeable {
     public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, Environment environment, ScriptService scriptService) {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         TemplateService templateService = new InternalTemplateService(scriptService);
-        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorsRegistry.entrySet()) {
+        for (Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>> entry : processorsRegistry.entrySet()) {
             Processor.Factory processorFactory = entry.getValue().apply(environment, templateService);
             processorFactories.put(entry.getKey(), processorFactory);
         }

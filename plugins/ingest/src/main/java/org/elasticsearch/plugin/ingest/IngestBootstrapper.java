@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.ingest.ProcessorFactoryProvider;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +43,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 
 /**
  * Instantiates and wires all the services that the ingest plugin will be needing.

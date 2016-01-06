@@ -19,10 +19,12 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -42,9 +44,9 @@ public class ProcessorsRegistryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        Set<Map.Entry<String, ProcessorFactoryProvider>> entrySet = processorsRegistry.entrySet();
+        Set<Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>>> entrySet = processorsRegistry.entrySet();
         assertThat(entrySet.size(), equalTo(2));
-        for (Map.Entry<String, ProcessorFactoryProvider> entry : entrySet) {
+        for (Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>> entry : entrySet) {
             if (entry.getKey().equals("1")) {
                 assertThat(entry.getValue().apply(null, null), equalTo(factory1));
             } else if (entry.getKey().equals("2")) {

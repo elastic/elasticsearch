@@ -20,11 +20,13 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.env.Environment;
+
+import java.util.function.BiFunction;
 
 /**
  * Registry for processor factories
  * @see org.elasticsearch.ingest.Processor.Factory
- * @see ProcessorFactoryProvider
  */
 public class ProcessorsModule extends AbstractModule {
 
@@ -42,7 +44,7 @@ public class ProcessorsModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void addProcessor(String type, ProcessorFactoryProvider processorFactoryProvider) {
+    public void addProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
         processorsRegistry.addProcessor(type, processorFactoryProvider);
     }
 }

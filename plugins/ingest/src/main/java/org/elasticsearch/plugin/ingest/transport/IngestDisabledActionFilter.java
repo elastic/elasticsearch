@@ -24,11 +24,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
+import org.elasticsearch.tasks.Task;
 
 public final class IngestDisabledActionFilter implements ActionFilter {
 
     @Override
-    public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+    public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
         String pipelineId = request.getFromContext(IngestPlugin.PIPELINE_ID_PARAM_CONTEXT_KEY);
         if (pipelineId != null) {
             failRequest(pipelineId);
@@ -38,7 +39,7 @@ public final class IngestDisabledActionFilter implements ActionFilter {
             failRequest(pipelineId);
         }
 
-        chain.proceed(action, request, listener);
+        chain.proceed(task, action, request, listener);
     }
 
     @Override

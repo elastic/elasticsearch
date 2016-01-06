@@ -38,6 +38,7 @@ import org.elasticsearch.plugin.ingest.IngestBootstrapper;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -77,42 +78,46 @@ public class IngestActionFilterTests extends ESTestCase {
 
     public void testApplyNoIngestId() throws Exception {
         IndexRequest indexRequest = new IndexRequest();
+        Task task = mock(Task.class);
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
+        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
         verifyZeroInteractions(executionService, actionFilterChain);
     }
 
     public void testApplyIngestIdViaRequestParam() throws Exception {
+        Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
         verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
     public void testApplyIngestIdViaContext() throws Exception {
+        Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putInContext(IngestPlugin.PIPELINE_ID_PARAM_CONTEXT_KEY, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
         verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
     public void testApplyAlreadyProcessed() throws Exception {
+        Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
@@ -120,13 +125,14 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
+        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
         verifyZeroInteractions(executionService, actionListener);
     }
 
     public void testApplyExecuted() throws Exception {
+        Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
@@ -140,14 +146,15 @@ public class IngestActionFilterTests extends ESTestCase {
             return null;
         };
         doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
         verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
+        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
 
     public void testApplyFailed() throws Exception {
+        Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
@@ -164,7 +171,7 @@ public class IngestActionFilterTests extends ESTestCase {
             }
         };
         doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
 
         verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
         verify(actionListener).onFailure(exception);
@@ -172,6 +179,7 @@ public class IngestActionFilterTests extends ESTestCase {
     }
 
     public void testApplyWithBulkRequest() throws Exception {
+        Task task = mock(Task.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(any())).thenReturn(Runnable::run);
         PipelineStore store = mock(PipelineStore.class);
@@ -215,12 +223,12 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
+        filter.apply(task, "_action", bulkRequest, actionListener, actionFilterChain);
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                verify(actionFilterChain).proceed("_action", bulkRequest, actionListener);
+                verify(actionFilterChain).proceed(task, "_action", bulkRequest, actionListener);
                 verifyZeroInteractions(actionListener);
 
                 int assertedRequests = 0;

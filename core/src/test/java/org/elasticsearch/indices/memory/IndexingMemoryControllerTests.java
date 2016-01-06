@@ -330,7 +330,14 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             @Override
             protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
                 return shard.getIndexBufferRAMBytesUsed();
+            }   
+
+            @Override
+            protected void writeIndexingBufferAsync(IndexShard shard) {
+                // just do it sync'd for this test
+                shard.writeIndexingBuffer();
             }
+
         };
 
         for (int i = 0; i < 100; i++) {

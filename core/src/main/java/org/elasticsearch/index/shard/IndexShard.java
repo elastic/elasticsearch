@@ -555,7 +555,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 refreshMetric.inc(System.nanoTime() - time);
             } finally {
                 logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                // nocommit but we don't promptly stop index throttling anymore?
                 writingBytes.addAndGet(-bytes);
             }
         } else {
@@ -1280,7 +1279,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             try {
                 engine.writeIndexingBuffer();
             } finally {
-                // nocommit but we don't promptly stop index throttling anymore?
                 writingBytes.addAndGet(-bytes);
                 logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
             }

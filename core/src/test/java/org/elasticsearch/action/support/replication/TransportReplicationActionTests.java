@@ -492,7 +492,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
         transport.clear();
 
-        assertThat(capturedRequests.length, equalTo(assignedReplicas));
         HashMap<String, Request> nodesSentTo = new HashMap<>();
         boolean executeOnReplica =
             action.shouldExecuteReplication(clusterService.state().getMetaData().index(shardId.getIndex()).getSettings());

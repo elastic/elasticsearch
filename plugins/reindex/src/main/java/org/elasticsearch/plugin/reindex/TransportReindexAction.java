@@ -19,9 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.VersionType.INTERNAL;
-
 import java.util.Objects;
 
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +39,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static java.util.Objects.requireNonNull;
+
+import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
     private final ClusterService clusterService;
@@ -108,16 +109,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             }
             index.source(doc.sourceRef());
             /*
-             * We've already copied the versionType but we need to be careful
-             * with internal versioning. It either represents "create" (version
-             * == MATCH_DELETED) or overwrite (version == MATCH_ANY). All other
-             * values are invalid.
+             * Internal versioning can just use what we copied from the
+             * destionation request. Otherwise we assume we're using external
+             * versioning and use the doc's version.
              */
-            if (index.versionType() == INTERNAL) {
-                if (index.version() != Versions.MATCH_DELETED && index.version() != Versions.MATCH_ANY) {
-                    throw new IllegalArgumentException("Invalid version for reindex with internal versioning [" + index.version() + ']');
-                }
-            } else {
+            if (index.versionType() != INTERNAL) {
                 index.version(doc.version());
             }
             return index;

@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Collections;
@@ -43,6 +42,10 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -60,7 +63,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void setup() {
         store = mock(PipelineStore.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(Matchers.anyString())).thenReturn(Runnable::run);
+        when(threadPool.executor(anyString())).thenReturn(Runnable::run);
         executionService = new PipelineExecutionService(store, threadPool);
     }
 
@@ -77,8 +80,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("pipeline with id [_id] does not exist"));
         }
-        verify(failureHandler, never()).accept(Matchers.any(Throwable.class));
-        verify(completionHandler, never()).accept(Matchers.anyBoolean());
+        verify(failureHandler, never()).accept(any(Throwable.class));
+        verify(completionHandler, never()).accept(anyBoolean());
     }
 
     public void testExecuteSuccess() throws Exception {
@@ -91,7 +94,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
-        verify(failureHandler, never()).accept(Matchers.any());
+        verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
 
@@ -108,7 +111,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
             }
             return null;
-        }).when(processor).execute(Matchers.any());
+        }).when(processor).execute(any());
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
@@ -117,8 +120,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
-        verify(processor).execute(Matchers.any());
-        verify(failureHandler, never()).accept(Matchers.any());
+        verify(processor).execute(any());
+        verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
 
         assertThat(indexRequest.index(), equalTo("update_index"));
@@ -141,8 +144,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(failureHandler, times(1)).accept(Matchers.any(RuntimeException.class));
-        verify(completionHandler, never()).accept(Matchers.anyBoolean());
+        verify(failureHandler, times(1)).accept(any(RuntimeException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
     }
 
     public void testExecuteSuccessWithOnFailure() throws Exception {
@@ -157,7 +160,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
-        verify(failureHandler, never()).accept(Matchers.any(RuntimeException.class));
+        verify(failureHandler, never()).accept(any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(true);
     }
 
@@ -175,8 +178,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(failureHandler, times(1)).accept(Matchers.any(RuntimeException.class));
-        verify(completionHandler, never()).accept(Matchers.anyBoolean());
+        verify(failureHandler, times(1)).accept(any(RuntimeException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
     }
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
@@ -196,10 +199,9 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(failureHandler, times(1)).accept(Matchers.any(RuntimeException.class));
-        verify(completionHandler, never()).accept(Matchers.anyBoolean());
+        verify(failureHandler, times(1)).accept(any(RuntimeException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
     }
-
 
     public void testExecuteSetTTL() throws Exception {
         Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "5d"));
@@ -213,7 +215,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl")));
-        verify(failureHandler, never()).accept(Matchers.any());
+        verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
 
@@ -227,8 +229,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
-        verify(failureHandler, times(1)).accept(Matchers.any(ElasticsearchParseException.class));
-        verify(completionHandler, never()).accept(Matchers.anyBoolean());
+        verify(failureHandler, times(1)).accept(any(ElasticsearchParseException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
     }
 
     public void testExecuteProvidedTTL() throws Exception {
@@ -242,7 +244,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(new TimeValue(1000L)));
-        verify(failureHandler, never()).accept(Matchers.any());
+        verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
 
@@ -272,7 +274,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
         Exception error = new RuntimeException();
-        doThrow(error).when(processor).execute(Matchers.any());
+        doThrow(error).when(processor).execute(any());
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
 
         Consumer<Throwable> requestItemErrorHandler = mock(Consumer.class);
@@ -302,12 +304,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), pipelineId, requestItemErrorHandler, completionHandler);
 
-        verify(requestItemErrorHandler, never()).accept(Matchers.any());
+        verify(requestItemErrorHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
 
     private IngestDocument eqID(String index, String type, String id, Map<String, Object> source) {
-        return Matchers.argThat(new IngestDocumentMatcher(index, type, id, source));
+        return argThat(new IngestDocumentMatcher(index, type, id, source));
     }
 
     private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {

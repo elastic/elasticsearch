@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +47,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,8 +64,8 @@ public class PipelineStoreTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         client = mock(Client.class);
-        when(client.search(Matchers.any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
-        when(client.searchScroll(Matchers.any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
+        when(client.search(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
+        when(client.searchScroll(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
         store = new PipelineStore(settings, clusterService, transportService);
         store.setClient(client);
         store.start();
@@ -76,15 +77,15 @@ public class PipelineStoreTests extends ESTestCase {
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
         );
 
-        when(client.search(Matchers.any())).thenReturn(expectedSearchReponse(hits));
-        when(client.get(Matchers.any())).thenReturn(expectedGetResponse(true));
+        when(client.search(any())).thenReturn(expectedSearchReponse(hits));
+        when(client.get(any())).thenReturn(expectedGetResponse(true));
         assertThat(store.get("1"), nullValue());
 
         store.updatePipelines();
         assertThat(store.get("1").getId(), equalTo("1"));
         assertThat(store.get("1").getDescription(), equalTo("_description1"));
 
-        when(client.get(Matchers.any())).thenReturn(expectedGetResponse(true));
+        when(client.get(any())).thenReturn(expectedGetResponse(true));
         hits.add(new InternalSearchHit(0, "2", new Text("type"), Collections.emptyMap())
                         .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
         );
@@ -108,7 +109,7 @@ public class PipelineStoreTests extends ESTestCase {
         hits.add(new InternalSearchHit(0, "foo", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
         hits.add(new InternalSearchHit(0, "bar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
         hits.add(new InternalSearchHit(0, "foobar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
-        when(client.search(Matchers.any())).thenReturn(expectedSearchReponse(hits));
+        when(client.search(any())).thenReturn(expectedSearchReponse(hits));
         store.updatePipelines();
 
         List<PipelineDefinition> result = store.getReference("foo");
@@ -165,7 +166,7 @@ public class PipelineStoreTests extends ESTestCase {
     }
 
     static GetRequest eqGetRequest(String index, String type, String id) {
-        return Matchers.argThat(new GetRequestMatcher(index, type, id));
+        return argThat(new GetRequestMatcher(index, type, id));
     }
 
     static class GetRequestMatcher extends ArgumentMatcher<GetRequest> {

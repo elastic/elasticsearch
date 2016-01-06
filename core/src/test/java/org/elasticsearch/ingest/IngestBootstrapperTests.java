@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
-import org.mockito.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,6 +54,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -70,7 +71,7 @@ public class IngestBootstrapperTests extends ESTestCase {
     @Before
     public void init() {
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(Matchers.any())).thenReturn(Runnable::run);
+        when(threadPool.executor(any())).thenReturn(Runnable::run);
         ClusterService clusterService = mock(ClusterService.class);
         store = mock(PipelineStore.class);
         when(store.isStarted()).thenReturn(false);
@@ -84,8 +85,8 @@ public class IngestBootstrapperTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         ClusterService clusterService = mock(ClusterService.class);
-        when(client.search(Matchers.any())).thenReturn(PipelineStoreTests.expectedSearchReponse(Collections.emptyList()));
-        when(client.searchScroll(Matchers.any())).thenReturn(PipelineStoreTests.expectedSearchReponse(Collections.emptyList()));
+        when(client.search(any())).thenReturn(PipelineStoreTests.expectedSearchReponse(Collections.emptyList()));
+        when(client.searchScroll(any())).thenReturn(PipelineStoreTests.expectedSearchReponse(Collections.emptyList()));
         Settings settings = Settings.EMPTY;
         PipelineStore store = new PipelineStore(settings, clusterService, transportService);
         IngestBootstrapper bootstrapper = new IngestBootstrapper(
@@ -97,8 +98,8 @@ public class IngestBootstrapperTests extends ESTestCase {
         hits.add(new InternalSearchHit(0, "1", new Text("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
         );
-        when(client.search(Matchers.any())).thenReturn(PipelineStoreTests.expectedSearchReponse(hits));
-        when(client.get(Matchers.any())).thenReturn(PipelineStoreTests.expectedGetResponse(true));
+        when(client.search(any())).thenReturn(PipelineStoreTests.expectedSearchReponse(hits));
+        when(client.get(any())).thenReturn(PipelineStoreTests.expectedGetResponse(true));
 
         try {
             store.get("1");
@@ -145,7 +146,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         ClusterState cs = csBuilder.metaData(MetaData.builder()).build();
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, never()).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
     }
 
     public void testPipelineStoreBootstrappingGlobalStateNoMasterBlock() throws Exception {
@@ -160,13 +161,13 @@ public class IngestBootstrapperTests extends ESTestCase {
         // We're not started and there is a no master block, doing nothing:
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, never()).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
 
         // We're started and there is a no master block, so we stop the store:
         when(store.isStarted()).thenReturn(true);
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, never()).start();
-        verify(store, times(1)).stop(Matchers.anyString());
+        verify(store, times(1)).stop(anyString());
     }
 
     public void testPipelineStoreBootstrappingNoIngestIndex() throws Exception {
@@ -202,13 +203,13 @@ public class IngestBootstrapperTests extends ESTestCase {
         // We're not running and the cluster state isn't ready, so we don't start.
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, never()).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
 
         // We're running and the cluster state indicates that all our shards are unassigned, so we stop.
         when(store.isStarted()).thenReturn(true);
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, never()).start();
-        verify(store, times(1)).stop(Matchers.anyString());
+        verify(store, times(1)).stop(anyString());
     }
 
     public void testPipelineStoreBootstrappingIngestIndexShardsStarted() throws Exception {
@@ -235,13 +236,13 @@ public class IngestBootstrapperTests extends ESTestCase {
         // We're not running and the cluster state is ready, so we start.
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, times(1)).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
 
         // We're running and the cluster state is good, so we do nothing.
         when(store.isStarted()).thenReturn(true);
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, times(1)).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
     }
 
     public void testPipelineStoreBootstrappingFailure() throws Exception {
@@ -269,7 +270,7 @@ public class IngestBootstrapperTests extends ESTestCase {
         doThrow(new RuntimeException()).doNothing().when(store).start();
         bootstrapper.clusterChanged(new ClusterChangedEvent("test", cs, cs));
         verify(store, times(2)).start();
-        verify(store, never()).stop(Matchers.anyString());
+        verify(store, never()).stop(anyString());
     }
 
 }

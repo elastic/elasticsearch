@@ -418,7 +418,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15790")
     public void testReplication() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -442,7 +441,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15790")
     public void testReplicationWithShadowIndex() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);

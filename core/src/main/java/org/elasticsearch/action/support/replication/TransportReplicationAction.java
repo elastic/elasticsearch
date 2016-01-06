@@ -850,15 +850,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (shard.primary()) {
                     if (originalPrimaryShard.currentNodeId().equals(shard.currentNodeId()) == false) {
                         // there is a new primary, we'll have to replicate to it.
-                        performOnReplica(shard, shard.currentNodeId());
+                        performOnReplica(shard);
                     }
                     if (shard.relocating()) {
-                        performOnReplica(shard, shard.relocatingNodeId());
+                        performOnReplica(shard.buildTargetRelocatingShard());
                     }
                 } else if (shouldExecuteReplication(indexMetaData.getSettings())) {
-                    performOnReplica(shard, shard.currentNodeId());
+                    performOnReplica(shard);
                     if (shard.relocating()) {
-                        performOnReplica(shard, shard.relocatingNodeId());
+                        performOnReplica(shard.buildTargetRelocatingShard());
                     }
                 }
             }
@@ -867,9 +867,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         /**
          * send operation to the given node or perform it if local
          */
-        void performOnReplica(final ShardRouting shard, final String nodeId) {
+        void performOnReplica(final ShardRouting shard) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
+            final String nodeId = shard.currentNodeId();
             if (!observer.observedState().nodes().nodeExists(nodeId)) {
                 onReplicaFailure(nodeId, null);
                 return;

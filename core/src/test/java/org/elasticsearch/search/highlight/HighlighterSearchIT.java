@@ -19,6 +19,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -802,9 +803,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
-        refresh();
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
@@ -822,7 +822,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
         logger.info("--> searching on _all, highlighting on field2");
@@ -832,7 +831,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
 
         logger.info("--> searching on _all, highlighting on field2");
@@ -842,8 +840,17 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        logger.info("--> searching with boundary characters");
+        source = searchSource()
+                .query(matchQuery("field2", "quick"))
+                .highlighter(highlight().field("field2", 30, 1).boundaryChars(new char[] {' '}));
+
+        searchResponse = client().prepareSearch("test").setSource(source).get();
+
+        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over"));
+
     }
 
     /**

@@ -28,14 +28,13 @@ public class ProcessorsRegistry {
     private final Map<String, ProcessorFactoryProvider> processorFactoryProviders = new HashMap<>();
 
     /**
-     * Adds a processor factory under a specific type name.
+     * Adds a processor factory under a specific name.
      */
-    public void addProcessor(String type, ProcessorFactoryProvider processorFactoryProvider) {
-        processorFactoryProviders.put(type, processorFactoryProvider);
-    }
-
-    public ProcessorFactoryProvider getProcessor(String type) {
-        return processorFactoryProviders.get(type);
+    public void addProcessor(String name, ProcessorFactoryProvider processorFactoryProvider) {
+        ProcessorFactoryProvider provider = processorFactoryProviders.putIfAbsent(name, processorFactoryProvider);
+        if (provider != null) {
+            throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");
+        }
     }
 
     public Set<Map.Entry<String, ProcessorFactoryProvider>> entrySet() {

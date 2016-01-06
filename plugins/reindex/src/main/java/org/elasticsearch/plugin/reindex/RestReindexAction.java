@@ -19,10 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +45,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+
+import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -89,7 +89,7 @@ public class RestReindexAction extends BaseRestHandler {
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("destination"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::size, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> {v.script(Script.parse(p, c.parseFieldMatcher()));}, new ParseField("script"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> v.script(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::conflicts, new ParseField("conflicts"));
     }
 

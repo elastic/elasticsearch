@@ -148,7 +148,6 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         assertThat(assertionError + " should be null", assertionError, nullValue());
     }
 
-    @AwaitsFix(bugUrl = "reproduces= -Dtests.seed=DA9C1BDEB045305C")
     public void testConcurrentAddingAndPercolating() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
@@ -252,7 +251,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                             .setSource(onlyField1Doc).execute().actionGet();
                                     assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
-                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    assertThat(response.getCount(), greaterThanOrEqualTo((long) atLeastExpected));
                                     break;
                                 case 1:
                                     atLeastExpected = type2.get();
@@ -260,7 +259,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                             .setSource(onlyField2Doc).execute().actionGet();
                                     assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
-                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    assertThat(response.getCount(), greaterThanOrEqualTo((long) atLeastExpected));
                                     break;
                                 case 2:
                                     atLeastExpected = type3.get();
@@ -268,7 +267,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                             .setSource(field1AndField2Doc).execute().actionGet();
                                     assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
-                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    assertThat(response.getCount(), greaterThanOrEqualTo((long) atLeastExpected));
                                     break;
                             }
                         }

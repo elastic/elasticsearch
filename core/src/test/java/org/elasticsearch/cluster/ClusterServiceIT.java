@@ -886,7 +886,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testClusterStateBatchedUpdates() throws InterruptedException {
+    public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
@@ -974,19 +974,12 @@ public class ClusterServiceIT extends ESIntegTestCase {
             counts.merge(executor, 1, (previous, one) -> previous + one);
         }
 
-        CountDownLatch startGate = new CountDownLatch(1);
-        CountDownLatch endGate = new CountDownLatch(numberOfThreads);
-        AtomicBoolean interrupted = new AtomicBoolean();
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             final int index = i;
             Thread thread = new Thread(() -> {
                 try {
-                    try {
-                        startGate.await();
-                    } catch (InterruptedException e) {
-                        interrupted.set(true);
-                        return;
-                    }
+                    barrier.await();
                     for (int j = 0; j < tasksSubmittedPerThread; j++) {
                         ClusterStateTaskExecutor<Task> executor = assignments.get(index * tasksSubmittedPerThread + j);
                         clusterService.submitStateUpdateTask(
@@ -996,16 +989,18 @@ public class ClusterServiceIT extends ESIntegTestCase {
                                 executor,
                                 listener);
                     }
-                } finally {
-                    endGate.countDown();
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
                 }
             });
             thread.start();
         }
 
-        startGate.countDown();
-        endGate.await();
-        assertFalse(interrupted.get());
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
 
         // wait until all the cluster state updates have been processed
         updateLatch.await();

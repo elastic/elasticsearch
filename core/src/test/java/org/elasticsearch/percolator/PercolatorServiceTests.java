@@ -172,7 +172,6 @@ public class PercolatorServiceTests extends ESTestCase {
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,
-                null,
                 mapperService,
                 null,
                 null

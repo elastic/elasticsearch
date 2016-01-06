@@ -277,6 +277,10 @@ public class ShardStateAction extends AbstractComponent {
             this.failure = failure;
         }
 
+        public ShardRouting getShardRouting() {
+            return shardRouting;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);

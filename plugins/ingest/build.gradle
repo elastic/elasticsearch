@@ -35,7 +35,6 @@ dependencies {
 
   compile 'joda-time:joda-time:2.8.2'
   testCompile 'org.elasticsearch:geolite2-databases:20151029'
-  testCompile 'org.elasticsearch:securemock:1.2'
 }
 
 sourceSets {
@@ -63,9 +62,22 @@ bundlePlugin {
   }
 }
 
-//geoip WebServiceClient needs Google http client, but we're not using WebServiceClient and
-// joni has AsmCompilerSupport, but that isn't being used:
-thirdPartyAudit.missingClasses = true
+thirdPartyAudit.excludes = [
+  // geoip WebServiceClient needs Google http client, but we're not using WebServiceClient:
+  'com.google.api.client.http.HttpTransport',
+  'com.google.api.client.http.GenericUrl',
+  'com.google.api.client.http.HttpResponse',
+  'com.google.api.client.http.HttpRequestFactory',
+  'com.google.api.client.http.HttpRequest',
+  'com.google.api.client.http.HttpHeaders',
+  'com.google.api.client.http.HttpResponseException',
+  'com.google.api.client.http.javanet.NetHttpTransport',
+  'com.google.api.client.http.javanet.NetHttpTransport',
+  // joni has AsmCompilerSupport, but that isn't being used:
+  'org.objectweb.asm.ClassWriter',
+  'org.objectweb.asm.MethodVisitor',
+  'org.objectweb.asm.Opcodes',
+]
 
 integTest {
   cluster {

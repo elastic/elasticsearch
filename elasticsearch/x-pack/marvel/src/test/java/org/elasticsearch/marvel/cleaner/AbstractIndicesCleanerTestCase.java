@@ -20,6 +20,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Locale;
+
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -127,7 +129,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(CleanerService.HISTORY_SETTING.getKey(), String.format("%dd", retention)));
+        internalCluster().startNode(Settings.builder().put(CleanerService.HISTORY_SETTING.getKey(), String.format(Locale.ROOT, "%dd", retention)));
 
         final DateTime now = now();
         for (int i = 0; i < max; i++) {
@@ -146,7 +148,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
 
         // Default retention is between 3 and max days
         final int defaultRetention = randomIntBetween(3, max);
-        internalCluster().startNode(Settings.builder().put(CleanerService.HISTORY_SETTING.getKey(), String.format("%dd", defaultRetention)));
+        internalCluster().startNode(Settings.builder().put(CleanerService.HISTORY_SETTING.getKey(), String.format(Locale.ROOT, "%dd", defaultRetention)));
 
         final DateTime now = now();
         for (int i = 0; i < max; i++) {
@@ -161,7 +163,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         // Updates the retention setting for the exporter
         Exporters exporters = internalCluster().getInstance(Exporters.class);
         for (Exporter exporter : exporters) {
-            Settings transientSettings = Settings.builder().put("marvel.agent.exporters." + exporter.name() + "." + CleanerService.HISTORY_DURATION, String.format("%dd", exporterRetention)).build();
+            Settings transientSettings = Settings.builder().put("marvel.agent.exporters." + exporter.name() + "." + CleanerService.HISTORY_DURATION, String.format(Locale.ROOT, "%dd", exporterRetention)).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings));
         }
 

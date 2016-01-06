@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
+import org.joda.time.chrono.ISOChronology;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -54,7 +55,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     protected void doStart() {
         logger.debug("starting cleaning service");
         this.runnable = new IndicesCleaner();
-        threadPool.schedule(executionScheduler.nextExecutionDelay(DateTime.now()), executorName(), runnable);
+        threadPool.schedule(executionScheduler.nextExecutionDelay(new DateTime(ISOChronology.getInstance())), executorName(), runnable);
         logger.debug("cleaning service started");
     }
 
@@ -143,7 +144,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
                 }
             }
 
-            DateTime start = DateTime.now();
+            DateTime start = new DateTime(ISOChronology.getInstance());
             if (globalRetention.millis() > 0) {
                 logger.trace("cleaning up indices with retention [{}]", globalRetention);
 

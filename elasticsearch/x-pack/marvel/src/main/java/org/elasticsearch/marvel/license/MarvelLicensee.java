@@ -49,7 +49,7 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                                             "separate and dedicated Marvel instance for each [{}] cluster you wish to monitor.",
                                             newLicense.type(), newLicense.type(), newLicense.type()),
                                     LoggerMessageFormat.format(
-                                            "Automatic index deletion is disabled for clusters with [{}] license.", newLicense.type())
+                                            "Automatic index cleanup is disabled for clusters with [{}] license.", newLicense.type())
 
                             };
                     }

@@ -181,7 +181,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     protected boolean retryPrimaryException(Throwable e) {
         return e.getClass() == RetryOnPrimaryException.class
-                || TransportActions.isShardNotAvailableException(e);
+            || TransportActions.isShardNotAvailableException(e);
     }
 
     /**
@@ -482,7 +482,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                         if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
-                                (isPrimaryAction && retryPrimaryException(exp.unwrapCause()))) {
+                            (isPrimaryAction && retryPrimaryException(exp.unwrapCause()))) {
                             logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.id(), request);
                             request.setCanHaveDuplicates();
                             retry(exp);
@@ -655,7 +655,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
             if (sizeActive < requiredNumber) {
                 logger.trace("not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}), scheduling a retry. action [{}], request [{}]",
-                        shardId, consistencyLevel, sizeActive, requiredNumber, transportPrimaryAction, request);
+                    shardId, consistencyLevel, sizeActive, requiredNumber, transportPrimaryAction, request);
                 return "Not enough active copies to meet write consistency of [" + consistencyLevel + "] (have " + sizeActive + ", needed " + requiredNumber + ").";
             } else {
                 return null;
@@ -834,11 +834,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 // we never execute replication operation locally as primary operation has already completed locally
                 // hence, we ignore any local shard for replication
                 if (nodes.localNodeId().equals(shard.currentNodeId()) == false) {
-                    performOnReplica(shard, shard.currentNodeId());
+                    performOnReplica(shard);
                 }
                 // send operation to relocating shard
                 if (shard.relocating()) {
-                    performOnReplica(shard, shard.relocatingNodeId());
+                    performOnReplica(shard.buildTargetRelocatingShard());
                 }
             }
         }
@@ -846,9 +846,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         /**
          * send replica operation to target node
          */
-        void performOnReplica(final ShardRouting shard, final String nodeId) {
+        void performOnReplica(final ShardRouting shard) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
+            final String nodeId = shard.currentNodeId();
             if (!nodes.nodeExists(nodeId)) {
                 logger.trace("failed to send action [{}] on replica [{}] for request [{}] due to unknown node [{}]", transportReplicaAction, shard.shardId(), replicaRequest, nodeId);
                 onReplicaFailure(nodeId, null);
@@ -860,21 +861,21 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
             final DiscoveryNode node = nodes.get(nodeId);
             transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                        @Override
-                        public void handleResponse(TransportResponse.Empty vResponse) {
-                            onReplicaSuccess();
-                        }
+                    @Override
+                    public void handleResponse(TransportResponse.Empty vResponse) {
+                        onReplicaSuccess();
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            onReplicaFailure(nodeId, exp);
-                            logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, transportReplicaAction);
-                            if (ignoreReplicaException(exp) == false) {
-                                logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
-                                shardStateAction.shardFailed(shard, indexUUID, "failed to perform " + actionName + " on replica on node " + node, exp);
-                            }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        onReplicaFailure(nodeId, exp);
+                        logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, transportReplicaAction);
+                        if (ignoreReplicaException(exp) == false) {
+                            logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
+                            shardStateAction.shardFailed(shard, indexUUID, "failed to perform " + actionName + " on replica on node " + node, exp);
                         }
                     }
+                }
             );
         }
 
@@ -920,18 +921,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     for (Map.Entry<String, Throwable> entry : shardReplicaFailures.entrySet()) {
                         RestStatus restStatus = ExceptionsHelper.status(entry.getValue());
                         failuresArray[slot++] = new ActionWriteResponse.ShardInfo.Failure(
-                                shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
+                            shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
                         );
                     }
                 } else {
                     failuresArray = ActionWriteResponse.EMPTY;
                 }
                 finalResponse.setShardInfo(new ActionWriteResponse.ShardInfo(
-                                totalShards,
-                                success.get(),
-                                failuresArray
+                        totalShards,
+                        success.get(),
+                        failuresArray
 
-                        )
+                    )
                 );
                 try {
                     channel.sendResponse(finalResponse);

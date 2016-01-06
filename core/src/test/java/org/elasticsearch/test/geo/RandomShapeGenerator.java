@@ -116,7 +116,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             throws InvalidShapeException {
         if (numGeometries <= 0) {
             // cap geometry collection at 4 shapes (to save test time)
-            numGeometries = RandomInts.randomIntBetween(r, 2, 5);
+            numGeometries = RandomInts.randomIntBetween(r, 2, 4);
         }
 
         if (nearPoint == null) {
@@ -257,10 +257,30 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return p;
     }
 
-    public static Rectangle xRandomRectangle(Random r, Point nearP) {
-        Rectangle bounds = ctx.getWorldBounds();
+    private static Rectangle xRandomRectangle(Random r, Point nearP, Rectangle bounds, boolean small) {
         if (nearP == null)
             nearP = xRandomPointIn(r, bounds);
+
+        if (small == true) {
+            // between 3 and 6 degrees
+            final double latRange = 3 * r.nextDouble() + 3;
+            final double lonRange = 3 * r.nextDouble() + 3;
+
+            double minX = nearP.getX();
+            double maxX = minX + lonRange;
+            if (maxX > 180) {
+                maxX = minX;
+                minX -= lonRange;
+            }
+            double minY = nearP.getY();
+            double maxY = nearP.getY() + latRange;
+            if (maxY > 90) {
+                maxY = minY;
+                minY -= latRange;
+            }
+
+            return ctx.makeRectangle(minX, maxX, minY, maxY);
+        }
 
         Range xRange = xRandomRange(r, rarely(r) ? 0 : nearP.getX(), Range.xRange(bounds, ctx));
         Range yRange = xRandomRange(r, rarely(r) ? 0 : nearP.getY(), Range.yRange(bounds, ctx));
@@ -270,6 +290,14 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 xDivisible(xRange.getMax()*10e3)/10e3,
                 xDivisible(yRange.getMin()*10e3)/10e3,
                 xDivisible(yRange.getMax()*10e3)/10e3);
+    }
+
+    public static Rectangle xRandomRectangle(Random r, Point nearP) {
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), false);
+    }
+
+    public static Rectangle xRandomRectangle(Random r, Point nearP, boolean small) {
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), small);
     }
 
     private static boolean rarely(Random r) {

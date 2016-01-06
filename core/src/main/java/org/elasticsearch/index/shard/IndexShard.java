@@ -267,12 +267,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, indexingService, mapperService, newQueryShardContext(), indexFieldDataService);
-        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
-            percolatorQueriesRegistry.enableRealTimePercolator();
-        }
-
-
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, mapperService, newQueryShardContext(), indexFieldDataService);
         // We start up inactive
         active.set(false);
     }
@@ -500,7 +495,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            created = getEngine().index(index);
+            final boolean isPercolatorQuery = percolatorQueriesRegistry.isPercolatorQuery(index);
+            Engine engine = getEngine();
+            created = engine.index(index);
+            if (isPercolatorQuery) {
+                percolatorQueriesRegistry.updatePercolateQuery(engine, index.id());
+            }
             index.endTime(System.nanoTime());
         } catch (Throwable ex) {
             indexingService.postIndex(index, ex);
@@ -537,7 +537,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
-            getEngine().delete(delete);
+            final boolean isPercolatorQuery = percolatorQueriesRegistry.isPercolatorQuery(delete);
+            Engine engine = getEngine();
+            engine.delete(delete);
+            if (isPercolatorQuery) {
+                percolatorQueriesRegistry.updatePercolateQuery(engine, delete.id());
+            }
             delete.endTime(System.nanoTime());
         } catch (Throwable ex) {
             indexingService.postDelete(delete, ex);
@@ -585,7 +590,17 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public IndexingStats indexingStats(String... types) {
-        return indexingService.stats(types);
+        Engine engine = getEngineOrNull();
+        final boolean throttled;
+        final long throttleTimeInMillis;
+        if (engine == null) {
+            throttled = false;
+            throttleTimeInMillis = 0;
+        } else {
+            throttled = engine.isThrottled();
+            throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
+        }
+        return indexingService.stats(throttled, throttleTimeInMillis, types);
     }
 
     public SearchStats searchStats(String... groups) {
@@ -1470,7 +1485,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
-            threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+            threadPool, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
     }
 

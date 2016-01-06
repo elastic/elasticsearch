@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
@@ -214,7 +214,7 @@ public class BlendedTermQueryTests extends ESTestCase {
     }
 
     public IndexSearcher setSimilarity(IndexSearcher searcher) {
-        Similarity similarity = random().nextBoolean() ? new BM25Similarity() : new DefaultSimilarity();
+        Similarity similarity = random().nextBoolean() ? new BM25Similarity() : new ClassicSimilarity();
         searcher.setSimilarity(similarity);
         return searcher;
     }

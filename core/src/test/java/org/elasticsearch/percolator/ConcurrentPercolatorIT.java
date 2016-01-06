@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -187,18 +188,21 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                 case 0:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField1)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type1.incrementAndGet();
                                     break;
                                 case 1:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField2)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type2.incrementAndGet();
                                     break;
                                 case 2:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(field1And2)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type3.incrementAndGet();
                                     break;
@@ -327,6 +331,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     } while (!liveIds.remove(id));
 
                                     DeleteResponse response = client().prepareDelete("index", PercolatorService.TYPE_NAME, id)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     assertThat(response.getId(), equalTo(id));
                                     assertThat("doc[" + id + "] should have been deleted, but isn't", response.isFound(), equalTo(true));
@@ -334,6 +339,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     String id = Integer.toString(idGen.getAndIncrement());
                                     IndexResponse response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(doc)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     liveIds.add(id);
                                     assertThat(response.isCreated(), equalTo(true)); // We only add new docs
@@ -357,9 +363,9 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
             indexThreads[i].start();
         }
 
-        XContentBuilder percolateDoc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        String percolateDoc = XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value")
-                .endObject().endObject();
+                .endObject().string();
         for (int counter = 0; counter < numberPercolateOperation; counter++) {
             Thread.sleep(5);
             semaphore.acquire(numIndexThreads);
@@ -369,7 +375,9 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                 }
                 int atLeastExpected = liveIds.size();
                 PercolateResponse response = client().preparePercolate().setIndices("index").setDocumentType("type")
-                        .setSource(percolateDoc).execute().actionGet();
+                        .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(percolateDoc))
+                        .setSize(atLeastExpected)
+                        .get();
                 assertThat(response.getShardFailures(), emptyArray());
                 assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                 assertThat(response.getMatches().length, equalTo(atLeastExpected));

@@ -26,10 +26,6 @@ grant {
   // groovy IndyInterface bootstrap requires this property for indy logging
   permission java.util.PropertyPermission "groovy.indy.logging", "read";
   
-  // groovy JsonOutput, just allow it to read these props so it works (unsafe is not allowed)
-  permission java.util.PropertyPermission "groovy.json.faststringutils.disable", "read";
-  permission java.util.PropertyPermission "groovy.json.faststringutils.write.to.final.fields", "read";
-
   // needed by Rhino engine exception handling
   permission java.util.PropertyPermission "rhino.stack.style", "read";
 

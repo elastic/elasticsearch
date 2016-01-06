@@ -1,6 +1,12 @@
 [[search-percolate]]
 == Percolator
 
+added[3.0.0,Percolator queries modifications aren't visible immediately and a refresh is required]
+
+added[3.0.0,Percolate api by defaults limits the number of matches to `10` whereas before this wasn't set]
+
+added[3.0.0,For indices created on or after version 3.0.0 the percolator automatically indexes the query terms with the percolator queries this allows the percolator to percolate documents quicker. It is advisable to reindex any pre 3.0.0 indices to take advantage of this new optimization]
+
 Traditionally you design documents based on your data, store them into an index, and then define queries via the search API
 in order to retrieve these documents. The percolator works in the opposite direction. First you store queries into an
 index and then, via the percolate API, you define documents in order to retrieve these queries.
@@ -9,9 +15,6 @@ The reason that queries can be stored comes from the fact that in Elasticsearch 
 JSON. This allows you to embed queries into documents via the index API. Elasticsearch can extract the query from a
 document and make it available to the percolate API. Since documents are also defined as JSON, you can define a document
 in a request to the percolate API.
-
-The percolator and most of its features work in realtime, so once a percolate query is indexed it can immediately be used
-in the percolate API.
 
 [IMPORTANT]
 =====================================
@@ -219,7 +222,7 @@ filter will be included in the percolate execution. The filter option works in n
 occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
 `track_scores` and `sort` option.
-* `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
+* `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to 10.
 * `track_scores` - Whether the `_score` is included for each match. The `_score` is based on the query and represents
 how the query matched the *percolate query's metadata*, *not* how the document (that is being percolated) matched
 the query. The `query` option is required for this option. Defaults to `false`.
@@ -310,6 +313,10 @@ document.
 Internally the percolate API will issue a GET request for fetching the `_source` of the document to percolate.
 For this feature to work, the `_source` for documents to be percolated needs to be stored.
 
+If percolating an existing document and the a document is also specified in the source of the percolate request then
+an error is thrown. Either the document to percolate should be specified in the source or be defined by specifying the
+index, type and id.
+
 [float]
 ==== Example
 
@@ -379,13 +386,11 @@ requests.txt:
 {"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
 {"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
-{}
 {"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
 {"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
 {"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
-{}
 --------------------------------------------------
 
 For a percolate existing document item (headers with the `id` field), the response can be an empty JSON object.

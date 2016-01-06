@@ -86,19 +86,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertThat(docMapper.TTLFieldMapper().fieldType().indexOptions(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexOptions()));
     }
 
-    public void testSetValuesBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_ttl")
-                .field("enabled", "yes").field("store", "no")
-                .endObject()
-                .endObject().endObject().string();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
-        assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(true)); // store was never serialized, so it was always lost
-
-    }
-
     public void testThatEnablingTTLFieldOnMergeWorks() throws Exception {
         String mappingWithoutTtl = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
@@ -214,23 +201,6 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), false, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
-    }
-
-    public void testIncludeInObjectBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_ttl").field("enabled", true).endObject()
-            .endObject().endObject().string();
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_ttl", "2d").endObject();
-        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
-        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
-
-        // _ttl in a document never worked, so backcompat is ignoring the field
-        assertNull(request.ttl());
-        assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {

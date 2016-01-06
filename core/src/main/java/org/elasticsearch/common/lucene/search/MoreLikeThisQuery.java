@@ -30,7 +30,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
@@ -138,7 +138,7 @@ public class MoreLikeThisQuery extends Query {
         if (rewritten != this) {
             return rewritten;
         }
-        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
+        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new ClassicSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 
 /**
  * A filter allowing to filter transport actions
@@ -39,7 +40,7 @@ public interface ActionFilter {
      * Enables filtering the execution of an action on the request side, either by sending a response through the
      * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
      */
-    void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain);
+    void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain);
 
     /**
      * Enables filtering the execution of an action on the response side, either by sending a response through the
@@ -59,9 +60,9 @@ public interface ActionFilter {
         }
 
         @Override
-        public final void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+        public final void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
             if (apply(action, request, listener)) {
-                chain.proceed(action, request, listener);
+                chain.proceed(task, action, request, listener);
             }
         }
 

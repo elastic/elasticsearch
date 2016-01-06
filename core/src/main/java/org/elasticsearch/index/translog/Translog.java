@@ -163,12 +163,38 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             if (translogGeneration != null) {
                 final Checkpoint checkpoint = readCheckpoint();
+                final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
+                final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
+                // this is special handling for error condition when we create a new writer but we fail to bake
+                // the newly written file (generation+1) into the checkpoint. This is still a valid state
+                // we just need to cleanup before we continue
+                // we hit this before and then blindly deleted the new generation even though we managed to bake it in and then hit this:
+                // https://discuss.elastic.co/t/cannot-recover-index-because-of-missing-tanslog-files/38336 as an example
+                //
+                // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that file exists
+                // if not we don't even try to clean it up and wait until we fail creating it
+                assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogWriter.getHeaderLength(translogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
+                if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
+                    && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
+                    logger.warn("deleted previously created, but not yet committed, next generation [{}]. This can happen due to a tragic exception when creating a new generation", nextTranslogFile.getFileName());
+                }
                 this.recoveredTranslogs = recoverFromFiles(translogGeneration, checkpoint);
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
                 }
-                current = createWriter(checkpoint.generation + 1);
-                this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                boolean success = false;
+                try {
+                    current = createWriter(checkpoint.generation + 1);
+                    this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
+                    success = true;
+                } finally {
+                    // we have to close all the recovered ones otherwise we leak file handles here
+                    // for instance if we have a lot of tlog and we can't create the writer we keep on holding
+                    // on to all the uncommitted tlog files if we don't close
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(recoveredTranslogs);
+                    }
+                }
             } else {
                 this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);

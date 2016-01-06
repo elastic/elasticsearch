@@ -49,11 +49,16 @@ test {
   systemProperty 'tests.artifact', project.name 
 }
 
-// classes are missing, e.g. org.apache.avalon.framework.logger.Logger
-thirdPartyAudit.missingClasses = true
 thirdPartyAudit.excludes = [
-    // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
-    // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
-    // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
-    'com.amazonaws.util.XpathUtils',
+  // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
+  // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
+  // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
+  'com.amazonaws.util.XpathUtils',
+
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger',
 ]

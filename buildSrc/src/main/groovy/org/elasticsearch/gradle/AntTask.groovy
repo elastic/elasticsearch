@@ -58,6 +58,9 @@ public abstract class AntTask extends DefaultTask {
             ant.project.removeBuildListener(listener)
         }
 
+        // otherwise groovy replaces System.out, and you have no chance to debug
+        // ant.saveStreams = false
+
         final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : Project.MSG_INFO
         final PrintStream stream = useStdout() ? System.out : new PrintStream(outputBuffer, true, Charset.defaultCharset().name())
         BuildLogger antLogger = makeLogger(stream, outputLevel)

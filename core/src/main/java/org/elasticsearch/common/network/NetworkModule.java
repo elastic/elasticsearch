@@ -36,6 +36,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
@@ -259,7 +260,10 @@ public class NetworkModule extends AbstractModule {
         RestFieldStatsAction.class,
 
         // no abstract cat action
-        RestCatAction.class
+        RestCatAction.class,
+
+        // Tasks API
+        RestListTasksAction.class
     );
 
     private static final List<Class<? extends AbstractCatAction>> builtinCatHandlers = Arrays.asList(

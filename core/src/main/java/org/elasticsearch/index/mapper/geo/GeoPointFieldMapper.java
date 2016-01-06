@@ -63,7 +63,6 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             FIELD_TYPE.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }

@@ -138,9 +138,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // ignore before 2.0, reject on and after 2.0
-                    iterator.remove();
                 } else if (fieldName.equals("fielddata")) {
                     // Only take over `loading`, since that is the only option now that is configurable:
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));

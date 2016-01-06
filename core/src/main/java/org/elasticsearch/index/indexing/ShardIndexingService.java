@@ -59,19 +59,19 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
      * is returned for them. If they are set, then only types provided will be returned, or
      * <tt>_all</tt> for all types.
      */
-    public IndexingStats stats(String... types) {
-        IndexingStats.Stats total = totalStats.stats();
+    public IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, String... types) {
+        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);
         Map<String, IndexingStats.Stats> typesSt = null;
         if (types != null && types.length > 0) {
             typesSt = new HashMap<>(typesStats.size());
             if (types.length == 1 && types[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
-                    typesSt.put(entry.getKey(), entry.getValue().stats());
+                    typesSt.put(entry.getKey(), entry.getValue().stats(isThrottled, currentThrottleInMillis));
                 }
             } else {
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
                     if (Regex.simpleMatch(types, entry.getKey())) {
-                        typesSt.put(entry.getKey(), entry.getValue().stats());
+                        typesSt.put(entry.getKey(), entry.getValue().stats(isThrottled, currentThrottleInMillis));
                     }
                 }
             }
@@ -87,14 +87,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         listeners.remove(listener);
     }
 
-    public void throttlingActivated() {
-        totalStats.setThrottled(true);
-    }
-
-    public void throttlingDeactivated() {
-        totalStats.setThrottled(false);
-    }
-
     public Engine.Index preIndex(Engine.Index operation) {
         totalStats.indexCurrent.inc();
         typeStats(operation.type()).indexCurrent.inc();
@@ -102,16 +94,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
             operation = listener.preIndex(operation);
         }
         return operation;
-    }
-
-    public void postIndexUnderLock(Engine.Index index) {
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndexUnderLock(index);
-            } catch (Exception e) {
-                logger.warn("postIndexUnderLock listener [{}] failed", e, listener);
-            }
-        }
     }
 
     public void postIndex(Engine.Index index) {
@@ -154,15 +136,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return delete;
     }
 
-    public void postDeleteUnderLock(Engine.Delete delete) {
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postDeleteUnderLock(delete);
-            } catch (Exception e) {
-                logger.warn("postDeleteUnderLock listener [{}] failed", e, listener);
-            }
-        }
-    }
 
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
@@ -238,38 +211,12 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final CounterMetric indexFailed = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
         public final CounterMetric noopUpdates = new CounterMetric();
-        public final CounterMetric throttleTimeMillisMetric = new CounterMetric();
-        volatile boolean isThrottled = false;
-        volatile long startOfThrottleNS;
 
-        public IndexingStats.Stats stats() {
-            long currentThrottleNS = 0;
-            if (isThrottled && startOfThrottleNS != 0) {
-                currentThrottleNS +=  System.nanoTime() - startOfThrottleNS;
-                if (currentThrottleNS < 0) {
-                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip must have happened, have to ignore this value
-                    currentThrottleNS = 0;
-                }
-            }
+        public IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
                     indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                     deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS)));
-        }
-
-
-        void setThrottled(boolean isThrottled) {
-            if (!this.isThrottled && isThrottled) {
-                startOfThrottleNS = System.nanoTime();
-            } else if (this.isThrottled && !isThrottled) {
-                assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
-                long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
-                if (throttleTimeNS >= 0) {
-                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
-                    throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
-                }
-            }
-            this.isThrottled = isThrottled;
+                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
         }
 
         public long totalCurrent() {

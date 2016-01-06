@@ -601,49 +601,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("r", "Foo Fighters");
     }
 
-    public void testThatUpgradeToMultiFieldTypeWorks() throws Exception {
-        final XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "string")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject()
-                .endObject())
-                .get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field(FIELD + ".suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(suggestResponse, "suggs");
-
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
-    }
-
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()

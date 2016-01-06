@@ -53,7 +53,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
 
-        assertThat(strategy.getDistErrPct(), equalTo(GeoShapeFieldMapper.Defaults.LEGACY_DISTANCE_ERROR_PCT));
+        assertThat(strategy.getDistErrPct(), equalTo(0.025d));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoShapeFieldMapper.Defaults.GEOHASH_LEVELS));
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION));

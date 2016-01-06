@@ -33,12 +33,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
@@ -49,6 +51,7 @@ public class DocumentMapperParser {
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
+    private final Supplier<QueryShardContext> queryShardContextSupplier;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -59,18 +62,20 @@ public class DocumentMapperParser {
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityService similarityService, MapperRegistry mapperRegistry) {
+                                SimilarityService similarityService, MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier) {
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings.getSettings());
         this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+        this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
         indexVersionCreated = indexSettings.getIndexVersionCreated();
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher);
+        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier.get());
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -143,11 +148,7 @@ public class DocumentMapperParser {
 
     public static void checkNoRemainingFields(Map<String, Object> fieldNodeMap, Version indexVersionCreated, String message) {
         if (!fieldNodeMap.isEmpty()) {
-            if (indexVersionCreated.onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
-            } else {
-                logger.debug(message + "{}", getRemainingFields(fieldNodeMap));
-            }
+            throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
         }
     }
 

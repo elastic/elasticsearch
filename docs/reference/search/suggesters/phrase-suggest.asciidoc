@@ -97,20 +97,20 @@ can contain misspellings (See parameter descriptions below).
     language model, the suggester will use this field to gain statistics to
     score corrections. This field is mandatory.
 
-`gram_size`:: 
+`gram_size`::
     sets max size of the n-grams (shingles) in the `field`.
     If the field doesn't contain n-grams (shingles) this should be omitted
     or set to `1`. Note that Elasticsearch tries to detect the gram size
     based on the specified `field`. If the field uses a `shingle` filter the
     `gram_size` is set to the `max_shingle_size` if not explicitly set.
 
-`real_word_error_likelihood`:: 
+`real_word_error_likelihood`::
     the likelihood of a term being a
     misspelled even if the term exists in the dictionary. The default is
     `0.95` corresponding to 5% of the real words are misspelled.
 
 
-`confidence`:: 
+`confidence`::
     The confidence level defines a factor applied to the
     input phrases score which is used as a threshold for other suggest
     candidates. Only candidates that score higher than the threshold will be
@@ -118,7 +118,7 @@ can contain misspellings (See parameter descriptions below).
     only return suggestions that score higher than the input phrase. If set
     to `0.0` the top N candidates are returned. The default is `1.0`.
 
-`max_errors`:: 
+`max_errors`::
     the maximum percentage of the terms that at most
     considered to be misspellings in order to form a correction. This method
     accepts a float value in the range `[0..1)` as a fraction of the actual
@@ -126,39 +126,39 @@ can contain misspellings (See parameter descriptions below).
     default is set to `1.0` which corresponds to that only corrections with
     at most 1 misspelled term are returned.  Note that setting this too high
     can negatively impact performance. Low values like `1` or `2` are recommended
-    otherwise the time spend in suggest calls might exceed the time spend in 
+    otherwise the time spend in suggest calls might exceed the time spend in
     query execution.
 
-`separator`:: 
+`separator`::
     the separator that is used to separate terms in the
     bigram field. If not set the whitespace character is used as a
     separator.
 
-`size`:: 
+`size`::
     the number of candidates that are generated for each
     individual query term Low numbers like `3` or `5` typically produce good
     results. Raising this can bring up terms with higher edit distances. The
     default is `5`.
 
-`analyzer`:: 
+`analyzer`::
     Sets the analyzer to analyse to suggest text with.
     Defaults to the search analyzer of the suggest field passed via `field`.
 
-`shard_size`:: 
+`shard_size`::
     Sets the maximum number of suggested term to be
     retrieved from each individual shard. During the reduce phase, only the
     top N suggestions are returned based on the `size` option. Defaults to
     `5`.
 
-`text`:: 
+`text`::
     Sets the text / query to provide suggestions for.
 
 `highlight`::
-    Sets up suggestion highlighting.  If not provided then 
-    no `highlighted` field is returned.  If provided must 
-    contain exactly `pre_tag` and `post_tag` which are 
-    wrapped around the changed tokens.  If multiple tokens 
-    in a row are changed the entire phrase of changed tokens 
+    Sets up suggestion highlighting.  If not provided then
+    no `highlighted` field is returned.  If provided must
+    contain exactly `pre_tag` and `post_tag` which are
+    wrapped around the changed tokens.  If multiple tokens
+    in a row are changed the entire phrase of changed tokens
     is wrapped rather than each token.
 
 `collate`::
@@ -192,8 +192,10 @@ curl -XPOST 'localhost:9200/_search' -d {
          } ],
          "collate": {
            "query": { <1>
-             "match": {
-                 "{{field_name}}" : "{{suggestion}}" <2>
+             "inline" : {
+               "match": {
+                   "{{field_name}}" : "{{suggestion}}" <2>
+               }
              }
            },
            "params": {"field_name" : "title"}, <3>
@@ -217,21 +219,21 @@ curl -XPOST 'localhost:9200/_search' -d {
 
 The `phrase` suggester supports multiple smoothing models to balance
 weight between infrequent grams (grams (shingles) are not existing in
-the index) and frequent grams (appear at least once in the index). 
+the index) and frequent grams (appear at least once in the index).
 
 [horizontal]
-`stupid_backoff`:: 
+`stupid_backoff`::
     a simple backoff model that backs off to lower
     order n-gram models if the higher order count is `0` and discounts the
     lower order n-gram model by a constant factor. The default `discount` is
-    `0.4`. Stupid Backoff is the default model. 
+    `0.4`. Stupid Backoff is the default model.
 
 `laplace`::
     a smoothing model that uses an additive smoothing where a
     constant (typically `1.0` or smaller) is added to all counts to balance
-    weights, The default `alpha` is `0.5`. 
+    weights, The default `alpha` is `0.5`.
 
-`linear_interpolation`:: 
+`linear_interpolation`::
     a smoothing model that takes the weighted
     mean of the unigrams, bigrams and trigrams based on user supplied
     weights (lambdas). Linear Interpolation doesn't have any default values.
@@ -244,7 +246,7 @@ The `phrase` suggester uses candidate generators to produce a list of
 possible terms per term in the given text. A single candidate generator
 is similar to a `term` suggester called for each individual term in the
 text. The output of the generators is subsequently scored in combination
-with the candidates from the other terms to for suggestion candidates. 
+with the candidates from the other terms to for suggestion candidates.
 
 Currently only one type of candidate generator is supported, the
 `direct_generator`. The Phrase suggest API accepts a list of generators
@@ -256,26 +258,30 @@ called per term in the original text.
 The direct generators support the following parameters:
 
 [horizontal]
-`field`:: 
+`field`::
     The field to fetch the candidate suggestions from. This is
     a required option that either needs to be set globally or per
     suggestion.
 
-`size`:: 
+`size`::
     The maximum corrections to be returned per suggest text token.
 
 `suggest_mode`::
-    The suggest mode controls what suggestions are
-    included or controls for what suggest text terms, suggestions should be
-    suggested. Three possible values can be specified: 
-    ** `missing`: Only suggest terms in the suggest text that aren't in the
-                  index. This is the default.
-    ** `popular`: Only suggest suggestions that occur in more docs then the
-                  original suggest text term.
+    The suggest mode controls what suggestions are included on the suggestions
+    generated on each shard. All values other than `always` can be thought of
+    as an optimization to generate fewer suggestions to test on each shard and
+    are not rechecked at when combining the suggestions generated on each
+    shard. Thus `missing` will generate suggestions for terms on shards that do
+    not contain them even other shards do contain them. Those should be
+    filtered out using `confidence`. Three possible values can be specified:
+    ** `missing`: Only generate suggestions for terms that are not in the
+                 shard. This is the default.
+    ** `popular`: Only suggest terms that occur in more docs on the shard then
+                 the original term.
     ** `always`: Suggest any matching suggestions based on terms in the
                  suggest text.
 
-`max_edits`:: 
+`max_edits`::
     The maximum edit distance candidate suggestions can have
     in order to be considered as a suggestion. Can only be a value between 1
     and 2. Any other value result in an bad request error being thrown.
@@ -287,11 +293,11 @@ The direct generators support the following parameters:
     this number improves spellcheck performance. Usually misspellings don't
     occur in the beginning of terms. (Old name "prefix_len" is deprecated)
 
-`min_word_length`:: 
+`min_word_length`::
     The minimum length a suggest text term must have in
     order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
 
-`max_inspections`:: 
+`max_inspections`::
     A factor that is used to multiply with the
     `shards_size` in order to inspect more candidate spell corrections on
     the shard level. Can improve accuracy at the cost of performance.
@@ -306,7 +312,7 @@ The direct generators support the following parameters:
     cannot be fractional. The shard level document frequencies are used for
     this option.
 
-`max_term_freq`:: 
+`max_term_freq`::
     The maximum threshold in number of documents a
     suggest text token can exist in order to be included. Can be a relative
     percentage number (e.g 0.4) or an absolute number to represent document
@@ -322,16 +328,16 @@ The direct generators support the following parameters:
     tokens passed to this candidate generator. This filter is applied to the
     original token before candidates are generated.
 
-`post_filter`:: 
+`post_filter`::
     a filter (analyzer) that is applied to each of the
     generated tokens before they are passed to the actual phrase scorer.
 
 The following example shows a `phrase` suggest call with two generators,
 the first one is using a field containing ordinary indexed terms and the
-second one uses a field that uses terms indexed with a `reverse` filter 
-(tokens are index in reverse order). This is used to overcome the limitation 
-of the direct generators to require a constant prefix to provide 
-high-performance suggestions. The `pre_filter` and `post_filter` options 
+second one uses a field that uses terms indexed with a `reverse` filter
+(tokens are index in reverse order). This is used to overcome the limitation
+of the direct generators to require a constant prefix to provide
+high-performance suggestions. The `pre_filter` and `post_filter` options
 accept ordinary analyzer names.
 
 [source,js]

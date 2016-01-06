@@ -845,15 +845,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (shard.primary()) {
                     if (originalPrimaryShard.currentNodeId().equals(shard.currentNodeId()) == false) {
                         // there is a new primary, we'll have to replicate to it.
-                        performOnReplica(shard, shard.currentNodeId());
+                        performOnReplica(shard);
                     }
                     if (shard.relocating()) {
-                        performOnReplica(shard, shard.relocatingNodeId());
+                        performOnReplica(shard.targetRoutingIfRelocating());
                     }
                 } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) == false) {
-                    performOnReplica(shard, shard.currentNodeId());
+                    performOnReplica(shard);
                     if (shard.relocating()) {
-                        performOnReplica(shard, shard.relocatingNodeId());
+                        performOnReplica(shard.targetRoutingIfRelocating());
                     }
                 }
             }
@@ -862,7 +862,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         /**
          * send operation to the given node or perform it if local
          */
-        void performOnReplica(final ShardRouting shard, final String nodeId) {
+        void performOnReplica(final ShardRouting shard) {
+            final String nodeId = shard.currentNodeId();
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
             if (!observer.observedState().nodes().nodeExists(nodeId)) {

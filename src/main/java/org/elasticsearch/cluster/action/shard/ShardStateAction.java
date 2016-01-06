@@ -311,7 +311,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    static class ShardRoutingEntry extends TransportRequest {
+    public static class ShardRoutingEntry extends TransportRequest {
 
         ShardRouting shardRouting;
 
@@ -328,6 +328,10 @@ public class ShardStateAction extends AbstractComponent {
             this.shardRouting = shardRouting;
             this.reason = reason;
             this.indexUUID = indexUUID;
+        }
+
+        public ShardRouting getShardRouting() {
+            return shardRouting;
         }
 
         @Override

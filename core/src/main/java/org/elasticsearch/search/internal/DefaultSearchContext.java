@@ -224,8 +224,8 @@ public class DefaultSearchContext extends SearchContext {
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
-        if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
+        if (queryBoost() != 1.0f) {
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
         }
         filteredQuery(buildFilteredQuery());
         try {
@@ -243,9 +243,7 @@ public class DefaultSearchContext extends SearchContext {
         Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
             result = new ConstantScoreQuery(searchFilter);
-            if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                result = new BoostQuery(result, query().getBoost());
-            }
+            result.setBoost(query().getBoost());
         } else {
             result = new BooleanQuery.Builder()
                     .add(query, Occur.MUST)

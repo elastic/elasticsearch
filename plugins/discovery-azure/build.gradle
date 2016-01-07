@@ -56,11 +56,9 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
+compileJava.options.compilerArgs << '-Xlint:-path,-serial,-unchecked'
 // TODO: why is deprecation needed here but not in maven....?
 compileJava.options.compilerArgs << '-Xlint:-deprecation'
-// TODO: and why does this static not show up in maven...
-compileTestJava.options.compilerArgs << '-Xlint:-static'
 
 thirdPartyAudit.excludes = [
   // classes are missing

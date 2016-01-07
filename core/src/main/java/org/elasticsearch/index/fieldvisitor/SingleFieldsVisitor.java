@@ -58,11 +58,16 @@ public class SingleFieldsVisitor extends FieldsVisitor {
 
     public void postProcess(MappedFieldType fieldType) {
         if (uid != null) {
-            // TODO: this switch seems very wrong...either each case should be breaking, or this should not be a switch
             switch (field) {
-                case UidFieldMapper.NAME: addValue(field, uid.toString());
-                case IdFieldMapper.NAME: addValue(field, uid.id());
-                case TypeFieldMapper.NAME: addValue(field, uid.type());
+            case UidFieldMapper.NAME:
+                addValue(field, uid.toString());
+                break;
+            case IdFieldMapper.NAME:
+                addValue(field, uid.id());
+                break;
+            case TypeFieldMapper.NAME:
+                addValue(field, uid.type());
+                break;
             }
         }
 

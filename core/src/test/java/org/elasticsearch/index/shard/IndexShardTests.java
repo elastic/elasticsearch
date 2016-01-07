@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -678,10 +679,27 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         try {
             shard.index(index);
             fail();
-        }catch (IllegalIndexShardStateException e){
+        } catch (IllegalIndexShardStateException e) {
 
         }
 
         assertTrue(postIndexWithExceptionCalled.get());
+    }
+
+    /**
+     * We currently start check for time/size/ops based tanslog flush as soon as the shard is created. At that time the
+     * engine is not yet started. We should properly deal with this and schedule a future check
+     */
+    public void testFlushRescheduleOnEngineNotAvailable() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        shard.close("Unexpected close", false);
+        shard.state = IndexShardState.CREATED;
+        TranslogService translogService = test.shardInjectorSafe(0).getInstance(TranslogService.class);
+        TranslogService.TranslogBasedFlush checker = translogService.createTranslogBasedFlush();
+        assertTrue(checker.maybeFlushAndReschedule());
     }
 }

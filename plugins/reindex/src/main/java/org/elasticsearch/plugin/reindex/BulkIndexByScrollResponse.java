@@ -19,31 +19,31 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static java.lang.Math.min;
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.BATCHES;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.FAILURES;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.NOOPS;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.TOOK;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.UPDATED;
-import static org.elasticsearch.plugin.reindex.BulkIndexByScrollResponse.Fields.VERSION_CONFLICTS;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.lang.Math.min;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Response used for actions that index many documents using a scroll request.
  */
 public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
+    static final String TOOK_FIELD = "took";
+    static final String UPDATED_FIELD = "updated";
+    static final String BATCHES_FIELD = "batches";
+    static final String VERSION_CONFLICTS_FIELD = "version_conflicts";
+    static final String NOOPS_FIELD = "noops";
+    static final String FAILURES_FIELD = "failures";
+
     private long took;
     private long updated;
     private int batches;
@@ -115,30 +115,19 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         int failureCount = in.readVInt();
         List<Failure> failures = new ArrayList<>(failureCount);
         for (int i = 0; i < failureCount; i++) {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            failures.add(failure);
+            failures.add(Failure.PROTOTYPE.readFrom(in));
         }
         this.failures = unmodifiableList(failures);
     }
 
-    static final class Fields {
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString UPDATED = new XContentBuilderString("updated");
-        static final XContentBuilderString BATCHES = new XContentBuilderString("batches");
-        static final XContentBuilderString VERSION_CONFLICTS = new XContentBuilderString("versionConflicts");
-        static final XContentBuilderString NOOPS = new XContentBuilderString("noops");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TOOK, took);
-        builder.field(UPDATED, updated);
-        builder.field(BATCHES, batches);
-        builder.field(VERSION_CONFLICTS, versionConflicts);
-        builder.field(NOOPS, noops);
-        builder.startArray(FAILURES);
+        builder.field(TOOK_FIELD, took);
+        builder.field(UPDATED_FIELD, updated);
+        builder.field(BATCHES_FIELD, batches);
+        builder.field(VERSION_CONFLICTS_FIELD, versionConflicts);
+        builder.field(NOOPS_FIELD, noops);
+        builder.startArray(FAILURES_FIELD);
         for (Failure failure: failures) {
             builder.startObject();
             failure.toXContent(builder, params);

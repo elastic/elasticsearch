@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
@@ -82,7 +81,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         source.scroll(DEFAULT_SCROLL_TIMEOUT);
         source.source(new SearchSourceBuilder());
         source.source().version(true);
-        source.source().sort(fieldSort("_doc"));
         source.source().size(DEFAULT_SCROLL_SIZE);
     }
 

@@ -19,11 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -46,6 +41,11 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Abstract base for scrolling across a search and executing bulk indexes on all
@@ -95,7 +95,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             if (script != null) {
                 if (executableScript == null) {
                     executableScript = scriptService.executable(script, mainRequest.script().getParams());
-                    scriptCtx = new HashMap<>(16);
+                    scriptCtx = new HashMap<>();
                 }
                 if (false == applyScript(index, doc, executableScript, scriptCtx)) {
                     continue;
@@ -154,8 +154,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         ctx.put(RoutingFieldMapper.NAME, oldRouting);
         Long oldTimestamp = fieldValue(doc, TimestampFieldMapper.NAME);
         ctx.put(TimestampFieldMapper.NAME, oldTimestamp);
-        Long oldTtl = fieldValue(doc, TTLFieldMapper.NAME);
-        ctx.put(TTLFieldMapper.NAME, oldTtl);
+        Long oldTTL = fieldValue(doc, TTLFieldMapper.NAME);
+        ctx.put(TTLFieldMapper.NAME, oldTTL);
         ctx.put(SourceFieldMapper.NAME, index.sourceAsMap());
         ctx.put("op", "update");
         script.setNextVar("ctx", ctx);
@@ -174,9 +174,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         /*
-         * It'd be lovely to only set the source if we know its been
-         * modified but it isn't worth keeping two copies of it
-         * around just to check!
+         * It'd be lovely to only set the source if we know its been modified
+         * but it isn't worth keeping two copies of it around just to check!
          */
         index.source((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
 
@@ -213,8 +212,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             scriptChangedTimestamp(index, newValue);
         }
         newValue = ctx.remove(TTLFieldMapper.NAME);
-        if (false == Objects.equals(oldTtl, newValue)) {
-            scriptChangedTtl(index, newValue);
+        if (false == Objects.equals(oldTTL, newValue)) {
+            scriptChangedTTL(index, newValue);
         }
         if (false == ctx.isEmpty()) {
             throw new IllegalArgumentException("Invalid fields added to ctx [" + String.join(",", ctx.keySet()) + ']');
@@ -236,5 +235,5 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
 
     protected abstract void scriptChangedTimestamp(IndexRequest index, Object to);
 
-    protected abstract void scriptChangedTtl(IndexRequest index, Object to);
+    protected abstract void scriptChangedTTL(IndexRequest index, Object to);
 }

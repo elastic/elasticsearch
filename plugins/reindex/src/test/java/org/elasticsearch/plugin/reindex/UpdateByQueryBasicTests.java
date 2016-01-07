@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -49,11 +50,19 @@ public class UpdateByQueryBasicTests extends UpdateByQueryTestCase {
         // Now half of them
         assertThat(request().source("test").filter(termQuery("foo", "a")).refresh(true).get(), responseMatcher().updated(2));
         assertEquals(3, client().prepareGet("test", "test", "1").get().getVersion());
+        assertEquals(3, client().prepareGet("test", "test", "2").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "test", "3").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Limit with size
-        assertThat(request().source("test").size(1).refresh(true).get(), responseMatcher().updated(1));
-        // We can't assert anything about versions here because we don't know which one was updated
+        UpdateByQueryRequestBuilder request = request().source("test").size(3).refresh(true);
+        request.source().addSort("foo", SortOrder.ASC);
+        assertThat(request.get(), responseMatcher().updated(3));
+        // Only the first three documents are updated because of sort
+        assertEquals(4, client().prepareGet("test", "test", "1").get().getVersion());
+        assertEquals(4, client().prepareGet("test", "test", "2").get().getVersion());
+        assertEquals(3, client().prepareGet("test", "test", "3").get().getVersion());
+        assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
     }
 
     public void testRefreshIsFalseByDefault() throws Exception {

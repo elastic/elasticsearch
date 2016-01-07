@@ -19,19 +19,18 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.plugin.reindex.ReindexResponse.Fields.CREATED;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-
 public class ReindexResponse extends BulkIndexByScrollResponse {
+    static final String CREATED_FIELD = "created";
+
     private long created;
 
     public ReindexResponse() {
@@ -58,14 +57,10 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
         created = in.readVLong();
     }
 
-    static final class Fields {
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field(CREATED, created);
+        builder.field(CREATED_FIELD, created);
         return builder;
     }
 

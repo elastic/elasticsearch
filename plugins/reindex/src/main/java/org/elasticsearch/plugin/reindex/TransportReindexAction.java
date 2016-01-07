@@ -199,7 +199,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected void scriptChangedTtl(IndexRequest index, Object to) {
+        protected void scriptChangedTTL(IndexRequest index, Object to) {
             if (to == null) {
                 index.ttl(null);
                 return;

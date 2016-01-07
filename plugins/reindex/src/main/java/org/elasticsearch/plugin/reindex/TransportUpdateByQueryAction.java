@@ -122,7 +122,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected void scriptChangedTtl(IndexRequest index, Object to) {
+        protected void scriptChangedTTL(IndexRequest index, Object to) {
             throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
         }
     }

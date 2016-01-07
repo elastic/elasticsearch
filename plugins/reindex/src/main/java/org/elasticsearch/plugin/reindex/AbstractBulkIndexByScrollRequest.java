@@ -67,10 +67,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(script != null);
-        if (script != null) {
-            script.writeTo(out);
-        }
+        out.writeOptionalStreamable(script);
     }
 
     @Override

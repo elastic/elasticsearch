@@ -25,10 +25,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -41,7 +47,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     public static final String INDEX_TRANSLOG_FLUSH_INTERVAL = "index.translog.interval";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD =  "index.translog.flush_threshold_period";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD = "index.translog.flush_threshold_period";
     public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
 
     private final ThreadPool threadPool;
@@ -82,7 +88,6 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     }
 
 
-
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -118,37 +123,58 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         return new TimeValue(interval.millis() + (ThreadLocalRandom.current().nextLong(interval.millis())));
     }
 
-    private class TranslogBasedFlush implements Runnable {
+    // public for testing
+    public class TranslogBasedFlush extends AbstractRunnable {
 
         private volatile long lastFlushTime = System.currentTimeMillis();
 
         @Override
-        public void run() {
+        public void onFailure(Throwable t) {
+            logger.warn("unexpected error while checking whether the translog needs a flush. rescheduling", t);
+            reschedule();
+        }
+
+        @Override
+        public void onRejection(Throwable t) {
+            logger.trace("ignoring EsRejectedExecutionException, shutting down", t);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            maybeFlushAndReschedule();
+        }
+
+        /** checks if we need to flush and reschedules a new check. returns true if a new check was scheduled */
+        public boolean maybeFlushAndReschedule() {
             if (indexShard.state() == IndexShardState.CLOSED) {
-                return;
+                return false;
             }
 
             // flush is disabled, but still reschedule
             if (disableFlush) {
                 reschedule();
-                return;
+                return true;
             }
-            Translog translog = indexShard.engine().getTranslog();
-            if (translog == null) {
+            final Translog translog;
+            try {
+                translog = indexShard.engine().getTranslog();
+            } catch (EngineClosedException e) {
+                // we're still recovering
                 reschedule();
-                return;
+                return true;
             }
+
             int currentNumberOfOperations = translog.totalOperations();
             if (currentNumberOfOperations == 0) {
                 reschedule();
-                return;
+                return true;
             }
 
             if (flushThresholdOperations > 0) {
                 if (currentNumberOfOperations > flushThresholdOperations) {
                     logger.trace("flushing translog, operations [{}], breached [{}]", currentNumberOfOperations, flushThresholdOperations);
                     asyncFlushAndReschedule();
-                    return;
+                    return true;
                 }
             }
 
@@ -157,7 +183,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 if (sizeInBytes > flushThresholdSize.bytes()) {
                     logger.trace("flushing translog, size [{}], breached [{}]", new ByteSizeValue(sizeInBytes), flushThresholdSize);
                     asyncFlushAndReschedule();
-                    return;
+                    return true;
                 }
             }
 
@@ -165,11 +191,11 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 if ((threadPool.estimatedTimeInMillis() - lastFlushTime) > flushThresholdPeriod.millis()) {
                     logger.trace("flushing translog, last_flush_time [{}], breached [{}]", lastFlushTime, flushThresholdPeriod);
                     asyncFlushAndReschedule();
-                    return;
+                    return true;
                 }
             }
-
             reschedule();
+            return true;
         }
 
         private void reschedule() {
@@ -177,23 +203,30 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         }
 
         private void asyncFlushAndReschedule() {
-            threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+
                 @Override
-                public void run() {
+                public void onRejection(Throwable t) {
+                    logger.trace("ignoring EsRejectedExecutionException, shutting down", t);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.warn("failed to flush shard on translog threshold", t);
+                    reschedule();
+                }
+
+                @Override
+                protected void doRun() throws Exception {
                     try {
                         indexShard.flush(new FlushRequest());
                     } catch (IllegalIndexShardStateException e) {
                         // we are being closed, or in created state, ignore
                     } catch (FlushNotAllowedEngineException e) {
                         // ignore this exception, we are not allowed to perform flush
-                    } catch (Throwable e) {
-                        logger.warn("failed to flush shard on translog threshold", e);
                     }
                     lastFlushTime = threadPool.estimatedTimeInMillis();
-
-                    if (indexShard.state() != IndexShardState.CLOSED) {
-                        future = threadPool.schedule(computeNextInterval(), ThreadPool.Names.SAME, TranslogBasedFlush.this);
-                    }
+                    reschedule();
                 }
             });
         }

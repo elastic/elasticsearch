@@ -19,16 +19,22 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
@@ -143,6 +149,269 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0).getPipeline().getId(), equalTo("foo"));
         assertThat(result.get(1).getPipeline().getId(), equalTo("bar"));
+    }
+
+    public void testValidateIngestIndex() throws Exception {
+        // ingest index doesn't exist:
+        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder())
+            .build();
+        assertThat(store.isIngestIndexPresent(state), equalTo(false));
+
+        // ingest index does exist and is valid:
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, PipelineStore.PIPELINE_MAPPING);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        assertThat(store.isIngestIndexPresent(state), equalTo(true));
+
+        // fails, has dynamic mapping
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.mapper.dynamic", true)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, PipelineStore.PIPELINE_MAPPING);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest index setting, [index.mapper.dynamic] setting is [true] while [false] is expected"));
+        }
+
+        // fails, incorrect number of primary shards
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.number_of_shards", 2)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, PipelineStore.PIPELINE_MAPPING);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest index setting, [index.number_of_shards] setting is [2] while [1] is expected"));
+        }
+
+        // fails, incorrect number of replica shards
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.number_of_replicas", 2)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, PipelineStore.PIPELINE_MAPPING);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest index setting, [index.number_of_replicas] setting is [2] while [1] is expected"));
+        }
+
+        // fails not a strict mapping:
+        String mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_all")
+                .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+                .startObject("processors")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("on_failure")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("description")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().string();
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, mapping);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest mapping, pipeline mapping must be strict"));
+        }
+
+        // fails _all field is enabled:
+        mapping = XContentFactory.jsonBuilder().startObject()
+            .field("dynamic", "strict")
+            .startObject("_all")
+                .field("enabled", true)
+            .endObject()
+            .startObject("properties")
+                .startObject("processors")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("on_failure")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("description")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().string();
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, mapping);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest mapping, _all field is enabled"));
+        }
+
+        // fails processor field not of type object:
+        mapping = XContentFactory.jsonBuilder().startObject()
+            .field("dynamic", "strict")
+            .startObject("_all")
+                .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+                .startObject("processors")
+                    .field("type", "nested")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("on_failure")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("description")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().string();
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, mapping);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest mapping, processors field's type is [nested] while [object] is expected"));
+        }
+
+        // fails processor field enabled option is true:
+        mapping = XContentFactory.jsonBuilder().startObject()
+            .field("dynamic", "strict")
+            .startObject("_all")
+                .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+                .startObject("processors")
+                    .field("type", "object")
+                    .field("enabled", true)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("on_failure")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("description")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().string();
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, mapping);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest mapping, processors field enabled option is [true] while [false] is expected"));
+        }
+
+        // fails processor field dynamic option is false:
+        mapping = XContentFactory.jsonBuilder().startObject()
+            .field("dynamic", "strict")
+            .startObject("_all")
+                .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+                .startObject("processors")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", false)
+                .endObject()
+                .startObject("on_failure")
+                    .field("type", "object")
+                    .field("enabled", false)
+                    .field("dynamic", true)
+                .endObject()
+                .startObject("description")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().string();
+        indexMetaData = IndexMetaData.builder(PipelineStore.INDEX)
+            .settings(Settings.builder()
+                .put(PipelineStore.INGEST_INDEX_SETTING)
+                .put("index.version.created", Version.CURRENT)
+            )
+            .putMapping(PipelineStore.TYPE, mapping);
+        state = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetaData))
+            .build();
+        try {
+            store.isIngestIndexPresent(state);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("illegal ingest mapping, processors field dynamic option is [false] while [true] is expected"));
+        }
     }
 
     static ActionFuture<SearchResponse> expectedSearchReponse(List<InternalSearchHit> hits) {

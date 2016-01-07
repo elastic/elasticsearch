@@ -52,7 +52,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
 
     static final String INGEST_INDEX_TEMPLATE_NAME = "ingest-template";
 
-    private Client client;
     private final ThreadPool threadPool;
     private final Environment environment;
     private final PipelineStore pipelineStore;
@@ -98,7 +97,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
 
     @Inject
     public void setClient(Client client) {
-        this.client = client;
         pipelineStore.setClient(client);
     }
 
@@ -117,13 +115,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         if (pipelineStore.isStarted()) {
             if (validClusterState(state) == false) {
                 stopPipelineStore("cluster state invalid [" + state + "]");
-            }
-            // We always check if the index template still exist,
-            // because it may have been removed via an api call and
-            // this allows us to add it back immediately:
-            // (this method gets invoked on each cluster state update)
-            if (isIngestTemplateInstallationRequired(state.metaData())) {
-                forkAndInstallIngestIndexTemplate();
             }
         } else {
             if (validClusterState(state)) {
@@ -144,43 +135,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         } else {
             // it will be ready when auto create index kicks in before the first pipeline doc gets added
             return true;
-        }
-    }
-
-    boolean isIngestTemplateInstallationRequired(MetaData metaData) {
-        if (metaData.getTemplates().containsKey(INGEST_INDEX_TEMPLATE_NAME)) {
-            logger.trace("not installing ingest index template, because it already is installed");
-            return false;
-        }
-        return true;
-    }
-
-    void forkAndInstallIngestIndexTemplate() {
-        try {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                try {
-                    installIngestIndexTemplate();
-                } catch (IOException e) {
-                    logger.debug("Failed to install .ingest index template", e);
-                }
-            });
-        } catch (EsRejectedExecutionException e) {
-            logger.debug("async fork and install template failed", e);
-        }
-    }
-
-    void installIngestIndexTemplate() throws IOException {
-        logger.debug("installing .ingest index template...");
-        try (InputStream is = IngestBootstrapper.class.getResourceAsStream("ingest.json")) {
-            final byte[] template;
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Streams.copy(is, out);
-                template = out.bytes().toBytes();
-            }
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(INGEST_INDEX_TEMPLATE_NAME);
-            request.source(template);
-            client.execute(PutIndexTemplateAction.INSTANCE, request).actionGet();
-            logger.debug(".ingest index template has been installed");
         }
     }
 
@@ -205,12 +159,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         try {
             threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                 try {
-                    // Before we start the pipeline store we check if the index template exists,
-                    // if it doesn't we add it. If for some reason this fails we will try again later,
-                    // but the pipeline store won't start before that happened
-                    if (isIngestTemplateInstallationRequired(metaData)) {
-                        installIngestIndexTemplate();
-                    }
                     pipelineStore.start();
                 } catch (Exception e1) {
                     logger.warn("pipeline store failed to start, retrying...", e1);

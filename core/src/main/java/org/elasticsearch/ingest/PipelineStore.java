@@ -21,6 +21,8 @@ package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -31,13 +33,17 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -66,8 +72,45 @@ public class PipelineStore extends AbstractComponent implements Closeable {
     public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
 
+    final static Settings INGEST_INDEX_SETTING = Settings.builder()
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        .put("index.mapper.dynamic", false)
+        .build();
+
+    final static String PIPELINE_MAPPING;
+
+    static {
+        try {
+            PIPELINE_MAPPING = XContentFactory.jsonBuilder().startObject()
+                .field("dynamic", "strict")
+                .startObject("_all")
+                    .field("enabled", false)
+                .endObject()
+                .startObject("properties")
+                    .startObject("processors")
+                        .field("type", "object")
+                        .field("enabled", false)
+                        .field("dynamic", true)
+                    .endObject()
+                    .startObject("on_failure")
+                        .field("type", "object")
+                        .field("enabled", false)
+                        .field("dynamic", true)
+                    .endObject()
+                    .startObject("description")
+                        .field("type", "string")
+                    .endObject()
+                .endObject()
+                .endObject().string();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private Client client;
     private final TimeValue scrollTimeout;
+    private final ClusterService clusterService;
     private final ReloadPipelinesAction reloadPipelinesAction;
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private Map<String, Processor.Factory> processorFactoryRegistry;
@@ -77,6 +120,7 @@ public class PipelineStore extends AbstractComponent implements Closeable {
 
     public PipelineStore(Settings settings, ClusterService clusterService, TransportService transportService) {
         super(settings);
+        this.clusterService = clusterService;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.reloadPipelinesAction = new ReloadPipelinesAction(settings, this, clusterService, transportService);
     }
@@ -139,6 +183,28 @@ public class PipelineStore extends AbstractComponent implements Closeable {
             throw new IllegalArgumentException("Invalid pipeline configuration", e);
         }
 
+        ClusterState state = clusterService.state();
+        if (isIngestIndexPresent(state)) {
+            innerPut(request, listener);
+        } else {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX);
+            createIndexRequest.settings(INGEST_INDEX_SETTING);
+            createIndexRequest.mapping(TYPE, PIPELINE_MAPPING);
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+                @Override
+                public void onResponse(CreateIndexResponse createIndexResponse) {
+                    innerPut(request, listener);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private void innerPut(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
         IndexRequest indexRequest = new IndexRequest(request);
         indexRequest.index(PipelineStore.INDEX);
         indexRequest.type(PipelineStore.TYPE);
@@ -244,6 +310,83 @@ public class PipelineStore extends AbstractComponent implements Closeable {
             return false;
         }
     }
+
+    /**
+     * @param clusterState The cluster just to check whether the ingest index exists and the state of the ingest index
+     * @throws IllegalStateException If the ingest template exists, but is in an invalid state
+     * @return <code>true</code> when the ingest index exists and has the expected settings and mappings or returns
+     * <code>false</code> when the ingest index doesn't exists and needs to be created.
+     */
+    boolean isIngestIndexPresent(ClusterState clusterState) throws IllegalStateException {
+        if (clusterState.getMetaData().hasIndex(INDEX)) {
+            IndexMetaData indexMetaData = clusterState.getMetaData().index(INDEX);
+            Settings indexSettings = indexMetaData.getSettings();
+            int numberOfShards = indexSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
+            if (numberOfShards != 1) {
+                throw new IllegalStateException("illegal ingest index setting, [" + IndexMetaData.SETTING_NUMBER_OF_SHARDS + "] setting is [" + numberOfShards + "] while [1] is expected");
+            }
+            int numberOfReplicas = indexSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
+            if (numberOfReplicas != 1) {
+                throw new IllegalStateException("illegal ingest index setting, [" + IndexMetaData.SETTING_NUMBER_OF_REPLICAS + "] setting is [" + numberOfReplicas + "] while [1] is expected");
+            }
+            boolean dynamicMappings = indexSettings.getAsBoolean("index.mapper.dynamic", true);
+            if (dynamicMappings != false) {
+                throw new IllegalStateException("illegal ingest index setting, [index.mapper.dynamic] setting is [" + dynamicMappings + "] while [false] is expected");
+            }
+
+            if (indexMetaData.getMappings().size() != 1 && indexMetaData.getMappings().containsKey(TYPE) == false) {
+                throw new IllegalStateException("illegal ingest mappings, only [" + TYPE + "] mapping is allowed to exist in the " + INDEX +" index");
+            }
+
+            try {
+                Map<String, Object> pipelineMapping = indexMetaData.getMappings().get(TYPE).getSourceAsMap();
+                String dynamicMapping = (String) XContentMapValues.extractValue("dynamic", pipelineMapping);
+                if ("strict".equals(dynamicMapping) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, pipeline mapping must be strict");
+                }
+                Boolean allEnabled = (Boolean) XContentMapValues.extractValue("_all.enabled", pipelineMapping);
+                if (Boolean.FALSE.equals(allEnabled) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, _all field is enabled");
+                }
+
+                String processorsType = (String) XContentMapValues.extractValue("properties.processors.type", pipelineMapping);
+                if ("object".equals(processorsType) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, processors field's type is [" + processorsType + "] while [object] is expected");
+                }
+
+                Boolean processorsEnabled = (Boolean) XContentMapValues.extractValue("properties.processors.enabled", pipelineMapping);
+                if (Boolean.FALSE.equals(processorsEnabled) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, processors field enabled option is [true] while [false] is expected");
+                }
+
+                Boolean processorsDynamic = (Boolean) XContentMapValues.extractValue("properties.processors.dynamic", pipelineMapping);
+                if (Boolean.TRUE.equals(processorsDynamic) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, processors field dynamic option is [false] while [true] is expected");
+                }
+
+                String onFailureType = (String) XContentMapValues.extractValue("properties.on_failure.type", pipelineMapping);
+                if ("object".equals(onFailureType) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, on_failure field type option is [" + onFailureType + "] while [object] is expected");
+                }
+
+                Boolean onFailureEnabled = (Boolean) XContentMapValues.extractValue("properties.on_failure.enabled", pipelineMapping);
+                if (Boolean.FALSE.equals(onFailureEnabled) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, on_failure field enabled option is [true] while [false] is expected");
+                }
+
+                Boolean onFailureDynamic = (Boolean) XContentMapValues.extractValue("properties.on_failure.dynamic", pipelineMapping);
+                if (Boolean.TRUE.equals(onFailureDynamic) == false) {
+                    throw new IllegalStateException("illegal ingest mapping, on_failure field dynamic option is [false] while [true] is expected");
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 
     synchronized void start() throws Exception {
         if (started) {

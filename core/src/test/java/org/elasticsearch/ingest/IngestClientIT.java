@@ -25,19 +25,18 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.ingest.IngestActionFilter;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.IngestActionFilter;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -58,28 +57,6 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(IngestPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("node.ingest", true)
-            .build();
-    }
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder()
-            .put(super.transportClientSettings())
-            //TODO can we remove this?
-             .put("node.ingest", true)
-            .build();
     }
 
     public void testSimulate() throws Exception {

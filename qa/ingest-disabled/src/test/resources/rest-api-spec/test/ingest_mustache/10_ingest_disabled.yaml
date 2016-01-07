@@ -80,7 +80,7 @@
 "Test index api with pipeline id fails when node.ingest is set to false":
   - do:
       catch: /ingest plugin is disabled, cannot execute pipeline with id \[my_pipeline_1\]/
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -95,7 +95,7 @@
 "Test bulk api with pipeline id fails when node.ingest is set to false":
   - do:
       catch: /ingest plugin is disabled, cannot execute pipeline with id \[my_pipeline_1\]/
-      ingest.bulk:
+      bulk:
         pipeline: "my_pipeline_1"
         body:
           - index:

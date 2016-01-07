@@ -78,9 +78,3 @@ thirdPartyAudit.excludes = [
   'org.objectweb.asm.MethodVisitor',
   'org.objectweb.asm.Opcodes',
 ]
-
-integTest {
-  cluster {
-    systemProperty 'es.node.ingest', 'true'
-  }
-}

@@ -69,7 +69,10 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
         this.pipelineStore = new PipelineStore(settings, clusterService, transportService);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
 
-        clusterService.add(this);
+        boolean isNoTribeNode = settings.getByPrefix("tribe.").getAsMap().isEmpty();
+        if (isNoTribeNode) {
+            clusterService.add(this);
+        }
     }
 
     // for testing:

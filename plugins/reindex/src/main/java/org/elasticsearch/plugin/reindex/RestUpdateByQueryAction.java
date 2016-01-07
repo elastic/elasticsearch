@@ -65,8 +65,8 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
          * defaults. Then the parse can override them.
          */
         UpdateByQueryRequest internalRequest = new UpdateByQueryRequest(new SearchRequest());
-        int scrollSize = internalRequest.source().source().size();
-        internalRequest.source().source().size(SIZE_ALL_MATCHES);
+        int scrollSize = internalRequest.getSource().source().size();
+        internalRequest.getSource().source().size(SIZE_ALL_MATCHES);
         /*
          * We can't send parseSearchRequest REST content that it doesn't support
          * so we will have to remove the content that is valid in addition to
@@ -96,7 +96,7 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
                 bodyContent = builder.bytes();
             }
         }
-        RestSearchAction.parseSearchRequest(internalRequest.source(), indicesQueriesRegistry, request,
+        RestSearchAction.parseSearchRequest(internalRequest.getSource(), indicesQueriesRegistry, request,
                 parseFieldMatcher, bodyContent);
 
         String conflicts = request.param("conflicts");
@@ -105,8 +105,8 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         }
         parseCommon(internalRequest, request);
 
-        internalRequest.size(internalRequest.source().source().size());
-        internalRequest.source().source().size(request.paramAsInt("scroll_size", scrollSize));
+        internalRequest.size(internalRequest.getSource().source().size());
+        internalRequest.getSource().source().size(request.paramAsInt("scroll_size", scrollSize));
 
         client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));
     }

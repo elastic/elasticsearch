@@ -66,7 +66,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
         public AsyncIndexBySearchAction(UpdateByQueryRequest request,
                 ActionListener<BulkIndexByScrollResponse> listener) {
-            super(logger, scriptService, client, threadPool, request, request.source(), listener);
+            super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 
         @Override

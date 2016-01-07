@@ -185,9 +185,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     }
                     batches.incrementAndGet();
                     List<SearchHit> docsIterable = Arrays.asList(docs);
-                    if (mainRequest.size() != SIZE_ALL_MATCHES) {
+                    if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
                         // Truncate the docs if we have more than the request size
-                        long remaining = max(0, mainRequest.size() - successfullyProcessed());
+                        long remaining = max(0, mainRequest.getSize() - successfullyProcessed());
                         if (remaining < docs.length) {
                             docsIterable = docsIterable.subList(0, (int) remaining);
                         }
@@ -201,8 +201,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         startNextScrollRequest();
                         return;
                     }
-                    request.timeout(mainRequest.timeout());
-                    request.consistencyLevel(mainRequest.consistency());
+                    request.timeout(mainRequest.getTimeout());
+                    request.consistencyLevel(mainRequest.getConsistency());
                     if (logger.isDebugEnabled()) {
                         logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                                 new ByteSizeValue(request.estimatedSizeInBytes()));
@@ -266,7 +266,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            if (mainRequest.size() != SIZE_ALL_MATCHES && successfullyProcessed() >= mainRequest.size()) {
+            if (mainRequest.getSize() != SIZE_ALL_MATCHES && successfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
                 startNormalTermination();
                 return;
@@ -296,7 +296,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private void recordFailure(Failure failure) {
         if (failure.getStatus() == CONFLICT) {
             versionConflicts.incrementAndGet();
-            if (false == mainRequest.abortOnVersionConflict()) {
+            if (false == mainRequest.isAbortOnVersionConflict()) {
                 return;
             }
         }
@@ -304,7 +304,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void startNormalTermination() {
-        if (false == mainRequest.refresh()) {
+        if (false == mainRequest.isRefresh()) {
             finishHim(null);
             return;
         }

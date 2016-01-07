@@ -62,10 +62,10 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
         super(logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
-        if (mainRequest.script() == null) {
+        if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            script = scriptService.compile(mainRequest.script(), ScriptContext.Standard.UPDATE, mainRequest);
+            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, mainRequest);
         }
     }
 
@@ -94,7 +94,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             copyMetadata(index, doc);
             if (script != null) {
                 if (executableScript == null) {
-                    executableScript = scriptService.executable(script, mainRequest.script().getParams());
+                    executableScript = scriptService.executable(script, mainRequest.getScript().getParams());
                     scriptCtx = new HashMap<>();
                 }
                 if (false == applyScript(index, doc, executableScript, scriptCtx)) {

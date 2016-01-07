@@ -90,10 +90,10 @@ public class RestReindexAction extends BaseRestHandler {
         destParser.declareString(IndexRequest::timestamp, new ParseField("timestamp"));
         destParser.declareString((i, ttl) -> i.ttl(parseTimeValue(ttl, TimeValue.timeValueMillis(-1), "ttl").millis()), new ParseField("ttl"));
 
-        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("src"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.source(), c), new ParseField("source"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("dest"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.destination(), null), new ParseField("destination"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("src"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("source"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("destination"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::size, new ParseField("size"));
         PARSER.declareField((p, v, c) -> v.script(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::conflicts, new ParseField("conflicts"));
@@ -140,8 +140,8 @@ public class RestReindexAction extends BaseRestHandler {
     }
 
     public static void parseCommon(AbstractBulkByScrollRequest<?> internalRequest, RestRequest request) {
-        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.refresh()));
-        internalRequest.timeout(request.paramAsTime("timeout", internalRequest.timeout()));
+        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.isRefresh()));
+        internalRequest.timeout(request.paramAsTime("timeout", internalRequest.getTimeout()));
         String consistency = request.param("consistency");
         if (consistency != null) {
             internalRequest.consistency(WriteConsistencyLevel.fromString(consistency));

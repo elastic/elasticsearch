@@ -64,16 +64,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
-        String target = request.destination().index();
+        String target = request.getDestination().index();
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterService.state())) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.destination())[0];
+            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.getDestination())[0];
         }
-        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.source())) {
+        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.getSource())) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
@@ -91,12 +91,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
         public AsyncIndexBySearchAction(ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(logger, scriptService, client, threadPool, request, request.source(), listener);
+            super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 
         @Override
         protected IndexRequest buildIndexRequest(SearchHit doc) {
-            IndexRequest index = new IndexRequest(mainRequest.destination(), mainRequest);
+            IndexRequest index = new IndexRequest(mainRequest.getDestination(), mainRequest);
 
             // We want the index from the copied request, not the doc.
             index.id(doc.id());
@@ -124,13 +124,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         @Override
         protected void copyRouting(IndexRequest index, SearchHit doc) {
-            String routingSpec = mainRequest.destination().routing();
+            String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(index, doc);
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                index.routing(mainRequest.destination().routing().substring(1));
+                index.routing(mainRequest.getDestination().routing().substring(1));
                 return;
             }
             switch (routingSpec) {

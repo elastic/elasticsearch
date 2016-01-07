@@ -44,7 +44,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     /**
      * Script to modify the documents before they are processed.
      */
-    public Script script() {
+    public Script getScript() {
         return script;
     }
 

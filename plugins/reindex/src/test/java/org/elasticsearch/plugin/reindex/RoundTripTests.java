@@ -46,13 +46,13 @@ public class RoundTripTests extends ESTestCase {
     public void testReindexRequest() throws IOException {
         ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
         randomRequest(reindex);
-        reindex.destination().version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, 12L, 1L, 123124L, 12L));
-        reindex.destination().index("test");
+        reindex.getDestination().version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, 12L, 1L, 123124L, 12L));
+        reindex.getDestination().index("test");
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
-        assertEquals(reindex.destination().version(), tripped.destination().version());
-        assertEquals(reindex.destination().index(), tripped.destination().index());
+        assertEquals(reindex.getDestination().version(), tripped.getDestination().version());
+        assertEquals(reindex.getDestination().index(), tripped.getDestination().index());
     }
 
     public void testUpdateByQueryRequest() throws IOException {
@@ -81,8 +81,8 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
-        request.source().indices("test");
-        request.source().source().size(between(1, 1000));
+        request.getSource().indices("test");
+        request.getSource().source().size(between(1, 1000));
         request.size(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
         request.abortOnVersionConflict(random().nextBoolean());
         request.refresh(rarely());
@@ -93,13 +93,13 @@ public class RoundTripTests extends ESTestCase {
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
             AbstractBulkIndexByScrollRequest<?> tripped) {
-        assertArrayEquals(request.source().indices(), tripped.source().indices());
-        assertEquals(request.source().source().size(), tripped.source().source().size());
-        assertEquals(request.abortOnVersionConflict(), tripped.abortOnVersionConflict());
-        assertEquals(request.refresh(), tripped.refresh());
-        assertEquals(request.timeout(), tripped.timeout());
-        assertEquals(request.consistency(), tripped.consistency());
-        assertEquals(request.script(), tripped.script());
+        assertArrayEquals(request.getSource().indices(), tripped.getSource().indices());
+        assertEquals(request.getSource().source().size(), tripped.getSource().source().size());
+        assertEquals(request.isAbortOnVersionConflict(), tripped.isAbortOnVersionConflict());
+        assertEquals(request.isRefresh(), tripped.isRefresh());
+        assertEquals(request.getTimeout(), tripped.getTimeout());
+        assertEquals(request.getConsistency(), tripped.getConsistency());
+        assertEquals(request.getScript(), tripped.getScript());
     }
 
     private List<Failure> randomFailures() {

@@ -109,7 +109,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    public int size() {
+    public int getSize() {
         return size;
     }
 
@@ -125,7 +125,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Should version conflicts cause aborts? Defaults to false.
      */
-    public boolean abortOnVersionConflict() {
+    public boolean isAbortOnVersionConflict() {
         return abortOnVersionConflict;
     }
 
@@ -156,14 +156,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The search request that matches the documents to process.
      */
-    public SearchRequest source() {
+    public SearchRequest getSource() {
         return source;
     }
 
     /**
      * Call refresh on the indexes we've written to after the request ends?
      */
-    public boolean refresh() {
+    public boolean isRefresh() {
         return refresh;
     }
 
@@ -178,7 +178,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Timeout to wait for the shards on to be available for each bulk request?
      */
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
@@ -193,7 +193,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Consistency level for write requests.
      */
-    public WriteConsistencyLevel consistency() {
+    public WriteConsistencyLevel getConsistency() {
         return consistency;
     }
 

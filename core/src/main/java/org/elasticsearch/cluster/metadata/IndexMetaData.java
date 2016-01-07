@@ -46,7 +46,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -91,11 +90,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     public static Map<String, Custom> customPrototypes = new HashMap<>();
-
-    static {
-        // register non plugin custom metadata
-        registerPrototype(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.PROTO);
-    }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -904,6 +898,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 builder.putActiveAllocationIds(Integer.valueOf(shardId), allocationIds);
                             }
                         }
+                    } else if ("warmers".equals(currentFieldName)) {
+                        // TODO: do this in 4.0:
+                        // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
+                        // ignore: warmers have been removed in 3.0 and are
+                        // simply ignored when upgrading from 2.x
+                        assert Version.CURRENT.major <= 3;
                     } else {
                         // check if its a custom index metadata
                         Custom proto = lookupPrototype(currentFieldName);

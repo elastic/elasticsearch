@@ -37,8 +37,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public static enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
-        SETTINGS((byte) 2, "_settings"),
-        WARMERS((byte) 3, "_warmers", "_warmer");
+        SETTINGS((byte) 2, "_settings");
 
         private static final Feature[] FEATURES = new Feature[Feature.values().length];
 
@@ -97,7 +96,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         }
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS, Feature.WARMERS };
+    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
 

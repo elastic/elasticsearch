@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class UpdateThreadPoolSettingsTests extends ESTestCase {
+
     public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
@@ -54,6 +56,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             threadPool = new ThreadPool(settingsBuilder()
                     .put("name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("threadpool." + threadPoolName + ".type", correctThreadPoolType.getType())
+                    .put("node.ingest", true)
                     .build());
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
@@ -77,6 +80,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     settingsBuilder()
                             .put("name", "testThreadPoolCanNotOverrideThreadPoolType")
                             .put("threadpool." + threadPoolName + ".type", incorrectThreadPoolType.getType())
+                            .put("node.ingest", true)
                             .build());
             terminate(threadPool);
             fail("expected IllegalArgumentException");
@@ -95,7 +99,8 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool.ThreadPoolType validThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
+            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType")
+                .put("node.ingest", true).build());
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
 
@@ -120,7 +125,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testCachedExecutorType").build();
+                    .put("name", "testCachedExecutorType").put("node.ingest", true).build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -171,7 +176,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testFixedExecutorType").build();
+                    .put("name", "testFixedExecutorType").put("node.ingest", true).build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -226,7 +231,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", 10)
-                    .put("name", "testScalingExecutorType").build();
+                    .put("name", "testScalingExecutorType").put("node.ingest", true).build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -264,7 +269,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testCachedExecutorType").build();
+                    .put("name", "testCachedExecutorType").put("node.ingest", true).build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -301,7 +306,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("threadpool.my_pool2.type", "fixed")
                     .put("threadpool.my_pool2.size", "1")
                     .put("threadpool.my_pool2.queue_size", "1")
-                    .put("name", "testCustomThreadPool").build();
+                    .put("name", "testCustomThreadPool").put("node.ingest", true).build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -393,11 +398,10 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         Set<ThreadPool.ThreadPoolType> set = new HashSet<>();
         set.addAll(Arrays.asList(ThreadPool.ThreadPoolType.values()));
         set.remove(ThreadPool.THREAD_POOL_TYPES.get(threadPoolName));
-        ThreadPool.ThreadPoolType invalidThreadPoolType = randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
-        return invalidThreadPoolType;
+        return randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
     }
 
     private String randomThreadPool(ThreadPool.ThreadPoolType type) {
-        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(t -> t.getKey()).collect(Collectors.toList()));
+        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).collect(Collectors.toList()));
     }
 }

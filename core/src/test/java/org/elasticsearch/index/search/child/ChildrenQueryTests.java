@@ -163,7 +163,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
         indexWriter.deleteDocuments(new Term("delete", "me"));
         indexWriter.commit();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("foo", 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("test", 1));
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.Searcher(
                 ChildrenQueryTests.class.getSimpleName(), searcher
@@ -192,7 +192,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
                 }
 
                 indexReader.close();
-                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, true), new ShardId("foo", 1));
+                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, true), new ShardId("test", 1));
                 searcher = new IndexSearcher(indexReader);
                 engineSearcher = new Engine.Searcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
@@ -359,7 +359,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
 
         writer.commit();
 
-        IndexReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        IndexReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("test", 1));
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // setup to read the parent/child map

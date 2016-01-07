@@ -68,7 +68,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * The maximum number of documents to attempt.
      */
     public Self size(int size) {
-        request.size(size);
+        request.setSize(size);
         return self();
     }
 
@@ -76,7 +76,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * Should we version conflicts cause the action to abort?
      */
     public Self abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.abortOnVersionConflict(abortOnVersionConflict);
+        request.setAbortOnVersionConflict(abortOnVersionConflict);
         return self();
     }
 
@@ -84,7 +84,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * Call refresh on the indexes we've written to after the request ends?
      */
     public Self refresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return self();
     }
 
@@ -92,7 +92,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * Timeout to wait for the shards on to be available for each bulk request.
      */
     public Self timeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return self();
     }
 
@@ -100,7 +100,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<Request extends Abstrac
      * Consistency level for write requests.
      */
     public Self consistency(WriteConsistencyLevel consistency) {
-        request.consistency(consistency);
+        request.setConsistency(consistency);
         return self();
     }
 }

@@ -45,7 +45,7 @@ public class UpdateByQueryRequestBuilder extends
 
     @Override
     public UpdateByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.abortOnVersionConflict(abortOnVersionConflict);
+        request.setAbortOnVersionConflict(abortOnVersionConflict);
         return this;
     }
 }

@@ -117,7 +117,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    public Self size(int size) {
+    public Self setSize(int size) {
         this.size = size;
         return self();
     }
@@ -132,7 +132,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Should version conflicts cause aborts? Defaults to false.
      */
-    public Self abortOnVersionConflict(boolean abortOnVersionConflict) {
+    public Self setAbortOnVersionConflict(boolean abortOnVersionConflict) {
         this.abortOnVersionConflict = abortOnVersionConflict;
         return self();
     }
@@ -140,13 +140,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Sets abortOnVersionConflict based on REST-friendly names.
      */
-    public void conflicts(String conflicts) {
+    public void setConflicts(String conflicts) {
         switch (conflicts) {
         case "proceed":
-            abortOnVersionConflict(false);
+            setAbortOnVersionConflict(false);
             return;
         case "abort":
-            abortOnVersionConflict(true);
+            setAbortOnVersionConflict(true);
             return;
         default:
             throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
@@ -170,7 +170,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Call refresh on the indexes we've written to after the request ends?
      */
-    public Self refresh(boolean refresh) {
+    public Self setRefresh(boolean refresh) {
         this.refresh = refresh;
         return self();
     }
@@ -185,7 +185,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Timeout to wait for the shards on to be available for each bulk request?
      */
-    public Self timeout(TimeValue timeout) {
+    public Self setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return self();
     }
@@ -200,7 +200,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Consistency level for write requests.
      */
-    public Self consistency(WriteConsistencyLevel consistency) {
+    public Self setConsistency(WriteConsistencyLevel consistency) {
         this.consistency = consistency;
         return self();
     }

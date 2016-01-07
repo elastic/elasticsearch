@@ -37,7 +37,7 @@ public abstract class AbstractBulkIndexByScrollRequestBuilder<Request extends Ab
      * Script to modify the documents before they are processed.
      */
     public Self script(Script script) {
-        request.script(script);
+        request.setScript(script);
         return self();
     }
 }

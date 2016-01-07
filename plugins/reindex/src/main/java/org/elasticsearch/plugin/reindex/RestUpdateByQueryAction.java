@@ -81,13 +81,13 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
             boolean modified = false;
             String conflicts = (String) body.v2().remove("conflicts");
             if (conflicts != null) {
-                internalRequest.conflicts(conflicts);
+                internalRequest.setConflicts(conflicts);
                 modified = true;
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> script = (Map<String, Object>) body.v2().remove("script");
             if (script != null) {
-                internalRequest.script(Script.parse(script, false, parseFieldMatcher));
+                internalRequest.setScript(Script.parse(script, false, parseFieldMatcher));
                 modified = true;
             }
             if (modified) {
@@ -101,11 +101,11 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
 
         String conflicts = request.param("conflicts");
         if (conflicts != null) {
-            internalRequest.conflicts(conflicts);
+            internalRequest.setConflicts(conflicts);
         }
         parseCommon(internalRequest, request);
 
-        internalRequest.size(internalRequest.getSource().source().size());
+        internalRequest.setSize(internalRequest.getSource().source().size());
         internalRequest.getSource().source().size(request.paramAsInt("scroll_size", scrollSize));
 
         client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));

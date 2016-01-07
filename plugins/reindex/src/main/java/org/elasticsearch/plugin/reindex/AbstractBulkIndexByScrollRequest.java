@@ -51,7 +51,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     /**
      * Script to modify the documents before they are processed.
      */
-    public Self script(@Nullable Script script) {
+    public Self setScript(@Nullable Script script) {
         this.script = script;
         return self();
     }

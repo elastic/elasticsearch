@@ -83,12 +83,12 @@ public class RoundTripTests extends ESTestCase {
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
         request.getSource().indices("test");
         request.getSource().source().size(between(1, 1000));
-        request.size(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
-        request.abortOnVersionConflict(random().nextBoolean());
-        request.refresh(rarely());
-        request.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
-        request.consistency(randomFrom(WriteConsistencyLevel.values()));
-        request.script(random().nextBoolean() ? null : randomScript());
+        request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
+        request.setAbortOnVersionConflict(random().nextBoolean());
+        request.setRefresh(rarely());
+        request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
+        request.setConsistency(randomFrom(WriteConsistencyLevel.values()));
+        request.setScript(random().nextBoolean() ? null : randomScript());
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,

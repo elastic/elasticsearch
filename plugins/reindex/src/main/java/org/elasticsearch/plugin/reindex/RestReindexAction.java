@@ -94,9 +94,9 @@ public class RestReindexAction extends BaseRestHandler {
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("destination"), ValueType.OBJECT);
-        PARSER.declareInt(ReindexRequest::size, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.script(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
-        PARSER.declareString(ReindexRequest::conflicts, new ParseField("conflicts"));
+        PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
+        PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
     private IndicesQueriesRegistry indicesQueriesRegistry;
@@ -140,11 +140,11 @@ public class RestReindexAction extends BaseRestHandler {
     }
 
     public static void parseCommon(AbstractBulkByScrollRequest<?> internalRequest, RestRequest request) {
-        internalRequest.refresh(request.paramAsBoolean("refresh", internalRequest.isRefresh()));
-        internalRequest.timeout(request.paramAsTime("timeout", internalRequest.getTimeout()));
+        internalRequest.setRefresh(request.paramAsBoolean("refresh", internalRequest.isRefresh()));
+        internalRequest.setTimeout(request.paramAsTime("timeout", internalRequest.getTimeout()));
         String consistency = request.param("consistency");
         if (consistency != null) {
-            internalRequest.consistency(WriteConsistencyLevel.fromString(consistency));
+            internalRequest.setConsistency(WriteConsistencyLevel.fromString(consistency));
         }
     }
 

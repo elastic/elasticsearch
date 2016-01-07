@@ -33,6 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
@@ -42,7 +43,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Instantiates and wires all the services that the ingest plugin will be needing.
@@ -164,7 +164,7 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
                     logger.debug("Failed to install .ingest index template", e);
                 }
             });
-        } catch (RejectedExecutionException e) {
+        } catch (EsRejectedExecutionException e) {
             logger.debug("async fork and install template failed", e);
         }
     }
@@ -214,14 +214,10 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
                     pipelineStore.start();
                 } catch (Exception e1) {
                     logger.warn("pipeline store failed to start, retrying...", e1);
-                    try {
-                        startPipelineStore(metaData);
-                    } catch (RejectedExecutionException e2) {
-                        logger.debug("async pipeline store start retry failed", e2);
-                    }
+                    startPipelineStore(metaData);
                 }
             });
-        } catch (RejectedExecutionException e) {
+        } catch (EsRejectedExecutionException e) {
             logger.debug("async pipeline store start failed", e);
         }
     }
@@ -235,7 +231,7 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
                     logger.error("pipeline store stop failure", e);
                 }
             });
-        } catch (RejectedExecutionException e) {
+        } catch (EsRejectedExecutionException e) {
             logger.debug("async pipeline store stop failed", e);
         }
     }

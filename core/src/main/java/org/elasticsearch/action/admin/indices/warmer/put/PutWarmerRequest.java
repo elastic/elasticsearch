@@ -111,7 +111,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     }
 
     @Override
-    public IndicesRequest indices(String[] indices) {
+    public IndicesRequest indices(String... indices) {
         if (searchRequest == null) {
             throw new IllegalStateException("unable to set indices, search request is null");
         }

@@ -81,7 +81,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -738,6 +737,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         final TranslogService translogService = test.shardInjectorSafe(0).getInstance(TranslogService.class);
         final TranslogService.TranslogBasedFlush checker = translogService.new TranslogBasedFlush();
         assertTrue(checker.maybeFlushAndReschedule());
+        newShard.shardRouting = routing;
         DiscoveryNode someNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
         switch (randomFrom(RecoveryState.Type.values())) {
             case STORE:

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.StorageException;
+import java.net.URISyntaxException;
+import java.util.Collection;
+
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
@@ -33,8 +34,8 @@ import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.URISyntaxException;
-import java.util.Collection;
+import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.StorageException;
 
 public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzureTestCase {
 
@@ -76,6 +77,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Supports deprecated settings for testing backwards compatibility
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
                 .put(Storage.CONTAINER, "snapshots");

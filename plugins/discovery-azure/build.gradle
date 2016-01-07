@@ -57,8 +57,6 @@ dependencyLicenses {
 }
 
 compileJava.options.compilerArgs << '-Xlint:-path,-serial,-unchecked'
-// TODO: why is deprecation needed here but not in maven....?
-compileJava.options.compilerArgs << '-Xlint:-deprecation'
 
 thirdPartyAudit.excludes = [
   // classes are missing

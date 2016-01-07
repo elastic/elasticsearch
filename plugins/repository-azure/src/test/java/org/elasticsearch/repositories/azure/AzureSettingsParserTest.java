@@ -19,13 +19,13 @@
 
 package org.elasticsearch.repositories.azure;
 
+import java.util.Map;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -67,6 +67,7 @@ public class AzureSettingsParserTest extends LuceneTestCase {
     }
 
     public void testDeprecatedSettings() {
+        @SuppressWarnings("deprecation")
         Settings settings = Settings.builder()
                 .put(Storage.ACCOUNT_DEPRECATED, "myaccount1")
                 .put(Storage.KEY_DEPRECATED, "mykey1")

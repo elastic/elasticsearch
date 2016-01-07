@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
@@ -27,9 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositorySettings;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class AzureStorageSettings {
     private static ESLogger logger = ESLoggerFactory.getLogger(AzureStorageSettings.class.getName());
@@ -78,6 +78,7 @@ public class AzureStorageSettings {
      * @param settings settings to parse
      * @return A tuple with v1 = primary storage and v2 = secondary storage
      */
+    @SuppressWarnings("deprecation") // Supports deprecated settings
     public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
         AzureStorageSettings primaryStorage = null;
         Map<String, AzureStorageSettings> secondaryStorage = new HashMap<>();

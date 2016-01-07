@@ -241,7 +241,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      * @throws ElasticsearchSecurityException   If none of the configured realms successfully authenticated the
      *                                          request
      */
-    @SuppressWarnings("unchecked")
     User authenticateWithRealms(String action, TransportMessage<?> message, User fallbackUser) throws ElasticsearchSecurityException {
         AuthenticationToken token;
         try {

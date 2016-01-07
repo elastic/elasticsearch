@@ -144,7 +144,6 @@ public class ShieldServerTransportService extends TransportService {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try {
                 if (licenseState.securityEnabled()) {

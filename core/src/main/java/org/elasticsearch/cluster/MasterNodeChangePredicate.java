@@ -17,36 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.warmer.put;
+package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+public enum MasterNodeChangePredicate implements ClusterStateObserver.ChangePredicate {
+    INSTANCE;
 
-import java.io.IOException;
-
-/**
- * An acknowledged response of put warmer operation.
- */
-public class PutWarmerResponse extends AcknowledgedResponse {
-
-    PutWarmerResponse() {
-        super();
-    }
-
-    PutWarmerResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    public boolean apply(
+        ClusterState previousState,
+        ClusterState.ClusterStateStatus previousStatus,
+        ClusterState newState,
+        ClusterState.ClusterStateStatus newStatus) {
+        // checking if the masterNodeId changed is insufficient as the
+        // same master node might get re-elected after a disruption
+        return newState.nodes().masterNodeId() != null && newState != previousState;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
+    public boolean apply(ClusterChangedEvent changedEvent) {
+        return changedEvent.nodesDelta().masterNodeChanged();
     }
 }

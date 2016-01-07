@@ -29,9 +29,15 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -76,7 +82,17 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         try {
             MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            final IndexSearcher slowSearcher = new IndexSearcher(slowReader);
+            final IndexSearcher slowSearcher = new IndexSearcher(slowReader) {
+
+                @Override
+                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                    bq.add(query, BooleanClause.Occur.MUST);
+                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
+                    return super.createNormalizedWeight(bq.build(), needsScores);
+                }
+
+            };
             slowSearcher.setQueryCache(null);
             DocSearcher docSearcher = new DocSearcher(slowSearcher, rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);

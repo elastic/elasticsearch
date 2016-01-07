@@ -36,7 +36,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -72,7 +71,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, List<Entry>> warmersResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
@@ -80,15 +78,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
-        boolean doneWarmers = false;
         for (Feature feature : features) {
             switch (feature) {
-            case WARMERS:
-                    if (!doneWarmers) {
-                        warmersResult = state.metaData().findWarmers(concreteIndices, request.types(), Strings.EMPTY_ARRAY);
-                        doneWarmers = true;
-                    }
-                    break;
             case MAPPINGS:
                     if (!doneMappings) {
                         mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
@@ -120,6 +111,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, warmersResult, mappingsResult, aliasesResult, settings));
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings));
     }
 }

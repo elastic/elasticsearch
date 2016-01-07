@@ -381,8 +381,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
-                logger.error("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
-                logger.error(routingNodes.prettyPrint());
+                logger.trace("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
                 assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
             }
         }

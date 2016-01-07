@@ -162,6 +162,11 @@ Defaults depend on the <<mapping-index,`index`>> setting:
 
     The <<analyzer,`analyzer`>> that should be used at search time on
     <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+	
+<<search-quote-analyzer,`search_quote_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time when a
+    phrase is encountered. Defaults to the `search_analyzer` setting.
 
 <<similarity,`similarity`>>::
 

@@ -117,7 +117,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, IndexService.this::getQueryShardContext);
         this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
         this.eventListener = eventListener;

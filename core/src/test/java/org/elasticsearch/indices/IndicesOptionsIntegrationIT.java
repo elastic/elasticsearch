@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
@@ -49,10 +48,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -86,7 +82,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1", "test2"), true);
         verify(getFieldMapping("test1", "test2"), true);
         verify(getMapping("test1", "test2"), true);
-        verify(getWarmer("test1", "test2"), true);
         verify(getSettings("test1", "test2"), true);
 
         IndicesOptions options = IndicesOptions.strictExpandOpen();
@@ -107,7 +102,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1", "test2").setIndicesOptions(options), true);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getMapping("test1", "test2").setIndicesOptions(options), true);
-        verify(getWarmer("test1", "test2").setIndicesOptions(options), true);
         verify(getSettings("test1", "test2").setIndicesOptions(options), true);
 
         options = IndicesOptions.lenientExpandOpen();
@@ -128,7 +122,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
-        verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
@@ -151,7 +144,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
-        verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
     }
 
@@ -182,7 +174,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
-        verify(getWarmer("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
         options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
@@ -203,7 +194,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getWarmer("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
         assertAcked(client().admin().indices().prepareOpen("test1"));
@@ -227,7 +217,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getWarmer("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
 
@@ -249,7 +238,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
-        verify(getWarmer("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
         options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
@@ -269,7 +257,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getWarmer("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("test1"));
@@ -292,7 +279,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getWarmer("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
 
@@ -346,7 +332,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
-        verify(getWarmer(indices), false);
         verify(getSettings(indices), false);
 
         // Now force allow_no_indices=true
@@ -368,7 +353,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
-        verify(getWarmer(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
@@ -393,7 +377,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
-        verify(getWarmer(indices), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         // Verify defaults for wildcards, with two wildcard expression and one existing index
@@ -415,7 +398,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
-        verify(getWarmer(indices), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         // Now force allow_no_indices=true
@@ -437,7 +419,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
-        verify(getWarmer(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
     }
 
@@ -581,34 +562,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(false));
     }
 
-    public void testPutWarmer() throws Exception {
-        createIndex("foobar");
-        ensureYellow();
-        verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foobar").setQuery(QueryBuilders.matchAllQuery())), false);
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
-
-    }
-
-    public void testPutWarmerWildcard() throws Exception {
-        createIndex("foo", "foobar", "bar", "barbaz");
-        ensureYellow();
-
-        verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foo*").setQuery(QueryBuilders.matchAllQuery())), false);
-
-        assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
-        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
-
-        verify(client().admin().indices().preparePutWarmer("warmer2").setSearchRequest(client().prepareSearch().setIndices().setQuery(QueryBuilders.matchAllQuery())), false);
-
-        assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-
-    }
-
     public void testPutAlias() throws Exception {
         createIndex("foobar");
         ensureYellow();
@@ -633,46 +586,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("bar").get().exists(), equalTo(true));
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(true));
 
-    }
-
-    public void testDeleteWarmer() throws Exception {
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(QueryBuilders.matchAllQuery());
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "typ1" }, false, new IndexWarmersMetaData.SearchSource(source));
-        assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
-        ensureYellow();
-
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo").setNames("test1"), true);
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(1));
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foobar").setNames("test1"), false);
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
-    }
-
-    public void testDeleteWarmerWildcard() throws Exception {
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
-
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(QueryBuilders.matchAllQuery());
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "type1" }, false, new IndexWarmersMetaData.SearchSource(source));
-        assertAcked(prepareCreate("foo").addCustom(new IndexWarmersMetaData(entry)));
-        assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
-        assertAcked(prepareCreate("bar").addCustom(new IndexWarmersMetaData(entry)));
-        assertAcked(prepareCreate("barbaz").addCustom(new IndexWarmersMetaData(entry)));
-        ensureYellow();
-
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setNames("test1"), false);
-        assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("test1").get().getWarmers().size(), equalTo(0));
-        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
-        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("test1").get().getWarmers().size(), equalTo(1));
-        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("test1").get().getWarmers().size(), equalTo(1));
-
-        assertAcked(client().admin().indices().prepareDelete("foo*"));
-
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setNames("test1"), true);
-
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), false);
-        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
-        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("test1").get().getWarmers().size(), equalTo(0));
     }
 
     public void testPutMapping() throws Exception {
@@ -814,10 +727,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     private static GetMappingsRequestBuilder getMapping(String... indices) {
         return client().admin().indices().prepareGetMappings(indices);
-    }
-
-    private static GetWarmersRequestBuilder getWarmer(String... indices) {
-        return client().admin().indices().prepareGetWarmers(indices);
     }
 
     private static GetSettingsRequestBuilder getSettings(String... indices) {

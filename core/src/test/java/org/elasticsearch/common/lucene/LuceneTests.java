@@ -38,7 +38,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -54,14 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  */
 public class LuceneTests extends ESTestCase {
-    /**
-     * simple test that ensures that we bump the version on Upgrade
-     */
-    public void testVersion() {
-        // note this is just a silly sanity check, we test it in lucene, and we point to it this way
-        assertEquals(Lucene.VERSION, Version.LATEST);
-    }
-
     public void testWaitForIndex() throws Exception {
         final MockDirectoryWrapper dir = newMockDirectory();
 

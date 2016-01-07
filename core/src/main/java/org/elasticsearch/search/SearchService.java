@@ -29,7 +29,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -95,7 +94,6 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -103,7 +101,6 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -202,7 +199,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         this.indicesWarmer.addListener(new NormsWarmer(indicesWarmer));
         this.indicesWarmer.addListener(new FieldDataWarmer(indicesWarmer));
-        this.indicesWarmer.addListener(new SearchWarmer());
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -1164,76 +1160,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     latch.await();
                 }
             };
-        }
-    }
-
-    class SearchWarmer implements IndicesWarmer.Listener {
-
-        @Override
-        public TerminationHandle warmNewReaders(IndexShard indexShard, final Engine.Searcher searcher) {
-            return internalWarm(indexShard, searcher, false);
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, final Engine.Searcher searcher) {
-            return internalWarm(indexShard, searcher, true);
-        }
-
-        public TerminationHandle internalWarm(final IndexShard indexShard, final Engine.Searcher searcher, final boolean top) {
-            IndexWarmersMetaData custom = indexShard.getIndexSettings().getIndexMetaData().custom(IndexWarmersMetaData.TYPE);
-            if (custom == null) {
-                return TerminationHandle.NO_WAIT;
-            }
-            final Executor executor = indicesWarmer.getExecutor();
-            final CountDownLatch latch = new CountDownLatch(custom.entries().size());
-            for (final IndexWarmersMetaData.Entry entry : custom.entries()) {
-                executor.execute(() -> {
-                    SearchContext context = null;
-                    try {
-                        long now = System.nanoTime();
-                        final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
-                        QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
-                        queryParseContext.parseFieldMatcher(indexService.getIndexSettings().getParseFieldMatcher());
-                        ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexShard.getIndexSettings()
-                                .getNumberOfShards(),
-                                SearchType.QUERY_THEN_FETCH, entry.source().build(queryParseContext), entry.types(), entry.requestCache());
-                        context = createContext(request, searcher);
-                        // if we use sort, we need to do query to sort on
-                        // it and load relevant field data
-                        // if not, we might as well set size=0 (and cache
-                        // if needed)
-                        if (context.sort() == null) {
-                            context.size(0);
-                        }
-                        boolean canCache = indicesQueryCache.canCache(request, context);
-                        // early terminate when we can cache, since we
-                        // can only do proper caching on top level searcher
-                        // also, if we can't cache, and its top, we don't
-                        // need to execute it, since we already did when its
-                        // not top
-                        if (canCache != top) {
-                            return;
-                        }
-                        loadOrExecuteQueryPhase(request, context, queryPhase);
-                        long took = System.nanoTime() - now;
-                        if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));
-                        }
-                    } catch (Throwable t) {
-                        indexShard.warmerService().logger().warn("warmer [{}] failed", t, entry.name());
-                    } finally {
-                        try {
-                            if (context != null) {
-                                freeContext(context.id());
-                                cleanContext(context);
-                            }
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-                });
-            }
-            return () -> latch.await();
         }
     }
 

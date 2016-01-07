@@ -33,16 +33,6 @@ public abstract class IndexingOperationListener {
     }
 
     /**
-     * Called after the indexing occurs, under a locking scheme to maintain
-     * concurrent updates to the same doc.
-     * <p>
-     * Note, long operations should not occur under this callback.
-     */
-    public void postIndexUnderLock(Engine.Index index) {
-
-    }
-
-    /**
      * Called after the indexing operation occurred.
      */
     public void postIndex(Engine.Index index) {
@@ -63,15 +53,6 @@ public abstract class IndexingOperationListener {
         return delete;
     }
 
-    /**
-     * Called after the delete occurs, under a locking scheme to maintain
-     * concurrent updates to the same doc.
-     * <p>
-     * Note, long operations should not occur under this callback.
-     */
-    public void postDeleteUnderLock(Engine.Delete delete) {
-
-    }
 
     /**
      * Called after the delete operation occurred.

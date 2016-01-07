@@ -128,7 +128,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> context);
         IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
             @Override

@@ -58,7 +58,6 @@ public final class EngineConfig {
     private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
-    private final ShardIndexingService indexingService;
     private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
@@ -107,7 +106,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
+    public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
@@ -116,7 +115,6 @@ public final class EngineConfig {
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.indexingService = indexingService;
         this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -237,18 +235,6 @@ public final class EngineConfig {
      */
     public ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    /**
-     * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index. The operations are used for statistic purposes etc.
-     *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
-     *
-     */
-    public ShardIndexingService getIndexingService() {
-        return indexingService;
     }
 
     /**

@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
+public class BroadcastRequest<Self extends BroadcastRequest<Self>> extends ActionRequest<Self> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -40,7 +40,7 @@ public class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<
 
     }
 
-    protected BroadcastRequest(ActionRequest originalRequest) {
+    protected BroadcastRequest(ActionRequest<?> originalRequest) {
         super(originalRequest);
     }
 
@@ -55,9 +55,9 @@ public class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<
 
     @SuppressWarnings("unchecked")
     @Override
-    public final T indices(String... indices) {
+    public final Self indices(String... indices) {
         this.indices = indices;
-        return (T) this;
+        return (Self) this;
     }
 
     @Override
@@ -71,9 +71,9 @@ public class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public final T indicesOptions(IndicesOptions indicesOptions) {
+    public final Self indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return (T) this;
+        return (Self) this;
     }
 
     @Override

@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends ActionRequest<T> {
+public abstract class BaseNodesRequest<Self extends BaseNodesRequest<Self>> extends ActionRequest<Self> {
 
     public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
@@ -43,7 +43,7 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
 
     }
 
-    protected BaseNodesRequest(ActionRequest request, String... nodesIds) {
+    protected BaseNodesRequest(ActionRequest<?> request, String... nodesIds) {
         super(request);
         this.nodesIds = nodesIds;
     }
@@ -57,9 +57,9 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final Self nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (T) this;
+        return (Self) this;
     }
 
     public TimeValue timeout() {
@@ -67,15 +67,15 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Self timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Self) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final Self timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (T) this;
+        return (Self) this;
     }
 
     @Override

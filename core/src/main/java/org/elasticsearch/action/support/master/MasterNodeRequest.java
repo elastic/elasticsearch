@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends ActionRequest<T> {
+public abstract class MasterNodeRequest<Self extends MasterNodeRequest<Self>> extends ActionRequest<Self> {
 
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
@@ -39,7 +39,7 @@ public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends Act
 
     }
 
-    protected MasterNodeRequest(ActionRequest request) {
+    protected MasterNodeRequest(ActionRequest<?> request) {
         super(request);
     }
 
@@ -47,15 +47,15 @@ public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends Act
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
     @SuppressWarnings("unchecked")
-    public final T masterNodeTimeout(TimeValue timeout) {
+    public final Self masterNodeTimeout(TimeValue timeout) {
         this.masterNodeTimeout = timeout;
-        return (T) this;
+        return (Self) this;
     }
 
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
-    public final T masterNodeTimeout(String timeout) {
+    public final Self masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 

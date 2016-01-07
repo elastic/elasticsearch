@@ -30,30 +30,30 @@ import java.io.IOException;
 
 /**
  */
-public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadRequest<T> implements IndicesRequest.Replaceable {
+public abstract class ClusterInfoRequest<Self extends ClusterInfoRequest<Self>> extends MasterNodeReadRequest<Self> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    @SuppressWarnings("unchecked")
     @Override
-    public T indices(String... indices) {
+    @SuppressWarnings("unchecked")
+    public Self indices(String... indices) {
         this.indices = indices;
-        return (T) this;
+        return (Self) this;
     }
 
     @SuppressWarnings("unchecked")
-    public T types(String... types) {
+    public Self types(String... types) {
         this.types = types;
-        return (T) this;
+        return (Self) this;
     }
 
     @SuppressWarnings("unchecked")
-    public T indicesOptions(IndicesOptions indicesOptions) {
+    public Self indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return (T) this;
+        return (Self) this;
     }
 
     @Override

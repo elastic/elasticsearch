@@ -218,7 +218,7 @@ public class PercolatorService extends AbstractComponent {
             if (context.aggregations() != null) {
                 AggregationContext aggregationContext = new AggregationContext(context);
                 context.aggregations().aggregationContext(aggregationContext);
-
+                context.aggregations().factories().init(aggregationContext);
                 Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
                 List<Aggregator> aggregatorCollectors = new ArrayList<>(aggregators.length);
                 for (int i = 0; i < aggregators.length; i++) {

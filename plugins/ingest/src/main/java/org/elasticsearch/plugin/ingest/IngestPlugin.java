@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.ingest.IngestModule;
 import org.elasticsearch.ingest.processor.AppendProcessor;

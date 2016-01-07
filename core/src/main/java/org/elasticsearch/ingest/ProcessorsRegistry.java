@@ -35,7 +35,7 @@ public class ProcessorsRegistry {
     /**
      * Adds a processor factory under a specific name.
      */
-    public void addProcessor(String name, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
+    public void registerProcessor(String name, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
         BiFunction<Environment, TemplateService, Processor.Factory<?>> provider = processorFactoryProviders.putIfAbsent(name, processorFactoryProvider);
         if (provider != null) {
             throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");

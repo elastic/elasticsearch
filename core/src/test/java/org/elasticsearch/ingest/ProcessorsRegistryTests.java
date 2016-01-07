@@ -35,12 +35,12 @@ public class ProcessorsRegistryTests extends ESTestCase {
     public void testAddProcessor() {
         ProcessorsRegistry processorsRegistry = new ProcessorsRegistry();
         TestProcessor.Factory factory1 = new TestProcessor.Factory();
-        processorsRegistry.addProcessor("1", (environment, templateService) -> factory1);
+        processorsRegistry.registerProcessor("1", (environment, templateService) -> factory1);
         TestProcessor.Factory factory2 = new TestProcessor.Factory();
-        processorsRegistry.addProcessor("2", (environment, templateService) -> factory2);
+        processorsRegistry.registerProcessor("2", (environment, templateService) -> factory2);
         TestProcessor.Factory factory3 = new TestProcessor.Factory();
         try {
-            processorsRegistry.addProcessor("1", (environment, templateService) -> factory3);
+            processorsRegistry.registerProcessor("1", (environment, templateService) -> factory3);
             fail("addProcessor should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));

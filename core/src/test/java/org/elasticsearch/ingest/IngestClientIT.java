@@ -240,7 +240,7 @@ public class IngestClientIT extends ESIntegTestCase {
         }
 
         public void onModule(IngestModule ingestModule) {
-            ingestModule.addProcessor("test", (environment, templateService) -> config ->
+            ingestModule.registerProcessor("test", (environment, templateService) -> config ->
                 new TestProcessor("test", ingestDocument -> {
                     ingestDocument.setFieldValue("processed", true);
                     if (ingestDocument.getFieldValue("fail", Boolean.class)) {

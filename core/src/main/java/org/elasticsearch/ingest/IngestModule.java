@@ -49,7 +49,7 @@ public class IngestModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void addProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
-        processorsRegistry.addProcessor(type, processorFactoryProvider);
+    public void registerProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
+        processorsRegistry.registerProcessor(type, processorFactoryProvider);
     }
 }

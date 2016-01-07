@@ -357,7 +357,7 @@ public class ThreadPool extends AbstractComponent {
         if (!Names.SAME.equals(name)) {
             command = new ThreadedRunnable(command, executor(name));
         }
-        return scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
+        return scheduler.schedule(new LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
     }
 
     public void shutdown() {
@@ -633,6 +633,7 @@ public class ThreadPool extends AbstractComponent {
                 runnable.run();
             } catch (Throwable t) {
                 logger.warn("failed to run {}", t, runnable.toString());
+                throw t;
             }
         }
 

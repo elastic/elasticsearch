@@ -23,12 +23,15 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -65,7 +68,7 @@ public class RoundTripTests extends ESTestCase {
 
     public void testReindexResponse() throws IOException {
         ReindexResponse response = new ReindexResponse(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomFailures());
+                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomIndexingFailures(), randomSearchFailures());
         ReindexResponse tripped = new ReindexResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
@@ -73,8 +76,8 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testBulkIndexByScrollResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomFailures());
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(randomPositiveLong(), randomPositiveLong(), randomPositiveInt(),
+                randomPositiveLong(), randomPositiveLong(), randomIndexingFailures(), randomSearchFailures());
         BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
@@ -102,11 +105,18 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getScript(), tripped.getScript());
     }
 
-    private List<Failure> randomFailures() {
+    private List<Failure> randomIndexingFailures() {
         return usually() ? emptyList()
                 : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()),
                         randomSimpleString(random()), new IllegalArgumentException("test")));
     }
+
+    private List<ShardSearchFailure> randomSearchFailures() {
+        return usually() ? emptyList()
+                : singletonList(new ShardSearchFailure(randomSimpleString(random()), new SearchShardTarget(randomSimpleString(random()),
+                        randomSimpleString(random()), randomInt()), randomFrom(RestStatus.values())));
+    }
+
 
     private void assertResponseEquals(BulkIndexByScrollResponse response, BulkIndexByScrollResponse tripped) {
         assertEquals(response.getTook(), tripped.getTook());
@@ -114,10 +124,10 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(response.getBatches(), tripped.getBatches());
         assertEquals(response.getVersionConflicts(), tripped.getVersionConflicts());
         assertEquals(response.getNoops(), tripped.getNoops());
-        assertEquals(response.getFailures().size(), tripped.getFailures().size());
-        for (int i = 0; i < response.getFailures().size(); i++) {
-            Failure expected = response.getFailures().get(i);
-            Failure actual = tripped.getFailures().get(i);
+        assertEquals(response.getIndexingFailures().size(), tripped.getIndexingFailures().size());
+        for (int i = 0; i < response.getIndexingFailures().size(); i++) {
+            Failure expected = response.getIndexingFailures().get(i);
+            Failure actual = tripped.getIndexingFailures().get(i);
             assertEquals(expected.getIndex(), actual.getIndex());
             assertEquals(expected.getType(), actual.getType());
             assertEquals(expected.getId(), actual.getId());

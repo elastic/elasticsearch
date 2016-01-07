@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,8 +37,8 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public ReindexResponse() {
     }
 
-    public ReindexResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
-        super(took, updated, batches, versionConflicts, noops, failures);
+    public ReindexResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+        super(took, updated, batches, versionConflicts, noops, indexingFailures, searchFailures);
         this.created = created;
     }
 
@@ -65,16 +66,13 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     }
 
     @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("ReindexResponse[");
-        builder.append("took=").append(getTook());
+    protected String toStringName() {
+        return "ReindexResponse";
+    }
+
+    @Override
+    protected void innerToString(StringBuilder builder) {
         builder.append(",created=").append(created);
-        builder.append(",updated=").append(getUpdated());
-        builder.append(",batches=").append(getBatches());
-        builder.append(",versionConflicts=").append(getVersionConflicts());
-        truncatedFailures(builder);
-        return builder.append("]").toString();
     }
 
     /**
@@ -82,7 +80,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
      */
     protected void truncatedFailures(StringBuilder builder) {
         builder.append(",failures=[");
-        Iterator<Failure> failures = getFailures().iterator();
+        Iterator<Failure> failures = getIndexingFailures().iterator();
         int written = 0;
         while (failures.hasNext() && written < 3) {
             Failure failure = failures.next();

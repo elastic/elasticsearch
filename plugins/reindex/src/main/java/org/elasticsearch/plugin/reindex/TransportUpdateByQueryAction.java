@@ -83,7 +83,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         @Override
         protected BulkIndexByScrollResponse buildResponse(long took) {
-            return new BulkIndexByScrollResponse(took, updated(), batches(), versionConflicts(), noops(), failures());
+            return new BulkIndexByScrollResponse(took, updated(), batches(), versionConflicts(), noops(), indexingFailures(),
+                    searchFailures());
         }
 
         @Override

@@ -151,7 +151,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         @Override
         protected ReindexResponse buildResponse(long took) {
-            return new ReindexResponse(took, created(), updated(), batches(), versionConflicts(), noops(), failures());
+            return new ReindexResponse(took, created(), updated(), batches(), versionConflicts(), noops(), indexingFailures(),
+                    searchFailures());
         }
 
         @Override

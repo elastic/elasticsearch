@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -72,7 +73,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicInteger batches = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
-    private final List<Failure> failures = new CopyOnWriteArrayList<>();
+    private final List<Failure> indexingFailures = new CopyOnWriteArrayList<>();
+    private final List<ShardSearchFailure> searchFailures = new CopyOnWriteArrayList<>();
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ESLogger logger;
@@ -135,8 +137,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return updated.get() + created.get() + deleted.get();
     }
 
-    public List<Failure> failures() {
-        return unmodifiableList(failures);
+    public List<Failure> indexingFailures() {
+        return unmodifiableList(indexingFailures);
+    }
+
+    public List<ShardSearchFailure> searchFailures() {
+        return unmodifiableList(searchFailures);
     }
 
     private void initialSearch() {
@@ -172,11 +178,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void onScrollResponse(SearchResponse searchResponse) {
+        scroll.set(searchResponse.getScrollId());
+        if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+            Collections.addAll(searchFailures, searchResponse.getShardFailures());
+            startNormalTermination();
+            return;
+        }
         threadPool.generic().execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    scroll.set(searchResponse.getScrollId());
                     SearchHit[] docs = searchResponse.getHits().getHits();
                     logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
                     if (docs.length == 0) {
@@ -261,7 +272,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
             destinationIndices.addAll(destinationIndicesThisBatch);
 
-            if (false == failures.isEmpty()) {
+            if (false == indexingFailures.isEmpty()) {
                 startNormalTermination();
                 return;
             }
@@ -300,7 +311,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
         }
-        failures.add(failure);
+        indexingFailures.add(failure);
     }
 
     void startNormalTermination() {

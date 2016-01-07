@@ -36,7 +36,7 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
     @Override
     protected RestStatus getStatus(R response) {
         RestStatus status = RestStatus.OK;
-        for (Failure failure : response.getFailures()) {
+        for (Failure failure : response.getIndexingFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();
             }

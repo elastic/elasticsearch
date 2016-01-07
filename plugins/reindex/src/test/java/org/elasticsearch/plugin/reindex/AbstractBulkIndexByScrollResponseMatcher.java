@@ -97,7 +97,7 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<Response extends 
         return updatedMatcher.matches(item.getUpdated()) &&
             (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
             versionConflictsMatcher.matches(item.getVersionConflicts()) &&
-            failuresMatcher.matches(item.getFailures().size());
+            failuresMatcher.matches(item.getIndexingFailures().size());
     }
 
     @Override

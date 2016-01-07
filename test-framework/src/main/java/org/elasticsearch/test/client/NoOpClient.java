@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.test.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;

@@ -35,6 +35,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.Arrays;

@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,6 +33,7 @@ import java.util.List;
 
 import static java.lang.Math.min;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -49,18 +51,21 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     private int batches;
     private long versionConflicts;
     private long noops;
-    private List<Failure> failures;
+    private List<Failure> indexingFailures;
+    private List<ShardSearchFailure> searchFailures;
 
     public BulkIndexByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, long noops, List<Failure> failures) {
+    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, long noops,
+            List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
         this.took = took;
         this.updated = updated;
         this.batches = batches;
         this.versionConflicts = versionConflicts;
         this.noops = noops;
-        this.failures = unmodifiableList(failures);
+        this.indexingFailures = indexingFailures;
+        this.searchFailures = searchFailures;
     }
 
     public long getTook() {
@@ -84,10 +89,14 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     }
 
     /**
-     * All recorded failures.
+     * Indexing failures.
      */
-    public List<Failure> getFailures() {
-        return failures;
+    public List<Failure> getIndexingFailures() {
+        return indexingFailures;
+    }
+
+    public List<ShardSearchFailure> getSearchFailures() {
+        return searchFailures;
     }
 
     @Override
@@ -98,8 +107,12 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         out.writeVInt(batches);
         out.writeVLong(versionConflicts);
         out.writeVLong(noops);
-        out.writeVInt(failures.size());
-        for (Failure failure: failures) {
+        out.writeVInt(indexingFailures.size());
+        for (Failure failure: indexingFailures) {
+            failure.writeTo(out);
+        }
+        out.writeVInt(searchFailures.size());
+        for (ShardSearchFailure failure: searchFailures) {
             failure.writeTo(out);
         }
     }
@@ -112,12 +125,17 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         batches = in.readVInt();
         versionConflicts = in.readVLong();
         noops = in.readVLong();
-        int failureCount = in.readVInt();
-        List<Failure> failures = new ArrayList<>(failureCount);
-        for (int i = 0; i < failureCount; i++) {
-            failures.add(Failure.PROTOTYPE.readFrom(in));
+        int indexingFailuresCount = in.readVInt();
+        List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
+        for (int i = 0; i < indexingFailuresCount; i++) {
+            indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
         }
-        this.failures = unmodifiableList(failures);
+        this.indexingFailures = unmodifiableList(indexingFailures);
+        int searchFailuresCount = in.readVInt();
+        List<ShardSearchFailure> searchFailures = new ArrayList<>(searchFailuresCount);
+        for (int i = 0; i < searchFailuresCount; i++) {
+            searchFailures.add(readShardSearchFailure(in));
+        }
     }
 
     @Override
@@ -128,7 +146,12 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         builder.field(VERSION_CONFLICTS_FIELD, versionConflicts);
         builder.field(NOOPS_FIELD, noops);
         builder.startArray(FAILURES_FIELD);
-        for (Failure failure: failures) {
+        for (Failure failure: indexingFailures) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        for (ShardSearchFailure failure: searchFailures) {
             builder.startObject();
             failure.toXContent(builder, params);
             builder.endObject();
@@ -140,13 +163,22 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("BulkIndexByScrollResponse[");
+        builder.append(toStringName()).append("[");
         builder.append("took=").append(took);
         builder.append(",updated=").append(updated);
         builder.append(",batches=").append(batches);
         builder.append(",versionConflicts=").append(versionConflicts);
         builder.append(",noops=").append(noops);
-        builder.append(",failures=").append(getFailures().subList(0, min(3, getFailures().size())));
+        builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
+        builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
+        innerToString(builder);
         return builder.append("]").toString();
+    }
+
+    protected String toStringName() {
+        return "BulkIndexByScrollResponse";
+    }
+
+    protected void innerToString(StringBuilder builder) {
     }
 }

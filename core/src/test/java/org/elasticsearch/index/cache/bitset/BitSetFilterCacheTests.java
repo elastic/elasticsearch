@@ -32,8 +32,9 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
@@ -86,7 +87,8 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.addDocument(document);
         writer.commit();
 
-        IndexReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer, false);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
 
         BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
@@ -101,6 +103,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.forceMerge(1);
         reader.close();
         reader = DirectoryReader.open(writer, false);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
         searcher = new IndexSearcher(reader);
 
         assertThat(matchCount(filter, reader), equalTo(3));
@@ -126,7 +129,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.addDocument(document);
         writer.commit();
         final DirectoryReader writerReader = DirectoryReader.open(writer, false);
-        final IndexReader reader = randomBoolean() ? writerReader : ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", 0));
+        final IndexReader reader = ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", 0));
 
         final AtomicLong stats = new AtomicLong();
         final AtomicInteger onCacheCalls = new AtomicInteger();
@@ -200,6 +203,31 @@ public class BitSetFilterCacheTests extends ESTestCase {
             fail("can't set it twice");
         } catch (IllegalStateException ex) {
             // all is well
+        }
+    }
+
+    public void testRejectOtherIndex() throws IOException {
+        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
+        
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(
+                dir,
+                newIndexWriterConfig()
+        );
+        writer.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(writer, true);
+        writer.close();
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test2"), 0));
+        
+        BitSetProducer producer = cache.getBitSetProducer(new MatchAllDocsQuery());
+        
+        try {
+            producer.getBitSet(reader.leaves().get(0));
+            fail();
+        } catch (IllegalStateException expected) {
+            assertEquals("Trying to load bit set for index [test2] with cache of index [test]", expected.getMessage());
+        } finally {
+            IOUtils.close(reader, dir);
         }
     }
 

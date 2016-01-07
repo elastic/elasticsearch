@@ -111,7 +111,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
             }
         }
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, false), new ShardId("foo", 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, false), new ShardId("test", 1));
         IndexSearcher searcher = new IndexSearcher(indexReader);
         ((TestSearchContext) SearchContext.current()).setSearcher(
                 new Engine.Searcher(ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher)
@@ -203,7 +203,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
         indexWriter.deleteDocuments(new Term("delete", "me"));
 
         indexWriter.commit();
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("foo", 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("test", 1));
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.Searcher(
                 ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
@@ -232,7 +232,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
                 }
 
                 indexReader.close();
-                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, true), new ShardId("foo", 1));
+                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, true), new ShardId("test", 1));
                 searcher = new IndexSearcher(indexReader);
                 engineSearcher = new Engine.Searcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher

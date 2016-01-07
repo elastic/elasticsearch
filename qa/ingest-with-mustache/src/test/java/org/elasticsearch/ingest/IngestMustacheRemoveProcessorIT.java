@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.processor.RemoveProcessor;
 import org.hamcrest.CoreMatchers;
@@ -35,5 +35,4 @@ public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTests {
         RemoveProcessor processor = factory.create(config);
         assertThat(processor.getField().execute(Collections.singletonMap("var", "_value")), CoreMatchers.equalTo("field_value"));
     }
-
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.core.TemplateService;
 

@@ -31,7 +31,6 @@ import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-
 public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, IndexResponse> {
 
     private final PipelineStore pipelineStore;

@@ -34,7 +34,7 @@ public class InternalTemplateService implements TemplateService {
 
     private final ScriptService scriptService;
 
-    public InternalTemplateService(ScriptService scriptService) {
+    InternalTemplateService(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 

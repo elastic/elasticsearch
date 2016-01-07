@@ -36,9 +36,7 @@ import org.junit.Before;
 import org.mockito.Matchers;
 
 import java.util.Collections;
-import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -61,24 +59,12 @@ public class ReloadPipelinesActionTests extends ESTestCase {
 
     public void testSuccess() {
         int numNodes = randomIntBetween(1, 10);
-        int numIngestNodes = 0;
-
-        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-        for (int i = 0; i < numNodes; i++) {
-            boolean ingestNode = i == 0 || randomBoolean();
-            DiscoveryNode discoNode = generateDiscoNode(i, ingestNode);
-            discoNodes.put(discoNode);
-            if (ingestNode) {
-                numIngestNodes++;
-            }
-        }
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(discoNodes).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(generateDiscoNodes(numNodes)).build();
         when(clusterService.state()).thenReturn(state);
 
-        final int finalNumIngestNodes = numIngestNodes;
         doAnswer(mock -> {
             TransportResponseHandler handler = (TransportResponseHandler) mock.getArguments()[3];
-            for (int i = 0; i < finalNumIngestNodes; i++) {
+            for (int i = 0; i < numNodes; i++) {
                 handler.handleResponse(new ReloadPipelinesAction.ReloadPipelinesResponse());
             }
             return mock;
@@ -88,25 +74,14 @@ public class ReloadPipelinesActionTests extends ESTestCase {
 
     public void testWithAtLeastOneFailure() {
         int numNodes = randomIntBetween(1, 10);
-        int numIngestNodes = 0;
 
-        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-        for (int i = 0; i < numNodes; i++) {
-            boolean ingestNode = i == 0 || randomBoolean();
-            DiscoveryNode discoNode = generateDiscoNode(i, ingestNode);
-            discoNodes.put(discoNode);
-            if (ingestNode) {
-                numIngestNodes++;
-            }
-        }
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(discoNodes).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(generateDiscoNodes(numNodes)).build();
         when(clusterService.state()).thenReturn(state);
 
-        final int finalNumIngestNodes = numIngestNodes;
         doAnswer(mock -> {
             TransportResponseHandler handler = (TransportResponseHandler) mock.getArguments()[3];
             handler.handleException(new TransportException("test failure"));
-            for (int i = 1; i < finalNumIngestNodes; i++) {
+            for (int i = 1; i < numNodes; i++) {
                 if (randomBoolean()) {
                     handler.handleResponse(new ReloadPipelinesAction.ReloadPipelinesResponse());
                 } else {
@@ -118,44 +93,13 @@ public class ReloadPipelinesActionTests extends ESTestCase {
         reloadPipelinesAction.reloadPipelinesOnAllNodes(result -> assertThat(result, is(false)));
     }
 
-    public void testNoIngestNodes() {
-        // expected exception if there are no nodes:
-        DiscoveryNodes discoNodes = DiscoveryNodes.builder()
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(discoNodes).build();
-        when(clusterService.state()).thenReturn(state);
-
-        try {
-            reloadPipelinesAction.reloadPipelinesOnAllNodes(result -> fail("shouldn't be invoked"));
-            fail("exception expected");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("There are no ingest nodes in this cluster"));
+    private static DiscoveryNodes.Builder generateDiscoNodes(int numNodes) {
+        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+        for (int i = 0; i < numNodes; i++) {
+            String id = Integer.toString(i);
+            DiscoveryNode discoNode = new DiscoveryNode(id, id, new LocalTransportAddress(id), Collections.emptyMap(), Version.CURRENT);
+            discoNodes.put(discoNode);
         }
-
-        // expected exception if there are no ingest nodes:
-        discoNodes = DiscoveryNodes.builder()
-            .put(new DiscoveryNode("_name", "_id", new LocalTransportAddress("_id"), Collections.singletonMap("ingest", "false"), Version.CURRENT))
-            .build();
-        state = ClusterState.builder(new ClusterName("_name")).nodes(discoNodes).build();
-        when(clusterService.state()).thenReturn(state);
-
-        try {
-            reloadPipelinesAction.reloadPipelinesOnAllNodes(result -> fail("shouldn't be invoked"));
-            fail("exception expected");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("There are no ingest nodes in this cluster"));
-        }
+        return discoNodes;
     }
-
-    private DiscoveryNode generateDiscoNode(int index, boolean ingestNode) {
-        Map<String, String> attributes;
-        if (ingestNode) {
-            attributes = Collections.singletonMap("ingest", "true");
-        } else {
-            attributes = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("ingest", "false");
-        }
-        String id = String.valueOf(index);
-        return new DiscoveryNode(id, id, new LocalTransportAddress(id), attributes, Version.CURRENT);
-    }
-
 }

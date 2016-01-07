@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest.reload;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.PipelineStore;
@@ -33,8 +34,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -59,21 +58,10 @@ public class ReloadPipelinesAction extends AbstractComponent implements Transpor
     }
 
     public void reloadPipelinesOnAllNodes(Consumer<Boolean> listener) {
-        List<DiscoveryNode> ingestNodes = new ArrayList<>();
-        for (DiscoveryNode node : clusterService.state().getNodes()) {
-            String nodeEnabled = node.getAttributes().get("ingest");
-            if ("true".equals(nodeEnabled)) {
-                ingestNodes.add(node);
-            }
-        }
-
-        if (ingestNodes.isEmpty()) {
-            throw new IllegalStateException("There are no ingest nodes in this cluster");
-        }
-
         AtomicBoolean failed = new AtomicBoolean();
-        AtomicInteger expectedResponses = new AtomicInteger(ingestNodes.size());
-        for (DiscoveryNode node : ingestNodes) {
+        DiscoveryNodes nodes = clusterService.state().getNodes();
+        AtomicInteger expectedResponses = new AtomicInteger(nodes.size());
+        for (DiscoveryNode node : nodes) {
             ReloadPipelinesRequest nodeRequest = new ReloadPipelinesRequest();
             transportService.sendRequest(node, ACTION_NAME, nodeRequest, new TransportResponseHandler<ReloadPipelinesResponse>() {
                 @Override

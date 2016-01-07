@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -40,8 +38,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static java.util.Objects.requireNonNull;
+import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
@@ -208,21 +207,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         private long asLong(Object from, String name) {
+            /*
+             * Stuffing a number into the map will have converted it to
+             * some Number.
+             */
+            Number fromNumber;
             try {
-                /*
-                 * Stuffing a number into the map will have converted it to
-                 * some Number.
-                 */
-                Number fromNumber = (Number) from;
-                long l = fromNumber.longValue();
-                // Check that we didn't round when we fetched the value.
-                if (fromNumber.doubleValue() != l) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
-                }
-                return l;
+                fromNumber = (Number) from;
             } catch (ClassCastException e) {
                 throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]", e);
             }
+            long l = fromNumber.longValue();
+            // Check that we didn't round when we fetched the value.
+            if (fromNumber.doubleValue() != l) {
+                throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
+            }
+            return l;
         }
     }
 }

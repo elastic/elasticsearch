@@ -156,13 +156,17 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
     }
 
     void forkAndInstallIngestIndexTemplate() {
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-            try {
-                installIngestIndexTemplate();
-            } catch (IOException e) {
-                logger.debug("Failed to install .ingest index template", e);
-            }
-        });
+        try {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                try {
+                    installIngestIndexTemplate();
+                } catch (IOException e) {
+                    logger.debug("Failed to install .ingest index template", e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            logger.debug("async fork and install template failed", e);
+        }
     }
 
     void installIngestIndexTemplate() throws IOException {

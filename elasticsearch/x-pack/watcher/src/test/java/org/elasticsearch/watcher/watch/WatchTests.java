@@ -30,6 +30,7 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachments;
 import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
 import org.elasticsearch.watcher.actions.index.ExecutableIndexAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
@@ -421,7 +422,7 @@ public class WatchTests extends ESTestCase {
         List<ActionWrapper> list = new ArrayList<>();
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
-            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML, null), null);
+            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
         if (randomBoolean()) {

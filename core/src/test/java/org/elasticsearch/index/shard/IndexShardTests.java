@@ -37,7 +37,9 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -65,6 +67,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
@@ -685,7 +688,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         try {
             shard.index(index);
             fail();
-        }catch (IllegalIndexShardStateException e){
+        } catch (IllegalIndexShardStateException e) {
 
         }
 
@@ -695,12 +698,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     public void testTranslogFlushedAfterTranslogRecovery() throws IOException {
         createIndex("testindexfortranslogsync");
         client().admin().indices().preparePutMapping("testindexfortranslogsync").setType("testtype").setSource(jsonBuilder().startObject()
-            .startObject("testtype")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "string")
-            .endObject()
-            .endObject().endObject().endObject()).get();
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("testindexfortranslogsync");
@@ -717,5 +720,41 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.performTranslogRecovery(true);
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.engine().getTranslog().syncNeeded());
+    }
+
+    /**
+     * We currently start check for time/size/ops based tanslog flush as soon as the shard is created. At that time the
+     * engine is not yet started. We should properly deal with this and schedule a future check
+     */
+    public void testFlushRescheduleOnEngineNotAvailable() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "test");
+        final IndexShard newShard = test.createShard(0, routing);
+        final TranslogService translogService = test.shardInjectorSafe(0).getInstance(TranslogService.class);
+        final TranslogService.TranslogBasedFlush checker = translogService.new TranslogBasedFlush();
+        assertTrue(checker.maybeFlushAndReschedule());
+        DiscoveryNode someNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        switch (randomFrom(RecoveryState.Type.values())) {
+            case STORE:
+                newShard.recovering("for testing", RecoveryState.Type.STORE, someNode);
+                break;
+            case SNAPSHOT:
+                newShard.recovering("for testing", RecoveryState.Type.SNAPSHOT, new RestoreSource(new SnapshotId("test", "Test"), Version.CURRENT, "test"));
+                break;
+            case REPLICA:
+                newShard.recovering("for testing", RecoveryState.Type.REPLICA, someNode);
+                break;
+            case RELOCATION:
+                newShard.recovering("for testing", RecoveryState.Type.RELOCATION, someNode);
+                break;
+            default:
+                throw new RuntimeException("unknown RecoveryState.Type");
+        }
+        assertTrue(checker.maybeFlushAndReschedule());
     }
 }

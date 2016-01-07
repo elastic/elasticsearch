@@ -32,20 +32,25 @@ import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -423,4 +428,62 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         UpgradeIT.assertUpgraded(client(), indexName);
     }
 
+    private Path getNodeDir(String indexFile) throws IOException {
+        Path unzipDir = createTempDir();
+        Path unzipDataDir = unzipDir.resolve("data");
+
+        // decompress the index
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
+        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
+            TestUtil.unzip(stream, unzipDir);
+        }
+
+        // check it is unique
+        assertTrue(Files.exists(unzipDataDir));
+        Path[] list = FileSystemUtils.files(unzipDataDir);
+        if (list.length != 1) {
+            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+        }
+
+        // the bwc scripts packs the indices under this path
+        return list[0].resolve("nodes/0/");
+    }
+
+    public void testOldClusterStates() throws Exception {
+        // dangling indices do not load the global state, only the per-index states
+        // so we make sure we can read them separately
+        MetaDataStateFormat<MetaData> globalFormat = new MetaDataStateFormat<MetaData>(XContentType.JSON, "global-") {
+
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return MetaData.Builder.fromXContent(parser);
+            }
+        };
+        MetaDataStateFormat<IndexMetaData> indexFormat = new MetaDataStateFormat<IndexMetaData>(XContentType.JSON, "state-") {
+
+            @Override
+            public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexMetaData fromXContent(XContentParser parser) throws IOException {
+                return IndexMetaData.Builder.fromXContent(parser);
+            }
+        };
+        Collections.shuffle(indexes, random());
+        for (String indexFile : indexes) {
+            String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
+            Path nodeDir = getNodeDir(indexFile);
+            logger.info("Parsing cluster state files from index [" + indexName + "]");
+            assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
+            Path indexDir = nodeDir.resolve("indices").resolve(indexName);
+            assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception
+        }
+    }
 }

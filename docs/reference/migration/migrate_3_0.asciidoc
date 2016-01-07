@@ -17,6 +17,16 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_allocation>>
 
 [[breaking_30_search_changes]]
+=== Warmers
+
+Thanks to several changes like doc values by default or disk-based norms,
+warmers have become quite useless. As a consequence, warmers and the warmer
+API have been removed: it is not possible anymore to register queries that
+will run before a new IndexSearcher is published.
+
+Don't worry if you have warmers defined on your indices, they will simply be
+ignored when upgrading to 3.0.
+
 === Search changes
 
 ==== `search_type=count` removed

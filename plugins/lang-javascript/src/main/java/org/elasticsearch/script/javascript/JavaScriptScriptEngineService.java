@@ -19,6 +19,18 @@
 
 package org.elasticsearch.script.javascript;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.CodeSource;
+import java.security.PrivilegedAction;
+import java.security.cert.Certificate;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
@@ -48,18 +60,6 @@ import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SecurityController;
 import org.mozilla.javascript.WrapFactory;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.CodeSource;
-import java.security.PrivilegedAction;
-import java.security.cert.Certificate;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
@@ -348,12 +348,14 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
             setJavaPrimitiveWrap(false); // RingoJS does that..., claims its annoying...
         }
 
-        public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class staticType) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class<?> staticType) {
             if (javaObject instanceof Map) {
-                return NativeMap.wrap(scope, (Map) javaObject);
+                return NativeMap.wrap(scope, (Map<Object, Object>) javaObject);
             }
             if (javaObject instanceof List) {
-                return NativeList.wrap(scope, (List) javaObject, staticType);
+                return NativeList.wrap(scope, (List<Object>) javaObject, staticType);
             }
             return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
         }

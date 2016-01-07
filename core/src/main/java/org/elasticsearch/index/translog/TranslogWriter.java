@@ -218,11 +218,6 @@ public class TranslogWriter extends TranslogReader {
         }
     }
 
-    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        readBytes(buffer, location.translogLocation);
-        return new BytesArray(buffer.array()).equals(expectedBytes);
-    }
 
     private long getWrittenOffset() throws IOException {
         return channelReference.getChannel().position();

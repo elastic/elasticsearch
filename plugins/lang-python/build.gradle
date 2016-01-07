@@ -26,9 +26,6 @@ dependencies {
   compile 'org.python:jython-standalone:2.7.0'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
-
 integTest {
   cluster {
     systemProperty 'es.script.inline', 'on'

@@ -35,7 +35,10 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("pattern", "\\.");
         config.put("replacement", "-");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         GsubProcessor gsubProcessor = factory.create(config);
+        assertThat(gsubProcessor.getTag(), equalTo(processorTag));
         assertThat(gsubProcessor.getField(), equalTo("field1"));
         assertThat(gsubProcessor.getPattern().toString(), equalTo("\\."));
         assertThat(gsubProcessor.getReplacement(), equalTo("-"));

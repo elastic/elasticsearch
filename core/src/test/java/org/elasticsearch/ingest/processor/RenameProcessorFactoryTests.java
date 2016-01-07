@@ -33,7 +33,10 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         config.put("to", "new_field");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         RenameProcessor renameProcessor = factory.create(config);
+        assertThat(renameProcessor.getTag(), equalTo(processorTag));
         assertThat(renameProcessor.getOldFieldName(), equalTo("old_field"));
         assertThat(renameProcessor.getNewFieldName(), equalTo("new_field"));
     }

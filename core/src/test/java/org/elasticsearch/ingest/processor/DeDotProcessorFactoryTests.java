@@ -39,8 +39,11 @@ public class DeDotProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("separator", "_");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         DeDotProcessor deDotProcessor = factory.create(config);
         assertThat(deDotProcessor.getSeparator(), equalTo("_"));
+        assertThat(deDotProcessor.getTag(), equalTo(processorTag));
     }
 
     public void testCreateMissingSeparatorField() throws Exception {

@@ -23,7 +23,7 @@ public class TrimProcessorTests extends AbstractStringProcessorTestCase {
 
     @Override
     protected AbstractStringProcessor newProcessor(String field) {
-        return new TrimProcessor(field);
+        return new TrimProcessor(randomAsciiOfLength(10), field);
     }
 
     @Override

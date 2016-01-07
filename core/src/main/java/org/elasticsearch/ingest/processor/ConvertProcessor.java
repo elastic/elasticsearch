@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -90,10 +91,12 @@ public class ConvertProcessor implements Processor {
 
     public static final String TYPE = "convert";
 
+    private final String processorTag;
     private final String field;
     private final Type convertType;
 
-    ConvertProcessor(String field, Type convertType) {
+    ConvertProcessor(String processorTag, String field, Type convertType) {
+        this.processorTag = processorTag;
         this.field = field;
         this.convertType = convertType;
     }
@@ -132,12 +135,17 @@ public class ConvertProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<ConvertProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<ConvertProcessor> {
         @Override
-        public ConvertProcessor create(Map<String, Object> config) throws Exception {
+        public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(config, "type"));
-            return new ConvertProcessor(field, convertType);
+            return new ConvertProcessor(processorTag, field, convertType);
         }
     }
 }

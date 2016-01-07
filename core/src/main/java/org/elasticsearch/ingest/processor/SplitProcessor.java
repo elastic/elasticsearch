@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -35,10 +36,12 @@ public class SplitProcessor implements Processor {
 
     public static final String TYPE = "split";
 
+    private final String processorTag;
     private final String field;
     private final String separator;
 
-    SplitProcessor(String field, String separator) {
+    SplitProcessor(String processorTag, String field, String separator) {
+        this.processorTag = processorTag;
         this.field = field;
         this.separator = separator;
     }
@@ -65,11 +68,16 @@ public class SplitProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<SplitProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<SplitProcessor> {
         @Override
-        public SplitProcessor create(Map<String, Object> config) throws Exception {
+        public SplitProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
-            return new SplitProcessor(field, ConfigurationUtils.readStringProperty(config, "separator"));
+            return new SplitProcessor(processorTag, field, ConfigurationUtils.readStringProperty(config, "separator"));
         }
     }
 }

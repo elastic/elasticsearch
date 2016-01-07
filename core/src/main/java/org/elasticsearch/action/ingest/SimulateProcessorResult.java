@@ -24,19 +24,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
-    private final String processorId;
+    private final String processorTag;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
     public SimulateProcessorResult(StreamInput in) throws IOException {
-        this.processorId = in.readString();
+        this.processorTag = in.readString();
         if (in.readBoolean()) {
             this.failure = in.readThrowable();
             this.ingestDocument = null;
@@ -46,14 +44,14 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         }
     }
 
-    public SimulateProcessorResult(String processorId, IngestDocument ingestDocument) {
-        this.processorId = processorId;
+    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
+        this.processorTag = processorTag;
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);
         this.failure = null;
     }
 
-    public SimulateProcessorResult(String processorId, Exception failure) {
-        this.processorId = processorId;
+    public SimulateProcessorResult(String processorTag, Exception failure) {
+        this.processorTag = processorTag;
         this.failure = failure;
         this.ingestDocument = null;
     }
@@ -65,8 +63,8 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         return ingestDocument.getIngestDocument();
     }
 
-    public String getProcessorId() {
-        return processorId;
+    public String getProcessorTag() {
+        return processorTag;
     }
 
     public Exception getFailure() {
@@ -80,7 +78,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(processorId);
+        out.writeString(processorTag);
         if (failure == null) {
             out.writeBoolean(false);
             ingestDocument.writeTo(out);
@@ -93,7 +91,9 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("processor_id", processorId);
+        if (processorTag != null) {
+            builder.field("processor_tag", processorTag);
+        }
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {

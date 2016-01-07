@@ -24,26 +24,33 @@ import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PipelineFactoryTests extends ESTestCase {
 
     public void testCreate() throws Exception {
-        Map<String, Object> processorConfig = new HashMap<>();
+        Map<String, Object> processorConfig0 = new HashMap<>();
+        Map<String, Object> processorConfig1 = new HashMap<>();
+        processorConfig0.put(AbstractProcessorFactory.PROCESSOR_TAG_KEY, "first-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
-        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
         Pipeline.Factory factory = new Pipeline.Factory();
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
-        assertThat(pipeline.getProcessors().size(), equalTo(1));
+        assertThat(pipeline.getProcessors().size(), equalTo(2));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("test-processor"));
+        assertThat(pipeline.getProcessors().get(0).getTag(), equalTo("first-processor"));
+        assertThat(pipeline.getProcessors().get(1).getType(), equalTo("test-processor"));
+        assertThat(pipeline.getProcessors().get(1).getTag(), nullValue());
     }
 
     public void testCreateWithPipelineOnFailure() throws Exception {
@@ -91,6 +98,6 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(1));
-        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("compound[test-processor]"));
+        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("compound"));
     }
 }

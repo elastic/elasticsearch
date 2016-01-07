@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
@@ -34,9 +35,11 @@ public class FailProcessor implements Processor {
 
     public static final String TYPE = "fail";
 
+    private final String processorTag;
     private final TemplateService.Template message;
 
-    FailProcessor(TemplateService.Template message) {
+    FailProcessor(String processorTag, TemplateService.Template message) {
+        this.processorTag = processorTag;
         this.message = message;
     }
 
@@ -54,7 +57,12 @@ public class FailProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<FailProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<FailProcessor> {
 
         private final TemplateService templateService;
 
@@ -63,9 +71,9 @@ public class FailProcessor implements Processor {
         }
 
         @Override
-        public FailProcessor create(Map<String, Object> config) throws Exception {
+        public FailProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String message = ConfigurationUtils.readStringProperty(config, "message");
-            return new FailProcessor(templateService.compile(message));
+            return new FailProcessor(processorTag, templateService.compile(message));
         }
     }
 }

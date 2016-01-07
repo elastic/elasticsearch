@@ -27,8 +27,8 @@ public class TrimProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "trim";
 
-    TrimProcessor(String field) {
-        super(field);
+    TrimProcessor(String processorId, String field) {
+        super(processorId, field);
     }
 
     @Override
@@ -43,8 +43,8 @@ public class TrimProcessor extends AbstractStringProcessor {
 
     public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
         @Override
-        protected TrimProcessor newProcessor(String field) {
-            return new TrimProcessor(field);
+        protected TrimProcessor newProcessor(String processorTag, String field) {
+            return new TrimProcessor(processorTag, field);
         }
     }
 }

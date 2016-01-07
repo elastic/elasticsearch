@@ -170,6 +170,11 @@ public class IngestActionFilterTests extends ESTestCase {
             public String getType() {
                 return null;
             }
+
+            @Override
+            public String getTag() {
+                return null;
+            }
         };
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
         executionService = new PipelineExecutionService(store, threadPool);

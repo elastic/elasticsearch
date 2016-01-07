@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +43,7 @@ public class CompoundProcessor implements Processor {
     }
 
     public CompoundProcessor(List<Processor> processors, List<Processor> onFailureProcessors) {
+        super();
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
     }
@@ -56,7 +58,12 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public String getType() {
-        return "compound[" + processors.stream().map(Processor::getType).collect(Collectors.joining(",")) + "]";
+        return "compound";
+    }
+
+    @Override
+    public String getTag() {
+        return "compound-processor-" + Objects.hash(processors, onFailureProcessors);
     }
 
     @Override

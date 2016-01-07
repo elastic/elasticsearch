@@ -38,7 +38,7 @@ public class GrokProcessorTests extends ESTestCase {
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "1");
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
-        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), grok, fieldName);
         processor.execute(doc);
         assertThat(doc.getFieldValue("one", String.class), equalTo("1"));
     }
@@ -48,7 +48,7 @@ public class GrokProcessorTests extends ESTestCase {
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "23");
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
-        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), grok, fieldName);
         try {
             processor.execute(doc);
             fail();
@@ -63,7 +63,7 @@ public class GrokProcessorTests extends ESTestCase {
         originalDoc.setFieldValue(fieldName, fieldName);
         IngestDocument doc = new IngestDocument(originalDoc);
         Grok grok = new Grok(Collections.emptyMap(), fieldName);
-        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), grok, fieldName);
         processor.execute(doc);
         assertThat(doc, equalTo(originalDoc));
     }
@@ -73,7 +73,7 @@ public class GrokProcessorTests extends ESTestCase {
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, 1);
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
-        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), grok, fieldName);
         try {
             processor.execute(doc);
             fail();
@@ -86,7 +86,7 @@ public class GrokProcessorTests extends ESTestCase {
         String fieldName = "foo.bar";
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Grok grok = new Grok(Collections.singletonMap("ONE", "1"), "%{ONE:one}");
-        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), grok, fieldName);
         try {
             processor.execute(doc);
             fail();

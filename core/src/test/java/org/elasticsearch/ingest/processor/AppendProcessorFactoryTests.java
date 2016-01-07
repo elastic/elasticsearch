@@ -49,9 +49,12 @@ public class AppendProcessorFactoryTests extends ESTestCase {
             value = Arrays.asList("value1", "value2", "value3");
         }
         config.put("value", value);
-        AppendProcessor setProcessor = factory.create(config);
-        assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
-        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo(value));
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
+        AppendProcessor appendProcessor = factory.create(config);
+        assertThat(appendProcessor.getTag(), equalTo(processorTag));
+        assertThat(appendProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(appendProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo(value));
     }
 
     public void testCreateNoFieldPresent() throws Exception {

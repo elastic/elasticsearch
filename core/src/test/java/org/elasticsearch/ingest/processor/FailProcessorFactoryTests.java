@@ -42,7 +42,10 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "error");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         FailProcessor failProcessor = factory.create(config);
+        assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
     }
 

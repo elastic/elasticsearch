@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -48,7 +47,7 @@ public class SimulateProcessorResultTests extends ESTestCase {
         simulateProcessorResult.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
-        assertThat(otherSimulateProcessorResult.getProcessorId(), equalTo(simulateProcessorResult.getProcessorId()));
+        assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
         assertThat(otherSimulateProcessorResult.getIngestDocument(), equalTo(simulateProcessorResult.getIngestDocument()));
         if (isFailure) {
             assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));

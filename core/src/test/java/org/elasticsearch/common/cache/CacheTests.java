@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +45,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class CacheTests extends ESTestCase {
     private int numberOfEntries;
@@ -485,7 +488,7 @@ public class CacheTests extends ESTestCase {
                     return value;
                 });
             } catch (ExecutionException e) {
-                fail(e.getMessage());
+                throw new AssertionError(e);
             }
         }
         for (int i = 0; i < numberOfEntries; i++) {
@@ -501,6 +504,8 @@ public class CacheTests extends ESTestCase {
             flags.set(j, false);
         }
 
+        CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
@@ -513,7 +518,8 @@ public class CacheTests extends ESTestCase {
                                 return Integer.toString(key);
                             });
                         } catch (ExecutionException e) {
-                            fail(e.getMessage());
+                            failures.add(e);
+                            break;
                         }
                     }
                     barrier.await();
@@ -528,6 +534,8 @@ public class CacheTests extends ESTestCase {
         barrier.await();
         // wait for all threads to finish
         barrier.await();
+
+        assertThat(failures, is(empty()));
     }
 
     public void testComputeIfAbsentThrowsExceptionIfLoaderReturnsANullValue() {
@@ -568,6 +576,8 @@ public class CacheTests extends ESTestCase {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
 
+        CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
         List<Thread> threads = new ArrayList<>();
@@ -592,7 +602,8 @@ public class CacheTests extends ESTestCase {
                                 }
                             });
                         } catch (ExecutionException e) {
-                            fail(e.getMessage());
+                            failures.add(e);
+                            break;
                         }
                     }
                 } finally {
@@ -636,6 +647,8 @@ public class CacheTests extends ESTestCase {
 
         // shutdown the watchdog service
         scheduler.shutdown();
+
+        assertThat(failures, is(empty()));
 
         assertFalse("deadlock", deadlock.get());
     }

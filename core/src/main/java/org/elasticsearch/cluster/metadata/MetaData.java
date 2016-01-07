@@ -1074,14 +1074,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 if (token == XContentParser.Token.START_OBJECT) {
                     // move to the field name (meta-data)
                     token = parser.nextToken();
+                    if (token != XContentParser.Token.FIELD_NAME) {
+                        throw new IllegalArgumentException("Expected a field name but got " + token);
+                    }
                     // move to the next object
                     token = parser.nextToken();
                 }
                 currentFieldName = parser.currentName();
-                if (token == null) {
-                    // no data...
-                    return builder.build();
-                }
+            }
+
+            if (!"meta-data".equals(parser.currentName())) {
+                throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
+            }
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected a START_OBJECT but got " + token);
             }
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -1114,7 +1120,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         builder.version = parser.longValue();
                     } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
                         builder.clusterUUID = parser.text();
+                    } else {
+                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
             return builder.build();

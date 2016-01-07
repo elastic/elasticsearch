@@ -12,6 +12,7 @@ import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
@@ -27,12 +28,15 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     final EmailService emailService;
     final TextTemplateEngine templateEngine;
     final HtmlSanitizer htmlSanitizer;
+    private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
 
-    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
+    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer,
+                                 Map<String, EmailAttachmentParser> emailAttachmentParsers) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;
         this.htmlSanitizer = htmlSanitizer;
+        this.emailAttachmentParsers = emailAttachmentParsers;
     }
 
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
@@ -43,6 +47,14 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         if (dataAttachment != null) {
             Attachment attachment = dataAttachment.create(model);
             attachments.put(attachment.id(), attachment);
+        }
+
+        if (action.getAttachments() != null && action.getAttachments().getAttachments().size() > 0) {
+            for (EmailAttachmentParser.EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
+                EmailAttachmentParser parser = emailAttachmentParsers.get(emailAttachment.type());
+                Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
+                attachments.put(attachment.id(), attachment);
+            }
         }
 
         Email.Builder email = action.getEmail().render(templateEngine, model, htmlSanitizer, attachments);

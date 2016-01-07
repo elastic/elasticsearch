@@ -12,6 +12,10 @@ import org.elasticsearch.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachmentParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
@@ -39,6 +43,7 @@ import java.util.Map;
 public class WatcherActionModule extends AbstractModule {
 
     private final Map<String, Class<? extends ActionFactory>> parsers = new HashMap<>();
+    private final Map<String, Class<? extends EmailAttachmentParser>> emailAttachmentParsers = new HashMap<>();
 
     public WatcherActionModule() {
         registerAction(EmailAction.TYPE, EmailActionFactory.class);
@@ -48,10 +53,17 @@ public class WatcherActionModule extends AbstractModule {
         registerAction(HipChatAction.TYPE, HipChatActionFactory.class);
         registerAction(SlackAction.TYPE, SlackActionFactory.class);
         registerAction(PagerDutyAction.TYPE, PagerDutyActionFactory.class);
+
+        registerEmailAttachmentParser(HttpEmailAttachementParser.TYPE, HttpEmailAttachementParser.class);
+        registerEmailAttachmentParser(DataAttachmentParser.TYPE, DataAttachmentParser.class);
     }
 
     public void registerAction(String type, Class<? extends ActionFactory> parserType) {
         parsers.put(type, parserType);
+    }
+
+    public void registerEmailAttachmentParser(String type, Class<? extends EmailAttachmentParser> parserClass) {
+        emailAttachmentParsers.put(type, parserClass);
     }
 
     @Override
@@ -69,6 +81,12 @@ public class WatcherActionModule extends AbstractModule {
         bind(HtmlSanitizer.class).asEagerSingleton();
         bind(InternalEmailService.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
+
+        MapBinder<String, EmailAttachmentParser> emailParsersBinder = MapBinder.newMapBinder(binder(), String.class, EmailAttachmentParser.class);
+        for (Map.Entry<String, Class<? extends EmailAttachmentParser>> entry : emailAttachmentParsers.entrySet()) {
+            emailParsersBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
+        }
+        bind(EmailAttachmentsParser.class).asEagerSingleton();
 
         // hipchat
         bind(InternalHipChatService.class).asEagerSingleton();

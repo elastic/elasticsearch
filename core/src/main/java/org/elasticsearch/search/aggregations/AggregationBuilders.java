@@ -50,7 +50,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
@@ -70,7 +70,7 @@ import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricBuil
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregator;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumBuilder;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
@@ -96,8 +96,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Avg} aggregation with the given name.
      */
-    public static AvgBuilder avg(String name) {
-        return new AvgBuilder(name);
+    public static AvgAggregator.Factory avg(String name) {
+        return new AvgAggregator.Factory(name);
     }
 
     /**
@@ -131,8 +131,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link ExtendedStats} aggregation with the given name.
      */
-    public static ExtendedStatsBuilder extendedStats(String name) {
-        return new ExtendedStatsBuilder(name);
+    public static ExtendedStatsAggregator.Factory extendedStats(String name) {
+        return new ExtendedStatsAggregator.Factory(name);
     }
 
     /**

@@ -25,10 +25,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregator;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -60,7 +63,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     static int numBuckets;
     static int lag;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceMetricsAggregationBuilder metric;
+    static ValuesSourceAggregatorFactory<? extends ValuesSource, ? extends ValuesSourceAggregatorFactory<?, ?>> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -80,14 +83,14 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
+    private ValuesSourceAggregatorFactory<? extends ValuesSource, ? extends ValuesSourceAggregatorFactory<?, ?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {
             case 0:
-                return min(name).field(field);
+                return new MinAggregator.Factory(name).field(field);
             case 2:
-                return max(name).field(field);
+                return new MaxAggregator.Factory(name).field(field);
             case 3:
                 return avg(name).field(field);
             default:

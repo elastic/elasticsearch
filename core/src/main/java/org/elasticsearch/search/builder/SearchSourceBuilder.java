@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -381,8 +383,29 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     /**
      * Add an aggregation to perform as part of the search.
+     *
+     * NORELEASE REMOVE WHEN AGG REFACTORING IS COMPLETE
      */
     public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
+        try {
+            if (aggregations == null) {
+                aggregations = new ArrayList<>();
+            }
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            aggregation.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            aggregations.add(builder.bytes());
+            return this;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Add an aggregation to perform as part of the search.
+     */
+    public SearchSourceBuilder aggregation(AggregatorFactory aggregation) {
         try {
             if (aggregations == null) {
                 aggregations = new ArrayList<>();

@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,11 +33,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A base class for all bucket aggregation builders.
+ * A base class for all bucket aggregation builders. NORELEASE REMOVE WHEN AGG
+ * REFACTORING IS COMPLETE
  */
+@Deprecated
 public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extends AbstractAggregationBuilder {
 
     private List<AbstractAggregationBuilder> aggregations;
+    private List<AggregatorFactory> aggregatorFactories;
+    private List<PipelineAggregatorFactory> pipelineAggregatorFactories;
     private BytesReference aggregationsBinary;
     private Map<String, Object> metaData;
 
@@ -48,7 +53,8 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     }
 
     /**
-     * Add a sub get to this bucket get.
+     * Add a sub aggregation to this aggregation. NORELEASE REMOVE THIS WHEN AGG
+     * REFACTOR IS COMPLETE
      */
     @SuppressWarnings("unchecked")
     public B subAggregation(AbstractAggregationBuilder aggregation) {
@@ -60,8 +66,33 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     }
 
     /**
+     * Add a sub aggregation to this aggregation.
+     */
+    @SuppressWarnings("unchecked")
+    public B subAggregation(AggregatorFactory aggregation) {
+        if (aggregatorFactories == null) {
+            aggregatorFactories = new ArrayList<>();
+        }
+        aggregatorFactories.add(aggregation);
+        return (B) this;
+    }
+
+    /**
+     * Add a sub aggregation to this aggregation.
+     */
+    @SuppressWarnings("unchecked")
+    public B subAggregation(PipelineAggregatorFactory aggregation) {
+        if (pipelineAggregatorFactories == null) {
+            pipelineAggregatorFactories = new ArrayList<>();
+        }
+        pipelineAggregatorFactories.add(aggregation);
+        return (B) this;
+    }
+
+    /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
+    @Deprecated
     public B subAggregation(byte[] aggregationsBinary) {
         return subAggregation(aggregationsBinary, 0, aggregationsBinary.length);
     }
@@ -69,6 +100,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
+    @Deprecated
     public B subAggregation(byte[] aggregationsBinary, int aggregationsBinaryOffset, int aggregationsBinaryLength) {
         return subAggregation(new BytesArray(aggregationsBinary, aggregationsBinaryOffset, aggregationsBinaryLength));
     }
@@ -76,6 +108,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B subAggregation(BytesReference aggregationsBinary) {
         this.aggregationsBinary = aggregationsBinary;
@@ -85,6 +118,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
+    @Deprecated
     public B subAggregation(XContentBuilder aggs) {
         return subAggregation(aggs.bytes());
     }
@@ -92,6 +126,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
+    @Deprecated
     public B subAggregation(Map<String, Object> aggs) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -120,12 +155,24 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         builder.field(type);
         internalXContent(builder, params);
 
-        if (aggregations != null || aggregationsBinary != null) {
+        if (aggregations != null || aggregatorFactories != null || pipelineAggregatorFactories != null || aggregationsBinary != null) {
 
-            if (aggregations != null) {
+            if (aggregations != null || aggregatorFactories != null || pipelineAggregatorFactories != null) {
                 builder.startObject("aggregations");
-                for (AbstractAggregationBuilder subAgg : aggregations) {
-                    subAgg.toXContent(builder, params);
+                if (aggregations != null) {
+                    for (AbstractAggregationBuilder subAgg : aggregations) {
+                        subAgg.toXContent(builder, params);
+                    }
+                }
+                if (aggregatorFactories != null) {
+                    for (AggregatorFactory subAgg : aggregatorFactories) {
+                        subAgg.toXContent(builder, params);
+                    }
+                }
+                if (pipelineAggregatorFactories != null) {
+                    for (PipelineAggregatorFactory subAgg : pipelineAggregatorFactories) {
+                        subAgg.toXContent(builder, params);
+                    }
                 }
                 builder.endObject();
             }

@@ -29,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -362,9 +363,19 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds an get to the search operation.
+     * Adds an aggregation to the search operation.
+     *
+     * NORELEASE REMOVE WHEN AGG REFACTORING IS COMPLETE
      */
     public SearchRequestBuilder addAggregation(AbstractAggregationBuilder aggregation) {
+        sourceBuilder().aggregation(aggregation);
+        return this;
+    }
+
+    /**
+     * Adds an aggregation to the search operation.
+     */
+    public SearchRequestBuilder addAggregation(AggregatorFactory aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }

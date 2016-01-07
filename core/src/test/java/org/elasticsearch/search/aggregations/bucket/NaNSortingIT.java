@@ -26,9 +26,12 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -45,8 +48,10 @@ public class NaNSortingIT extends ESIntegTestCase {
     private enum SubAggregation {
         AVG("avg") {
             @Override
-            public MetricsAggregationBuilder<?> builder() {
-                return avg(name).field("numeric_field");
+            public AvgAggregator.Factory builder() {
+                AvgAggregator.Factory factory = avg(name);
+                factory.field("numeric_field");
+                return factory;
             }
             @Override
             public double getValue(Aggregation aggregation) {
@@ -55,8 +60,10 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         VARIANCE("variance") {
             @Override
-            public MetricsAggregationBuilder<?> builder() {
-                return extendedStats(name).field("numeric_field");
+            public ExtendedStatsAggregator.Factory builder() {
+                ExtendedStatsAggregator.Factory factory = extendedStats(name);
+                factory.field("numeric_field");
+                return factory;
             }
             @Override
             public String sortKey() {
@@ -69,8 +76,10 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         STD_DEVIATION("std_deviation"){
             @Override
-            public MetricsAggregationBuilder<?> builder() {
-                return extendedStats(name).field("numeric_field");
+            public ExtendedStatsAggregator.Factory builder() {
+                ExtendedStatsAggregator.Factory factory = extendedStats(name);
+                factory.field("numeric_field");
+                return factory;
             }
             @Override
             public String sortKey() {
@@ -88,7 +97,7 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract MetricsAggregationBuilder<?> builder();
+        public abstract ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, ? extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, ?>> builder();
 
         public String sortKey() {
             return name;

@@ -7,16 +7,27 @@ package org.elasticsearch.marvel.shield;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class SecuredClientTests extends MarvelIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, false)
+                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
+                .build();
+    }
 
     public void testAllowedAccess() {
         SecuredClient securedClient = internalCluster().getInstance(SecuredClient.class);

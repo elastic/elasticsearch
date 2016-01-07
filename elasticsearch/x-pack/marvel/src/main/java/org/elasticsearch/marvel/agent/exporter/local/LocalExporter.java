@@ -250,7 +250,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     cleanerService.validateRetention(exporterRetention);
                     retention = exporterRetention;
                 } catch (IllegalArgumentException e) {
-                    logger.warn("http exporter [{}] - unable to use custom history duration [{}]: {}", name(), exporterRetention, e.getMessage());
+                    logger.warn("local exporter [{}] - unable to use custom history duration [{}]: {}", name(), exporterRetention, e.getMessage());
                 }
             }
 

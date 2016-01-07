@@ -296,8 +296,13 @@ public class TranslogWriter extends TranslogReader {
     }
 
     protected synchronized void checkpoint(long lastSyncPosition, int operationCounter, ChannelReference channelReference) throws IOException {
-        channelReference.getChannel().force(false);
-        writeCheckpoint(lastSyncPosition, operationCounter, channelReference.getPath().getParent(), channelReference.getGeneration(), StandardOpenOption.WRITE);
+        try {
+            channelReference.getChannel().force(false);
+            writeCheckpoint(lastSyncPosition, operationCounter, channelReference.getPath().getParent(), channelReference.getGeneration(), StandardOpenOption.WRITE);
+        } catch (Throwable ex) {
+            closeWithTragicEvent(ex);
+            throw ex;
+        }
     }
 
     private static void writeCheckpoint(long syncPosition, int numOperations, Path translogFile, long generation, OpenOption... options) throws IOException {

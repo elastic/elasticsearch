@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -125,25 +124,19 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     }
 
     // public for testing
-    public TranslogBasedFlush createTranslogBasedFlush() {
-        return new TranslogBasedFlush();
-    }
-
     public class TranslogBasedFlush extends AbstractRunnable {
 
         private volatile long lastFlushTime = System.currentTimeMillis();
 
-        // prevent construction
-        private TranslogBasedFlush() {}
-
         @Override
         public void onFailure(Throwable t) {
-            if (t instanceof EsRejectedExecutionException) {
-                logger.trace("ignoring EsRejectedExecutionException, shutting down", t);
-            } else {
-                logger.warn("unexpected error while checking whether the translog needs a flush. rescheduling", t);
-                reschedule();
-            }
+            logger.warn("unexpected error while checking whether the translog needs a flush. rescheduling", t);
+            reschedule();
+        }
+
+        @Override
+        public void onRejection(Throwable t) {
+            logger.trace("ignoring EsRejectedExecutionException, shutting down", t);
         }
 
         @Override
@@ -210,23 +203,30 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         }
 
         private void asyncFlushAndReschedule() {
-            threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+
                 @Override
-                public void run() {
+                public void onRejection(Throwable t) {
+                    logger.trace("ignoring EsRejectedExecutionException, shutting down", t);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.warn("failed to flush shard on translog threshold", t);
+                    reschedule();
+                }
+
+                @Override
+                protected void doRun() throws Exception {
                     try {
                         indexShard.flush(new FlushRequest());
                     } catch (IllegalIndexShardStateException e) {
                         // we are being closed, or in created state, ignore
                     } catch (FlushNotAllowedEngineException e) {
                         // ignore this exception, we are not allowed to perform flush
-                    } catch (Throwable e) {
-                        logger.warn("failed to flush shard on translog threshold", e);
                     }
                     lastFlushTime = threadPool.estimatedTimeInMillis();
-
-                    if (indexShard.state() != IndexShardState.CLOSED) {
-                        future = threadPool.schedule(computeNextInterval(), ThreadPool.Names.SAME, TranslogBasedFlush.this);
-                    }
+                    reschedule();
                 }
             });
         }

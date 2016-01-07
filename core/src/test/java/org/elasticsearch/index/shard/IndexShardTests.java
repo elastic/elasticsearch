@@ -37,6 +37,9 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -46,6 +49,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
@@ -65,6 +69,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -696,10 +701,29 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");
         IndexShard shard = test.shard(0);
-        shard.close("Unexpected close", false);
-        shard.state = IndexShardState.CREATED;
-        TranslogService translogService = test.shardInjectorSafe(0).getInstance(TranslogService.class);
-        TranslogService.TranslogBasedFlush checker = translogService.createTranslogBasedFlush();
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "test");
+        final IndexShard newShard = test.createShard(routing);
+        final TranslogService translogService = test.shardInjectorSafe(0).getInstance(TranslogService.class);
+        final TranslogService.TranslogBasedFlush checker = translogService.new TranslogBasedFlush();
+        assertTrue(checker.maybeFlushAndReschedule());
+        DiscoveryNode someNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        switch (randomFrom(RecoveryState.Type.values())) {
+            case STORE:
+                newShard.recovering("for testing", RecoveryState.Type.STORE, someNode);
+                break;
+            case SNAPSHOT:
+                newShard.recovering("for testing", RecoveryState.Type.SNAPSHOT, new RestoreSource(new SnapshotId("test", "Test"), Version.CURRENT, "test"));
+                break;
+            case REPLICA:
+                newShard.recovering("for testing", RecoveryState.Type.REPLICA, someNode);
+                break;
+            case RELOCATION:
+                newShard.recovering("for testing", RecoveryState.Type.RELOCATION, someNode);
+                break;
+            default:
+                throw new RuntimeException("unknown RecoveryState.Type");
+        }
         assertTrue(checker.maybeFlushAndReschedule());
     }
 }

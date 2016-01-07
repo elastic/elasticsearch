@@ -62,15 +62,6 @@ public class ReindexScriptTests extends ReindexTestCase {
         assertSearchHits(client().prepareSearch("dest").setQuery(matchQuery("bar", "cat")).get(), "test");
     }
 
-    public void testAddingJunkToCtxIsError() throws Exception {
-        createTestData();
-        try {
-            reindex("set-ctx-field", "junk", "cat");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Invalid fields added to ctx [junk]"));
-        }
-    }
-
     public void testSetIndex() throws Exception {
         createTestData();
         reindex("set-ctx-field", "_index", "dest2");

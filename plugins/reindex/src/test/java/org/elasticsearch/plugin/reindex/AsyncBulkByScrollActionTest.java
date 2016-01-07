@@ -69,7 +69,7 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         threadPool = new ThreadPool(getTestName());
         mainRequest = new DummyAbstractBulkByScrollRequest();
         firstSearchRequest = null;
-        listener = new PlainActionFuture<Object>();
+        listener = new PlainActionFuture<>();
         scrollId = null;
     }
 

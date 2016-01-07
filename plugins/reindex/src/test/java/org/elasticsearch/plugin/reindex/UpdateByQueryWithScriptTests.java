@@ -59,14 +59,6 @@ public class UpdateByQueryWithScriptTests extends UpdateByQueryTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("bar", "cat")).get(), "1");
     }
 
-    public void testAddingJunkToScriptCtxIsError() {
-        try {
-            updateByQuery("set-ctx-field", "junk", "cat");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Invalid fields added to ctx [junk]"));
-        }
-    }
-
     public void testModifyingCtxNotAllowed() {
         /*
          * Its important that none of these actually match any of the fields.

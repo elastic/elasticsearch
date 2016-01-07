@@ -859,10 +859,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
                 parser.nextToken();
             }
+            if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                throw new IllegalArgumentException("expected field name but got a " + parser.currentToken());
+            }
             Builder builder = new Builder(parser.currentName());
 
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("expected object but got a " + token);
+            }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -877,6 +883,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 String mappingType = currentFieldName;
                                 Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
                                 builder.putMapping(new MappingMetaData(mappingType, mappingSource));
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
@@ -896,6 +904,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                     }
                                 }
                                 builder.putActiveAllocationIds(Integer.valueOf(shardId), allocationIds);
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
                             }
                         }
                     } else if ("warmers".equals(currentFieldName)) {
@@ -904,6 +914,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         // ignore: warmers have been removed in 3.0 and are
                         // simply ignored when upgrading from 2.x
                         assert Version.CURRENT.major <= 3;
+                        parser.skipChildren();
                     } else {
                         // check if its a custom index metadata
                         Custom proto = lookupPrototype(currentFieldName);
@@ -928,13 +939,19 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 }
                             }
                         }
+                    } else {
+                        throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
                 } else if (token.isValue()) {
                     if ("state".equals(currentFieldName)) {
                         builder.state(State.fromString(parser.text()));
                     } else if ("version".equals(currentFieldName)) {
                         builder.version(parser.longValue());
+                    } else {
+                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
             return builder.build();

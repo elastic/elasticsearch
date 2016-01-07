@@ -257,10 +257,19 @@ def generate_index(client, version, index_name):
     # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
     settings['merge.policy.max_merged_segment'] = '5368709120'
     
+  warmers = {}
+  warmers['warmer1'] = {
+    'source': {
+      'query': {
+        'match_all': {}
+      }
+    }
+  }
 
   client.indices.create(index=index_name, body={
       'settings': settings,
-      'mappings': mappings
+      'mappings': mappings,
+      'warmers': warmers
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health

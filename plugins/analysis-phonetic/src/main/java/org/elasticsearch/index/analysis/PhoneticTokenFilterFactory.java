@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
@@ -42,9 +45,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
-
-import java.util.Arrays;
-import java.util.HashSet;
 
 /**
  *
@@ -122,7 +122,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         if (encoder == null) {
             if (ruletype != null && nametype != null) {
                 if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet(Arrays.asList(languageset)));
+                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
                     return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
                 }
                 return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));

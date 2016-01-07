@@ -223,6 +223,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         percolatorRecovery(false);
     }
 
+    @AwaitsFix(bugUrl = "sometimes reprodes with: gradle :core:integTest -Dtests.seed=21DDCAA92013B00C -Dtests.class=org.elasticsearch.percolator.RecoveryPercolatorIT -Dtests.method=\"testMultiPercolatorRecovery\"")
     public void testMultiPercolatorRecovery() throws Exception {
         percolatorRecovery(true);
     }

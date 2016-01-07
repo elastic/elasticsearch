@@ -88,9 +88,6 @@ import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemp
 import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
 import org.elasticsearch.rest.action.admin.indices.validate.template.RestRenderSearchTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
-import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
-import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -208,10 +205,6 @@ public class NetworkModule extends AbstractModule {
         RestPutIndexTemplateAction.class,
         RestDeleteIndexTemplateAction.class,
         RestHeadIndexTemplateAction.class,
-
-        RestPutWarmerAction.class,
-        RestDeleteWarmerAction.class,
-        RestGetWarmerAction.class,
 
         RestPutMappingAction.class,
         RestGetMappingAction.class,

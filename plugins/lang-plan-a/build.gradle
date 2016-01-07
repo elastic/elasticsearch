@@ -35,7 +35,7 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-fallthrough,-rawtypes'
+compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes'
 compileTestJava.options.compilerArgs << '-Xlint:-unchecked'
 
 // regeneration logic, comes in via ant right now

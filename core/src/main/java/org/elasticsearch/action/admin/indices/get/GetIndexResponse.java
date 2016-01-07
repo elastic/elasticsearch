@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,19 +38,15 @@ import java.util.List;
  */
 public class GetIndexResponse extends ActionResponse {
 
-    private ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private String[] indices;
 
-    GetIndexResponse(String[] indices, ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers,
+    GetIndexResponse(String[] indices,
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
             ImmutableOpenMap<String, List<AliasMetaData>> aliases, ImmutableOpenMap<String, Settings> settings) {
         this.indices = indices;
-        if (warmers != null) {
-            this.warmers = warmers;
-        }
         if (mappings != null) {
             this.mappings = mappings;
         }
@@ -72,14 +67,6 @@ public class GetIndexResponse extends ActionResponse {
 
     public String[] getIndices() {
         return indices();
-    }
-
-    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers() {
-        return warmers;
-    }
-
-    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> getWarmers() {
-        return warmers();
     }
 
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
@@ -110,23 +97,6 @@ public class GetIndexResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.indices = in.readStringArray();
-        int warmersSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<IndexWarmersMetaData.Entry>> warmersMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < warmersSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            List<IndexWarmersMetaData.Entry> warmerEntryBuilder = new ArrayList<>();
-            for (int j = 0; j < valueSize; j++) {
-                warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
-                        in.readString(),
-                        in.readStringArray(),
-                        in.readOptionalBoolean(),
-                        in.readBoolean() ? new IndexWarmersMetaData.SearchSource(in) : null)
-                );
-            }
-            warmersMapBuilder.put(key, Collections.unmodifiableList(warmerEntryBuilder));
-        }
-        warmers = warmersMapBuilder.build();
         int mappingsSize = in.readVInt();
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < mappingsSize; i++) {
@@ -164,21 +134,6 @@ public class GetIndexResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeVInt(warmers.size());
-        for (ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> indexEntry : warmers) {
-            out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
-                out.writeString(warmerEntry.name());
-                out.writeStringArray(warmerEntry.types());
-                out.writeOptionalBoolean(warmerEntry.requestCache());
-                boolean hasSource = warmerEntry.source() != null;
-                out.writeBoolean(hasSource);
-                if (hasSource) {
-                    warmerEntry.source().writeTo(out);
-                }
-            }
-        }
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
             out.writeString(indexEntry.key);

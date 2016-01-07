@@ -83,7 +83,6 @@ public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
                                 "Caught expected version conflict trying to perform mutation number {} with version {}. Retrying.",
                                 i, get.getVersion());
                         get = client().prepareGet("test", "test", "test").get();
-                        continue;
                     }
                 }
             }

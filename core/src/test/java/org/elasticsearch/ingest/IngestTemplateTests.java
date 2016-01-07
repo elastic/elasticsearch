@@ -37,34 +37,19 @@ import static org.mockito.Mockito.when;
 
 public class IngestTemplateTests extends ESSingleNodeTestCase {
 
-    private IngestBootstrapper bootstrapper;
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }
 
-    @Before
-    public void init() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(Runnable::run);
-        Environment environment = mock(Environment.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        TransportService transportService = mock(TransportService.class);
-        bootstrapper = new IngestBootstrapper(
-            Settings.EMPTY, threadPool, environment, clusterService, transportService, new ProcessorsRegistry()
-        );
-        bootstrapper.setClient(client());
-    }
-
     public void testIngestIndexTemplateIsInstalled() throws Exception {
-        verifyIngestIndexTemplateExist();
+        assertBusy(IngestTemplateTests::verifyIngestIndexTemplateExist);
     }
 
     public void testInstallTemplateAfterItHasBeenRemoved() throws Exception {
-        verifyIngestIndexTemplateExist();
+        assertBusy(IngestTemplateTests::verifyIngestIndexTemplateExist);
         client().admin().indices().prepareDeleteTemplate(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME).get();
-        verifyIngestIndexTemplateExist();
+        assertBusy(IngestTemplateTests::verifyIngestIndexTemplateExist);
     }
 
     private static void verifyIngestIndexTemplateExist() {

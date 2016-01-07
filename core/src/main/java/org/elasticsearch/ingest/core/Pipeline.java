@@ -91,7 +91,7 @@ public final class Pipeline {
                 }
                 return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
             }
-            throw new IllegalArgumentException("No processor type exist with name [" + type + "]");
+            throw new IllegalArgumentException("No processor type exists with name [" + type + "]");
         }
 
         private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {

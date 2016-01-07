@@ -55,7 +55,7 @@ public class ReloadPipelinesAction extends AbstractComponent implements Transpor
         this.pipelineStore = pipelineStore;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, ReloadPipelinesRequest::new, ThreadPool.Names.SAME, this);
+        transportService.registerRequestHandler(ACTION_NAME, ReloadPipelinesRequest::new, ThreadPool.Names.MANAGEMENT, this);
     }
 
     public void reloadPipelinesOnAllNodes(Consumer<Boolean> listener) {
@@ -101,7 +101,7 @@ public class ReloadPipelinesAction extends AbstractComponent implements Transpor
 
                 @Override
                 public String executor() {
-                    return ThreadPool.Names.MANAGEMENT;
+                    return ThreadPool.Names.SAME;
                 }
             });
         }

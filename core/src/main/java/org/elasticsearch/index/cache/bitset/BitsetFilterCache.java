@@ -125,6 +125,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     private BitDocIdSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId != null // can't require it because of the percolator
+                && index.getName().equals(shardId.getIndex()) == false) {
+            // insanity
+            throw new IllegalStateException("Trying to load bit set for index [" + shardId.getIndex()
+                    + "] with cache of index [" + index.getName() + "]");
+        }
         Cache<Filter, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Filter, Value>>() {
             @Override
             public Cache<Filter, Value> call() throws Exception {
@@ -242,6 +248,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
         @Override
         public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+            if (index.getName().equals(context.shardId().getIndex()) == false) {
+                // this is from a different index
+                return TerminationHandle.NO_WAIT;
+            }
+
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }

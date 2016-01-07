@@ -31,15 +31,22 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -102,4 +109,28 @@ public class BitSetFilterCacheTest extends ESTestCase {
         assertThat(cache.getLoadedFilters().size(), equalTo(0l));
     }
 
+    public void testRejectOtherIndex() throws IOException {
+        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
+        
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(
+                dir,
+                newIndexWriterConfig()
+        );
+        writer.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(writer, true);
+        writer.close();
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test2"), 0));
+        
+        BitDocIdSetFilter producer = cache.getBitDocIdSetFilter(new QueryWrapperFilter(new MatchAllDocsQuery()));
+        
+        try {
+            producer.getDocIdSet(reader.leaves().get(0));
+            fail();
+        } catch (IllegalStateException expected) {
+            assertEquals("Trying to load bit set for index [test2] with cache of index [test]", expected.getMessage());
+        } finally {
+            IOUtils.close(reader, dir);
+        }
+    }
 }

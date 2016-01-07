@@ -44,8 +44,10 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.NoOrdinalsStringFieldDataTests;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -98,7 +101,9 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         writer.commit();
 
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
+        DirectoryReader reader = DirectoryReader.open(writer, false);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
+        IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
         final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(getRandom(), 2);
@@ -282,7 +287,9 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         writer.addDocument(document);
 
         MultiValueMode sortMode = MultiValueMode.MIN;
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
+        DirectoryReader reader = DirectoryReader.open(writer, false);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
+        IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term("__type", "parent")));
         Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));

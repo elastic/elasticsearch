@@ -39,11 +39,14 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -216,7 +219,9 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         writer.addDocument(document);
 
         MultiValueMode sortMode = MultiValueMode.SUM;
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
+        DirectoryReader directoryReader = DirectoryReader.open(writer, false);
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        IndexSearcher searcher = new IndexSearcher(directoryReader);
         Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term("__type", "parent")));
         Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));

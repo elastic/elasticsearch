@@ -56,6 +56,7 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.*;
@@ -541,7 +542,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (config.isSyncOnEachOperation()) {
                     current.sync();
                 }
-                assert current.assertBytesAtLocation(location, bytes);
+                assert assertBytesAtLocation(location, bytes);
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
@@ -553,6 +554,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } finally {
             Releasables.close(out.bytes());
         }
+    }
+
+    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
+        // tests can override this
+        ByteBuffer buffer = ByteBuffer.allocate(location.size);
+        current.readBytes(buffer, location.translogLocation);
+        return new BytesArray(buffer.array()).equals(expectedBytes);
     }
 
     /**

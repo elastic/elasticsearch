@@ -248,11 +248,6 @@ public class TranslogWriter extends TranslogReader {
         }
     }
 
-    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        readBytes(buffer, location.translogLocation);
-        return new BytesArray(buffer.array()).equals(expectedBytes);
-    }
 
     /**
      * this class is used when one wants a reference to this file which exposes all recently written operation.

@@ -33,7 +33,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestBootstrapper;
 import org.elasticsearch.ingest.PipelineExecutionService;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
@@ -43,6 +42,10 @@ import java.util.List;
 import java.util.Set;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
+
+    public static final String PIPELINE_ID_PARAM_CONTEXT_KEY = "__pipeline_id__";
+    public static final String PIPELINE_ID_PARAM = "pipeline";
+    static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
 
     private final PipelineExecutionService executionService;
 
@@ -54,9 +57,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(ConfigurationUtils.PIPELINE_ID_PARAM_CONTEXT_KEY);
+        String pipelineId = request.getFromContext(PIPELINE_ID_PARAM_CONTEXT_KEY);
         if (pipelineId == null) {
-            pipelineId = request.getHeader(ConfigurationUtils.PIPELINE_ID_PARAM);
+            pipelineId = request.getHeader(PIPELINE_ID_PARAM);
             if (pipelineId == null) {
                 chain.proceed(task, action, request, listener);
                 return;
@@ -84,7 +87,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         // The IndexRequest has the same type on the node that receives the request and the node that
         // processes the primary action. This could lead to a pipeline being executed twice for the same
         // index request, hence this check
-        if (indexRequest.hasHeader(ConfigurationUtils.PIPELINE_ALREADY_PROCESSED)) {
+        if (indexRequest.hasHeader(PIPELINE_ALREADY_PROCESSED)) {
             chain.proceed(task, action, indexRequest, listener);
             return;
         }
@@ -92,7 +95,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             logger.error("failed to execute pipeline [{}]", t, pipelineId);
             listener.onFailure(t);
         }, success -> {
-            indexRequest.putHeader(ConfigurationUtils.PIPELINE_ALREADY_PROCESSED, true);
+            indexRequest.putHeader(PIPELINE_ALREADY_PROCESSED, true);
             chain.proceed(task, action, indexRequest, listener);
         });
     }

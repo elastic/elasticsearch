@@ -33,7 +33,6 @@ import org.elasticsearch.ingest.IngestBootstrapper;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
@@ -89,7 +88,7 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
+        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -103,7 +102,7 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putInContext(ConfigurationUtils.PIPELINE_ID_PARAM_CONTEXT_KEY, "_id");
+        indexRequest.putInContext(IngestActionFilter.PIPELINE_ID_PARAM_CONTEXT_KEY, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -117,8 +116,8 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
-        indexRequest.putHeader(ConfigurationUtils.PIPELINE_ALREADY_PROCESSED, true);
+        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
+        indexRequest.putHeader(IngestActionFilter.PIPELINE_ALREADY_PROCESSED, true);
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -132,7 +131,7 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
+        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -154,7 +153,7 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
+        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -196,7 +195,7 @@ public class IngestActionFilterTests extends ESTestCase {
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
+        bulkRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             if (rarely()) {

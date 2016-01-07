@@ -24,10 +24,6 @@ import java.util.Map;
 
 public final class ConfigurationUtils {
 
-    public static final String PIPELINE_ID_PARAM_CONTEXT_KEY = "__pipeline_id__";
-    public static final String PIPELINE_ID_PARAM = "pipeline";
-    public static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
-
     private ConfigurationUtils() {
     }
 

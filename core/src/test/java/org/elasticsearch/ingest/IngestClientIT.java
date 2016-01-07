@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.ingest.IngestActionFilter;
 import org.elasticsearch.action.ingest.delete.DeletePipelineAction;
 import org.elasticsearch.action.ingest.delete.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.get.GetPipelineAction;
@@ -37,7 +38,6 @@ import org.elasticsearch.action.ingest.simulate.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.simulate.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.simulate.SimulatePipelineResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -151,7 +151,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id");
+        bulkRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
             indexRequest.source("field", "value", "fail", i % 2 == 0);
@@ -194,7 +194,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
         client().prepareIndex("test", "type", "1").setSource("field", "value", "fail", false)
-                .putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id")
+                .putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id")
                 .get();
 
         Map<String, Object> doc = client().prepareGet("test", "type", "1")
@@ -204,7 +204,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field", "value2", "fail", false)
-        ).putHeader(ConfigurationUtils.PIPELINE_ID_PARAM, "_id").get();
+        ).putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id").get();
         doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));

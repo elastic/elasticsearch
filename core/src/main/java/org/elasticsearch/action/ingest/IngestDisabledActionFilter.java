@@ -24,17 +24,16 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
 
 public final class IngestDisabledActionFilter implements ActionFilter {
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(ConfigurationUtils.PIPELINE_ID_PARAM_CONTEXT_KEY);
+        String pipelineId = request.getFromContext(IngestActionFilter.PIPELINE_ID_PARAM_CONTEXT_KEY);
         if (pipelineId != null) {
             failRequest(pipelineId);
         }
-        pipelineId = request.getHeader(ConfigurationUtils.PIPELINE_ID_PARAM);
+        pipelineId = request.getHeader(IngestActionFilter.PIPELINE_ID_PARAM);
         if (pipelineId != null) {
             failRequest(pipelineId);
         }

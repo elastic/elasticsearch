@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ingest.IngestActionFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilter;
@@ -36,8 +36,8 @@ public class IngestRestFilter extends RestFilter {
 
     @Override
     public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-        if (request.hasParam(ConfigurationUtils.PIPELINE_ID_PARAM)) {
-            request.putInContext(ConfigurationUtils.PIPELINE_ID_PARAM_CONTEXT_KEY, request.param(ConfigurationUtils.PIPELINE_ID_PARAM));
+        if (request.hasParam(IngestActionFilter.PIPELINE_ID_PARAM)) {
+            request.putInContext(IngestActionFilter.PIPELINE_ID_PARAM_CONTEXT_KEY, request.param(IngestActionFilter.PIPELINE_ID_PARAM));
         }
         filterChain.continueProcessing(request, channel);
     }

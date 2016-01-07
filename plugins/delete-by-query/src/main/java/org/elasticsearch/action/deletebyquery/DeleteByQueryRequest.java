@@ -105,7 +105,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
     }
 
     @Override
-    public DeleteByQueryRequest indices(String[] indices) {
+    public DeleteByQueryRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

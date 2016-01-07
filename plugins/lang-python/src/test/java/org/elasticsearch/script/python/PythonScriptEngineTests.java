@@ -19,6 +19,11 @@
 
 package org.elasticsearch.script.python;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -27,11 +32,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,6 +58,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
+    @SuppressWarnings("unchecked")
     public void testMapAccess() {
         Map<String, Object> vars = new HashMap<String, Object>();
 
@@ -74,6 +75,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         assertThat(((String) o), equalTo("2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testObjectMapInter() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
@@ -92,6 +94,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testAccessListInScript() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();

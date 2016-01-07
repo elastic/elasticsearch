@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachment {
 
@@ -54,6 +55,21 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
     @Override
     public String type() {
         return HttpEmailAttachementParser.TYPE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        HttpRequestAttachment otherDataAttachment = (HttpRequestAttachment) o;
+        return Objects.equals(id, otherDataAttachment.id) && Objects.equals(requestTemplate, otherDataAttachment.requestTemplate)
+                && Objects.equals(contentType, otherDataAttachment.contentType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, requestTemplate, contentType);
     }
 
     public static class Builder {

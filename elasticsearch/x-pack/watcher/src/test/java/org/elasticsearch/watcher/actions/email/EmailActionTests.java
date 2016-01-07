@@ -24,15 +24,18 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachmentParser;
 import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
 import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachments;
 import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
 import org.elasticsearch.watcher.actions.email.service.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.HttpRequestAttachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplateTests;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
@@ -46,12 +49,15 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -79,7 +85,15 @@ public class EmailActionTests extends ESTestCase {
     private SecretService secretService = mock(SecretService.class);
     private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
     private HttpClient httpClient = mock(HttpClient.class);
-    private static final EmailAttachmentsParser EMPTY_EMAIL_ATTACHMENTS_PARSER = new EmailAttachmentsParser(Collections.emptyMap());
+    private EmailAttachmentsParser emailAttachmentParser;
+    private Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+
+    @Before
+    public void addEmailAttachmentParsers() {
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, new HttpRequestTemplate.Parser(registry), new HttpRequestTemplateTests.MockTextTemplateEngine()));
+        emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
+        emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
+    }
 
     public void testExecute() throws Exception {
         final String account = "account1";
@@ -119,11 +133,10 @@ public class EmailActionTests extends ESTestCase {
         Profile profile = randomFrom(Profile.values());
 
         DataAttachment dataAttachment = randomDataAttachment();
-        // TODO RANDOMIZE ME
-        EmailAttachments emailAttachments = new EmailAttachments(new ArrayList<>());
+        EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
-        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, Collections.emptyMap());
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, emailAttachmentParsers);
 
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
@@ -282,7 +295,7 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, EMPTY_EMAIL_ATTACHMENTS_PARSER, Collections.emptyMap())
+        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentParser, Collections.emptyMap())
                 .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
         assertThat(executable, notNullValue());
@@ -360,11 +373,10 @@ public class EmailActionTests extends ESTestCase {
         Profile profile = randomFrom(Profile.values());
         String account = randomAsciiOfLength(6);
         DataAttachment dataAttachment = randomDataAttachment();
-        // TODO randomize
-        EmailAttachments emailAttachments = new EmailAttachments(new ArrayList<>());
+        EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
-        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, Collections.emptyMap());
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, emailAttachmentParsers);
 
         boolean hideSecrets = randomBoolean();
         ToXContent.Params params = WatcherParams.builder().hideSecrets(hideSecrets).build();
@@ -376,7 +388,7 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, EMPTY_EMAIL_ATTACHMENTS_PARSER, Collections.emptyMap())
+        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser, emailAttachmentParsers)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
 
         if (!hideSecrets) {
@@ -429,7 +441,7 @@ public class EmailActionTests extends ESTestCase {
         HttpResponse mockResponse = new HttpResponse(200, content, headers);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(mockResponse);
 
-        // setup email parsers
+        // setup email attachment parsers
         HttpRequestTemplate.Parser httpRequestTemplateParser = new HttpRequestTemplate.Parser(registry);
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
         attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, engine));
@@ -485,16 +497,23 @@ public class EmailActionTests extends ESTestCase {
         return randomFrom(DataAttachment.JSON, DataAttachment.YAML, null);
     }
 
-    private HttpRequest randomExternalAttachment() throws Exception {
-        if (randomBoolean()) {
+    private EmailAttachments randomEmailAttachments() throws IOException {
+        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
+
+        String attachmentType = randomFrom("http", "data", null);
+        if ("http".equals(attachmentType)) {
             Map<String, String[]> headers = new HashMap<>(1);
             headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[]{"plain/text"});
             String content = "My wonderful text";
             HttpResponse mockResponse = new HttpResponse(200, content, headers);
             when(httpClient.execute(any(HttpRequest.class))).thenReturn(mockResponse);
-            return HttpRequest.builder("_host", 443).build();
-        } else {
-            return null;
+
+            HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 1234).build();
+            attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template, randomFrom("my/custom-type", null)));
+        } else if ("data".equals(attachmentType)) {
+            attachments.add(new org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment(randomAsciiOfLength(10), randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
         }
+
+        return new EmailAttachments(attachments);
     }
 }

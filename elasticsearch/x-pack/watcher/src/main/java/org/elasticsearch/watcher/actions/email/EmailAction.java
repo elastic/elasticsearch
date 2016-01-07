@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  *
@@ -84,23 +85,17 @@ public class EmailAction implements Action {
 
         EmailAction action = (EmailAction) o;
 
-        if (!email.equals(action.email)) return false;
-        if (account != null ? !account.equals(action.account) : action.account != null) return false;
-        if (auth != null ? !auth.equals(action.auth) : action.auth != null) return false;
-        if (profile != action.profile) return false;
-        if (emailAttachments != null && !emailAttachments.equals(action.emailAttachments)) return false;
-        return !(dataAttachment != null ? !dataAttachment.equals(action.dataAttachment) : action.dataAttachment != null);
+        return Objects.equals(email, action.email) &&
+                Objects.equals(account, action.account) &&
+                Objects.equals(auth, action.auth) &&
+                Objects.equals(profile, action.profile) &&
+                Objects.equals(emailAttachments, action.emailAttachments) &&
+                Objects.equals(dataAttachment, action.dataAttachment);
     }
 
     @Override
     public int hashCode() {
-        int result = email.hashCode();
-        result = 31 * result + (account != null ? account.hashCode() : 0);
-        result = 31 * result + (auth != null ? auth.hashCode() : 0);
-        result = 31 * result + (profile != null ? profile.hashCode() : 0);
-        result = 31 * result + (dataAttachment != null ? dataAttachment.hashCode() : 0);
-        result = 31 * result + (emailAttachments != null ? emailAttachments.hashCode() : 0);
-        return result;
+        return Objects.hash(email, account, auth, profile, dataAttachment, emailAttachments);
     }
 
     @Override
@@ -135,7 +130,7 @@ public class EmailAction implements Action {
         Secret password = null;
         Profile profile = Profile.STANDARD;
         DataAttachment dataAttachment = null;
-        EmailAttachments attachments = null;
+        EmailAttachments attachments = EmailAttachments.EMPTY_ATTACHMENTS;
 
         String currentFieldName = null;
         XContentParser.Token token;

@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.email.service.attachment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class DataAttachment implements EmailAttachmentParser.EmailAttachment {
 
@@ -38,6 +39,20 @@ public class DataAttachment implements EmailAttachmentParser.EmailAttachment {
     @Override
     public String type() {
         return DataAttachmentParser.TYPE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DataAttachment otherDataAttachment = (DataAttachment) o;
+        return Objects.equals(id, otherDataAttachment.id) && Objects.equals(dataAttachment, otherDataAttachment.dataAttachment);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, dataAttachment);
     }
 
     public static Builder builder(String id) {

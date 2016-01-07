@@ -10,9 +10,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class EmailAttachments implements ToXContent {
+
+    public static final EmailAttachments EMPTY_ATTACHMENTS = new EmailAttachments(Collections.<EmailAttachmentParser.EmailAttachment>emptyList());
 
     public interface Fields {
         ParseField ATTACHMENTS = new ParseField("attachments");
@@ -39,5 +43,19 @@ public class EmailAttachments implements ToXContent {
         }
 
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        EmailAttachments other = (EmailAttachments) o;
+        return Objects.equals(attachments, other.attachments);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(attachments);
     }
 }

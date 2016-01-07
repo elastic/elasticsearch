@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestModule;
 import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
@@ -41,12 +40,6 @@ import org.elasticsearch.plugins.Plugin;
 public class IngestPlugin extends Plugin {
 
     public static final String NAME = "ingest";
-
-    private final boolean ingestEnabled;
-
-    public IngestPlugin(Settings nodeSettings) {
-        this.ingestEnabled = nodeSettings.getAsBoolean("node.ingest", false);
-    }
 
     @Override
     public String name() {

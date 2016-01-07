@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
@@ -51,5 +52,9 @@ public class IngestModule extends AbstractModule {
      */
     public void registerProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
         processorsRegistry.registerProcessor(type, processorFactoryProvider);
+    }
+
+    public static boolean isIngestEnabled(Settings settings) {
+        return settings.getAsBoolean("node.ingest", false);
     }
 }

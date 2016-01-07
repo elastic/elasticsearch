@@ -57,41 +57,14 @@ public class IngestTemplateTests extends ESSingleNodeTestCase {
         bootstrapper.setClient(client());
     }
 
-    public void testInstallIndexTemplate() throws Exception {
-        verifyNoIndexTemplates();
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        bootstrapper.clusterChanged(new ClusterChangedEvent("test", clusterState, clusterState));
+    public void testIngestIndexTemplateIsInstalled() throws Exception {
         verifyIngestIndexTemplateExist();
     }
 
     public void testInstallTemplateAfterItHasBeenRemoved() throws Exception {
-        verifyNoIndexTemplates();
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        bootstrapper.clusterChanged(new ClusterChangedEvent("test", clusterState, clusterState));
         verifyIngestIndexTemplateExist();
-
         client().admin().indices().prepareDeleteTemplate(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME).get();
-        verifyNoIndexTemplates();
-
-        clusterState = client().admin().cluster().prepareState().get().getState();
-        bootstrapper.clusterChanged(new ClusterChangedEvent("test", clusterState, clusterState));
         verifyIngestIndexTemplateExist();
-    }
-
-    public void testDoNotInstallTemplateBecauseIngestIndexTemplateAlreadyExists() throws Exception {
-        // add an empty template and check that it doesn't get overwritten:
-        client().admin().indices().preparePutTemplate(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME).setTemplate(".ingest").get();
-        GetIndexTemplatesResponse  response = client().admin().indices().prepareGetTemplates(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME).get();
-        assertThat(response.getIndexTemplates().size(), Matchers.equalTo(1));
-        assertThat(response.getIndexTemplates().get(0).getOrder(), Matchers.equalTo(0));
-
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        bootstrapper.clusterChanged(new ClusterChangedEvent("test", clusterState, clusterState));
-
-        response = client().admin().indices().prepareGetTemplates(IngestBootstrapper.INGEST_INDEX_TEMPLATE_NAME).get();
-        assertThat(response.getIndexTemplates().size(), Matchers.equalTo(1));
-        assertThat("The empty index template shouldn't get overwritten", response.getIndexTemplates().get(0).getOrder(), Matchers.equalTo(0));
-        assertThat("The empty index template shouldn't get overwritten", response.getIndexTemplates().get(0).getMappings().size(), Matchers.equalTo(0));
     }
 
     private static void verifyIngestIndexTemplateExist() {
@@ -101,11 +74,6 @@ public class IngestTemplateTests extends ESSingleNodeTestCase {
         assertThat(response.getIndexTemplates().get(0).getOrder(), Matchers.equalTo(Integer.MAX_VALUE));
         assertThat(response.getIndexTemplates().get(0).getMappings().size(), Matchers.equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getMappings().get(PipelineStore.TYPE), Matchers.notNullValue());
-    }
-
-    private static void verifyNoIndexTemplates() {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates().size(), Matchers.equalTo(0));
     }
 
 }

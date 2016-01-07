@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
+
+    @AwaitsFix(bugUrl = "temporarily ignored till we have removed the ingest index template")
     public void testSimpleIndexTemplateTests() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
@@ -313,6 +315,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "temporarily ignored till we have removed the ingest index template")
     public void testInvalidSettings() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();

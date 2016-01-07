@@ -19,9 +19,10 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

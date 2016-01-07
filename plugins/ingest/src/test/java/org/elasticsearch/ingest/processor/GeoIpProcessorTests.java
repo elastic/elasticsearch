@@ -20,9 +20,8 @@
 package org.elasticsearch.ingest.processor;
 
 import com.maxmind.geoip2.DatabaseReader;
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;

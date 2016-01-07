@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;

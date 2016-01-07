@@ -19,8 +19,10 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.core.TemplateService;
 
 import java.util.Map;
 

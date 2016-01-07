@@ -1,7 +1,6 @@
 ---
-"Test ingest APIS fail when is disabled":
+"Test ingest CRUD APIS work fine when node.ingest is set to false":
   - do:
-      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -10,26 +9,36 @@
             "processors": [
               {
                 "set" : {
-                  "field" : "field",
-                  "value": "valie"
+                  "field" : "field2",
+                  "value": "_value"
                 }
               }
             ]
           }
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 1 }
+  - match: { _id: "my_pipeline" }
 
   - do:
-      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
-      ingest.delete_pipeline:
-        id: "my_pipeline"
-
-  - do:
-      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
       ingest.get_pipeline:
         id: "my_pipeline"
+  - match: { my_pipeline._source.description: "_description" }
+  - match: { my_pipeline._version: 1 }
 
   - do:
-      catch: /ingest plugin is disabled, pipeline CRUD or simulate APIs cannot be used/
-      ingest.simulate:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { _index: ".ingest" }
+  - match: { _type: "pipeline" }
+  - match: { _version: 2 }
+  - match: { _id: "my_pipeline" }
+  - match: { found: true }
+
+---
+"Test ingest simulate API works fine when node.ingest is set to false":
+  - do:
+      ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
           {
@@ -37,13 +46,38 @@
             "processors": [
               {
                 "set" : {
-                  "field" : "field",
-                  "value": "valie"
+                  "field" : "field2",
+                  "value" : "_value"
                 }
               }
             ]
           }
+  - match: { _id: "my_pipeline" }
 
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.field2: "_value" }
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
+
+---
+"Test index api with pipeline id fails when node.ingest is set to false":
   - do:
       catch: /ingest plugin is disabled, cannot execute pipeline with id \[my_pipeline_1\]/
       ingest.index:
@@ -56,3 +90,22 @@
           field2: "2",
           field3: "3"
         }
+
+---
+"Test bulk api with pipeline id fails when node.ingest is set to false":
+  - do:
+      catch: /ingest plugin is disabled, cannot execute pipeline with id \[my_pipeline_1\]/
+      ingest.bulk:
+        pipeline: "my_pipeline_1"
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v1
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+          - f1: v2
+

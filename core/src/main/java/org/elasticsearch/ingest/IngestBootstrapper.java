@@ -208,9 +208,13 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
                         installIngestIndexTemplate();
                     }
                     pipelineStore.start();
-                } catch (Exception e) {
-                    logger.warn("pipeline store failed to start, retrying...", e);
-                    startPipelineStore(metaData);
+                } catch (Exception e1) {
+                    logger.warn("pipeline store failed to start, retrying...", e1);
+                    try {
+                        startPipelineStore(metaData);
+                    } catch (RejectedExecutionException e2) {
+                        logger.debug("async pipeline store start retry failed", e2);
+                    }
                 }
             });
         } catch (RejectedExecutionException e) {

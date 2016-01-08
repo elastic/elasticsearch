@@ -458,7 +458,7 @@ public class ThreadPool extends AbstractComponent {
                 if (ThreadPoolType.FIXED == previousInfo.getThreadPoolType()) {
                     SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
                     if (Objects.equals(previousInfo.getQueueSize(), updatedQueueSize)) {
-                        int updatedSize = settings.getAsInt("size", previousInfo.getMax());
+                        int updatedSize = applyHardSizeLimit(name, settings.getAsInt("size", previousInfo.getMax()));
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
                             // if you think this code is crazy: that's because it is!
@@ -480,7 +480,7 @@ public class ThreadPool extends AbstractComponent {
                 defaultQueueSize = previousInfo.getQueueSize();
             }
 
-            int size = settings.getAsInt("size", defaultSize);
+            int size = applyHardSizeLimit(name, settings.getAsInt("size", defaultSize));
             SizeValue queueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", defaultQueueSize)));
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
             Executor executor = EsExecutors.newFixed(name, size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
@@ -531,6 +531,21 @@ public class ThreadPool extends AbstractComponent {
             return new ExecutorHolder(executor, new Info(name, threadPoolType, min, size, keepAlive, null));
         }
         throw new IllegalArgumentException("No type found [" + type + "], for [" + name + "]");
+    }
+
+    private int applyHardSizeLimit(String name, int size) {
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        if ((name.equals(Names.BULK) || name.equals(Names.INDEX)) && size > availableProcessors) {
+            // We use a hard max size for the indexing pools, because if too many threads enter Lucene's IndexWriter, it means
+            // too many segments written, too frequently, too much merging, etc:
+            // TODO: I would love to be loud here (throw an exception if you ask for a too-big size), but I think this is dangerous
+            // because on upgrade this setting could be in cluster state and hard for the user to correct?
+            logger.warn("requested thread pool size [{}] for [{}] is too large; setting to maximum [{}] instead",
+                        size, name, availableProcessors);
+            size = availableProcessors;
+        }
+
+        return size;
     }
 
     private void updateSettings(Settings settings) {

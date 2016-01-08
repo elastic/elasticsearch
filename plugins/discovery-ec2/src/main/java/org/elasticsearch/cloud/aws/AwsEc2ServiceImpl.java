@@ -73,7 +73,6 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
     }
 
     @Override
-    @SuppressWarnings("deprecation") // Supports deprecated parameters for backwards compatibility
     public synchronized AmazonEC2 client() {
         if (client != null) {
             return client;
@@ -94,11 +93,11 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         String account = settings.get(CLOUD_EC2.KEY, settings.get(CLOUD_AWS.KEY));
         String key = settings.get(CLOUD_EC2.SECRET, settings.get(CLOUD_AWS.SECRET));
 
-        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST, settings.get(CLOUD_AWS.DEPRECATED_PROXY_HOST));
-        proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, settings.get(CLOUD_EC2.DEPRECATED_PROXY_HOST, proxyHost));
+        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST);
+        proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, proxyHost);
         if (proxyHost != null) {
-            String portString = settings.get(CLOUD_AWS.PROXY_PORT, settings.get(CLOUD_AWS.DEPRECATED_PROXY_PORT, "80"));
-            portString = settings.get(CLOUD_EC2.PROXY_PORT, settings.get(CLOUD_EC2.DEPRECATED_PROXY_PORT, portString));
+            String portString = settings.get(CLOUD_AWS.PROXY_PORT, "80");
+            portString = settings.get(CLOUD_EC2.PROXY_PORT, portString);
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);

@@ -2,5 +2,5 @@
     - do:
         cluster.stats: {}
 
-    - match:  { nodes.plugins.0.name: ingest  }
+    - match:  { nodes.plugins.0.name: ingest-geoip  }
     - match:  { nodes.plugins.0.jvm: true  }

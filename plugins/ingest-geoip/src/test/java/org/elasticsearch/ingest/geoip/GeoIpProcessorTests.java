@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ingest.core.IngestDocument;

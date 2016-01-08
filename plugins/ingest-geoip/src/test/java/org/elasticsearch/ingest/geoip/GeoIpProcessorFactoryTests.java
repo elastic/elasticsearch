@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.Before;
@@ -46,7 +45,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     @Before
     public void prepareConfigDirectory() throws Exception {
         this.configDir = createTempDir();
-        Path geoIpConfigDir = configDir.resolve("ingest").resolve("geoip");
+        Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")), geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")), geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));

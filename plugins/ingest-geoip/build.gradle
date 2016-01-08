@@ -18,8 +18,8 @@
  */
 
 esplugin {
-  description 'Plugin that allows to configure pipelines to preprocess documents before indexing'
-  classname 'org.elasticsearch.plugin.ingest.IngestPlugin'
+  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 }
 
 dependencies {
@@ -32,17 +32,9 @@ dependencies {
   testCompile 'org.elasticsearch:geolite2-databases:20151029'
 }
 
-sourceSets {
-  test {
-    resources {
-      srcDir "src/main/packaging/config"
-    }
-  }
-}
-
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
   from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
-  into "${project.buildDir}/geoip"
+  into "${project.buildDir}/ingest-geoip"
   include "*.mmdb"
 }
 
@@ -52,8 +44,8 @@ compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 bundlePlugin {
-  from("${project.buildDir}/geoip") {
-    into 'config/geoip'
+  from("${project.buildDir}/ingest-geoip") {
+    into 'config/'
   }
 }
 

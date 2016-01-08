@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
@@ -222,7 +222,7 @@ public final class GeoIpProcessor implements Processor {
         return geoData;
     }
 
-    public static class Factory implements Processor.Factory<GeoIpProcessor>, Closeable {
+    public static final class Factory implements Processor.Factory<GeoIpProcessor>, Closeable {
 
         static final Set<Field> DEFAULT_FIELDS = EnumSet.of(
                 Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
@@ -231,7 +231,7 @@ public final class GeoIpProcessor implements Processor {
         private final Map<String, DatabaseReader> databaseReaders;
 
         public Factory(Path configDirectory) {
-            Path geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
+            Path geoIpConfigDirectory = configDirectory.resolve("ingest-geoip");
             if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
                 throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
             }

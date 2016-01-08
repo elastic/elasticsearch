@@ -25,7 +25,7 @@ List projects = [
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
   'plugins:discovery-multicast',
-  'plugins:ingest',
+  'plugins:ingest-geoip',
   'plugins:lang-javascript',
   'plugins:lang-plan-a',
   'plugins:lang-python',

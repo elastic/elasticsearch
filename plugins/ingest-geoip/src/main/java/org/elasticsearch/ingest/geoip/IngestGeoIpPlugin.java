@@ -17,19 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.ingest.IngestModule;
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
 import org.elasticsearch.plugins.Plugin;
 
-public class IngestPlugin extends Plugin {
-
-    public static final String NAME = "ingest";
+public class IngestGeoIpPlugin extends Plugin {
 
     @Override
     public String name() {
-        return NAME;
+        return "ingest-geoip";
     }
 
     @Override

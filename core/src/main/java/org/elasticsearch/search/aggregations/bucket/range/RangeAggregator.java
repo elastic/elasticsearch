@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -397,7 +396,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
 
         private final InternalRange.Factory rangeFactory;
         private final List<? extends Range> ranges;
@@ -413,8 +412,9 @@ public class RangeAggregator extends BucketsAggregator {
             this.ranges = ranges;
         }
 
-        public void keyed(boolean keyed) {
+        public AF keyed(boolean keyed) {
             this.keyed = keyed;
+            return (AF) this;
         }
 
         public boolean keyed() {
@@ -441,20 +441,20 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected AF innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            Factory factory = createFactoryFromStream(name, in);
+            Factory<AF> factory = createFactoryFromStream(name, in);
             factory.keyed = in.readBoolean();
-            return factory;
+            return (AF) factory;
         }
 
-        protected Factory createFactoryFromStream(String name, StreamInput in) throws IOException {
+        protected Factory<AF> createFactoryFromStream(String name, StreamInput in) throws IOException {
             int size = in.readVInt();
             List<Range> ranges = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 ranges.add(Range.PROTOTYPE.readFrom(in));
             }
-            return new Factory(name, ranges);
+            return new Factory<AF>(name, ranges);
         }
 
         @Override

@@ -71,7 +71,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
         throw new UnsupportedOperationException("global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         public Factory(String name) {
             super(name, InternalGlobal.TYPE);
@@ -91,7 +91,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             return new Factory(name);
         }
 

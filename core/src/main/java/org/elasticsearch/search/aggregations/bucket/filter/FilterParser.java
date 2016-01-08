@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 
@@ -34,31 +33,27 @@ import java.io.IOException;
  */
 public class FilterParser implements Aggregator.Parser {
 
-    private IndicesQueriesRegistry queriesRegistry;
-
-    @Inject
-    public FilterParser(IndicesQueriesRegistry queriesRegistry) {
-        this.queriesRegistry = queriesRegistry;
-    }
-
     @Override
     public String type() {
         return InternalFilter.TYPE.name();
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public FilterAggregator.Factory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
-        FilterAggregator.Factory factory = new FilterAggregator.Factory(aggregationName);
-        factory.filter(filter == null ? new MatchAllQueryBuilder() : filter);
+        if (filter == null) {
+            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
+        }
+
+        FilterAggregator.Factory factory = new FilterAggregator.Factory(aggregationName,
+                filter == null ? new MatchAllQueryBuilder() : filter);
         return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new FilterAggregator.Factory(null) };
+        return new AggregatorFactory[] { new FilterAggregator.Factory(null, null) };
     }
 
 }

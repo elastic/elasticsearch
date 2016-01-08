@@ -53,9 +53,11 @@ import java.util.Objects;
 /**
  *
  */
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
+        extends AggregatorFactory<AF> {
 
-    public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
+    public static abstract class LeafOnly<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
+            extends ValuesSourceAggregatorFactory<VS, AF> {
 
         protected LeafOnly(String name, Type type, ValuesSourceParser.Input<VS> input) {
             super(name, type, input);
@@ -66,7 +68,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         }
 
         @Override
-        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
+        public AF subFactories(AggregatorFactories subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
     }
@@ -109,8 +111,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     /**
      * Sets the field to use for this aggregation.
      */
-    public void field(String field) {
+    public AF field(String field) {
         this.field = field;
+        return (AF) this;
     }
 
     /**
@@ -123,8 +126,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     /**
      * Sets the script to use for this aggregation.
      */
-    public void script(Script script) {
+    public AF script(Script script) {
         this.script = script;
+        return (AF) this;
     }
 
     /**
@@ -137,8 +141,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     /**
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
-    public void valueType(ValueType valueType) {
+    public AF valueType(ValueType valueType) {
         this.valueType = valueType;
+        return (AF) this;
     }
 
     /**
@@ -151,8 +156,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     /**
      * Sets the format to use for the output of the aggregation.
      */
-    public void format(String format) {
+    public AF format(String format) {
         this.format = format;
+        return (AF) this;
     }
 
     /**
@@ -166,8 +172,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
      * Sets the value to use when the aggregation finds a missing value in a
      * document
      */
-    public void missing(Object missing) {
+    public AF missing(Object missing) {
         this.missing = missing;
+        return (AF) this;
     }
 
     /**
@@ -181,8 +188,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     /**
      * Sets the time zone to use for this aggregation
      */
-    public void timeZone(DateTimeZone timeZone) {
+    public AF timeZone(DateTimeZone timeZone) {
         this.timeZone = timeZone;
+        return (AF) this;
     }
 
     /**
@@ -376,13 +384,13 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doReadFrom(String name, StreamInput in) throws IOException {
+    protected final ValuesSourceAggregatorFactory<VS, AF> doReadFrom(String name, StreamInput in) throws IOException {
         ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
         ValueType targetValueType = null;
         if (in.readBoolean()) {
             targetValueType = ValueType.STRING.readFrom(in);
         }
-        ValuesSourceAggregatorFactory<VS> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
+        ValuesSourceAggregatorFactory<VS, AF> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
         factory.field = in.readOptionalString();
         if (in.readBoolean()) {
             factory.script = Script.readScript(in);
@@ -399,7 +407,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     // NORELEASE make this abstract when agg refactor complete
-    protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
+    protected ValuesSourceAggregatorFactory<VS, AF> innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
             StreamInput in) throws IOException {
         return null;
     }
@@ -447,7 +455,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
 
     @Override
     protected final boolean doEquals(Object obj) {
-        ValuesSourceAggregatorFactory<?> other = (ValuesSourceAggregatorFactory<?>) obj;
+        ValuesSourceAggregatorFactory<?, ?> other = (ValuesSourceAggregatorFactory<?, ?>) obj;
         if (!Objects.equals(field, other.field))
             return false;
         if (!Objects.equals(format, other.format))

@@ -122,8 +122,9 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public void format(String format) {
+        public Factory format(String format) {
             this.format = format;
+            return this;
         }
 
         /**

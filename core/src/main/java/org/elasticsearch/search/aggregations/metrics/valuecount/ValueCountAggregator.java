@@ -112,7 +112,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS, Factory<VS>> {
 
         public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
             super(name, InternalValueCount.TYPE, valuesSourceType, valueType);
@@ -133,7 +133,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorFactory<VS, Factory<VS>> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
             return new ValueCountAggregator.Factory<VS>(name, valuesSourceType, targetValueType);
         }

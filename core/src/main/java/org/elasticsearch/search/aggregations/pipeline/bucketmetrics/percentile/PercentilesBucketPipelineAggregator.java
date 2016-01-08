@@ -124,7 +124,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         out.writeDoubleArray(percents);
     }
 
-    public static class Factory extends BucketMetricsFactory {
+    public static class Factory extends BucketMetricsFactory<Factory> {
 
         private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
@@ -142,8 +142,9 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         /**
          * Set the percentages to calculate percentiles for in this aggregation
          */
-        public void percents(double[] percents) {
+        public Factory percents(double[] percents) {
             this.percents = percents;
+            return this;
         }
 
         @Override

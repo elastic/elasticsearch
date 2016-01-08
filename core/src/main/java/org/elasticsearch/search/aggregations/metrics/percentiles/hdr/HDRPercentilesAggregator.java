@@ -84,7 +84,7 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
                 formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
         private int numberOfSignificantValueDigits = 3;
@@ -97,10 +97,11 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         /**
          * Set the percentiles to compute.
          */
-        public void percents(double[] percents) {
+        public Factory percents(double[] percents) {
             double[] sortedPercents = Arrays.copyOf(percents, percents.length);
             Arrays.sort(sortedPercents);
             this.percents = sortedPercents;
+            return this;
         }
 
         /**
@@ -113,8 +114,9 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         /**
          * Set whether the XContent response should be keyed
          */
-        public void keyed(boolean keyed) {
+        public Factory keyed(boolean keyed) {
             this.keyed = keyed;
+            return this;
         }
 
         /**
@@ -127,8 +129,9 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         /**
          * Expert: set the number of significant digits in the values.
          */
-        public void numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+        public Factory numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
             this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+            return this;
         }
 
         /**
@@ -154,7 +157,7 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.percents = in.readDoubleArray();

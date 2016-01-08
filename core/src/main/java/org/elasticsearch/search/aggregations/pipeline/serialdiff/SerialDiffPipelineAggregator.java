@@ -158,8 +158,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the lag to use when calculating the serial difference.
          */
-        public void lag(int lag) {
+        public Factory lag(int lag) {
             this.lag = lag;
+            return this;
         }
 
         /**
@@ -172,8 +173,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public void format(String format) {
+        public Factory format(String format) {
             this.format = format;
+            return this;
         }
 
         /**
@@ -186,8 +188,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the GapPolicy to use on the output of this aggregation.
          */
-        public void gapPolicy(GapPolicy gapPolicy) {
+        public Factory gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
+            return this;
         }
 
         /**

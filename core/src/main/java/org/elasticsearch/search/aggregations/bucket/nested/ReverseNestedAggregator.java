@@ -125,7 +125,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         return parentFilter;
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private String path;
 
@@ -138,8 +138,9 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
          * the path to a nested object in the mappings. If it is not specified
          * then this aggregation will go back to the root document.
          */
-        public void path(String path) {
+        public Factory path(String path) {
             this.path = path;
+            return this;
         }
 
         /**

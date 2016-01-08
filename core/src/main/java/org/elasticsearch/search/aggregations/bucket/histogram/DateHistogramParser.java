@@ -23,9 +23,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.DateHistogramFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class DateHistogramParser extends HistogramParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected DateHistogramFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         HistogramAggregator.DateHistogramFactory factory = new HistogramAggregator.DateHistogramFactory(aggregationName);
         Object interval = otherOptions.get(Rounding.Interval.INTERVAL_FIELD);

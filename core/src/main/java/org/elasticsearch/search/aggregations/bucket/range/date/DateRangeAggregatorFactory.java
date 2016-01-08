@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DateRangeAggregatorFactory extends Factory {
+public class DateRangeAggregatorFactory extends Factory<DateRangeAggregatorFactory> {
 
     public DateRangeAggregatorFactory(String name, List<Range> ranges) {
         super(name, InternalDateRange.FACTORY, ranges);

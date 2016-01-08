@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.FieldsParseElement;
@@ -73,7 +74,7 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public TopHitsAggregator.Factory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         TopHitsAggregator.Factory factory = new TopHitsAggregator.Factory(aggregationName);
         XContentParser.Token token;
         String currentFieldName = null;

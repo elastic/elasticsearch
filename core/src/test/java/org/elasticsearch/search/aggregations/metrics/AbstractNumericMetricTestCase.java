@@ -24,8 +24,8 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
-public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric>> extends
-        BaseAggregationTestCase<AF> {
+public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, AF>>
+        extends BaseAggregationTestCase<AF> {
 
     @Override
     protected final AF createTestAggregatorFactory() {

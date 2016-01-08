@@ -52,13 +52,14 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected ValuesSourceAggregatorFactory<ValuesSource, ValueCountAggregator.Factory<ValuesSource>> createFactory(String aggregationName,
+            ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new ValueCountAggregator.Factory<ValuesSource>(aggregationName, valuesSourceType, targetValueType);
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
+    public AggregatorFactory<?>[] getFactoryPrototypes() {
         return new AggregatorFactory[] { new ValueCountAggregator.Factory<ValuesSource>(null, null, null) };
     }
 }

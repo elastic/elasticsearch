@@ -28,11 +28,11 @@ public class FilterTests extends BaseAggregationTestCase<FilterAggregator.Factor
 
     @Override
     protected Factory createTestAggregatorFactory() {
-        Factory factory = new Factory(randomAsciiOfLengthBetween(1, 20));
+        Factory factory = new Factory(randomAsciiOfLengthBetween(1, 20),
+                QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         // NORELEASE make RandomQueryBuilder work outside of the
         // AbstractQueryTestCase
         // builder.query(RandomQueryBuilder.createQuery(getRandom()));
-        factory.filter(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         return factory;
     }
 

@@ -202,19 +202,31 @@ public class FiltersAggregator extends BucketsAggregator {
         return owningBucketOrdinal * totalNumKeys + filterOrd;
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private final List<KeyedFilter> filters;
         private final boolean keyed;
         private boolean otherBucket = false;
         private String otherBucketKey = "_other_";
 
+        /**
+         * @param name
+         *            the name of this aggregation
+         * @param filters
+         *            the KeyedFilters to use with this aggregation.
+         */
         public Factory(String name, List<KeyedFilter> filters) {
             super(name, InternalFilters.TYPE);
             this.filters = filters;
             this.keyed = true;
         }
 
+        /**
+         * @param name
+         *            the name of this aggregation
+         * @param filters
+         *            the filters to use with this aggregation
+         */
         public Factory(String name, QueryBuilder<?>... filters) {
             super(name, InternalFilters.TYPE);
             List<KeyedFilter> keyedFilters = new ArrayList<>(filters.length);
@@ -228,8 +240,9 @@ public class FiltersAggregator extends BucketsAggregator {
         /**
          * Set whether to include a bucket for documents not matching any filter
          */
-        public void otherBucket(boolean otherBucket) {
+        public Factory otherBucket(boolean otherBucket) {
             this.otherBucket = otherBucket;
+            return this;
         }
 
         /**
@@ -243,8 +256,9 @@ public class FiltersAggregator extends BucketsAggregator {
          * Set the key to use for the bucket for documents not matching any
          * filter.
          */
-        public void otherBucketKey(String otherBucketKey) {
+        public Factory otherBucketKey(String otherBucketKey) {
             this.otherBucketKey = otherBucketKey;
+            return this;
         }
 
         /**
@@ -285,7 +299,7 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             Factory factory;
             if (in.readBoolean()) {
                 int size = in.readVInt();

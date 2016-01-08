@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -190,7 +189,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild, Factory> {
 
         private String parentType;
         private final String childType;
@@ -269,7 +268,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ParentChild> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             String childType = in.readString();
             Factory factory = new Factory(name, childType);

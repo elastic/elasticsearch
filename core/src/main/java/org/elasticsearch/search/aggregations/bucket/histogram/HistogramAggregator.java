@@ -162,7 +162,7 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, Factory<AF>> {
 
         public static final Factory PROTOTYPE = new Factory("");
 
@@ -187,48 +187,54 @@ public class HistogramAggregator extends BucketsAggregator {
             return interval;
         }
 
-        public void interval(long interval) {
+        public AF interval(long interval) {
             this.interval = interval;
+            return (AF) this;
         }
 
         public long offset() {
             return offset;
         }
 
-        public void offset(long offset) {
+        public AF offset(long offset) {
             this.offset = offset;
+            return (AF) this;
         }
 
         public Histogram.Order order() {
             return order;
         }
 
-        public void order(Histogram.Order order) {
+        public AF order(Histogram.Order order) {
             this.order = (InternalOrder) order;
+            return (AF) this;
         }
 
         public boolean keyed() {
             return keyed;
         }
 
-        public void keyed(boolean keyed) {
+        public AF keyed(boolean keyed) {
             this.keyed = keyed;
+            return (AF) this;
         }
 
         public long minDocCount() {
             return minDocCount;
         }
 
-        public void minDocCount(long minDocCount) {
+        public AF minDocCount(long minDocCount) {
             this.minDocCount = minDocCount;
+            return (AF) this;
         }
 
         public ExtendedBounds extendedBounds() {
             return extendedBounds;
         }
 
-        public void extendedBounds(ExtendedBounds extendedBounds) {
+        public AF extendedBounds(ExtendedBounds extendedBounds) {
             this.extendedBounds = extendedBounds;
+            return (AF) this;
         }
 
         public InternalHistogram.Factory<?> getHistogramFactory() {
@@ -305,9 +311,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
+        protected AF innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
                 throws IOException {
-            Factory factory = createFactoryFromStream(name, in);
+            Factory<AF> factory = createFactoryFromStream(name, in);
             factory.interval = in.readVLong();
             factory.offset = in.readVLong();
             if (in.readBoolean()) {
@@ -318,12 +324,12 @@ public class HistogramAggregator extends BucketsAggregator {
             if (in.readBoolean()) {
                 factory.extendedBounds = ExtendedBounds.readFrom(in);
             }
-            return factory;
+            return (AF) factory;
         }
 
-        protected Factory createFactoryFromStream(String name, StreamInput in)
+        protected Factory<AF> createFactoryFromStream(String name, StreamInput in)
                 throws IOException {
-            return new Factory(name);
+            return new Factory<AF>(name);
         }
 
         @Override
@@ -367,7 +373,7 @@ public class HistogramAggregator extends BucketsAggregator {
         }
     }
 
-    public static class DateHistogramFactory extends Factory {
+    public static class DateHistogramFactory extends Factory<DateHistogramFactory> {
 
         public static final DateHistogramFactory PROTOTYPE = new DateHistogramFactory("");
         public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
@@ -402,8 +408,9 @@ public class HistogramAggregator extends BucketsAggregator {
         /**
          * Set the interval.
          */
-        public void dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
+        public DateHistogramFactory dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
             this.dateHistogramInterval = dateHistogramInterval;
+            return this;
         }
 
         public DateHistogramInterval dateHistogramInterval() {
@@ -448,7 +455,7 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Factory createFactoryFromStream(String name, StreamInput in)
+        protected DateHistogramFactory createFactoryFromStream(String name, StreamInput in)
                 throws IOException {
             DateHistogramFactory factory = new DateHistogramFactory(name);
             if (in.readBoolean()) {

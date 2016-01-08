@@ -176,8 +176,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public void format(String format) {
+        public Factory format(String format) {
             this.format = format;
+            return this;
         }
 
         /**
@@ -198,8 +199,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the gap policy to use for this aggregation.
          */
-        public void gapPolicy(GapPolicy gapPolicy) {
+        public Factory gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
+            return this;
         }
 
         /**

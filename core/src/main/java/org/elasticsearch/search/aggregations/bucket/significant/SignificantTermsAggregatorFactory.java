@@ -63,7 +63,8 @@ import java.util.Objects;
 /**
  *
  */
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
+        implements Releasable {
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
     static final ParseField HEURISTIC = new ParseField("significance_heuristic");
@@ -168,15 +169,17 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return bucketCountThresholds;
     }
 
-    public void bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+    public SignificantTermsAggregatorFactory bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         this.bucketCountThresholds = bucketCountThresholds;
+        return this;
     }
 
     /**
      * Expert: sets an execution hint to the aggregation.
      */
-    public void executionHint(String executionHint) {
+    public SignificantTermsAggregatorFactory executionHint(String executionHint) {
         this.executionHint = executionHint;
+        return this;
     }
 
     /**
@@ -186,8 +189,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return executionHint;
     }
 
-    public void backgroundFilter(QueryBuilder<?> filterBuilder) {
+    public SignificantTermsAggregatorFactory backgroundFilter(QueryBuilder<?> filterBuilder) {
         this.filterBuilder = filterBuilder;
+        return this;
     }
 
     public QueryBuilder<?> backgroundFilter() {
@@ -197,8 +201,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     /**
      * Set terms to include and exclude from the aggregation results
      */
-    public void includeExclude(IncludeExclude includeExclude) {
+    public SignificantTermsAggregatorFactory includeExclude(IncludeExclude includeExclude) {
         this.includeExclude = includeExclude;
+        return this;
     }
 
     /**
@@ -208,8 +213,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return includeExclude;
     }
 
-    public void significanceHeuristic(SignificanceHeuristic significanceHeuristic) {
+    public SignificantTermsAggregatorFactory significanceHeuristic(SignificanceHeuristic significanceHeuristic) {
         this.significanceHeuristic = significanceHeuristic;
+        return this;
     }
 
     public SignificanceHeuristic significanceHeuristic() {
@@ -391,7 +397,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected SignificantTermsAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
         SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, valuesSourceType, targetValueType);
         factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);

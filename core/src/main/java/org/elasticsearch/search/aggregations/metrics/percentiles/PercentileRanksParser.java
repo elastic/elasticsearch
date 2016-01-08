@@ -48,7 +48,7 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
+    protected ValuesSourceAggregatorFactory<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
             Double compression, Integer numberOfSignificantValueDigits, Boolean keyed) {
         if (method == PercentilesMethod.TDIGEST) {
             TDigestPercentileRanksAggregator.Factory factory = new TDigestPercentileRanksAggregator.Factory(aggregationName);

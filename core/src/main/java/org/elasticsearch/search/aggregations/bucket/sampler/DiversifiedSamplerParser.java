@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -47,7 +45,7 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SamplerAggregator.DiversifiedFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory(aggregationName, valuesSourceType,
                 targetValueType);

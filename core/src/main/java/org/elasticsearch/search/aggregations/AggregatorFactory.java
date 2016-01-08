@@ -42,11 +42,12 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorFactory extends ToXContentToBytes implements NamedWriteable<AggregatorFactory> {
+public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes
+        implements NamedWriteable<AggregatorFactory<AF>> {
 
     protected String name;
     protected Type type;
-    protected AggregatorFactory parent;
+    protected AggregatorFactory<?> parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
     protected Map<String, Object> metaData;
     private AggregationContext context;
@@ -89,10 +90,10 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
      * @param subFactories  The sub-factories
      * @return  this factory (fluent interface)
      */
-    public AggregatorFactory subFactories(AggregatorFactories subFactories) {
+    public AF subFactories(AggregatorFactories subFactories) {
         this.factories = subFactories;
         this.factories.setParent(this);
-        return this;
+        return (AF) this;
     }
 
     public String name() {
@@ -110,7 +111,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
     /**
      * @return  The parent factory if one exists (will always return {@code null} for top level aggregator factories).
      */
-    public AggregatorFactory parent() {
+    public AggregatorFactory<?> parent() {
         return parent;
     }
 
@@ -138,9 +139,9 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
     }
 
     @Override
-    public final AggregatorFactory readFrom(StreamInput in) throws IOException {
+    public final AggregatorFactory<AF> readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        AggregatorFactory factory = doReadFrom(name, in);
+        AggregatorFactory<AF> factory = doReadFrom(name, in);
         factory.factories = AggregatorFactories.EMPTY.readFrom(in);
         factory.factories.setParent(this);
         factory.metaData = in.readMap();
@@ -148,7 +149,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
     }
 
     // NORELEASE make this abstract when agg refactor complete
-    protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+    protected AggregatorFactory<AF> doReadFrom(String name, StreamInput in) throws IOException {
         return null;
     }
 
@@ -339,7 +340,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
             return false;
         if (getClass() != obj.getClass())
             return false;
-        AggregatorFactory other = (AggregatorFactory) obj;
+        AggregatorFactory<AF> other = (AggregatorFactory<AF>) obj;
         if (!Objects.equals(name, other.name))
             return false;
         if (!Objects.equals(type, other.type))

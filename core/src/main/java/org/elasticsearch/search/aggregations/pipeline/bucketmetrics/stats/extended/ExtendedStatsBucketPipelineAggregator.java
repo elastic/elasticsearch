@@ -101,7 +101,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends BucketMetricsFactory {
+    public static class Factory extends BucketMetricsFactory<Factory> {
 
         private double sigma = 2.0;
 
@@ -113,8 +113,9 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
          * Set the value of sigma to use when calculating the standard deviation
          * bounds
          */
-        public void sigma(double sigma) {
+        public Factory sigma(double sigma) {
             this.sigma = sigma;
+            return this;
         }
 
         /**

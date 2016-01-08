@@ -78,7 +78,7 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
         }
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         private double[] values;
         private double compression = 100.0;
@@ -91,10 +91,11 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
         /**
          * Set the values to compute percentiles from.
          */
-        public void values(double[] values) {
+        public Factory values(double[] values) {
             double[] sortedValues = Arrays.copyOf(values, values.length);
             Arrays.sort(sortedValues);
             this.values = sortedValues;
+            return this;
         }
 
         /**
@@ -107,8 +108,9 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
         /**
          * Set whether the XContent response should be keyed
          */
-        public void keyed(boolean keyed) {
+        public Factory keyed(boolean keyed) {
             this.keyed = keyed;
+            return this;
         }
 
         /**
@@ -122,8 +124,9 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
          * Expert: set the compression. Higher values improve accuracy but also
          * memory usage.
          */
-        public void compression(double compression) {
+        public Factory compression(double compression) {
             this.compression = compression;
+            return this;
         }
 
         /**
@@ -150,7 +153,7 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.values = in.readDoubleArray();

@@ -26,8 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -54,7 +52,7 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<GeoPoint> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoCentroidAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new GeoCentroidAggregator.Factory(aggregationName);
     }

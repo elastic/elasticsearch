@@ -294,8 +294,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public void format(String format) {
+        public Factory format(String format) {
             this.format = format;
+            return this;
         }
 
         /**
@@ -308,8 +309,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the GapPolicy to use on the output of this aggregation.
          */
-        public void gapPolicy(GapPolicy gapPolicy) {
+        public Factory gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
+            return this;
         }
 
         /**
@@ -335,8 +337,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param window
          *            Size of window
          */
-        public void window(int window) {
+        public Factory window(int window) {
             this.window = window;
+            return this;
         }
 
         /**
@@ -355,8 +358,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param model
          *            A MovAvgModel which has been prepopulated with settings
          */
-        public void model(MovAvgModel model) {
+        public Factory model(MovAvgModel model) {
             this.model = model;
+            return this;
         }
 
         /**
@@ -376,8 +380,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param predict
          *            Number of predictions to make
          */
-        public void predict(int predict) {
+        public Factory predict(int predict) {
             this.predict = predict;
+            return this;
         }
 
         /**
@@ -397,8 +402,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param minimize
          *            If the model should be fit to the underlying data
          */
-        public void minimize(boolean minimize) {
+        public Factory minimize(boolean minimize) {
             this.minimize = minimize;
+            return this;
         }
 
         /**

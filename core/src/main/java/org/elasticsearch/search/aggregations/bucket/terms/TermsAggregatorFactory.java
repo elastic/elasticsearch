@@ -54,7 +54,7 @@ import java.util.Objects;
 /**
  *
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
@@ -198,15 +198,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         return bucketCountThresholds;
     }
 
-    public void bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+    public TermsAggregatorFactory bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         this.bucketCountThresholds = bucketCountThresholds;
+        return this;
     }
 
     /**
      * Sets the order in which the buckets will be returned.
      */
-    public void order(List<Terms.Order> order) {
+    public TermsAggregatorFactory order(List<Terms.Order> order) {
         this.orders = order;
+        return this;
     }
 
     /**
@@ -219,8 +221,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Expert: sets an execution hint to the aggregation.
      */
-    public void executionHint(String executionHint) {
+    public TermsAggregatorFactory executionHint(String executionHint) {
         this.executionHint = executionHint;
+        return this;
     }
 
     /**
@@ -233,8 +236,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Expert: set the collection mode.
      */
-    public void collectMode(SubAggCollectionMode mode) {
+    public TermsAggregatorFactory collectMode(SubAggCollectionMode mode) {
         this.collectMode = mode;
+        return this;
     }
 
     /**
@@ -247,8 +251,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Set terms to include and exclude from the aggregation results
      */
-    public void includeExclude(IncludeExclude includeExclude) {
+    public TermsAggregatorFactory includeExclude(IncludeExclude includeExclude) {
         this.includeExclude = includeExclude;
+        return this;
     }
 
     /**
@@ -268,8 +273,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Set whether doc count error will be return for individual terms
      */
-    public void showTermDocCountError(boolean showTermDocCountError) {
+    public TermsAggregatorFactory showTermDocCountError(boolean showTermDocCountError) {
         this.showTermDocCountError = showTermDocCountError;
+        return this;
     }
 
     @Override
@@ -422,7 +428,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected TermsAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
         TermsAggregatorFactory factory = new TermsAggregatorFactory(name, valuesSourceType, targetValueType);
         factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);

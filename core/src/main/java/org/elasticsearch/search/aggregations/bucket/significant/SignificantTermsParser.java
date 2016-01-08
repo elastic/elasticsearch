@@ -36,8 +36,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -63,7 +61,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SignificantTermsAggregatorFactory doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
         SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(aggregationName, valuesSourceType,

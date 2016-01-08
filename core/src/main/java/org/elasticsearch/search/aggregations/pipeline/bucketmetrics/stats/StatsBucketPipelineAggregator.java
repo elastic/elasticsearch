@@ -95,7 +95,7 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
         return new InternalStatsBucket(name(), count, sum, min, max, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends BucketMetricsFactory {
+    public static class Factory extends BucketMetricsFactory<Factory> {
 
         public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);

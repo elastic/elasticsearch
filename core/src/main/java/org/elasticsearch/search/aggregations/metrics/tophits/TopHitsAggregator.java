@@ -209,7 +209,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         Releasables.close(topDocsCollectors);
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private static final SortParseElement sortParseElement = new SortParseElement();
         private int from = 0;
@@ -231,8 +231,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * From index to start the search from. Defaults to <tt>0</tt>.
          */
-        public void from(int from) {
+        public Factory from(int from) {
             this.from = from;
+            return this;
         }
 
         /**
@@ -245,8 +246,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * The number of search hits to return. Defaults to <tt>10</tt>.
          */
-        public void size(int size) {
+        public Factory size(int size) {
             this.size = size;
+            return this;
         }
 
         /**
@@ -264,8 +266,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param order
          *            The sort ordering
          */
-        public void sort(String name, SortOrder order) {
+        public Factory sort(String name, SortOrder order) {
             sort(SortBuilders.fieldSort(name).order(order));
+            return this;
         }
 
         /**
@@ -274,14 +277,15 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param name
          *            The name of the field to sort by
          */
-        public void sort(String name) {
+        public Factory sort(String name) {
             sort(SortBuilders.fieldSort(name));
+            return this;
         }
 
         /**
          * Adds a sort builder.
          */
-        public void sort(SortBuilder sort) {
+        public Factory sort(SortBuilder sort) {
             try {
                 if (sorts == null) {
                     sorts = new ArrayList<>();
@@ -297,18 +301,20 @@ public class TopHitsAggregator extends MetricsAggregator {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            return this;
         }
 
         /**
          * Adds a sort builder.
          */
-        public void sorts(List<BytesReference> sorts) {
+        public Factory sorts(List<BytesReference> sorts) {
             if (this.sorts == null) {
                 this.sorts = new ArrayList<>();
             }
             for (BytesReference sort : sorts) {
                 this.sorts.add(sort);
             }
+            return this;
         }
 
         /**
@@ -321,8 +327,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * Adds highlight to perform as part of the search.
          */
-        public void highlighter(HighlightBuilder highlightBuilder) {
+        public Factory highlighter(HighlightBuilder highlightBuilder) {
             this.highlightBuilder = highlightBuilder;
+            return this;
         }
 
         /**
@@ -336,12 +343,13 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Indicates whether the response should contain the stored _source for
          * every hit
          */
-        public void fetchSource(boolean fetch) {
+        public Factory fetchSource(boolean fetch) {
             if (this.fetchSourceContext == null) {
                 this.fetchSourceContext = new FetchSourceContext(fetch);
             } else {
                 this.fetchSourceContext.fetchSource(fetch);
             }
+            return this;
         }
 
         /**
@@ -356,9 +364,10 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            An optional exclude (optionally wildcarded) pattern to
          *            filter the returned _source
          */
-        public void fetchSource(@Nullable String include, @Nullable String exclude) {
+        public Factory fetchSource(@Nullable String include, @Nullable String exclude) {
             fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[] { include },
                     exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude });
+            return this;
         }
 
         /**
@@ -373,15 +382,17 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            An optional list of exclude (optionally wildcarded)
          *            pattern to filter the returned _source
          */
-        public void fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        public Factory fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
             fetchSourceContext = new FetchSourceContext(includes, excludes);
+            return this;
         }
 
         /**
          * Indicate how the _source should be fetched.
          */
-        public void fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
+        public Factory fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
             this.fetchSourceContext = fetchSourceContext;
+            return this;
         }
 
         /**
@@ -397,27 +408,30 @@ public class TopHitsAggregator extends MetricsAggregator {
          * the search request. If none are specified, the source of the document
          * will be return.
          */
-        public void field(String name) {
+        public Factory field(String name) {
             if (fieldNames == null) {
                 fieldNames = new ArrayList<>();
             }
             fieldNames.add(name);
+            return this;
         }
 
         /**
          * Sets the fields to load and return as part of the search request. If
          * none are specified, the source of the document will be returned.
          */
-        public void fields(List<String> fields) {
+        public Factory fields(List<String> fields) {
             this.fieldNames = fields;
+            return this;
         }
 
         /**
          * Sets no fields to be loaded, resulting in only id and type to be
          * returned per field.
          */
-        public void noFields() {
+        public Factory noFields() {
             this.fieldNames = Collections.emptyList();
+            return this;
         }
 
         /**
@@ -431,22 +445,24 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds a field to load from the field data cache and return as part of
          * the search request.
          */
-        public void fieldDataField(String name) {
+        public Factory fieldDataField(String name) {
             if (fieldDataFields == null) {
                 fieldDataFields = new ArrayList<>();
             }
             fieldDataFields.add(name);
+            return this;
         }
 
         /**
          * Adds fields to load from the field data cache and return as part of
          * the search request.
          */
-        public void fieldDataFields(List<String> names) {
+        public Factory fieldDataFields(List<String> names) {
             if (fieldDataFields == null) {
                 fieldDataFields = new ArrayList<>();
             }
             fieldDataFields.addAll(names);
+            return this;
         }
 
         /**
@@ -464,8 +480,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param script
          *            The script
          */
-        public void scriptField(String name, Script script) {
+        public Factory scriptField(String name, Script script) {
             scriptField(name, script, false);
+            return this;
         }
 
         /**
@@ -476,18 +493,20 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param script
          *            The script
          */
-        public void scriptField(String name, Script script, boolean ignoreFailure) {
+        public Factory scriptField(String name, Script script, boolean ignoreFailure) {
             if (scriptFields == null) {
                 scriptFields = new ArrayList<>();
             }
             scriptFields.add(new ScriptField(name, script, ignoreFailure));
+            return this;
         }
 
-        public void scriptFields(List<ScriptField> scriptFields) {
+        public Factory scriptFields(List<ScriptField> scriptFields) {
             if (this.scriptFields == null) {
                 this.scriptFields = new ArrayList<>();
             }
             this.scriptFields.addAll(scriptFields);
+            return this;
         }
 
         /**
@@ -501,8 +520,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Should each {@link org.elasticsearch.search.SearchHit} be returned
          * with an explanation of the hit (ranking).
          */
-        public void explain(boolean explain) {
+        public Factory explain(boolean explain) {
             this.explain = explain;
+            return this;
         }
 
         /**
@@ -517,8 +537,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Should each {@link org.elasticsearch.search.SearchHit} be returned
          * with a version associated with it.
          */
-        public void version(boolean version) {
+        public Factory version(boolean version) {
             this.version = version;
+            return this;
         }
 
         /**
@@ -533,8 +554,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Applies when sorting, and controls if scores will be tracked as well.
          * Defaults to <tt>false</tt>.
          */
-        public void trackScores(boolean trackScores) {
+        public Factory trackScores(boolean trackScores) {
             this.trackScores = trackScores;
+            return this;
         }
 
         /**
@@ -607,7 +629,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
+        public Factory subFactories(AggregatorFactories subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
 

@@ -154,8 +154,9 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the gap policy to use for this aggregation.
          */
-        public void gapPolicy(GapPolicy gapPolicy) {
+        public Factory gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
+            return this;
         }
 
         /**

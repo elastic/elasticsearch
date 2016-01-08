@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class BucketMetricsFactory extends PipelineAggregatorFactory {
+public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> extends PipelineAggregatorFactory {
 
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -46,8 +46,9 @@ public abstract class BucketMetricsFactory extends PipelineAggregatorFactory {
     /**
      * Sets the format to use on the output of this aggregation.
      */
-    public void format(String format) {
+    public AF format(String format) {
         this.format = format;
+        return (AF) this;
     }
 
     /**
@@ -68,8 +69,9 @@ public abstract class BucketMetricsFactory extends PipelineAggregatorFactory {
     /**
      * Sets the gap policy to use for this aggregation.
      */
-    public void gapPolicy(GapPolicy gapPolicy) {
+    public AF gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
+        return (AF) this;
     }
 
     /**

@@ -85,7 +85,7 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         return new InternalSimpleValue(name(), sum, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends BucketMetricsFactory {
+    public static class Factory extends BucketMetricsFactory<Factory> {
 
         public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);

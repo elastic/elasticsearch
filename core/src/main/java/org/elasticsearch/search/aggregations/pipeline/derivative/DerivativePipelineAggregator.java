@@ -167,16 +167,31 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             super(name, TYPE.name(), bucketsPaths);
         }
 
-        public void format(String format) {
+        public Factory format(String format) {
             this.format = format;
+            return this;
         }
 
-        public void gapPolicy(GapPolicy gapPolicy) {
+        public String format() {
+            return format;
+        }
+
+        public Factory gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
+            return this;
         }
 
-        public void units(String units) {
+        public GapPolicy gapPolicy() {
+            return gapPolicy;
+        }
+
+        public Factory units(String units) {
             this.units = units;
+            return this;
+        }
+
+        public String units() {
+            return units;
         }
 
         @Override

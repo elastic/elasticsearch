@@ -174,7 +174,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Factory> {
 
         private boolean wrapLongitude = true;
 
@@ -185,8 +185,9 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         /**
          * Set whether to wrap longitudes. Defaults to true.
          */
-        public void wrapLongitude(boolean wrapLongitude) {
+        public Factory wrapLongitude(boolean wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
+            return this;
         }
 
         /**
@@ -210,7 +211,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.wrapLongitude = in.readBoolean();

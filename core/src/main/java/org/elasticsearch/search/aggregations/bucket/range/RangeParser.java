@@ -26,8 +26,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -55,7 +53,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected RangeAggregator.Factory<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         RangeAggregator.Factory factory = new RangeAggregator.Factory(aggregationName, ranges);

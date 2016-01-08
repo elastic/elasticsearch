@@ -110,7 +110,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private Script initScript;
         private Script mapScript;
@@ -125,37 +125,78 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         /**
          * Set the <tt>init</tt> script.
          */
-        public void initScript(Script initScript) {
+        public Factory initScript(Script initScript) {
             this.initScript = initScript;
+            return this;
+        }
+
+        /**
+         * Get the <tt>init</tt> script.
+         */
+        public Script initScript() {
+            return initScript;
         }
 
         /**
          * Set the <tt>map</tt> script.
          */
-        public void mapScript(Script mapScript) {
+        public Factory mapScript(Script mapScript) {
             this.mapScript = mapScript;
+            return this;
+        }
+
+        /**
+         * Get the <tt>map</tt> script.
+         */
+        public Script mapScript() {
+            return mapScript;
         }
 
         /**
          * Set the <tt>combine</tt> script.
          */
-        public void combineScript(Script combineScript) {
+        public Factory combineScript(Script combineScript) {
             this.combineScript = combineScript;
+            return this;
+        }
+
+        /**
+         * Get the <tt>combine</tt> script.
+         */
+        public Script combineScript() {
+            return combineScript;
         }
 
         /**
          * Set the <tt>reduce</tt> script.
          */
-        public void reduceScript(Script reduceScript) {
+        public Factory reduceScript(Script reduceScript) {
             this.reduceScript = reduceScript;
+            return this;
+        }
+
+        /**
+         * Get the <tt>reduce</tt> script.
+         */
+        public Script reduceScript() {
+            return reduceScript;
         }
 
         /**
          * Set parameters that will be available in the <tt>init</tt>,
          * <tt>map</tt> and <tt>combine</tt> phases.
          */
-        public void params(Map<String, Object> params) {
+        public Factory params(Map<String, Object> params) {
             this.params = params;
+            return this;
+        }
+
+        /**
+         * Get parameters that will be available in the <tt>init</tt>,
+         * <tt>map</tt> and <tt>combine</tt> phases.
+         */
+        public Map<String, Object> params() {
+            return params;
         }
 
         @Override

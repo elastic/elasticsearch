@@ -83,7 +83,7 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         }
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         private double[] values;
         private int numberOfSignificantValueDigits = 3;
@@ -96,10 +96,11 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         /**
          * Set the values to compute percentiles from.
          */
-        public void values(double[] values) {
+        public Factory values(double[] values) {
             double[] sortedValues = Arrays.copyOf(values, values.length);
             Arrays.sort(sortedValues);
             this.values = sortedValues;
+            return this;
         }
 
         /**
@@ -112,8 +113,9 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         /**
          * Set whether the XContent response should be keyed
          */
-        public void keyed(boolean keyed) {
+        public Factory keyed(boolean keyed) {
             this.keyed = keyed;
+            return this;
         }
 
         /**
@@ -126,8 +128,9 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         /**
          * Expert: set the number of significant digits in the values.
          */
-        public void numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+        public Factory numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
             this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+            return this;
         }
 
         /**
@@ -153,7 +156,7 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.values = in.readDoubleArray();

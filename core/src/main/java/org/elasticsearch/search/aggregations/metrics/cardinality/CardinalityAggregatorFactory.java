@@ -37,7 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class CardinalityAggregatorFactory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
+public final class CardinalityAggregatorFactory<VS extends ValuesSource>
+        extends ValuesSourceAggregatorFactory.LeafOnly<VS, CardinalityAggregatorFactory<VS>> {
 
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
@@ -51,8 +52,9 @@ public final class CardinalityAggregatorFactory<VS extends ValuesSource> extends
      * Set a precision threshold. Higher values improve accuracy but also
      * increase memory usage.
      */
-    public void precisionThreshold(long precisionThreshold) {
+    public CardinalityAggregatorFactory<VS> precisionThreshold(long precisionThreshold) {
         this.precisionThreshold = precisionThreshold;
+        return this;
     }
 
     /**
@@ -90,7 +92,7 @@ public final class CardinalityAggregatorFactory<VS extends ValuesSource> extends
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected CardinalityAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
         CardinalityAggregatorFactory<VS> factory = new CardinalityAggregatorFactory<>(name, valuesSourceType, targetValueType);
         if (in.readBoolean()) {

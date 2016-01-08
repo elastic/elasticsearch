@@ -26,8 +26,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -55,7 +53,7 @@ public class IpRangeParser extends RangeParser {
             }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected IPv4RangeAggregatorFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         List<IPv4RangeAggregatorFactory.Range> ranges = (List<IPv4RangeAggregatorFactory.Range>) otherOptions
                 .get(RangeAggregator.RANGES_FIELD);

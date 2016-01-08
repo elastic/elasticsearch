@@ -97,7 +97,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         return new InternalBucketMetricValue(name(), keys, minValue, formatter, Collections.emptyList(), metaData());
     };
 
-    public static class Factory extends BucketMetricsFactory {
+    public static class Factory extends BucketMetricsFactory<Factory> {
 
         public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);

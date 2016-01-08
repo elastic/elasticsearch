@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class IPv4RangeAggregatorFactory extends Factory {
+public class IPv4RangeAggregatorFactory extends Factory<IPv4RangeAggregatorFactory> {
 
     public IPv4RangeAggregatorFactory(String name, List<Range> ranges) {
         super(name, InternalIPv4Range.FACTORY, ranges);

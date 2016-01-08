@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -37,7 +36,8 @@ import java.util.Map;
 /**
  *
  */
-public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
+public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
+        implements Aggregator.Parser {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {
@@ -84,7 +84,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
     }
 
     @Override
-    public final AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public final ValuesSourceAggregatorFactory<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
 
         String field = null;
         Script script = null;
@@ -145,7 +146,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
             }
         }
 
-        ValuesSourceAggregatorFactory<VS> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ValuesSourceAggregatorFactory<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
         factory.field(field);
         factory.script(script);
@@ -174,7 +175,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
      *            method
      * @return the created factory
      */
-    protected abstract ValuesSourceAggregatorFactory<VS> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**

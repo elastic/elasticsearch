@@ -24,8 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -58,7 +56,7 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected ExtendedStatsAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         ExtendedStatsAggregator.Factory factory = new ExtendedStatsAggregator.Factory(aggregationName);
         Double sigma = (Double) otherOptions.get(ExtendedStatsAggregator.SIGMA_FIELD);
@@ -69,7 +67,7 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
+    public AggregatorFactory<?>[] getFactoryPrototypes() {
         return new AggregatorFactory[] { new ExtendedStatsAggregator.Factory(null) };
     }
 }

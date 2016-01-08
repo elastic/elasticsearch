@@ -77,7 +77,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint> createFactory(
+    protected GeoGridFactory createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoGridFactory factory = new GeoGridFactory(aggregationName);
@@ -114,7 +114,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return false;
         }
 
-    public static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    public static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoGridFactory> {
 
         private int precision = DEFAULT_PRECISION;
         private int requiredSize = DEFAULT_MAX_NUM_CELLS;
@@ -124,16 +124,31 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
-        public void precision(int precision) {
+        public GeoGridFactory precision(int precision) {
             this.precision = GeoHashGridParams.checkPrecision(precision);
+            return this;
         }
 
-        public void size(int size) {
+        public int precision() {
+            return precision;
+        }
+
+        public GeoGridFactory size(int size) {
             this.requiredSize = size;
+            return this;
         }
 
-        public void shardSize(int shardSize) {
+        public int size() {
+            return requiredSize;
+        }
+
+        public GeoGridFactory shardSize(int shardSize) {
             this.shardSize = shardSize;
+            return this;
+        }
+
+        public int shardSize() {
+            return shardSize;
         }
 
         @Override
@@ -180,7 +195,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint> innerReadFrom(
+        protected GeoGridFactory innerReadFrom(
                 String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             GeoGridFactory factory = new GeoGridFactory(name);

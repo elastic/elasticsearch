@@ -125,7 +125,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         Releasables.close(centroids, counts);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.GeoPoint> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.GeoPoint, Factory> {
 
         public Factory(String name) {
             super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
@@ -145,7 +145,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             return new Factory(name);
         }

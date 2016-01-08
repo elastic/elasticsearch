@@ -112,7 +112,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint> createFactory(
+    protected GeoDistanceFactory createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
@@ -195,7 +195,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         return false;
     }
 
-    public static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    public static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoDistanceFactory> {
 
         private final GeoPoint origin;
         private final InternalRange.Factory rangeFactory;
@@ -220,24 +220,27 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             return InternalGeoDistance.TYPE.name();
         }
 
-        public void unit(DistanceUnit unit) {
+        public GeoDistanceFactory unit(DistanceUnit unit) {
             this.unit = unit;
+            return this;
         }
 
         public DistanceUnit unit() {
             return unit;
         }
 
-        public void distanceType(GeoDistance distanceType) {
+        public GeoDistanceFactory distanceType(GeoDistance distanceType) {
             this.distanceType = distanceType;
+            return this;
         }
 
         public GeoDistance distanceType() {
             return distanceType;
         }
 
-        public void keyed(boolean keyed) {
+        public GeoDistanceFactory keyed(boolean keyed) {
             this.keyed = keyed;
+            return this;
         }
 
         public boolean keyed() {
@@ -273,7 +276,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint> innerReadFrom(
+        protected GeoDistanceFactory innerReadFrom(
                 String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) throws IOException {
             GeoPoint origin = new GeoPoint(in.readDouble(), in.readDouble());
             int size = in.readVInt();

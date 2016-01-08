@@ -150,7 +150,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         return null;
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private final String path;
 

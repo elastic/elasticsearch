@@ -110,7 +110,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         return new InternalSum(name, 0.0, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         public Factory(String name) {
             super(name, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
@@ -130,7 +130,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorFactory<Numeric, Factory> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
             return new SumAggregator.Factory(name);
         }

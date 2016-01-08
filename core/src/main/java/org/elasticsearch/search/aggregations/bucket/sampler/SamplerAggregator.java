@@ -190,7 +190,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         return new InternalSampler(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
@@ -203,8 +203,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public void shardSize(int shardSize) {
+        public Factory shardSize(int shardSize) {
             this.shardSize = shardSize;
+            return this;
         }
 
         /**
@@ -253,7 +254,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
     }
 
-    public static class DiversifiedFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+    public static class DiversifiedFactory extends ValuesSourceAggregatorFactory<ValuesSource, DiversifiedFactory> {
 
         public static final Type TYPE = new Type("diversified_sampler");
 
@@ -270,8 +271,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public void shardSize(int shardSize) {
+        public DiversifiedFactory shardSize(int shardSize) {
             this.shardSize = shardSize;
+            return this;
         }
 
         /**
@@ -284,8 +286,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the max num docs to be returned per value.
          */
-        public void maxDocsPerValue(int maxDocsPerValue) {
+        public DiversifiedFactory maxDocsPerValue(int maxDocsPerValue) {
             this.maxDocsPerValue = maxDocsPerValue;
+            return this;
         }
 
         /**
@@ -298,8 +301,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the execution hint.
          */
-        public void executionHint(String executionHint) {
+        public DiversifiedFactory executionHint(String executionHint) {
             this.executionHint = executionHint;
+            return this;
         }
 
         /**
@@ -366,7 +370,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected DiversifiedFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             DiversifiedFactory factory = new DiversifiedFactory(name, valuesSourceType, targetValueType);
             factory.shardSize = in.readVInt();

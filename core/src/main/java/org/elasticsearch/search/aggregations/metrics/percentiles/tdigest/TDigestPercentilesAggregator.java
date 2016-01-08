@@ -78,7 +78,7 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
         return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
         private double compression = 100.0;
@@ -91,10 +91,11 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
         /**
          * Set the percentiles to compute.
          */
-        public void percents(double[] percents) {
+        public Factory percents(double[] percents) {
             double[] sortedPercents = Arrays.copyOf(percents, percents.length);
             Arrays.sort(sortedPercents);
             this.percents = sortedPercents;
+            return this;
         }
 
         /**
@@ -107,8 +108,9 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
         /**
          * Set whether the XContent response should be keyed
          */
-        public void keyed(boolean keyed) {
+        public Factory keyed(boolean keyed) {
             this.keyed = keyed;
+            return this;
         }
 
         /**
@@ -122,8 +124,9 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
          * Expert: set the compression. Higher values improve accuracy but also
          * memory usage.
          */
-        public void compression(double compression) {
+        public Factory compression(double compression) {
             this.compression = compression;
+            return this;
         }
 
         /**
@@ -150,7 +153,7 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.percents = in.readDoubleArray();

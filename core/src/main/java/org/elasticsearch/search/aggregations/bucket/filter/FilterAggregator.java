@@ -85,28 +85,21 @@ public class FilterAggregator extends SingleBucketAggregator {
         return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory<Factory> {
 
         private QueryBuilder<?> filter;
 
-        public Factory(String name) {
+        /**
+         * @param name
+         *            the name of this aggregation
+         * @param filter
+         *            Set the filter to use, only documents that match this
+         *            filter will fall into the bucket defined by this
+         *            {@link Filter} aggregation.
+         */
+        public Factory(String name, QueryBuilder<?> filter) {
             super(name, InternalFilter.TYPE);
-        }
-
-        /**
-         * Set the filter to use, only documents that match this filter will
-         * fall into the bucket defined by this {@link Filter} aggregation.
-         */
-        public void filter(QueryBuilder<?> filter) {
             this.filter = filter;
-        }
-
-        /**
-         * Get the filter to use, only documents that match this filter will
-         * fall into the bucket defined by this {@link Filter} aggregation.
-         */
-        public QueryBuilder<?> filter() {
-            return filter;
         }
 
         @Override
@@ -125,9 +118,8 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
-            factory.filter = in.readQuery();
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, in.readQuery());
             return factory;
         }
 

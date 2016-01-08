@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -197,7 +196,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
 
         private double sigma = 2.0;
 
@@ -205,8 +204,9 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             super(name, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
-        public void sigma(double sigma) {
+        public Factory sigma(double sigma) {
             this.sigma = sigma;
+            return this;
         }
 
         public double sigma() {
@@ -229,7 +229,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             ExtendedStatsAggregator.Factory factory = new ExtendedStatsAggregator.Factory(name);
             factory.sigma = in.readDouble();

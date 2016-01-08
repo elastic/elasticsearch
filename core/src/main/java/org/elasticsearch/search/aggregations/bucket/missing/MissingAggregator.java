@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -86,7 +85,7 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS, Factory<VS>> {
 
         public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
             super(name, InternalMissing.TYPE, valuesSourceType, valueType);
@@ -105,9 +104,9 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new ValueCountAggregator.Factory<VS>(name, valuesSourceType, targetValueType);
+            return new Factory<VS>(name, valuesSourceType, targetValueType);
         }
 
         @Override

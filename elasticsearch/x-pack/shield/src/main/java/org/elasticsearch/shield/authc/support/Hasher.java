@@ -6,13 +6,13 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Randomness;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  *
@@ -347,7 +347,7 @@ public enum Hasher {
         };
 
         public static char[] salt(int length) {
-            Random random = ThreadLocalRandom.current();
+            Random random = Randomness.get();
             char[] salt = new char[length];
             for (int i = 0; i < length; i++) {
                 salt[i] = ALPHABET[(random.nextInt(ALPHABET.length))];

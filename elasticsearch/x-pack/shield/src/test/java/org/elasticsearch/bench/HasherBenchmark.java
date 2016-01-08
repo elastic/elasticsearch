@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.bench;
 
+import org.elasticsearch.common.Randomness;
+
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-
-import java.util.concurrent.ThreadLocalRandom;
 
 public class HasherBenchmark {
 
@@ -33,7 +33,7 @@ public class HasherBenchmark {
         System.out.print("warming up [" + hasher.name() + "]...");
 
         for (int i = 0; i < WARMING_ITERS; i++) {
-            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(ThreadLocalRandom.current(), 8).toCharArray());
+            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
             char[] hash = hasher.hash(str);
             hasher.verify(str, hash);
         }
@@ -44,7 +44,7 @@ public class HasherBenchmark {
         long start;
 
         for (int i = 0; i < BENCH_ITERS; i++) {
-            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(ThreadLocalRandom.current(), 8).toCharArray());
+            SecuredString str = new SecuredString(RandomStrings.randomAsciiOfLength(Randomness.get(), 8).toCharArray());
 
             start = System.nanoTime();
             char[] hash = hasher.hash(str);

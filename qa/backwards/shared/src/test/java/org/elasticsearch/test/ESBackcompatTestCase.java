@@ -254,13 +254,6 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
         builder.put("node.mode", "network");
         builder.put(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, backwardsCluster().unicastHosts());
-
-        if (compatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
-                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
-        }
         return builder.build();
     }
 

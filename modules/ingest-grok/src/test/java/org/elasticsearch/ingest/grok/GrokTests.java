@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.processor.Grok;
-import org.elasticsearch.ingest.processor.GrokProcessor;
+import org.elasticsearch.ingest.grok.Grok;
+import org.elasticsearch.ingest.grok.GrokProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -52,8 +52,8 @@ public class GrokTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         basePatterns = newBankFromStreams(
-                getClass().getResourceAsStream("/grok/patterns/grok-patterns"),
-                getClass().getResourceAsStream("/grok/patterns/linux-syslog")
+                getClass().getResourceAsStream("/patterns/grok-patterns"),
+                getClass().getResourceAsStream("/patterns/linux-syslog")
         );
     }
 

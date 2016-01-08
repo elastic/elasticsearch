@@ -17,14 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.processor.GrokProcessor;
+import org.elasticsearch.ingest.grok.GrokProcessor;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,18 +31,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class GrokProcessorFactoryTests extends ESTestCase {
 
-    private Path configDir;
-
-    @Before
-    public void prepareConfigDirectory() throws Exception {
-        this.configDir = createTempDir();
-        Path grokDir = configDir.resolve("ingest").resolve("grok");
-        Path patternsDir = grokDir.resolve("patterns");
-        Files.createDirectories(patternsDir);
-    }
-
     public void testBuild() throws Exception {
-        GrokProcessor.Factory factory = new GrokProcessor.Factory(configDir);
+        GrokProcessor.Factory factory = new GrokProcessor.Factory();
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -56,7 +43,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithCustomPatterns() throws Exception {
-        GrokProcessor.Factory factory = new GrokProcessor.Factory(configDir);
+        GrokProcessor.Factory factory = new GrokProcessor.Factory();
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

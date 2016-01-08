@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.grok;
 
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
@@ -28,10 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -71,12 +68,23 @@ public final class GrokProcessor implements Processor {
         return grok;
     }
 
-    public static class Factory implements Processor.Factory<GrokProcessor> {
+    public final static class Factory implements Processor.Factory<GrokProcessor> {
 
-        private final Path grokConfigDirectory;
+        private final static String[] PATTERN_NAMES = new String[] {
+            "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby"
+        };
+        private final Map<String, String> builtinPatternBank;
 
-        public Factory(Path configDirectory) {
-            this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
+        public Factory() throws IOException {
+            Map<String, String> builtinPatterns = new HashMap<>();
+            for (String pattern : PATTERN_NAMES) {
+                try(InputStream is = getClass().getResourceAsStream("/patterns/" + pattern)) {
+                    loadBankFromStream(builtinPatterns, is);
+                }
+            }
+            this.builtinPatternBank = Collections.unmodifiableMap(builtinPatterns);
         }
 
         static void loadBankFromStream(Map<String, String> patternBank, InputStream inputStream) throws IOException {
@@ -99,20 +107,7 @@ public final class GrokProcessor implements Processor {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(config, "pattern_definitions");
-
-            Map<String, String> patternBank = new HashMap<>();
-
-            Path patternsDirectory = grokConfigDirectory.resolve("patterns");
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(patternsDirectory)) {
-                for (Path patternFilePath : stream) {
-                    if (Files.isRegularFile(patternFilePath)) {
-                        try(InputStream is = Files.newInputStream(patternFilePath, StandardOpenOption.READ)) {
-                            loadBankFromStream(patternBank, is);
-                        }
-                    }
-                }
-            }
-
+            Map<String, String> patternBank = new HashMap<>(builtinPatternBank);
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

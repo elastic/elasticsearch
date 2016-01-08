@@ -17,27 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
-
-import org.elasticsearch.ingest.IngestModule;
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
-import org.elasticsearch.plugins.Plugin;
-
-public class IngestPlugin extends Plugin {
-
-    public static final String NAME = "ingest";
-
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Plugin that allows to plug in ingest processors";
-    }
-
-    public void onModule(IngestModule ingestModule) {
-        ingestModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
-    }
+esplugin {
+    description 'Ingest processor that uses grok patterns to split text'
+    classname 'org.elasticsearch.ingest.grok.IngestGrokPlugin'
 }
+
+dependencies {
+    compile 'org.jruby.joni:joni:2.1.6'
+    // joni dependencies:
+    compile 'org.jruby.jcodings:jcodings:1.0.12'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+thirdPartyAudit.excludes = [
+        // joni has AsmCompilerSupport, but that isn't being used:
+        'org.objectweb.asm.ClassWriter',
+        'org.objectweb.asm.MethodVisitor',
+        'org.objectweb.asm.Opcodes',
+]

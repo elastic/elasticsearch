@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.grok.Grok;
+import org.elasticsearch.ingest.grok.GrokProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

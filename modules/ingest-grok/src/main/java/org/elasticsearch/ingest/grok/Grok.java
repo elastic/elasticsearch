@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.grok;
 
 import org.jcodings.specific.UTF8Encoding;
 import org.joni.Matcher;

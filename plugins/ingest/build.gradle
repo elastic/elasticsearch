@@ -23,10 +23,6 @@ esplugin {
 }
 
 dependencies {
-  compile 'org.jruby.joni:joni:2.1.6'
-  // joni dependencies:
-  compile 'org.jruby.jcodings:jcodings:1.0.12'
-
   compile ('com.maxmind.geoip2:geoip2:2.4.0')
   // geoip2 dependencies:
   compile('com.fasterxml.jackson.core:jackson-annotations:2.5.0')
@@ -72,8 +68,4 @@ thirdPartyAudit.excludes = [
   'com.google.api.client.http.HttpResponseException',
   'com.google.api.client.http.javanet.NetHttpTransport',
   'com.google.api.client.http.javanet.NetHttpTransport',
-  // joni has AsmCompilerSupport, but that isn't being used:
-  'org.objectweb.asm.ClassWriter',
-  'org.objectweb.asm.MethodVisitor',
-  'org.objectweb.asm.Opcodes',
 ]

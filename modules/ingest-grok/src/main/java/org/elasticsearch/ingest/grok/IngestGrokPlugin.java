@@ -17,27 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.ingest.grok;
 
 import org.elasticsearch.ingest.IngestModule;
-import org.elasticsearch.ingest.processor.GeoIpProcessor;
 import org.elasticsearch.plugins.Plugin;
 
-public class IngestPlugin extends Plugin {
+import java.io.IOException;
 
-    public static final String NAME = "ingest";
+public class IngestGrokPlugin extends Plugin {
 
     @Override
     public String name() {
-        return NAME;
+        return "ingest-grok";
     }
 
     @Override
     public String description() {
-        return "Plugin that allows to plug in ingest processors";
+        return "Ingest processor that uses grok patterns to split text";
     }
 
     public void onModule(IngestModule ingestModule) {
-        ingestModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+        ingestModule.registerProcessor(GrokProcessor.TYPE, (environment, templateService) -> {
+            try {
+                return new GrokProcessor.Factory();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }

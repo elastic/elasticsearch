@@ -66,6 +66,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,6 +97,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * UnicastBackwardsCompatibilityIT is the most basic of backwards compatibility
  * tests while this is comprehensive for basic operations.
  */
+@TestLogging("action.search.type:TRACE")
 public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
     /**
      * Basic test using Index & Realtime Get with external versioning. This test ensures routing works correctly across versions.
@@ -162,6 +164,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertVersionCreated(compatibilityVersion(), "test");
     }
 
+
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
@@ -190,9 +193,9 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             backwardsCluster().allowOnAllNodes("test");
         }
 
-        logger.info(" --> indexing [{}] more docs", numDocs);
         // sometimes index while relocating
         if (randomBoolean()) {
+            logger.info(" --> indexing [{}] more docs", numDocs);
             for (int i = 0; i < numDocs; i++) {
                 String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
                 ids.add(id);

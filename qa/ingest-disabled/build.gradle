@@ -26,5 +26,6 @@ dependencies {
 integTest {
     cluster {
         plugin 'ingest', project(':plugins:ingest')
+        systemProperty 'es.node.ingest', 'false'
     }
 }

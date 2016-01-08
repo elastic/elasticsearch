@@ -28,7 +28,7 @@
   - match: { _id: "my_pipeline_1" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -108,7 +108,7 @@
   - match: { _id: "my_pipeline_3" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -133,7 +133,7 @@
   - match: { _source.metadata: ["0","1","2","3"] }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -152,7 +152,7 @@
   - match: { _source.field2: "value" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -201,7 +201,7 @@
   - match: { _id: "my_handled_pipeline" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1

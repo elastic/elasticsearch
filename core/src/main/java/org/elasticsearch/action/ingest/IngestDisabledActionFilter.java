@@ -52,7 +52,7 @@ public final class IngestDisabledActionFilter implements ActionFilter {
     }
 
     private static void failRequest(String pipelineId) {
-        throw new IllegalArgumentException("ingest plugin is disabled, cannot execute pipeline with id [" + pipelineId + "]");
+        throw new IllegalArgumentException("node.ingest is set to false, cannot execute pipeline with id [" + pipelineId + "]");
     }
 
 }

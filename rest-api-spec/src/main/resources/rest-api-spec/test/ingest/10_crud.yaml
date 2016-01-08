@@ -51,23 +51,7 @@
             "description": "_description",
             "processors": [
               {
-                "geoip" : {
-                }
-              }
-            ]
-          }
-
-  - do:
-      catch: param
-      ingest.put_pipeline:
-        id: "my_pipeline"
-        body:  >
-          {
-            "description": "_description",
-            "processors": [
-              {
-                "geoip" : {
-                  "ip_field" : 1234
+                "set" : {
                 }
               }
             ]

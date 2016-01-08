@@ -75,7 +75,7 @@
   - match: { _id: "my_pipeline" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1
@@ -133,7 +133,7 @@
   - match: { _id: "my_pipeline" }
 
   - do:
-      ingest.index:
+      index:
         index: test
         type: test
         id: 1

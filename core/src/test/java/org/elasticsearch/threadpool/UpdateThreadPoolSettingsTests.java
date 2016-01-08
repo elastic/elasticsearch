@@ -56,7 +56,6 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             threadPool = new ThreadPool(settingsBuilder()
                     .put("name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("threadpool." + threadPoolName + ".type", correctThreadPoolType.getType())
-                    .put("node.ingest", true)
                     .build());
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
@@ -80,7 +79,6 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     settingsBuilder()
                             .put("name", "testThreadPoolCanNotOverrideThreadPoolType")
                             .put("threadpool." + threadPoolName + ".type", incorrectThreadPoolType.getType())
-                            .put("node.ingest", true)
                             .build());
             terminate(threadPool);
             fail("expected IllegalArgumentException");
@@ -99,8 +97,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool.ThreadPoolType validThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType")
-                .put("node.ingest", true).build());
+            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
 
@@ -125,7 +122,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testCachedExecutorType").put("node.ingest", true).build();
+                    .put("name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -176,7 +173,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testFixedExecutorType").put("node.ingest", true).build();
+                    .put("name", "testFixedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -231,7 +228,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", 10)
-                    .put("name", "testScalingExecutorType").put("node.ingest", true).build();
+                    .put("name", "testScalingExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -269,7 +266,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testCachedExecutorType").put("node.ingest", true).build();
+                    .put("name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -306,7 +303,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("threadpool.my_pool2.type", "fixed")
                     .put("threadpool.my_pool2.size", "1")
                     .put("threadpool.my_pool2.queue_size", "1")
-                    .put("name", "testCustomThreadPool").put("node.ingest", true).build();
+                    .put("name", "testCustomThreadPool").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);

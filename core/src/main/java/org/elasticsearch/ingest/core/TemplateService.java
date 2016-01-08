@@ -21,7 +21,8 @@ package org.elasticsearch.ingest.core;
 import java.util.Map;
 
 /**
- * Abstraction for the ingest template engine: allows to compile a template into a {@link Template} object.
+ * Abstraction for the ingest template engine used to decouple {@link IngestDocument} from {@link org.elasticsearch.script.ScriptService}.
+ * Allows to compile a template into an ingest {@link Template} object.
  * A compiled template can be executed by calling its {@link Template#execute(Map)} method.
  */
 public interface TemplateService {

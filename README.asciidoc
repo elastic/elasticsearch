@@ -8,5 +8,5 @@ A set of Elastic's commercial plugins:
 - Marvel
 
 = Setup
-You must checkout x-plugins within an elasticsearch checkout. It must be
-called x-plugins, and must be inside the extra-plugins directory.
+You must checkout x-plugins and elasticsearch in the same directory as siblings. This
+elasticsearch checkout will be used when building x-plugins.

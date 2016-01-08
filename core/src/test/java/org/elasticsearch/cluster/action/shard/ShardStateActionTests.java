@@ -20,20 +20,25 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -50,10 +55,56 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class ShardStateActionTests extends ESTestCase {
     private static ThreadPool THREAD_POOL;
 
-    private ShardStateAction shardStateAction;
+    private AtomicBoolean timeout;
+    private TestShardStateAction shardStateAction;
     private CapturingTransport transport;
     private TransportService transportService;
     private TestClusterService clusterService;
+
+    private static class TestShardStateAction extends ShardStateAction {
+        public TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
+            super(settings, clusterService, transportService, allocationService, routingService);
+        }
+
+        private Runnable onBeforeTimeout;
+
+        public void setOnBeforeTimeout(Runnable onBeforeTimeout) {
+            this.onBeforeTimeout = onBeforeTimeout;
+        }
+
+        private Runnable onAfterTimeout;
+
+
+        public void setOnAfterTimeout(Runnable onAfterTimeout) {
+            this.onAfterTimeout = onAfterTimeout;
+        }
+
+        @Override
+        protected void handleTimeout(ShardRoutingEntry shardRoutingEntry, ClusterStateObserver observer, TransportRequestOptions options, Listener listener) {
+            onBeforeTimeout.run();
+            super.handleTimeout(shardRoutingEntry, observer, options, listener);
+            onAfterTimeout.run();
+        }
+
+        private Runnable onBeforeWaitForNewMasterAndRetry;
+
+        public void setOnBeforeWaitForNewMasterAndRetry(Runnable onBeforeWaitForNewMasterAndRetry) {
+            this.onBeforeWaitForNewMasterAndRetry = onBeforeWaitForNewMasterAndRetry;
+        }
+
+        private Runnable onAfterWaitForNewMasterAndRetry;
+
+        public void setOnAfterWaitForNewMasterAndRetry(Runnable onAfterWaitForNewMasterAndRetry) {
+            this.onAfterWaitForNewMasterAndRetry = onAfterWaitForNewMasterAndRetry;
+        }
+
+        @Override
+        protected void waitForNewMasterAndRetry(ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, TransportRequestOptions options, Listener listener) {
+            onBeforeWaitForNewMasterAndRetry.run();
+            super.waitForNewMasterAndRetry(observer, shardRoutingEntry, options, listener);
+            onAfterWaitForNewMasterAndRetry.run();
+        }
+    }
 
     @BeforeClass
     public static void startThreadPool() {
@@ -68,7 +119,12 @@ public class ShardStateActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
-        shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
+        this.timeout = new AtomicBoolean();
+        shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
+        shardStateAction.setOnBeforeTimeout(() -> {});
+        shardStateAction.setOnAfterTimeout(() -> {});
+        shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {});
+        shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});
     }
 
     @Override
@@ -84,36 +140,72 @@ public class ShardStateActionTests extends ESTestCase {
         THREAD_POOL = null;
     }
 
-    public void testNoMaster() {
+    public void testNoMaster() throws InterruptedException {
         final String index = "test";
 
         clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
 
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().nodes());
-        builder.masterNodeId(null);
-        clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
+        DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+        noMasterBuilder.masterNodeId(null);
+        clusterService.setState(ClusterState.builder(clusterService.state()).nodes(noMasterBuilder));
 
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 
+        CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean noMaster = new AtomicBoolean();
-        assert !noMaster.get();
+        AtomicBoolean retried = new AtomicBoolean();
+        AtomicBoolean success = new AtomicBoolean();
 
-        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        setUpMasterRetryVerification(noMaster, retried, latch);
+
+        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
-            public void onShardFailedNoMaster() {
-                noMaster.set(true);
-            }
-
-            @Override
-            public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
-
+            public void onSuccess() {
+                success.set(true);
+                latch.countDown();
             }
         });
 
+        latch.await();
+
         assertTrue(noMaster.get());
+        assertTrue(retried.get());
+        assertTrue(success.get());
     }
 
-    public void testFailure() {
+    public void testMasterLeft() throws InterruptedException {
+        final String index = "test";
+
+        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+
+        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean noMaster = new AtomicBoolean();
+        AtomicBoolean retried = new AtomicBoolean();
+        AtomicBoolean success = new AtomicBoolean();
+
+        setUpMasterRetryVerification(noMaster, retried, latch);
+
+        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+            @Override
+            public void onSuccess() {
+                success.set(true);
+                latch.countDown();
+            }
+        });
+
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
+        transport.clear();
+        assertThat(capturedRequests.length, equalTo(1));
+        assertFalse(success.get());
+        transport.handleResponse(capturedRequests[0].requestId, new NotMasterException("simulated"));
+
+        latch.await();
+        assertTrue(success.get());
+    }
+
+    public void testUnhandledFailure() {
         final String index = "test";
 
         clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
@@ -121,57 +213,20 @@ public class ShardStateActionTests extends ESTestCase {
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 
         AtomicBoolean failure = new AtomicBoolean();
-        assert !failure.get();
 
-        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
-            public void onShardFailedNoMaster() {
-
-            }
-
-            @Override
-            public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
+            public void onShardFailedFailure(Exception e) {
                 failure.set(true);
             }
         });
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
-        assert !failure.get();
+        assertFalse(failure.get());
         transport.handleResponse(capturedRequests[0].requestId, new TransportException("simulated"));
 
         assertTrue(failure.get());
-    }
-
-    public void testTimeout() throws InterruptedException {
-        final String index = "test";
-
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
-
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
-        AtomicBoolean progress = new AtomicBoolean();
-        AtomicBoolean timedOut = new AtomicBoolean();
-
-        TimeValue timeout = new TimeValue(1, TimeUnit.MILLISECONDS);
-        CountDownLatch latch = new CountDownLatch(1);
-        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), timeout, new ShardStateAction.Listener() {
-            @Override
-            public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
-                if (e instanceof ReceiveTimeoutTransportException) {
-                    assertFalse(progress.get());
-                    timedOut.set(true);
-                }
-                latch.countDown();
-            }
-        });
-
-        latch.await();
-        progress.set(true);
-        assertTrue(timedOut.get());
-
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests.length, equalTo(1));
     }
 
     private ShardRouting getRandomShardRouting(String index) {
@@ -180,6 +235,33 @@ public class ShardStateActionTests extends ESTestCase {
         ShardRouting shardRouting = shardsIterator.nextOrNull();
         assert shardRouting != null;
         return shardRouting;
+    }
+
+    private void setUpMasterRetryVerification(AtomicBoolean noMaster, AtomicBoolean retried, CountDownLatch latch) {
+        shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
+            DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+            masterBuilder.masterNodeId(clusterService.state().nodes().masterNodes().iterator().next().value.id());
+            clusterService.setState(ClusterState.builder(clusterService.state()).nodes(masterBuilder));
+        });
+
+        shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> verifyRetry(noMaster, retried, latch));
+    }
+
+    private void verifyRetry(AtomicBoolean invoked, AtomicBoolean retried, CountDownLatch latch) {
+        invoked.set(true);
+
+        // assert a retry request was sent
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
+        transport.clear();
+        retried.set(capturedRequests.length == 1);
+        if (retried.get()) {
+            // finish the request
+            transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        } else {
+            // there failed to be a retry request
+            // release the driver thread to fail the test
+            latch.countDown();
+        }
     }
 
     private Throwable getSimulatedFailure() {

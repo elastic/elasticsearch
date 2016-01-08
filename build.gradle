@@ -20,6 +20,8 @@
 import com.bmuschko.gradle.nexus.NexusPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
+apply plugin: 'base' // basic lifecycle for root project
+
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
@@ -272,3 +274,10 @@ task run(type: Run) {
   group = 'Verification'
   impliesSubProjects = true
 }
+
+task buildSrcIntegTest(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['integTest']
+}
+
+check.dependsOn buildSrcIntegTest

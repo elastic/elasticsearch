@@ -64,6 +64,8 @@ dependencies {
   compile 'de.thetaphi:forbiddenapis:2.0'
   compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
   compile 'org.apache.rat:apache-rat:0.11'
+
+  testCompile gradleTestKit()
 }
 
 processResources {
@@ -91,3 +93,33 @@ tasks.cleanEclipse {
   delete '.settings'
 }
 tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+// Write the plugin's classpath to a file to share with the tests
+def generatedResourcesOutputDir = file("$projectDir/generated-resources")
+task createPluginClasspathManifest {
+  inputs.files sourceSets.main.runtimeClasspath
+  outputs.dir generatedResourcesOutputDir
+
+  doLast {
+    generatedResourcesOutputDir.mkdirs()
+    file("$generatedResourcesOutputDir/plugin-classpath.txt").setText(sourceSets.main.runtimeClasspath.join('\n'), 'UTF-8')
+  }
+}
+
+// Add the classpath file to the test runtime classpath
+dependencies {
+  testRuntime files(createPluginClasspathManifest)
+}
+
+project.sourceSets.test.output.dir(generatedResourcesOutputDir, builtBy: createPluginClasspathManifest)
+
+test {
+  exclude '**/*IT.class'
+}
+
+task integTest(type: Test) {
+  include '**/*IT.class'
+  ignoreFailures = true
+}
+
+project.idea.module.singleEntryLibraries= ['TEST': [project.file(generatedResourcesOutputDir)]]

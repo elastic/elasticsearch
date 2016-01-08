@@ -87,6 +87,7 @@ class RandomizedTestingTask extends DefaultTask {
         outputs.upToDateWhen {false} // randomized tests are never up to date
         listenersConfig.listeners.add(new TestProgressLogger(factory: getProgressLoggerFactory()))
         listenersConfig.listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
+        onlyIf { testClassesDir.exists() }
     }
 
     @Inject

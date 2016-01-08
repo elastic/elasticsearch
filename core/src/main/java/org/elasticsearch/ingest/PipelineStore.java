@@ -35,6 +35,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -91,12 +92,12 @@ public class PipelineStore extends AbstractComponent implements Closeable {
                     .startObject("processors")
                         .field("type", "object")
                         .field("enabled", false)
-                        .field("dynamic", true)
+                        .field("dynamic", "true")
                     .endObject()
                     .startObject("on_failure")
                         .field("type", "object")
                         .field("enabled", false)
-                        .field("dynamic", true)
+                        .field("dynamic", "true")
                     .endObject()
                     .startObject("description")
                         .field("type", "string")
@@ -359,8 +360,8 @@ public class PipelineStore extends AbstractComponent implements Closeable {
                     throw new IllegalStateException("illegal ingest mapping, processors field enabled option is [true] while [false] is expected");
                 }
 
-                Boolean processorsDynamic = (Boolean) XContentMapValues.extractValue("properties.processors.dynamic", pipelineMapping);
-                if (Boolean.TRUE.equals(processorsDynamic) == false) {
+                String processorsDynamic = (String) XContentMapValues.extractValue("properties.processors.dynamic", pipelineMapping);
+                if ("true".equals(processorsDynamic) == false) {
                     throw new IllegalStateException("illegal ingest mapping, processors field dynamic option is [false] while [true] is expected");
                 }
 
@@ -374,8 +375,8 @@ public class PipelineStore extends AbstractComponent implements Closeable {
                     throw new IllegalStateException("illegal ingest mapping, on_failure field enabled option is [true] while [false] is expected");
                 }
 
-                Boolean onFailureDynamic = (Boolean) XContentMapValues.extractValue("properties.on_failure.dynamic", pipelineMapping);
-                if (Boolean.TRUE.equals(onFailureDynamic) == false) {
+                String onFailureDynamic = (String) XContentMapValues.extractValue("properties.on_failure.dynamic", pipelineMapping);
+                if ("true".equals(onFailureDynamic) == false) {
                     throw new IllegalStateException("illegal ingest mapping, on_failure field dynamic option is [false] while [true] is expected");
                 }
             } catch (IOException e) {

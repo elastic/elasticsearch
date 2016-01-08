@@ -6,6 +6,7 @@ cluster:monitor/nodes/info[n]
 cluster:monitor/nodes/liveness
 cluster:monitor/nodes/stats[n]
 cluster:monitor/stats[n]
+cluster:monitor/tasks/lists[n]
 cluster:admin/shield/realm/cache/clear
 cluster:admin/shield/realm/cache/clear[n]
 indices:admin/analyze[s]

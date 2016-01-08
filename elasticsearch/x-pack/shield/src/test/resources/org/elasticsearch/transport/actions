@@ -17,6 +17,7 @@ cluster:monitor/nodes/stats
 cluster:monitor/state
 cluster:monitor/stats
 cluster:monitor/task
+cluster:monitor/tasks/lists
 indices:admin/aliases
 indices:admin/aliases/exists
 indices:admin/aliases/get
@@ -43,9 +44,6 @@ indices:admin/template/put
 indices:admin/types/exists
 indices:admin/upgrade
 indices:admin/validate/query
-indices:admin/warmers/delete
-indices:admin/warmers/get
-indices:admin/warmers/put
 indices:monitor/recovery
 indices:monitor/segments
 indices:monitor/settings/get

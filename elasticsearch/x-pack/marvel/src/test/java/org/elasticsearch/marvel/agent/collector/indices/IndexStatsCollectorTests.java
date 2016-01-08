@@ -109,7 +109,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThan(0L));
         assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
         assertNotNull(indexStats.getTotal().getIndexing());
-        assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
+        assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
     }
 
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
@@ -168,7 +168,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
                     assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThanOrEqualTo(0L));
                     assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
                     assertNotNull(indexStats.getTotal().getIndexing());
-                    assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
+                    assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
                     found = true;
                 }
             }

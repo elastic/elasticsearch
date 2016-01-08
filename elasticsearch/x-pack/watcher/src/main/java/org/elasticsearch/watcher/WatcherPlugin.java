@@ -27,6 +27,8 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
 import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
+import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
 import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
 import org.elasticsearch.watcher.actions.slack.service.SlackService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
@@ -163,6 +165,7 @@ public class WatcherPlugin extends Plugin {
             EmailService.class,
             HipChatService.class,
             SlackService.class,
+            PagerDutyService.class,
             HttpClient.class,
             WatcherSettingsValidation.class);
     }
@@ -193,6 +196,7 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);
         module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
         module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
+        module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
     }
 
     public void onModule(NetworkModule module) {

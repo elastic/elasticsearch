@@ -46,12 +46,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HandshakeWaitingHandlerTests extends ESTestCase {
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
@@ -63,8 +64,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
     private ClientBootstrap clientBootstrap;
     private SSLContext sslContext;
 
-    private final AtomicBoolean failed = new AtomicBoolean(false);
-    private volatile Throwable failureCause = null;
+    private final AtomicReference<Throwable> failureCause = new AtomicReference<>();
     private ExecutorService threadPoolExecutor;
 
     @Before
@@ -99,8 +99,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
         serverBootstrap.shutdown();
         serverBootstrap.releaseExternalResources();
 
-        failed.set(false);
-        failureCause = null;
+        failureCause.set(null);
     }
 
     public void testWriteBeforeHandshakeFailsWithoutHandler() throws Exception {
@@ -127,13 +126,13 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 handshakeFuture.getChannel().close();
             }
 
-            if (failed.get()) {
-                assertThat(failureCause, anyOf(instanceOf(SSLException.class), instanceOf(AssertionError.class)));
+            if (failureCause.get() != null) {
+                assertThat(failureCause.get(), anyOf(instanceOf(SSLException.class), instanceOf(AssertionError.class)));
                 break;
             }
         }
 
-        assertThat("Expected this test to fail with an SSLException or AssertionError", failed.get(), is(true));
+        assertThat("Expected this test to fail with an SSLException or AssertionError", failureCause.get(), notNullValue());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/533")
@@ -176,13 +175,12 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
     }
 
     private void assertNotFailed() {
-        if (failed.get()) {
+        if (failureCause.get() != null) {
             StringWriter writer = new StringWriter();
-            if (failed.get()) {
-                failureCause.printStackTrace(new PrintWriter(writer));
+            if (failureCause.get() != null) {
+                failureCause.get().printStackTrace(new PrintWriter(writer));
             }
-
-            assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(), failed.get(), is(false));
+            assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(), failureCause.get(), nullValue());
         }
     }
 
@@ -226,9 +224,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                         public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
                             Throwable cause = e.getCause();
                             // Only save first cause
-                            if (failed.compareAndSet(false, true)) {
-                                failureCause = cause;
-                            }
+                            failureCause.compareAndSet(null, cause);
                             ctx.getChannel().close();
                         }
                     });

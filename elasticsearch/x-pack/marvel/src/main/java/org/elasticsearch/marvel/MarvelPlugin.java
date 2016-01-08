@@ -19,6 +19,7 @@ import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.shield.InternalMarvelUser;
@@ -90,7 +91,9 @@ public class MarvelPlugin extends Plugin {
         if (!enabled) {
             return Collections.emptyList();
         }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(MarvelLicensee.class, AgentService.class);
+        return Arrays.<Class<? extends LifecycleComponent>>asList(MarvelLicensee.class,
+                AgentService.class,
+                CleanerService.class);
     }
 
     public static boolean marvelEnabled(Settings settings) {
@@ -140,5 +143,6 @@ public class MarvelPlugin extends Plugin {
         module.registerSetting(MarvelSettings.COLLECTORS_SETTING);
         module.registerSetting(MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING);
         module.registerSetting(MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING);
+        module.registerSetting(CleanerService.HISTORY_SETTING);
     }
 }

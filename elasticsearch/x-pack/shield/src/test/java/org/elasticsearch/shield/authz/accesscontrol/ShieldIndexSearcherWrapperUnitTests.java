@@ -81,7 +81,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        mapperService = new MapperService(indexSettings, analysisService, similarityService, new IndicesModule().getMapperRegistry());
+        mapperService = new MapperService(indexSettings, analysisService, similarityService, new IndicesModule().getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(ShieldLicenseState.class);

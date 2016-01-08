@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.unboundid.ldap.sdk.FailoverServerSet;
 import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnection;
-import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SearchRequest;
@@ -29,7 +27,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.Exceptions;
 
-import javax.net.SocketFactory;
 import java.io.IOException;
 import java.util.Locale;
 
@@ -48,12 +45,11 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String userAttribute;
-    private final ServerSet serverSet;
 
     private LDAPConnectionPool connectionPool;
 
     public LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) {
-        super(config);
+        super(config, sslService);
         Settings settings = config.settings();
         userSearchBaseDn = settings.get("user_search.base_dn");
         if (userSearchBaseDn == null) {
@@ -61,7 +57,6 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         }
         scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
         userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
-        serverSet = serverSet(settings, sslService);
         connectionPool = createConnectionPool(config, serverSet, timeout, logger);
         groupResolver = groupResolver(settings);
     }
@@ -124,30 +119,6 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
             request = new SimpleBindRequest(bindDn, settings.get("bind_password"));
         }
         return request;
-    }
-
-    ServerSet serverSet(Settings settings, ClientSSLService clientSSLService) {
-        // Parse LDAP urls
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING);
-        if (ldapUrls == null || ldapUrls.length == 0) {
-            throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING + "]");
-        }
-        LDAPServers servers = new LDAPServers(ldapUrls);
-        LDAPConnectionOptions options = connectionOptions(settings);
-        SocketFactory socketFactory;
-        if (servers.ssl()) {
-            socketFactory = clientSSLService.sslSocketFactory();
-            if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
-                logger.debug("using encryption for LDAP connections with hostname verification");
-            } else {
-                logger.debug("using encryption for LDAP connections without hostname verification");
-            }
-        } else {
-            socketFactory = null;
-        }
-        FailoverServerSet serverSet = new FailoverServerSet(servers.addresses(), servers.ports(), socketFactory, options);
-        serverSet.setReOrderOnFailover(true);
-        return serverSet;
     }
 
     @Override

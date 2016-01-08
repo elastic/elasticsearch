@@ -68,14 +68,14 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch();
         builder.setId(request.param("id"));
-
-        if (WatcherParams.debug(request)) {
-            builder.setDebug(true);
-        }
+        builder.setDebug(WatcherParams.debug(request));
 
         if (request.content() == null || request.content().length() == 0) {
             return builder.request();
         }
+
+        builder.setRecordExecution(request.paramAsBoolean(Field.RECORD_EXECUTION.getPreferredName(), builder.request().isRecordExecution()));
+        builder.setIgnoreCondition(request.paramAsBoolean(Field.IGNORE_CONDITION.getPreferredName(), builder.request().isIgnoreCondition()));
 
         XContentParser parser = XContentHelper.createParser(request.content());
         parser.nextToken();

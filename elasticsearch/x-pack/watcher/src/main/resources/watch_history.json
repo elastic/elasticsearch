@@ -451,6 +451,87 @@
                       }
                     }
                   }
+                },
+                "pagerduty" : {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "string",
+                      "index": "not_analyzed"
+                    },
+                    "sent_event": {
+                      "type": "nested",
+                      "include_in_parent": true,
+                      "dynamic": true,
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        },
+                        "request" : {
+                          "type" : "object",
+                          "enabled" : false
+                        },
+                        "response" : {
+                          "type" : "object",
+                          "enabled" : false
+                        },
+                        "event" : {
+                          "type" : "object",
+                          "dynamic" : true,
+                          "properties" : {
+                            "type" : {
+                              "type" : "string",
+                              "index" : "not_analyzed"
+                            },
+                            "client" : {
+                              "type" : "string"
+                            },
+                            "client_url" : {
+                              "index" : "not_analyzed",
+                              "type" : "string"
+                            },
+                            "account" : {
+                              "index" : "not_analyzed",
+                              "type" : "string"
+                            },
+                            "attach_payload" : {
+                              "type" : "boolean"
+                            },
+                            "incident_key" : {
+                              "index" : "not_analyzed",
+                              "type" : "string"
+                            },
+                            "description" : {
+                              "type" : "string"
+                            },
+                            "context" : {
+                              "type" : "nested",
+                              "include_in_parent": true,
+                              "dynamic" : true,
+                              "properties" : {
+                                "type" : {
+                                  "type" : "string",
+                                  "index" : "not_analyzed"
+                                },
+                                "href" : {
+                                  "type" : "string",
+                                  "index" : "not_analyzed"
+                                },
+                                "src" : {
+                                  "type" : "string",
+                                  "index" : "not_analyzed"
+                                },
+                                "alt" : {
+                                  "type" : "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

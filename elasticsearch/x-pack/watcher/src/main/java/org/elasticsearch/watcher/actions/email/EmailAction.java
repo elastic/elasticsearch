@@ -16,12 +16,15 @@ import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachments;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  *
@@ -35,13 +38,15 @@ public class EmailAction implements Action {
     private final @Nullable Authentication auth;
     private final @Nullable Profile profile;
     private final @Nullable DataAttachment dataAttachment;
+    private final @Nullable EmailAttachments emailAttachments;
 
-    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable DataAttachment dataAttachment) {
+    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable DataAttachment dataAttachment, @Nullable EmailAttachments emailAttachments) {
         this.email = email;
         this.account = account;
         this.auth = auth;
         this.profile = profile;
         this.dataAttachment = dataAttachment;
+        this.emailAttachments = emailAttachments;
     }
 
     public EmailTemplate getEmail() {
@@ -64,6 +69,10 @@ public class EmailAction implements Action {
         return dataAttachment;
     }
 
+    public EmailAttachments getAttachments() {
+        return emailAttachments;
+    }
+
     @Override
     public String type() {
         return TYPE;
@@ -76,21 +85,17 @@ public class EmailAction implements Action {
 
         EmailAction action = (EmailAction) o;
 
-        if (!email.equals(action.email)) return false;
-        if (account != null ? !account.equals(action.account) : action.account != null) return false;
-        if (auth != null ? !auth.equals(action.auth) : action.auth != null) return false;
-        if (profile != action.profile) return false;
-        return !(dataAttachment != null ? !dataAttachment.equals(action.dataAttachment) : action.dataAttachment != null);
+        return Objects.equals(email, action.email) &&
+                Objects.equals(account, action.account) &&
+                Objects.equals(auth, action.auth) &&
+                Objects.equals(profile, action.profile) &&
+                Objects.equals(emailAttachments, action.emailAttachments) &&
+                Objects.equals(dataAttachment, action.dataAttachment);
     }
 
     @Override
     public int hashCode() {
-        int result = email.hashCode();
-        result = 31 * result + (account != null ? account.hashCode() : 0);
-        result = 31 * result + (auth != null ? auth.hashCode() : 0);
-        result = 31 * result + (profile != null ? profile.hashCode() : 0);
-        result = 31 * result + (dataAttachment != null ? dataAttachment.hashCode() : 0);
-        return result;
+        return Objects.hash(email, account, auth, profile, dataAttachment, emailAttachments);
     }
 
     @Override
@@ -111,17 +116,21 @@ public class EmailAction implements Action {
         if (dataAttachment != null) {
             builder.field(Field.ATTACH_DATA.getPreferredName(), dataAttachment, params);
         }
+        if (emailAttachments != null) {
+            emailAttachments.toXContent(builder, params);
+        }
         email.xContentBody(builder, params);
         return builder.endObject();
     }
 
-    public static EmailAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
+    public static EmailAction parse(String watchId, String actionId, XContentParser parser, EmailAttachmentsParser emailAttachmentsParser) throws IOException {
         EmailTemplate.Parser emailParser = new EmailTemplate.Parser();
         String account = null;
         String user = null;
         Secret password = null;
         Profile profile = Profile.STANDARD;
         DataAttachment dataAttachment = null;
+        EmailAttachments attachments = EmailAttachments.EMPTY_ATTACHMENTS;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -134,7 +143,9 @@ public class EmailAction implements Action {
                 } catch (IOException ioe) {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field [{}]", ioe, TYPE, watchId, actionId, currentFieldName);
                 }
-            }else if (!emailParser.handle(currentFieldName, parser)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACHMENTS)) {
+                attachments = emailAttachmentsParser.parse(parser);
+            } else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACCOUNT)) {
                         account = parser.text();
@@ -162,7 +173,7 @@ public class EmailAction implements Action {
             auth = new Authentication(user, password);
         }
 
-        return new EmailAction(emailParser.parsedTemplate(), account, auth, profile, dataAttachment);
+        return new EmailAction(emailParser.parsedTemplate(), account, auth, profile, dataAttachment, attachments);
     }
 
     public static Builder builder(EmailTemplate email) {
@@ -232,6 +243,7 @@ public class EmailAction implements Action {
         @Nullable Authentication auth;
         @Nullable Profile profile;
         @Nullable DataAttachment dataAttachment;
+        @Nullable EmailAttachments attachments;
 
         private Builder(EmailTemplate email) {
             this.email = email;
@@ -252,13 +264,19 @@ public class EmailAction implements Action {
             return this;
         }
 
+        @Deprecated
         public Builder setAttachPayload(DataAttachment dataAttachment) {
             this.dataAttachment = dataAttachment;
             return this;
         }
 
+        public Builder setAttachments(EmailAttachments attachments) {
+            this.attachments = attachments;
+            return this;
+        }
+
         public EmailAction build() {
-            return new EmailAction(email, account, auth, profile, dataAttachment);
+            return new EmailAction(email, account, auth, profile, dataAttachment, attachments);
         }
     }
 
@@ -272,6 +290,7 @@ public class EmailAction implements Action {
         ParseField USER = new ParseField("user");
         ParseField PASSWORD = new ParseField("password");
         ParseField ATTACH_DATA = new ParseField("attach_data");
+        ParseField ATTACHMENTS = new ParseField("attachments");
 
         // result fields
         ParseField MESSAGE = new ParseField("message");

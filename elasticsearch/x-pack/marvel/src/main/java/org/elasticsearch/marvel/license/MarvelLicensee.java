@@ -27,7 +27,8 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
     @Override
     public String[] expirationMessages() {
         return new String[] {
-                "The agent will stop collecting cluster and indices metrics"
+                "The agent will stop collecting cluster and indices metrics",
+                "The agent will stop to automatically clean up indices older than [marvel.history.duration]",
         };
     }
 
@@ -46,7 +47,10 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                                             "running multiple clusters, users won't be able to access the clusters with\n" +
                                             "[{}] licenses from within a single Marvel instance. You will have to deploy a\n" +
                                             "separate and dedicated Marvel instance for each [{}] cluster you wish to monitor.",
-                                            newLicense.type(), newLicense.type(), newLicense.type())
+                                            newLicense.type(), newLicense.type(), newLicense.type()),
+                                    LoggerMessageFormat.format(
+                                            "Automatic index cleanup is disabled for clusters with [{}] license.", newLicense.type())
+
                             };
                     }
                 }
@@ -62,4 +66,14 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                 status.getLicenseState() != LicenseState.DISABLED;
     }
 
+    public boolean cleaningEnabled() {
+        Status status = this.status;
+        return status.getMode() != License.OperationMode.NONE &&
+                status.getLicenseState() != LicenseState.DISABLED;
+    }
+
+    public boolean allowUpdateRetention() {
+        Status status = this.status;
+        return status.getMode() == License.OperationMode.PLATINUM || status.getMode() == License.OperationMode.GOLD;
+    }
 }

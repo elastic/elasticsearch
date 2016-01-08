@@ -13,6 +13,7 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 // this class sits in org.elasticsearch.transport so that TransportService.requestHandlers is visible
 public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
@@ -30,8 +31,8 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
                 assertThat(
                         "handler not wrapped by " + ShieldServerTransportService.ProfileSecuredRequestHandler.class + "; do all the handler registration methods have overrides?",
-                        entry.getValue().getHandler(),
-                        instanceOf(ShieldServerTransportService.ProfileSecuredRequestHandler.class)
+                        entry.getValue().toString(),
+                        startsWith(ShieldServerTransportService.ProfileSecuredRequestHandler.class.getName() + "@")
                 );
             }
         }

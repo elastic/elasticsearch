@@ -12,6 +12,7 @@ import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.transport.DelegatingTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
@@ -71,8 +72,13 @@ public interface ServerTransportFilter {
              */
             String shieldAction = actionMapper.action(action, request);
 
-            if (extractClientCert && (transportChannel instanceof NettyTransportChannel)) {
-                Channel channel = ((NettyTransportChannel)transportChannel).getChannel();
+            TransportChannel unwrappedChannel = transportChannel;
+            while (unwrappedChannel instanceof DelegatingTransportChannel) {
+                unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
+            }
+
+            if (extractClientCert && (unwrappedChannel instanceof NettyTransportChannel)) {
+                Channel channel = ((NettyTransportChannel)unwrappedChannel).getChannel();
                 SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
                 assert sslHandler != null;
 

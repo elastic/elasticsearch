@@ -169,7 +169,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThat(parsedTemplate, is(urlParsedTemplate));
     }
 
-    static class MockTextTemplateEngine implements TextTemplateEngine {
+    public static class MockTextTemplateEngine implements TextTemplateEngine {
         @Override
         public String render(TextTemplate template, Map<String, Object> model) {
             return template.getTemplate();

@@ -14,6 +14,7 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -143,8 +144,7 @@ public class ShieldServerTransportService extends TransportService {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public void messageReceived(T request, TransportChannel channel) throws Exception {
+        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try {
                 if (licenseState.securityEnabled()) {
                     String profile = channel.getProfileName();
@@ -163,12 +163,17 @@ public class ShieldServerTransportService extends TransportService {
                 }
                 RequestContext context = new RequestContext(request);
                 RequestContext.setCurrent(context);
-                handler.messageReceived(request, channel);
+                handler.messageReceived(request, channel, task);
             } catch (Throwable t) {
                 channel.sendResponse(t);
             } finally {
                 RequestContext.removeCurrent();
             }
+        }
+
+        @Override
+        public void messageReceived(T request, TransportChannel channel) throws Exception {
+            throw new UnsupportedOperationException("task parameter is required for this operation");
         }
     }
 

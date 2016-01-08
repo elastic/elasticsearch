@@ -248,7 +248,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, false);
+        Settings settings = LdapTestCase.buildLdapSettings(new String[] { AD_LDAP_URL }, userTemplate, false);
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 

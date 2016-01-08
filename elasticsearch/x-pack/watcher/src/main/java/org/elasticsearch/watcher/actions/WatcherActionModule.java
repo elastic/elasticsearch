@@ -12,6 +12,10 @@ import org.elasticsearch.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachmentParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
+import org.elasticsearch.watcher.actions.email.service.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
@@ -20,6 +24,10 @@ import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.logging.LoggingActionFactory;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyActionFactory;
+import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
 import org.elasticsearch.watcher.actions.slack.SlackAction;
 import org.elasticsearch.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
@@ -35,6 +43,7 @@ import java.util.Map;
 public class WatcherActionModule extends AbstractModule {
 
     private final Map<String, Class<? extends ActionFactory>> parsers = new HashMap<>();
+    private final Map<String, Class<? extends EmailAttachmentParser>> emailAttachmentParsers = new HashMap<>();
 
     public WatcherActionModule() {
         registerAction(EmailAction.TYPE, EmailActionFactory.class);
@@ -43,10 +52,18 @@ public class WatcherActionModule extends AbstractModule {
         registerAction(LoggingAction.TYPE, LoggingActionFactory.class);
         registerAction(HipChatAction.TYPE, HipChatActionFactory.class);
         registerAction(SlackAction.TYPE, SlackActionFactory.class);
+        registerAction(PagerDutyAction.TYPE, PagerDutyActionFactory.class);
+
+        registerEmailAttachmentParser(HttpEmailAttachementParser.TYPE, HttpEmailAttachementParser.class);
+        registerEmailAttachmentParser(DataAttachmentParser.TYPE, DataAttachmentParser.class);
     }
 
     public void registerAction(String type, Class<? extends ActionFactory> parserType) {
         parsers.put(type, parserType);
+    }
+
+    public void registerEmailAttachmentParser(String type, Class<? extends EmailAttachmentParser> parserClass) {
+        emailAttachmentParsers.put(type, parserClass);
     }
 
     @Override
@@ -60,11 +77,27 @@ public class WatcherActionModule extends AbstractModule {
 
         bind(ActionRegistry.class).asEagerSingleton();
 
+        // email
         bind(HtmlSanitizer.class).asEagerSingleton();
+        bind(InternalEmailService.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
-        bind(HipChatService.class).to(InternalHipChatService.class).asEagerSingleton();
-        bind(SlackService.class).to(InternalSlackService.class).asEagerSingleton();
+
+        MapBinder<String, EmailAttachmentParser> emailParsersBinder = MapBinder.newMapBinder(binder(), String.class, EmailAttachmentParser.class);
+        for (Map.Entry<String, Class<? extends EmailAttachmentParser>> entry : emailAttachmentParsers.entrySet()) {
+            emailParsersBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
+        }
+        bind(EmailAttachmentsParser.class).asEagerSingleton();
+
+        // hipchat
+        bind(InternalHipChatService.class).asEagerSingleton();
+        bind(HipChatService.class).to(InternalHipChatService.class);
+
+        // slack
+        bind(InternalSlackService.class).asEagerSingleton();
+        bind(SlackService.class).to(InternalSlackService.class);
+
+        // pager duty
+        bind(InternalPagerDutyService.class).asEagerSingleton();
+        bind(PagerDutyService.class).to(InternalPagerDutyService.class);
     }
-
-
 }

@@ -20,7 +20,6 @@ import static org.hamcrest.Matchers.is;
 
 public class SessionFactoryTests extends ESTestCase {
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
-        SessionFactory factory = createSessionFactory();
         LDAPConnectionOptions options = SessionFactory.connectionOptions(Settings.EMPTY);
         assertThat(options.followReferrals(), is(equalTo(true)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
@@ -36,7 +35,6 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "20ms")
                 .put(SessionFactory.FOLLOW_REFERRALS_SETTING, "false")
                 .build();
-        SessionFactory factory = createSessionFactory();
         LDAPConnectionOptions options = SessionFactory.connectionOptions(settings);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
@@ -60,7 +58,7 @@ public class SessionFactoryTests extends ESTestCase {
 
     private SessionFactory createSessionFactory() {
         Settings global = settingsBuilder().put("path.home", createTempDir()).build();
-        return new SessionFactory(new RealmConfig("_name", Settings.EMPTY, global)) {
+        return new SessionFactory(new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(), global), null) {
 
             @Override
             public LdapSession session(String user, SecuredString password) {

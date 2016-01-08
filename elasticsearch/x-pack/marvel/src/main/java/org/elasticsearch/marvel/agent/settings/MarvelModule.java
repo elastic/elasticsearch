@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.marvel.agent.AgentService;
+import org.elasticsearch.marvel.cleaner.CleanerService;
 
 public class MarvelModule extends AbstractModule {
 
@@ -14,5 +15,6 @@ public class MarvelModule extends AbstractModule {
     protected void configure() {
         bind(MarvelSettings.class).asEagerSingleton();
         bind(AgentService.class).asEagerSingleton();
+        bind(CleanerService.class).asEagerSingleton();
     }
 }

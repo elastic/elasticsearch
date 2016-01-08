@@ -11,6 +11,8 @@ import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.schema.Schema;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -24,6 +26,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.URLS_SETTING;
@@ -53,11 +59,17 @@ import static org.mockito.Mockito.verify;
 public class ActiveDirectoryRealmTests extends ESTestCase {
     private static final String PASSWORD = "password";
 
-    private InMemoryDirectoryServer directoryServer;
+    protected static int numberOfLdapServers;
+    protected InMemoryDirectoryServer[] directoryServers;
 
     private ResourceWatcherService resourceWatcherService;
     private ThreadPool threadPool;
     private Settings globalSettings;
+
+    @BeforeClass
+    public static void setNumberOfLdapServers() {
+        numberOfLdapServers = randomIntBetween(1, 4);
+    }
 
     @Before
     public void start() throws Exception {
@@ -69,10 +81,14 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         config.addAdditionalBindCredentials("CN=ironman@ad.test.elasticsearch.com", PASSWORD);
         config.addAdditionalBindCredentials("CN=Thor@ad.test.elasticsearch.com", PASSWORD);
 
-        directoryServer = new InMemoryDirectoryServer(config);
-        directoryServer.add("dc=ad,dc=test,dc=elasticsearch,dc=com", new Attribute("dc", "UnboundID"), new Attribute("objectClass", "top", "domain", "extensibleObject"));
-        directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
-        directoryServer.startListening();
+        directoryServers = new InMemoryDirectoryServer[numberOfLdapServers];
+        for (int i = 0; i < numberOfLdapServers; i++) {
+            InMemoryDirectoryServer directoryServer = new InMemoryDirectoryServer(config);
+            directoryServer.add("dc=ad,dc=test,dc=elasticsearch,dc=com", new Attribute("dc", "UnboundID"), new Attribute("objectClass", "top", "domain", "extensibleObject"));
+            directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
+            directoryServer.startListening();
+            directoryServers[i] = directoryServer;
+        }
         threadPool = new ThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
@@ -82,7 +98,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void stop() throws InterruptedException {
         resourceWatcherService.stop();
         terminate(threadPool);
-        directoryServer.shutDown(true);
+        for (int i = 0; i < numberOfLdapServers; i++) {
+            directoryServers[i].shutDown(true);
+        }
     }
 
     public void testAuthenticateUserPrincipleName() throws Exception {
@@ -110,9 +128,13 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
-    private String ldapUrl() throws LDAPException {
-        LDAPURL url = new LDAPURL("ldap", "localhost", directoryServer.getListenPort(), null, null, null, null);
-        return url.toString();
+    protected String[] ldapUrls() throws LDAPException {
+        List<String> urls = new ArrayList<>(numberOfLdapServers);
+        for (int i = 0; i < numberOfLdapServers; i++) {
+            LDAPURL url = new LDAPURL("ldap", "localhost", directoryServers[i].getListenPort(), null, null, null, null);
+            urls.add(url.toString());
+        }
+        return urls.toArray(Strings.EMPTY_ARRAY);
     }
 
     public void testAuthenticateCachesSuccesfulAuthentications() throws Exception {
@@ -206,7 +228,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private Settings settings(Settings extraSettings) throws Exception {
         return Settings.builder()
-                .putArray(URLS_SETTING, ldapUrl())
+                .putArray(URLS_SETTING, ldapUrls())
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)

@@ -454,7 +454,7 @@ public class ThreadPool extends AbstractComponent {
                 if (ThreadPoolType.FIXED == previousInfo.getThreadPoolType()) {
                     SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
                     if (Objects.equals(previousInfo.getQueueSize(), updatedQueueSize)) {
-                        int updatedSize = settings.getAsInt("size", previousInfo.getMax());
+                        int updatedSize = applyHardSizeLimit(name, settings.getAsInt("size", previousInfo.getMax()));
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
                             // if you think this code is crazy: that's because it is!
@@ -476,7 +476,7 @@ public class ThreadPool extends AbstractComponent {
                 defaultQueueSize = previousInfo.getQueueSize();
             }
 
-            int size = settings.getAsInt("size", defaultSize);
+            int size = applyHardSizeLimit(name, settings.getAsInt("size", defaultSize));
             SizeValue queueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", defaultQueueSize)));
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
             Executor executor = EsExecutors.newFixed(name, size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);

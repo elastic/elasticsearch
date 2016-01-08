@@ -30,6 +30,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoIpProcessorTests extends ESTestCase {
@@ -89,6 +90,23 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(0));
+    }
+
+    /** Don't silently do DNS lookups or anything trappy on bogus data */
+    public void testInvalid() throws Exception {
+        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
+        GeoIpProcessor processor = new GeoIpProcessor("source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Field.class));
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "www.google.com");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        try {
+            processor.execute(ingestDocument);
+            fail("did not get expected exception");
+        } catch (IllegalArgumentException expected) {
+            assertNotNull(expected.getMessage());
+            assertThat(expected.getMessage(), containsString("not an IP string literal"));
+        }
     }
 
 }

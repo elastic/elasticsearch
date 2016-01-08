@@ -30,6 +30,7 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
@@ -38,7 +39,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -78,12 +78,7 @@ public final class GeoIpProcessor implements Processor {
     @Override
     public void execute(IngestDocument ingestDocument) {
         String ip = ingestDocument.getFieldValue(sourceField, String.class);
-        final InetAddress ipAddress;
-        try {
-            ipAddress = InetAddress.getByName(ip);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
+        final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
         switch (dbReader.getMetadata().getDatabaseType()) {

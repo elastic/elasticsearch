@@ -45,6 +45,7 @@ org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
 org.apache.lucene.search.QueryWrapperFilter
 org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter
+org.apache.lucene.index.IndexWriter#isLocked(org.apache.lucene.store.Directory)
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.

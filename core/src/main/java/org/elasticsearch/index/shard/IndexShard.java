@@ -81,8 +81,6 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
-import org.elasticsearch.index.indexing.IndexingStats;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -125,6 +123,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -143,7 +143,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexCache indexCache;
     private final Store store;
     private final MergeSchedulerConfig mergeSchedulerConfig;
-    private final ShardIndexingService indexingService;
+    private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchService;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
@@ -167,7 +167,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
     private final NodeServicesProvider provider;
-
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture<?> refreshScheduledFuture;
@@ -175,6 +174,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
+
+    private final IndexingOperationListener indexingOperationListeners;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -215,7 +216,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
-                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider) {
+                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider, IndexingOperationListener... listeners) {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
         this.inactiveTime = settings.getAsTime(INDEX_SHARD_INACTIVE_TIME_SETTING, settings.getAsTime(INDICES_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5)));
@@ -232,7 +233,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.threadPool = provider.getThreadPool();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.indexingService = new ShardIndexingService(shardId, indexSettings);
+        this.internalIndexingStats = new InternalIndexingStats();
+        final List<IndexingOperationListener> listenersList = new ArrayList<>(Arrays.asList(listeners));
+        listenersList.add(internalIndexingStats);
+        this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService = provider.getTermVectorsService();
         this.searchService = new ShardSearchStats(settings);
@@ -283,10 +287,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** returns true if this shard supports indexing (i.e., write) operations. */
     public boolean canIndex() {
         return true;
-    }
-
-    public ShardIndexingService indexingService() {
-        return this.indexingService;
     }
 
     public ShardGetService getService() {
@@ -489,7 +489,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
         markLastWrite();
-        index = indexingService.preIndex(index);
+        index = indexingOperationListeners.preIndex(index);
         final boolean created;
         try {
             if (logger.isTraceEnabled()) {
@@ -503,10 +503,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             index.endTime(System.nanoTime());
         } catch (Throwable ex) {
-            indexingService.postIndex(index, ex);
+            indexingOperationListeners.postIndex(index, ex);
             throw ex;
         }
-        indexingService.postIndex(index);
+        indexingOperationListeners.postIndex(index);
         return created;
     }
 
@@ -532,7 +532,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
         markLastWrite();
-        delete = indexingService.preDelete(delete);
+        delete = indexingOperationListeners.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
@@ -545,10 +545,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             delete.endTime(System.nanoTime());
         } catch (Throwable ex) {
-            indexingService.postDelete(delete, ex);
+            indexingOperationListeners.postDelete(delete, ex);
             throw ex;
         }
-        indexingService.postDelete(delete);
+        indexingOperationListeners.postDelete(delete);
     }
 
     public Engine.GetResult get(Engine.Get get) {
@@ -600,7 +600,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             throttled = engine.isThrottled();
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
-        return indexingService.stats(throttled, throttleTimeInMillis, types);
+        return internalIndexingStats.stats(throttled, throttleTimeInMillis, types);
     }
 
     public SearchStats searchStats(String... groups) {
@@ -1222,7 +1222,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         mergePolicyConfig.onRefreshSettings(settings);
         searchService.onRefreshSettings(settings);
-        indexingService.onRefreshSettings(settings);
         if (change) {
             getEngine().onSettingsChanged();
         }
@@ -1256,6 +1255,14 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public TimeValue getInactiveTime() {
         return inactiveTime;
+    }
+
+    /**
+     * Should be called for each no-op update operation to increment relevant statistics.
+     * @param type the doc type of the update
+     */
+    public void noopUpdate(String type) {
+        internalIndexingStats.noopUpdate(type);
     }
 
     class EngineRefresher implements Runnable {

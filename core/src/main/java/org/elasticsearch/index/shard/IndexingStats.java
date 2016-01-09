@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.indexing;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;

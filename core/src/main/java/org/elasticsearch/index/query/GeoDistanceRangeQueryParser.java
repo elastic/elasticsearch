@@ -196,15 +196,6 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                         point = new GeoPoint();
                     }
                     point.resetLon(parser.doubleValue());
-                } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
-                    if (fieldName == null || fieldName.equals(maybeFieldName)) {
-                        fieldName = maybeFieldName;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceRangeQueryBuilder.NAME +
-                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
-                    }
-                    point = GeoPoint.fromGeohash(parser.text());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {

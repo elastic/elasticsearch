@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.memory;
+package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

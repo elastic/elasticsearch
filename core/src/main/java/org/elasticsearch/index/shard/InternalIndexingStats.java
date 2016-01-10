@@ -64,13 +64,14 @@ final class InternalIndexingStats implements IndexingOperationListener {
         return new IndexingStats(total, typesSt);
     }
 
-
+    @Override
     public Engine.Index preIndex(Engine.Index operation) {
         totalStats.indexCurrent.inc();
         typeStats(operation.type()).indexCurrent.inc();
         return operation;
     }
 
+    @Override
     public void postIndex(Engine.Index index) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
@@ -80,6 +81,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         typeStats.indexCurrent.dec();
     }
 
+    @Override
     public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
@@ -87,13 +89,14 @@ final class InternalIndexingStats implements IndexingOperationListener {
         typeStats(index.type()).indexFailed.inc();
     }
 
+    @Override
     public Engine.Delete preDelete(Engine.Delete delete) {
         totalStats.deleteCurrent.inc();
         typeStats(delete.type()).deleteCurrent.inc();
         return delete;
     }
 
-
+    @Override
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
@@ -103,6 +106,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         typeStats.deleteCurrent.dec();
     }
 
+    @Override
     public void postDelete(Engine.Delete delete, Throwable ex) {
         totalStats.deleteCurrent.dec();
         typeStats(delete.type()).deleteCurrent.dec();
@@ -111,22 +115,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void noopUpdate(String type) {
         totalStats.noopUpdates.inc();
         typeStats(type).noopUpdates.inc();
-    }
-
-    public void clear() { // NOCOMMIT - this is unused?
-        totalStats.clear();
-        synchronized (this) {
-            if (!typesStats.isEmpty()) {
-                MapBuilder<String, StatsHolder> typesStatsBuilder = MapBuilder.newMapBuilder();
-                for (Map.Entry<String, StatsHolder> typeStats : typesStats.entrySet()) {
-                    if (typeStats.getValue().totalCurrent() > 0) {
-                        typeStats.getValue().clear();
-                        typesStatsBuilder.put(typeStats.getKey(), typeStats.getValue());
-                    }
-                }
-                typesStats = typesStatsBuilder.immutableMap();
-            }
-        }
     }
 
     private StatsHolder typeStats(String type) {
@@ -144,29 +132,23 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     static class StatsHolder {
-        public final MeanMetric indexMetric = new MeanMetric();
-        public final MeanMetric deleteMetric = new MeanMetric();
-        public final CounterMetric indexCurrent = new CounterMetric();
-        public final CounterMetric indexFailed = new CounterMetric();
-        public final CounterMetric deleteCurrent = new CounterMetric();
-        public final CounterMetric noopUpdates = new CounterMetric();
+        private final MeanMetric indexMetric = new MeanMetric();
+        private final MeanMetric deleteMetric = new MeanMetric();
+        private final CounterMetric indexCurrent = new CounterMetric();
+        private final CounterMetric indexFailed = new CounterMetric();
+        private final CounterMetric deleteCurrent = new CounterMetric();
+        private final CounterMetric noopUpdates = new CounterMetric();
 
-        public IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
+        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
                 indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                 deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                 noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
         }
 
-        public long totalCurrent() {
-            return indexCurrent.count() + deleteMetric.count();
-        }
-
-        public void clear() {
+        void clear() {
             indexMetric.clear();
             deleteMetric.clear();
         }
-
-
     }
 }

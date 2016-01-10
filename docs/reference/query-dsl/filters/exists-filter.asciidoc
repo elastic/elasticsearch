@@ -36,12 +36,10 @@ These documents would *not* match the above filter:
 { "user": [] } <1>
 { "user": [null] } <2>
 { "foo":  "bar" } <3>
-{ "user": {"foo": "bar"}} <4>
 --------------------------------------------------
 <1> This field has no values.
 <2> At least one non-`null` value is required.
 <3> The `user` field is missing completely.
-<4> While there is a user field, it's value is an inner object (see the <<complex-core-fields>> section "How Inner Objects are Indexed" at for info on why this doesn't match), {"exists": {"field": "user.foo"} would match.
 
 [float]
 ==== `null_value` mapping

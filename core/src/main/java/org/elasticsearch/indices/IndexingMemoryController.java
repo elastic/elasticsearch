@@ -132,6 +132,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         return threadPool.scheduleWithFixedDelay(statusChecker, interval);
     }
 
+    @Override
     public void close() {
         FutureUtils.cancel(scheduler);
     }

@@ -111,7 +111,7 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.percolator.PercolatorService;

@@ -56,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -292,7 +291,6 @@ public class VersionsTests extends ESTestCase {
         }
 
         iw.close();
-        assertThat(IndexWriter.isLocked(iw.getDirectory()), is(false));
         ir.close();
         dir.close();
     }

@@ -959,8 +959,7 @@ public class InternalEngine extends Engine {
             });
             return new IndexWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
-            boolean isLocked = IndexWriter.isLocked(store.directory());
-            logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
+            logger.warn("could not lock IndexWriter", ex);
             throw ex;
         }
     }

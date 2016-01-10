@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.LuceneTestCase;
@@ -113,10 +114,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 if (!Lucene.indexExists(dir)) {
                     return;
                 }
-                if (IndexWriter.isLocked(dir)) {
-                    ESTestCase.checkIndexFailed = true;
-                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
-                }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
                     BytesStreamOutput os = new BytesStreamOutput();
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
@@ -134,6 +131,9 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         }
                     }
+                } catch (LockObtainFailedException e) {
+                    ESTestCase.checkIndexFailed = true;
+                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
                 }
             } catch (Exception e) {
                 logger.warn("failed to check index", e);

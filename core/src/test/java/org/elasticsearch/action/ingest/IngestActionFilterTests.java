@@ -85,6 +85,19 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(executionService, actionFilterChain);
     }
 
+    public void testApplyBulkNoPipelineId() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest());
+        Task task = mock(Task.class);
+        ActionListener actionListener = mock(ActionListener.class);
+        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
+
+        filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
+
+        verify(actionFilterChain).proceed(task, BulkAction.NAME, bulkRequest, actionListener);
+        verifyZeroInteractions(executionService, actionFilterChain);
+    }
+
     @SuppressWarnings("unchecked")
     public void testApplyIngestIdViaRequestParam() throws Exception {
         Task task = mock(Task.class);

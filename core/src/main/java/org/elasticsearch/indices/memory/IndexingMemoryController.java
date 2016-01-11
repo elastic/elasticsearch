@@ -301,8 +301,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
             if (totalBytesUsed > indexingBuffer.bytes()) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
-                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
 
                 for (IndexShard shard : availableShards()) {
@@ -332,6 +330,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
                     }
                 }
+
+                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();

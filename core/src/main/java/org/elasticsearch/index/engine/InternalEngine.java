@@ -543,7 +543,7 @@ public class InternalEngine extends Engine {
                 refresh("write indexing buffer");
             } else {
                 // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
-                logger.debug("use flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
+                logger.debug("use IndexWriter.flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
                              new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }

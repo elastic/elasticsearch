@@ -52,7 +52,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         this.startTime = request.startTime;
     }
 
-    PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
+    public PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
         super(shardId, originalIndices);
     }
 
@@ -81,15 +81,15 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         return onlyCount;
     }
 
-    void documentType(String documentType) {
+    public void documentType(String documentType) {
         this.documentType = documentType;
     }
 
-    void source(BytesReference source) {
+    public void source(BytesReference source) {
         this.source = source;
     }
 
-    void docSource(BytesReference docSource) {
+    public void docSource(BytesReference docSource) {
         this.docSource = docSource;
     }
 

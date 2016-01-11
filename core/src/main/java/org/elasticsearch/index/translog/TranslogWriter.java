@@ -69,9 +69,17 @@ public class TranslogWriter extends TranslogReader {
         totalOffset = lastSyncedOffset;
     }
 
+    static int getHeaderLength(String translogUUID) {
+        return getHeaderLength(new BytesRef(translogUUID).length);
+    }
+
+    private static int getHeaderLength(int uuidLength) {
+        return CodecUtil.headerLength(TRANSLOG_CODEC) + uuidLength  + RamUsageEstimator.NUM_BYTES_INT;
+    }
+
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, Callback<ChannelReference> onClose, ChannelFactory channelFactory, ByteSizeValue bufferSize) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
-        final int headerLength = CodecUtil.headerLength(TRANSLOG_CODEC) + ref.length + RamUsageEstimator.NUM_BYTES_INT;
+        final int headerLength = getHeaderLength(ref.length);
         final FileChannel channel = channelFactory.open(file);
         try {
             // This OutputStreamDataOutput is intentionally not closed because
@@ -80,17 +88,14 @@ public class TranslogWriter extends TranslogReader {
             CodecUtil.writeHeader(out, TRANSLOG_CODEC, VERSION);
             out.writeInt(ref.length);
             out.writeBytes(ref.bytes, ref.offset, ref.length);
-            channel.force(false);
+            channel.force(true);
             writeCheckpoint(headerLength, 0, file.getParent(), fileGeneration, StandardOpenOption.WRITE);
             final TranslogWriter writer = new TranslogWriter(shardId, fileGeneration, new ChannelReference(file, fileGeneration, channel, onClose), bufferSize);
             return writer;
         } catch (Throwable throwable){
+            // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
+            // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
             IOUtils.closeWhileHandlingException(channel);
-            try {
-                Files.delete(file); // remove the file as well
-            } catch (IOException ex) {
-                throwable.addSuppressed(ex);
-            }
             throw throwable;
         }
     }
@@ -213,11 +218,6 @@ public class TranslogWriter extends TranslogReader {
         }
     }
 
-    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        readBytes(buffer, location.translogLocation);
-        return new BytesArray(buffer.array()).equals(expectedBytes);
-    }
 
     private long getWrittenOffset() throws IOException {
         return channelReference.getChannel().position();

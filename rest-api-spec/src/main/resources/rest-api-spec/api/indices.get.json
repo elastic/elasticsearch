@@ -14,7 +14,7 @@
         "feature":{
           "type":"list",
           "description":"A comma-separated list of features",
-          "options": ["_settings", "_mappings", "_warmers", "_aliases"]
+          "options": ["_settings", "_mappings", "_aliases"]
         }
       },
       "params":{

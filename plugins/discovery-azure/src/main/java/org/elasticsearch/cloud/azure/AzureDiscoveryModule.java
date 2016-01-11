@@ -47,11 +47,7 @@ public class AzureDiscoveryModule extends AbstractModule {
     private Settings settings;
 
     // pkg private so it is settable by tests
-    static Class<? extends AzureComputeService> computeServiceImpl = AzureComputeServiceImpl.class;
-
-    public static Class<? extends AzureComputeService> getComputeServiceImpl() {
-        return computeServiceImpl;
-    }
+    Class<? extends AzureComputeService> computeServiceImpl = AzureComputeServiceImpl.class;
 
     @Inject
     public AzureDiscoveryModule(Settings settings) {

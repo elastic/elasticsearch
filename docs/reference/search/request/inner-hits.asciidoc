@@ -11,7 +11,7 @@ it's very useful to know which inner nested objects (in the case of nested) or c
 of parent/child) caused certain information to be returned. The inner hits feature can be used for this. This feature
 returns per search hit in the search response additional nested hits that caused a search hit to match in a different scope.
 
-Inner hits can be used by defining a `inner_hits` definition on a `nested`, `has_child` or `has_parent` query and filter.
+Inner hits can be used by defining an `inner_hits` definition on a `nested`, `has_child` or `has_parent` query and filter.
 The structure looks like this:
 
 [source,js]
@@ -23,7 +23,7 @@ The structure looks like this:
 }
 --------------------------------------------------
 
-If `_inner_hits` is defined on a query that supports it then each search hit will contain a `inner_hits` json object with the following structure:
+If `_inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
 
 [source,js]
 --------------------------------------------------
@@ -234,7 +234,7 @@ An example of a response snippet that could be generated from the above search r
 Besides defining inner hits on query and filters, inner hits can also be defined as a top level construct alongside the
 `query` and `aggregations` definition. The main reason for using the top level inner hits definition is to let the
 inner hits return documents that don't match with the main query. Also inner hits definitions can be nested via the
-top level notation. Other then that the inner hit definition inside the query should be used, because that is the most
+top level notation. Other than that, the inner hit definition inside the query should be used because that is the most
 compact way for defining inner hits.
 
 The following snippet explains the basic structure of inner hits defined at the top level of the search request body:
@@ -254,7 +254,7 @@ The following snippet explains the basic structure of inner hits defined at the 
 }
 --------------------------------------------------
 
-Inside the `inner_hits` definition, first the name if the inner hit is defined then whether the inner_hit
+Inside the `inner_hits` definition, first the name of the inner hit is defined then whether the inner_hit
 is a nested by defining `path` or a parent/child based definition by defining `type`. The next object layer contains
 the name of the nested object field if the inner_hits is nested or the parent or child type if the inner_hit definition
 is parent/child based.

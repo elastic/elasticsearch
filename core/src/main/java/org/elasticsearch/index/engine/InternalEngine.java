@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -97,7 +96,6 @@ public class InternalEngine extends Engine {
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private final ShardIndexingService indexingService;
     private final Engine.Warmer warmer;
     private final Translog translog;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
@@ -135,7 +133,6 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
-            this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
@@ -430,8 +427,6 @@ public class InternalEngine extends Engine {
 
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
                 index.setTranslogLocation(translogLocation);
-
-                indexingService.postIndexUnderLock(index);
                 return created;
             } finally {
                 if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -543,7 +538,6 @@ public class InternalEngine extends Engine {
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
                 delete.setTranslogLocation(translogLocation);
-                indexingService.postDeleteUnderLock(delete);
             } finally {
                 if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     seqNoService.markSeqNoAsCompleted(delete.seqNo());
@@ -989,8 +983,7 @@ public class InternalEngine extends Engine {
             });
             return new IndexWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
-            boolean isLocked = IndexWriter.isLocked(store.directory());
-            logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
+            logger.warn("could not lock IndexWriter", ex);
             throw ex;
         }
     }
@@ -1083,6 +1076,10 @@ public class InternalEngine extends Engine {
         throttle.deactivate();
     }
 
+    public long getIndexThrottleTimeInMillis() {
+        return throttle.getThrottleTimeInMillis();
+    }
+
     long getGcDeletesInMillis() {
         return engineConfig.getGcDeletesInMillis();
     }
@@ -1105,7 +1102,6 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    indexingService.throttlingActivated();
                     activateThrottling();
                 }
             }
@@ -1117,7 +1113,6 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    indexingService.throttlingDeactivated();
                     deactivateThrottling();
                 }
             }

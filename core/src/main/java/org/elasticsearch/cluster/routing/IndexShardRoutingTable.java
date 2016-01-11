@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,8 +29,14 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
@@ -66,7 +73,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
-        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
 
         ShardRouting primary = null;
@@ -419,13 +426,21 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
-        if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
+        if (!shardId.equals(that.shardId)) {
+            return false;
+        }
+        if (!shards.equals(that.shards)) {
+            return false;
+        }
 
         return true;
     }

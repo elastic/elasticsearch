@@ -22,6 +22,7 @@ package org.elasticsearch.node.internal;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -41,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -207,7 +207,7 @@ public class InternalSettingsPreparer {
                     name = reader.readLine();
                 }
             }
-            int index = ThreadLocalRandom.current().nextInt(names.size());
+            int index = Randomness.get().nextInt(names.size());
             return names.get(index);
         } catch (IOException e) {
             throw new RuntimeException("Could not read node names list", e);

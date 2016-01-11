@@ -44,6 +44,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -64,12 +65,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -116,11 +117,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     final MapperRegistry mapperRegistry;
 
     public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
-                         SimilarityService similarityService, MapperRegistry mapperRegistry) {
+                         SimilarityService similarityService, MapperRegistry mapperRegistry,
+                         Supplier<QueryShardContext> queryShardContextSupplier) {
         super(indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry, queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
@@ -131,8 +133,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "\"_default_\":{\n" +
                 "\"properties\" : {\n" +
                     "\"query\" : {\n" +
-                        "\"type\" : \"object\",\n" +
-                        "\"enabled\" : false\n" +
+                        "\"type\" : \"percolator\"\n" +
                     "}\n" +
                 "}\n" +
             "}\n" +

@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -163,6 +164,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             if (translogGeneration != null) {
                 final Checkpoint checkpoint = readCheckpoint();
+                final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
+                final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
+                // this is special handling for error condition when we create a new writer but we fail to bake
+                // the newly written file (generation+1) into the checkpoint. This is still a valid state
+                // we just need to cleanup before we continue
+                // we hit this before and then blindly deleted the new generation even though we managed to bake it in and then hit this:
+                // https://discuss.elastic.co/t/cannot-recover-index-because-of-missing-tanslog-files/38336 as an example
+                //
+                // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that file exists
+                // if not we don't even try to clean it up and wait until we fail creating it
+                assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogWriter.getHeaderLength(translogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
+                if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
+                    && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
+                    logger.warn("deleted previously created, but not yet committed, next generation [{}]. This can happen due to a tragic exception when creating a new generation", nextTranslogFile.getFileName());
+                }
                 this.recoveredTranslogs = recoverFromFiles(translogGeneration, checkpoint);
                 if (recoveredTranslogs.isEmpty()) {
                     throw new IllegalStateException("at least one reader must be recovered");
@@ -425,7 +441,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (config.isSyncOnEachOperation()) {
                     current.sync();
                 }
-                assert current.assertBytesAtLocation(location, bytes);
+                assert assertBytesAtLocation(location, bytes);
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
@@ -437,6 +453,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } finally {
             Releasables.close(out.bytes());
         }
+    }
+
+    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
+        // tests can override this
+        ByteBuffer buffer = ByteBuffer.allocate(location.size);
+        current.readBytes(buffer, location.translogLocation);
+        return new BytesArray(buffer.array()).equals(expectedBytes);
     }
 
     /**

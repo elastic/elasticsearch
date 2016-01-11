@@ -19,19 +19,19 @@
 
 package org.elasticsearch.script.javascript.support;
 
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.IdScriptableObject;
-import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Wrapper;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.IdScriptableObject;
+import org.mozilla.javascript.NativeArray;
+import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.Wrapper;
 
 /**
  * Value Converter to marshal objects between Java and Javascript.
@@ -126,6 +126,7 @@ public final class ScriptValueConverter {
             value = list;
         } else if (value instanceof Map) {
             // ensure each value in the Map is unwrapped (which may have been an unwrapped NativeMap!)
+            @SuppressWarnings("unchecked")
             Map<Object, Object> map = (Map<Object, Object>) value;
             Map<Object, Object> copyMap = new HashMap<Object, Object>(map.size());
             for (Object key : map.keySet()) {
@@ -157,6 +158,7 @@ public final class ScriptValueConverter {
                     Context.getCurrentContext(), scope, TYPE_DATE, new Object[]{date.getTime()});
         } else if (value instanceof Collection) {
             // recursively convert each value in the collection
+            @SuppressWarnings("unchecked")
             Collection<Object> collection = (Collection<Object>) value;
             Object[] array = new Object[collection.size()];
             int index = 0;
@@ -166,7 +168,9 @@ public final class ScriptValueConverter {
             // convert array to a native JavaScript Array
             value = Context.getCurrentContext().newArray(scope, array);
         } else if (value instanceof Map) {
-            value = NativeMap.wrap(scope, (Map) value);
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> map = (Map<Object, Object>) value;
+            value = NativeMap.wrap(scope, map);
         }
 
         // simple numbers, strings and booleans are wrapped automatically by Rhino

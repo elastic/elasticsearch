@@ -19,6 +19,10 @@
 
 package org.elasticsearch.script.expression;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
@@ -26,10 +30,6 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A {@link ValueSource} wrapper for field data.
@@ -67,6 +67,7 @@ class FieldDataValueSource extends ValueSource {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicFieldData leafData = fieldData.load(leaf);
         assert(leafData instanceof AtomicNumericFieldData);

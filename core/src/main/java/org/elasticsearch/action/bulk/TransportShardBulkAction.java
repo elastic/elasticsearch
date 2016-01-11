@@ -419,7 +419,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                 }
             case NONE:
                 UpdateResponse updateResponse = translate.action();
-                indexShard.indexingService().noopUpdate(updateRequest.type());
+                indexShard.noopUpdate(updateRequest.type());
                 return new UpdateResult(translate, updateResponse);
             default:
                 throw new IllegalStateException("Illegal update operation " + translate.operation());

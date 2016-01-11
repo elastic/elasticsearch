@@ -70,6 +70,7 @@ public class TranslogRecoveryPerformer {
                 performRecoveryOperation(engine, operation, false);
                 numOps++;
             }
+            engine.getTranslog().sync();
         } catch (Throwable t) {
             throw new BatchOperationException(shardId, "failed to apply batch translog operation", numOps, t);
         }

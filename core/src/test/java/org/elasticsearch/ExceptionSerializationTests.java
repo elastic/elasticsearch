@@ -71,7 +71,6 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -494,12 +493,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("[_na] msg", ex.getMessage());
     }
 
-    public void testIndexWarmerMissingException() throws IOException {
-        IndexWarmerMissingException ex = serialize(new IndexWarmerMissingException("w1", "w2"));
-        assertEquals("index_warmer [w1, w2] missing", ex.getMessage());
-        assertArrayEquals(new String[]{"w1", "w2"}, ex.names());
-    }
-
     public void testIndexTemplateMissingException() throws IOException {
         IndexTemplateMissingException ex = serialize(new IndexTemplateMissingException("name"));
         assertEquals("index_template [name] missing", ex.getMessage());
@@ -735,7 +728,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
-        ids.put(93, org.elasticsearch.search.warmer.IndexWarmerMissingException.class);
         ids.put(94, org.elasticsearch.client.transport.NoNodeAvailableException.class);
         ids.put(95, null);
         ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);

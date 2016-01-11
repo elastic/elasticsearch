@@ -851,11 +851,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 // we never execute replication operation locally as primary operation has already completed locally
                 // hence, we ignore any local shard for replication
                 if (nodes.localNodeId().equals(shard.currentNodeId()) == false) {
-                    performOnReplica(shard, shard.currentNodeId());
+                    performOnReplica(shard);
                 }
                 // send operation to relocating shard
                 if (shard.relocating()) {
-                    performOnReplica(shard, shard.relocatingNodeId());
+                    performOnReplica(shard.buildTargetRelocatingShard());
                 }
             }
         }
@@ -863,9 +863,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         /**
          * send replica operation to target node
          */
-        void performOnReplica(final ShardRouting shard, final String nodeId) {
+        void performOnReplica(final ShardRouting shard) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
+            String nodeId = shard.currentNodeId();
             if (!nodes.nodeExists(nodeId)) {
                 logger.trace("failed to send action [{}] on replica [{}] for request [{}] due to unknown node [{}]", transportReplicaAction, shard.shardId(), replicaRequest, nodeId);
                 onReplicaFailure(nodeId, null);

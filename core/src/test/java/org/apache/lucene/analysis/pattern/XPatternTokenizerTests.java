@@ -53,8 +53,13 @@ import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.util.LuceneTestCase;
 import org.junit.Test;
 
+@LuceneTestCase.SuppressFileSystems("*")
+// there is some bug related to pkg private API in JAVA in lucene 5.3.1 that is fixed in
+// 5.4 but we hit it once in a while with this test and since it's fixed in 2.2 etc. we just
+// disable mockFS for this test to reduce noise
 public class XPatternTokenizerTests extends BaseTokenStreamTestCase
 {
   @Test

@@ -604,14 +604,14 @@ public abstract class QueryBuilders {
      * Facilitates creating template query requests using an inline script
      */
     public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, vars);
+        return new TemplateQueryBuilder(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
     }
 
     /**
      * Facilitates creating template query requests
      */
     public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, templateType, vars);
+        return new TemplateQueryBuilder(new Template(template, templateType, null, null, vars));
     }
 
     /**

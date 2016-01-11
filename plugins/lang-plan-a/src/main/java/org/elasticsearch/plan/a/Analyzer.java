@@ -2833,7 +2833,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             from.clazz.asSubclass(to.clazz);
 
             return cast;
-        } catch (ClassCastException cce0) {
+        } catch (final ClassCastException cce0) {
             try {
                 if (explicit) {
                     to.clazz.asSubclass(from.clazz);
@@ -2843,7 +2843,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                     throw new ClassCastException(
                         error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
                 }
-            } catch (ClassCastException cce1) {
+            } catch (final ClassCastException cce1) {
                 throw new ClassCastException(
                     error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
             }
@@ -2996,7 +2996,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final boolean primitive = sort0.primitive && sort1.primitive;
 
         if (sort0.bool && sort1.bool) {
-            return primitive ? definition.booleanType : definition.byteobjType;
+            return primitive ? definition.booleanType : definition.booleanobjType;
         }
 
         if (sort0.numeric && sort1.numeric) {

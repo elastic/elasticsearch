@@ -34,7 +34,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
 
     public static final String NAME = "match_all";
 
-    static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
+    public static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {

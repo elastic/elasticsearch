@@ -21,6 +21,8 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -35,5 +37,5 @@ public interface ParameterParser<T extends ToXContent> {
      *            call
      * @return the new item
      */
-    T fromXContent(XContentParser parser) throws IOException;
+    T fromXContent(QueryParseContext context) throws IOException;
 }

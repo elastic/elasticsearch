@@ -24,74 +24,89 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 
-//TODO maybe merge with AbstractShapeBuilderTestCase once #14933 is in?
+//TODO maybe merge with AbstractsortBuilderTestCase once #14933 is in?
 public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<T> & ToXContent & ParameterParser<T>> extends ESTestCase {
 
+    protected static NamedWriteableRegistry namedWriteableRegistry;
+
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private NamedWriteableRegistry namedWriteableRegistry;
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
-    public class RegistryItem {
-        public Class<T> type;
-        public T prototype;
-
-        public RegistryItem(Class<T> type, T prototype) {
-            this.type = type;
-            this.prototype = prototype;
-        }
-    }
-
-    @Before
-    public void setup() {
+    @BeforeClass
+    public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        RegistryItem item = getPrototype();
-        namedWriteableRegistry.registerPrototype(item.type, item.prototype);
+        namedWriteableRegistry.registerPrototype(MatchAllQueryBuilder.class, MatchAllQueryBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(IdsQueryBuilder.class, IdsQueryBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(TermQueryBuilder.class, TermQueryBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(FieldSortBuilder.class, FieldSortBuilder.PROTOTYPE);
+
+        @SuppressWarnings("rawtypes")
+        Set<QueryParser> injectedQueryParsers = new HashSet<>();
+        injectedQueryParsers.add(new MatchAllQueryParser());
+        injectedQueryParsers.add(new IdsQueryParser());
+        injectedQueryParsers.add(new TermQueryParser());
+        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), injectedQueryParsers, namedWriteableRegistry);
     }
 
-    @After
-    public void afterClass() throws Exception {
+    @AfterClass
+    public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
     }
 
-    /** Returns the prototype of the named writable under test. */
-    protected abstract RegistryItem getPrototype();
-
-    /** Returns random shape that is put under test */
+    /** Returns random sort that is put under test */
     protected abstract T createTestItem();
 
-    /** Returns mutated version of original so the returned shape is different in terms of equals/hashcode */
+    /** Returns mutated version of original so the returned sort is different in terms of equals/hashcode */
     protected abstract T mutate(T original) throws IOException;
 
-    protected abstract ParameterParser<T> getItemParser();
-
     /**
-     * Test that creates new shape from a random test shape and checks both for equality
+     * Test that creates new sort from a random test sort and checks both for equality
      */
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T testItem = createTestItem();
-            XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            
+            
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                contentBuilder.prettyPrint();
+                builder.prettyPrint();
             }
-            XContentBuilder builder = testItem.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+            builder.startObject();
+            testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
             XContentHelper.createParser(builder.bytes());
             itemParser.nextToken();
-            NamedWriteable<T> parsedItem= getItemParser().fromXContent(itemParser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+            context.reset(itemParser);
+            NamedWriteable<T> parsedItem = testItem.fromXContent(context);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -99,15 +114,15 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
     }
 
     /**
-     * Test serialization and deserialization of the test shape.
+     * Test serialization and deserialization of the test sort.
      */
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            T testShape = createTestItem();
-            T deserializedShape = copyItem(testShape);
-            assertEquals(deserializedShape, testShape);
-            assertEquals(deserializedShape.hashCode(), testShape.hashCode());
-            assertNotSame(deserializedShape, testShape);
+            T testsort = createTestItem();
+            T deserializedsort = copyItem(testsort);
+            assertEquals(testsort, deserializedsort);
+            assertEquals(testsort.hashCode(), deserializedsort.hashCode());
+            assertNotSame(testsort, deserializedsort);
         }
     }
 
@@ -116,29 +131,29 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            T firstShape = createTestItem();
-            assertFalse("shape is equal to null", firstShape.equals(null));
-            assertFalse("shape is equal to incompatible type", firstShape.equals(""));
-            assertTrue("shape is not equal to self", firstShape.equals(firstShape));
-            assertThat("same shape's hashcode returns different values if called multiple times", firstShape.hashCode(),
-                    equalTo(firstShape.hashCode()));
-            assertThat("different shapes should not be equal", mutate(firstShape), not(equalTo(firstShape)));
-            assertThat("different shapes should have different hashcode", mutate(firstShape).hashCode(), not(equalTo(firstShape.hashCode())));
+            T firstsort = createTestItem();
+            assertFalse("sort is equal to null", firstsort.equals(null));
+            assertFalse("sort is equal to incompatible type", firstsort.equals(""));
+            assertTrue("sort is not equal to self", firstsort.equals(firstsort));
+            assertThat("same sort's hashcode returns different values if called multiple times", firstsort.hashCode(),
+                    equalTo(firstsort.hashCode()));
+            assertThat("different sorts should not be equal", mutate(firstsort), not(equalTo(firstsort)));
+            assertThat("different sorts should have different hashcode", mutate(firstsort).hashCode(), not(equalTo(firstsort.hashCode())));
 
-            T secondShape = copyItem(firstShape);
-            assertTrue("shape is not equal to self", secondShape.equals(secondShape));
-            assertTrue("shape is not equal to its copy", firstShape.equals(secondShape));
-            assertTrue("equals is not symmetric", secondShape.equals(firstShape));
-            assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(firstShape.hashCode()));
+            T secondsort = copyItem(firstsort);
+            assertTrue("sort is not equal to self", secondsort.equals(secondsort));
+            assertTrue("sort is not equal to its copy", firstsort.equals(secondsort));
+            assertTrue("equals is not symmetric", secondsort.equals(firstsort));
+            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(firstsort.hashCode()));
 
-            T thirdShape = copyItem(secondShape);
-            assertTrue("shape is not equal to self", thirdShape.equals(thirdShape));
-            assertTrue("shape is not equal to its copy", secondShape.equals(thirdShape));
-            assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(thirdShape.hashCode()));
-            assertTrue("equals is not transitive", firstShape.equals(thirdShape));
-            assertThat("shape copy's hashcode is different from original hashcode", firstShape.hashCode(), equalTo(thirdShape.hashCode()));
-            assertTrue("equals is not symmetric", thirdShape.equals(secondShape));
-            assertTrue("equals is not symmetric", thirdShape.equals(firstShape));
+            T thirdsort = copyItem(secondsort);
+            assertTrue("sort is not equal to self", thirdsort.equals(thirdsort));
+            assertTrue("sort is not equal to its copy", secondsort.equals(thirdsort));
+            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(thirdsort.hashCode()));
+            assertTrue("equals is not transitive", firstsort.equals(thirdsort));
+            assertThat("sort copy's hashcode is different from original hashcode", firstsort.hashCode(), equalTo(thirdsort.hashCode()));
+            assertTrue("equals is not symmetric", thirdsort.equals(secondsort));
+            assertTrue("equals is not symmetric", thirdsort.equals(firstsort));
         }
     }
 
@@ -147,10 +162,12 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 @SuppressWarnings("unchecked")
-                T prototype = (T) namedWriteableRegistry.getPrototype(getPrototype().type, original.getWriteableName());
+                T prototype = (T) namedWriteableRegistry.getPrototype(getPrototype(), original.getWriteableName());
                 T copy = (T) prototype.readFrom(in);
                 return copy;
             }
         }
     }
+    
+    protected abstract Class<T> getPrototype();
 }

@@ -48,7 +48,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     private final String[] types;
 
-    static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
+    public static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
     /**
      * Creates a new IdsQueryBuilder without providing the types of the documents to look for

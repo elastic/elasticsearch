@@ -22,9 +22,12 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +38,7 @@ import java.util.Locale;
 /**
  * A geo distance based sorting on a geo point like field.
  */
-public class GeoDistanceSortBuilder extends SortBuilder {
+public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
 
     final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -202,5 +205,24 @@ public class GeoDistanceSortBuilder extends SortBuilder {
 
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public GeoDistanceSortBuilder readFrom(StreamInput in) throws IOException {
+        return null;
+    }
+
+    @Override
+    public GeoDistanceSortBuilder fromXContent(QueryParseContext context) throws IOException {
+        return null;
     }
 }

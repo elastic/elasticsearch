@@ -157,9 +157,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-        if (config.getSyncInterval().millis() > 0 && config.getThreadPool() != null) {
-            syncScheduler = config.getThreadPool().schedule(config.getSyncInterval(), ThreadPool.Names.SAME, new Sync());
-        }
 
         try {
             if (translogGeneration != null) {
@@ -208,12 +205,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 this.lastCommittedTranslogFileGeneration = -1; // playing safe
 
             }
-            // now that we know which files are there, create a new current one.
+            if (config.getSyncInterval().millis() > 0 && config.getThreadPool() != null) {
+                syncScheduler = createSyncedScheduler(config);
+            }
         } catch (Throwable t) {
             // close the opened translog files if we fail to create a new translog...
             IOUtils.closeWhileHandlingException(currentCommittingTranslog, current);
             throw t;
         }
+    }
+
+    private ScheduledFuture<?> createSyncedScheduler(TranslogConfig config) {
+        assert(current != null);
+        return config.getThreadPool().schedule(config.getSyncInterval(), ThreadPool.Names.SAME, new Sync());
     }
 
     /**

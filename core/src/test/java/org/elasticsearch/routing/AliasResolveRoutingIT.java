@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
@@ -27,10 +28,13 @@ import org.junit.Test;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -39,7 +43,20 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AliasResolveRoutingIT extends ESIntegTestCase {
 
-    @Test
+    // see https://github.com/elastic/elasticsearch/issues/13278
+    public void testSearchClosedWildcardIndex() throws ExecutionException, InterruptedException {
+        createIndex("test-0");
+        createIndex("test-1");
+        ensureGreen();
+        client().admin().indices().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
+        client().admin().indices().prepareClose("test-1").get();
+        indexRandom(true, client().prepareIndex("test-0", "type1", "1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
+            client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
+        refresh();
+        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchQuery("_all", "quick")).get(), 3l);
+    }
+
     public void testResolveIndexRouting() throws Exception {
         createIndex("test1");
         createIndex("test2");

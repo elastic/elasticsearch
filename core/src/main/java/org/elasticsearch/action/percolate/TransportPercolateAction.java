@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,7 +69,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
     }
 
     @Override
-    protected void doExecute(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+    protected void doExecute(Task task, final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
             //create a new get request to make sure it has the same headers and context as the original percolate request
@@ -82,7 +83,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                     }
 
                     BytesReference docSource = getResponse.getSourceAsBytesRef();
-                    TransportPercolateAction.super.doExecute(new PercolateRequest(request, docSource), listener);
+                    TransportPercolateAction.super.doExecute(task, new PercolateRequest(request, docSource), listener);
                 }
 
                 @Override
@@ -91,7 +92,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                 }
             });
         } else {
-            super.doExecute(request, listener);
+            super.doExecute(task, request, listener);
         }
     }
 

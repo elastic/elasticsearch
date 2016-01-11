@@ -115,7 +115,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", TransportLivenessAction.NAME}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
-        taskManager = new TaskManager(settings);
+        taskManager = createTaskManager();
     }
 
     /**
@@ -137,6 +137,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     protected Adapter createAdapter() {
         return new Adapter();
+    }
+
+    protected TaskManager createTaskManager() {
+        return new TaskManager(settings);
     }
 
     // These need to be optional as they don't exist in the context of a transport client

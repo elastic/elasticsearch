@@ -58,7 +58,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(Translog.View.EMPTY_VIEW);
+            prepareTargetForTranslog(0);
             finalizeRecovery();
             return response;
         } catch (Throwable t) {

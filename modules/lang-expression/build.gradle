@@ -35,6 +35,3 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-rawtypes'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
-

@@ -258,6 +258,12 @@ public final class FactoryProvider2<F> implements InvocationHandler, Provider<F>
         return o == this || o == factory;
     }
 
+    @Override
+    public int hashCode() {
+        // This way both this and its factory hash to the same spot, making hashCode consistent.
+        return factory.hashCode();
+    }
+
     /**
      * Returns true if {@code thrown} can be thrown by {@code invoked} without wrapping.
      */

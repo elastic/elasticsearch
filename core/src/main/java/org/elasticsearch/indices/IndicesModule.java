@@ -111,7 +111,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
@@ -273,7 +272,6 @@ public class IndicesModule extends AbstractModule {
         bind(RecoverySource.class).asEagerSingleton();
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(IndexingMemoryController.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(IndicesQueryCache.class).asEagerSingleton();
         bind(IndicesRequestCache.class).asEagerSingleton();

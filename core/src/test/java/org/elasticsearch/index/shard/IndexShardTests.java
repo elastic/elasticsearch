@@ -76,8 +76,6 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.indexing.IndexingOperationListener;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -100,19 +98,23 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -609,76 +611,76 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
-    public void testPreIndex() throws IOException {
-        createIndex("testpreindex");
+    public void testIndexingOperationsListeners() throws IOException {
+        createIndex("test_iol");
         ensureGreen();
+        client().prepareIndex("test_iol", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpreindex");
+        IndexService test = indicesService.indexService("test_iol");
         IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
-        final AtomicBoolean preIndexCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
+        AtomicInteger preIndex = new AtomicInteger();
+        AtomicInteger postIndex = new AtomicInteger();
+        AtomicInteger postIndexException = new AtomicInteger();
+        AtomicInteger preDelete = new AtomicInteger();
+        AtomicInteger postDelete = new AtomicInteger();
+        AtomicInteger postDeleteException = new AtomicInteger();
+        shard = reinitWithWrapper(test, shard, null, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(Engine.Index operation) {
-                preIndexCalled.set(true);
-                return super.preIndex(operation);
+                preIndex.incrementAndGet();
+                return operation;
             }
-        });
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
-        shard.index(index);
-        assertTrue(preIndexCalled.get());
-    }
-
-    public void testPostIndex() throws IOException {
-        createIndex("testpostindex");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpostindex");
-        IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
-        final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
             public void postIndex(Engine.Index index) {
-                postIndexCalled.set(true);
-                super.postIndex(index);
+                postIndex.incrementAndGet();
+            }
+
+            @Override
+            public void postIndex(Engine.Index index, Throwable ex) {
+                postIndexException.incrementAndGet();
+            }
+
+            @Override
+            public Engine.Delete preDelete(Engine.Delete delete) {
+                preDelete.incrementAndGet();
+                return delete;
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                postDelete.incrementAndGet();
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete, Throwable ex) {
+                postDeleteException.incrementAndGet();
+
             }
         });
 
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
-        assertTrue(postIndexCalled.get());
-    }
+        assertEquals(1, preIndex.get());
+        assertEquals(1, postIndex.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(0, preDelete.get());
+        assertEquals(0, postDelete.get());
+        assertEquals(0, postDeleteException.get());
 
-    public void testPostIndexWithException() throws IOException {
-        createIndex("testpostindexwithexception");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpostindexwithexception");
-        IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
+        shard.delete(delete);
+
+        assertEquals(1, preIndex.get());
+        assertEquals(1, postIndex.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(1, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(0, postDeleteException.get());
 
         shard.close("Unexpected close", true);
         shard.state = IndexShardState.STARTED; // It will generate exception
-
-        final AtomicBoolean postIndexWithExceptionCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
-            @Override
-            public void postIndex(Engine.Index index, Throwable ex) {
-                assertNotNull(ex);
-                postIndexWithExceptionCalled.set(true);
-                super.postIndex(index, ex);
-            }
-        });
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
 
         try {
             shard.index(index);
@@ -687,7 +689,26 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         }
 
-        assertTrue(postIndexWithExceptionCalled.get());
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndex.get());
+        assertEquals(1, postIndexException.get());
+        assertEquals(1, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(0, postDeleteException.get());
+        try {
+            shard.delete(delete);
+            fail();
+        }catch (IllegalIndexShardStateException e){
+
+        }
+
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndex.get());
+        assertEquals(1, postIndexException.get());
+        assertEquals(2, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(1, postDeleteException.get());
+
     }
 
     public void testMaybeFlush() throws Exception {
@@ -1038,11 +1059,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // test will fail due to unclosed searchers if the searcher is not released
     }
 
-    private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper) throws IOException {
+    private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
         ShardRouting routing = new ShardRouting(shard.routingEntry());
         shard.close("simon says", true);
         NodeServicesProvider indexServices = indexService.getIndexServices();
-        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(), shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(), indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper, indexServices);
+        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(), shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(), indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper, indexServices, listeners);
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
@@ -1054,4 +1075,29 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         return newShard;
     }
 
+    public void testTranslogRecoverySyncsTranslog() throws IOException {
+        createIndex("testindexfortranslogsync");
+        client().admin().indices().preparePutMapping("testindexfortranslogsync").setType("testtype").setSource(jsonBuilder().startObject()
+            .startObject("testtype")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "string")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testindexfortranslogsync");
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        newShard.prepareForIndexRecovery();
+        newShard.performTranslogRecovery(true);
+        newShard.performBatchRecovery(operations);
+        assertFalse(newShard.getTranslog().syncNeeded());
+    }
 }

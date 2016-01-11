@@ -17,49 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.indexing;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 
 /**
+ * Internal class that maintains relevant indexing statistics / metrics.
+ * @see IndexShard
  */
-public class ShardIndexingService extends AbstractIndexShardComponent {
-
-    private final IndexingSlowLog slowLog;
-
+final class InternalIndexingStats implements IndexingOperationListener {
     private final StatsHolder totalStats = new StatsHolder();
-
-    private final CopyOnWriteArrayList<IndexingOperationListener> listeners = new CopyOnWriteArrayList<>();
-
     private volatile Map<String, StatsHolder> typesStats = emptyMap();
-
-    public ShardIndexingService(ShardId shardId, IndexSettings indexSettings) {
-        super(shardId, indexSettings);
-        this.slowLog = new IndexingSlowLog(this.indexSettings.getSettings());
-    }
 
     /**
      * Returns the stats, including type specific stats. If the types are null/0 length, then nothing
      * is returned for them. If they are set, then only types provided will be returned, or
      * <tt>_all</tt> for all types.
      */
-    public IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, String... types) {
+    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, String... types) {
         IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);
         Map<String, IndexingStats.Stats> typesSt = null;
         if (types != null && types.length > 0) {
@@ -79,23 +64,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return new IndexingStats(total, typesSt);
     }
 
-    public void addListener(IndexingOperationListener listener) {
-        listeners.add(listener);
-    }
-
-    public void removeListener(IndexingOperationListener listener) {
-        listeners.remove(listener);
-    }
-
+    @Override
     public Engine.Index preIndex(Engine.Index operation) {
         totalStats.indexCurrent.inc();
         typeStats(operation.type()).indexCurrent.inc();
-        for (IndexingOperationListener listener : listeners) {
-            operation = listener.preIndex(operation);
-        }
         return operation;
     }
 
+    @Override
     public void postIndex(Engine.Index index) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
@@ -103,40 +79,24 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         StatsHolder typeStats = typeStats(index.type());
         typeStats.indexMetric.inc(took);
         typeStats.indexCurrent.dec();
-        slowLog.postIndex(index, took);
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndex(index);
-            } catch (Exception e) {
-                logger.warn("postIndex listener [{}] failed", e, listener);
-            }
-        }
     }
 
+    @Override
     public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
         totalStats.indexFailed.inc();
         typeStats(index.type()).indexFailed.inc();
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndex(index, ex);
-            } catch (Throwable t) {
-                logger.warn("postIndex listener [{}] failed", t, listener);
-            }
-        }
     }
 
+    @Override
     public Engine.Delete preDelete(Engine.Delete delete) {
         totalStats.deleteCurrent.inc();
         typeStats(delete.type()).deleteCurrent.inc();
-        for (IndexingOperationListener listener : listeners) {
-            delete = listener.preDelete(delete);
-        }
         return delete;
     }
 
-
+    @Override
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
@@ -144,46 +104,17 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         StatsHolder typeStats = typeStats(delete.type());
         typeStats.deleteMetric.inc(took);
         typeStats.deleteCurrent.dec();
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postDelete(delete);
-            } catch (Exception e) {
-                logger.warn("postDelete listener [{}] failed", e, listener);
-            }
-        }
     }
 
+    @Override
     public void postDelete(Engine.Delete delete, Throwable ex) {
         totalStats.deleteCurrent.dec();
         typeStats(delete.type()).deleteCurrent.dec();
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener. postDelete(delete, ex);
-            } catch (Throwable t) {
-                logger.warn("postDelete listener [{}] failed", t, listener);
-            }
-        }
     }
 
     public void noopUpdate(String type) {
         totalStats.noopUpdates.inc();
         typeStats(type).noopUpdates.inc();
-    }
-
-    public void clear() {
-        totalStats.clear();
-        synchronized (this) {
-            if (!typesStats.isEmpty()) {
-                MapBuilder<String, StatsHolder> typesStatsBuilder = MapBuilder.newMapBuilder();
-                for (Map.Entry<String, StatsHolder> typeStats : typesStats.entrySet()) {
-                    if (typeStats.getValue().totalCurrent() > 0) {
-                        typeStats.getValue().clear();
-                        typesStatsBuilder.put(typeStats.getKey(), typeStats.getValue());
-                    }
-                }
-                typesStats = typesStatsBuilder.immutableMap();
-            }
-        }
     }
 
     private StatsHolder typeStats(String type) {
@@ -200,34 +131,24 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return stats;
     }
 
-    public void onRefreshSettings(Settings settings) {
-        slowLog.onRefreshSettings(settings);
-    }
-
     static class StatsHolder {
-        public final MeanMetric indexMetric = new MeanMetric();
-        public final MeanMetric deleteMetric = new MeanMetric();
-        public final CounterMetric indexCurrent = new CounterMetric();
-        public final CounterMetric indexFailed = new CounterMetric();
-        public final CounterMetric deleteCurrent = new CounterMetric();
-        public final CounterMetric noopUpdates = new CounterMetric();
+        private final MeanMetric indexMetric = new MeanMetric();
+        private final MeanMetric deleteMetric = new MeanMetric();
+        private final CounterMetric indexCurrent = new CounterMetric();
+        private final CounterMetric indexFailed = new CounterMetric();
+        private final CounterMetric deleteCurrent = new CounterMetric();
+        private final CounterMetric noopUpdates = new CounterMetric();
 
-        public IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
+        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
-                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
-                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
+                indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
+                deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
+                noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
         }
 
-        public long totalCurrent() {
-            return indexCurrent.count() + deleteMetric.count();
-        }
-
-        public void clear() {
+        void clear() {
             indexMetric.clear();
             deleteMetric.clear();
         }
-
-
     }
 }

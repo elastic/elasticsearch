@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.analysis.phonetic;
 
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.StringEncoder;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -30,6 +27,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.StringEncoder;
 
 /**
  * K&ouml;lner Phonetik
@@ -49,13 +49,13 @@ public class KoelnerPhonetik implements StringEncoder {
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = {"OWN", "AUN", "RW", "RB", "RSK", "WSK"};
     private Pattern[] variationsPatterns;
     private boolean primary = false;
-    private final Set<Character> csz = new HashSet(Arrays.asList(
+    private final Set<Character> csz = new HashSet<>(Arrays.asList(
             'C', 'S', 'Z'));
-    private final Set<Character> ckq = new HashSet(Arrays.asList(
+    private final Set<Character> ckq = new HashSet<>(Arrays.asList(
             'C', 'K', 'Q'));
-    private final Set<Character> aouhkxq = new HashSet(Arrays.asList(
+    private final Set<Character> aouhkxq = new HashSet<>(Arrays.asList(
             'A', 'O', 'U', 'H', 'K', 'X', 'Q'));
-    private final Set<Character> ahkloqrux = new HashSet(Arrays.asList(
+    private final Set<Character> ahkloqrux = new HashSet<>(Arrays.asList(
             'A', 'H', 'K', 'L', 'O', 'Q', 'R', 'U', 'X'));
 
     /**
@@ -139,10 +139,10 @@ public class KoelnerPhonetik implements StringEncoder {
 
     private List<String> partition(String str) {
         String primaryForm = str;
-        List<String> parts = new ArrayList();
+        List<String> parts = new ArrayList<>();
         parts.add(primaryForm.replaceAll("[^\\p{L}\\p{N}]", ""));
         if (!primary) {
-            List<String> tmpParts = new ArrayList();
+            List<String> tmpParts = new ArrayList<>();
             tmpParts.addAll((Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]"))));
             int numberOfParts = tmpParts.size();
             while (tmpParts.size() > 0) {
@@ -156,9 +156,9 @@ public class KoelnerPhonetik implements StringEncoder {
                 tmpParts.remove(0);
             }
         }
-        List<String> variations = new ArrayList();
+        List<String> variations = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
-            List variation = getVariations(parts.get(i));
+            List<String> variation = getVariations(parts.get(i));
             if (variation != null) {
                 variations.addAll(variation);
             }
@@ -166,9 +166,9 @@ public class KoelnerPhonetik implements StringEncoder {
         return variations;
     }
 
-    private List getVariations(String str) {
+    private List<String> getVariations(String str) {
         int position = 0;
-        List<String> variations = new ArrayList();
+        List<String> variations = new ArrayList<>();
         variations.add("");
         while (position < str.length()) {
             int i = 0;
@@ -182,7 +182,7 @@ public class KoelnerPhonetik implements StringEncoder {
             }
             if (substPos >= position) {
                 i--;
-                List<String> varNew = new ArrayList();
+                List<String> varNew = new ArrayList<>();
                 String prevPart = str.substring(position, substPos);
                 for (int ii = 0; ii < variations.size(); ii++) {
                     String tmp = variations.get(ii);

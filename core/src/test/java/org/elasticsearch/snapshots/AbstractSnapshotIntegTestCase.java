@@ -176,7 +176,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
-            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueMinutes(1));
+            // Waiting for the 70 seconds here to make sure that the last check at 65 sec mark in assertBusyPendingTasks has a chance
+            // to finish before we timeout on the cluster state block. Otherwise the last check in assertBusyPendingTasks kicks in
+            // after the cluster state block clean up takes place and it's assert doesn't reflect the actual failure
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(70));
         }
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {

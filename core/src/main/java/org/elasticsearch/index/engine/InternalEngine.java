@@ -55,12 +55,10 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -961,8 +959,7 @@ public class InternalEngine extends Engine {
             });
             return new IndexWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
-            boolean isLocked = IndexWriter.isLocked(store.directory());
-            logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
+            logger.warn("could not lock IndexWriter", ex);
             throw ex;
         }
     }

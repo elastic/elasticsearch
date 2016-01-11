@@ -2223,12 +2223,15 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 case LONG:
                     incremd.preConst = positive ? 1L : -1L;
                     incremd.from = definition.longType;
+                    break;
                 case FLOAT:
                     incremd.preConst = positive ? 1.0F : -1.0F;
                     incremd.from = definition.floatType;
+                    break;
                 case DOUBLE:
                     incremd.preConst = positive ? 1.0 : -1.0;
                     incremd.from = definition.doubleType;
+                    break;
                 default:
                     incremd.preConst = positive ? 1 : -1;
                     incremd.from = definition.intType;

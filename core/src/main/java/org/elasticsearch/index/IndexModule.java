@@ -29,6 +29,7 @@ import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -243,7 +244,7 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider, MapperRegistry mapperRegistry,
-                                        IndexingMemoryController indexingMemoryController) throws IOException {
+                                        IndexingOperationListener... listeners) throws IOException {
         final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
         IndexEventListener eventListener = freeze();
@@ -265,6 +266,6 @@ public final class IndexModule {
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
         final QueryCache queryCache = queryCacheProvider.apply(settings, servicesProvider.getIndicesQueryCache());
         return new IndexService(settings, environment, new SimilarityService(settings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
-                servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, indexingMemoryController);
+                servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, listeners);
     }
 }

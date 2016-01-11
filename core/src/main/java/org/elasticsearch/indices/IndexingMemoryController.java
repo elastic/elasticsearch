@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -133,12 +134,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
         // it's fine to run it on the scheduler thread, no busy work
-        if (threadPool != null) {
-            return threadPool.scheduleWithFixedDelay(statusChecker, interval);
-        } else {
-            // tests pass null for threadPool --> no periodic checking
-            return null;
-        }
+        return threadPool.scheduleWithFixedDelay(statusChecker, interval);
     }
 
     @Override
@@ -180,10 +176,15 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     /** ask this shard to refresh, in the background, to free up heap */
     protected void writeIndexingBufferAsync(IndexShard shard) {
-        threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
             @Override
-            public void run() {
+            public void doRun() {
                 shard.writeIndexingBuffer();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", t, shard.shardId());
             }
         });
     }
@@ -243,7 +244,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         /** Shard calls this on each indexing/delete op */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
-            if (totalBytes > indexingBuffer.bytes()/30) {
+            while (totalBytes > indexingBuffer.bytes()/30) {
                 if (runLock.tryLock()) {
                     try {
                         bytesWrittenSinceCheck.addAndGet(-totalBytes);
@@ -251,10 +252,12 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                         // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
                         // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
                         // processed by indexing:
-                        run();
+                        runUnlocked();
                     } finally {
                         runLock.unlock();
                     }
+                } else {
+                    break;
                 }
             }
         }

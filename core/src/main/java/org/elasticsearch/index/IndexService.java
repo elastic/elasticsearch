@@ -19,6 +19,17 @@
 
 package org.elasticsearch.index;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -51,6 +62,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -60,21 +72,9 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
-import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -103,7 +103,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
     private final IndexingSlowLog slowLog;
-    private final IndexingMemoryController indexingMemoryController;
+    private final IndexingOperationListener[] listeners;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -116,7 +116,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         IndexEventListener eventListener,
                         IndexModule.IndexSearcherWrapperFactory wrapperFactory,
                         MapperRegistry mapperRegistry,
-                        IndexingMemoryController indexingMemoryController) throws IOException {
+                        IndexingOperationListener... listenersIn) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
@@ -135,7 +135,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.slowLog = new IndexingSlowLog(indexSettings.getSettings());
-        this.indexingMemoryController = indexingMemoryController;
+
+        // Add our slowLog to the incoming IndexingOperationListeners:
+        this.listeners = new IndexingOperationListener[1+listenersIn.length];
+        this.listeners[0] = slowLog;
+        System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
     }
 
     public int numberOfShards() {
@@ -300,7 +304,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider); // no indexing listeners - shadow  engines don't index
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, slowLog, indexingMemoryController);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, listeners);
             }
 
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

@@ -488,7 +488,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
-        markLastWrite();
+        active.set(true);
         index = indexingOperationListeners.preIndex(index);
         final boolean created;
         try {
@@ -532,7 +532,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
-        markLastWrite();
+        active.set(true);
         delete = indexingOperationListeners.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -974,11 +974,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** Sets {@code active} to true if we were inactive. */
-    private void markLastWrite() {
-        active.set(true);
-    }
-
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
         Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
@@ -1036,6 +1031,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    /** Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed */
     public long getIndexBufferRAMBytesUsed() {
         Engine engine = getEngineOrNull();
         if (engine == null) {

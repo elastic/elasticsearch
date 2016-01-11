@@ -350,6 +350,10 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 shard.writeIndexingBuffer();
             }
 
+            @Override
+            protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
+                return null;
+            }
         };
 
         for (int i = 0; i < 100; i++) {

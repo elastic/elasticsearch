@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -46,8 +45,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -99,8 +96,6 @@ public class TranslogTests extends ESTestCase {
         IOUtils.rm(translog.location()); // delete all the locations
 
     }
-
-
 
     @Override
     @Before
@@ -1483,23 +1478,6 @@ public class TranslogTests extends ESTestCase {
         }
 
         protected void afterAdd() throws IOException {}
-    }
-
-    public void testTranslogCreateWithSmallSyncInterval() throws IOException, InterruptedException {
-        ThreadPool threadPool = new ThreadPool(getClass().getName());
-        Translog tlog = null;
-        try {
-            Path tempDir = createTempDir();
-            Settings build = Settings.settingsBuilder()
-                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
-                .put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueMillis(1))
-                .build();
-            TranslogConfig config = new TranslogConfig(shardId, tempDir, build, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
-            tlog = new Translog(config);
-        } finally {
-            IOUtils.close(tlog);
-            terminate(threadPool);
-        }
     }
 
     public void testFailFlush() throws IOException {

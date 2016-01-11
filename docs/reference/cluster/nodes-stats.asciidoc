@@ -132,7 +132,8 @@ the operating system:
     Recent CPU usage for the whole system, or -1 if not supported
 
 `os.cpu.load_average`::
-	System load average for the last minute, or -1 if not supported
+	Array of system load averages for the last one minute, five
+	minute and fifteen minutes (value of -1 indicates not supported)
 
 `os.mem.total_in_bytes`::
 	Total amount of physical memory in bytes

@@ -149,6 +149,10 @@ public class MultiMatchQuery extends MatchQuery {
         public boolean forceAnalyzeQueryString() {
             return false;
         }
+
+        public Query termQuery(MappedFieldType fieldType, Object value) {
+            return fieldType.termQuery(value, context);
+        }
     }
 
     public class CrossFieldsQueryBuilder extends QueryBuilder {
@@ -196,14 +200,41 @@ public class MultiMatchQuery extends MatchQuery {
                 } else {
                     blendedFields = null;
                 }
-                final FieldAndFieldType fieldAndFieldType = group.get(0);
-                Query q = parseGroup(type.matchQueryType(), fieldAndFieldType.field, 1f, value, minimumShouldMatch);
+                /*
+                 * We have to pick some field to pass through the superclass so
+                 * we just pick the first field. It shouldn't matter because
+                 * fields are already grouped by their analyzers/types.
+                 */
+                String representativeField = group.get(0).field;
+                Query q = parseGroup(type.matchQueryType(), representativeField, 1f, value, minimumShouldMatch);
                 if (q != null) {
                     queries.add(q);
                 }
             }
 
             return queries.isEmpty() ? null : queries;
+        }
+
+        /**
+         * Pick the field for parsing. If any of the fields in the group do
+         * *not* useTermQueryWithQueryString then we return that one to force
+         * analysis. If some of the fields would useTermQueryWithQueryString
+         * then we assume that that parsing field's parser is good enough for
+         * them and return it. Otherwise we just return the first field. You
+         * should only get mixed groups like this when you force a certain
+         * analyzer on a query and use string and integer fields because of the
+         * way that grouping is done. That means that the use *asked* for the
+         * integer fields to be searched using a string analyzer so this is
+         * technically doing exactly what they asked for even if it is a bit
+         * funky.
+         */
+        private String fieldForParsing(List<FieldAndFieldType> group) {
+            for (FieldAndFieldType field: group) {
+                if (field.fieldType.useTermQueryWithQueryString()) {
+                    return field.field;
+                }
+            }
+            return group.get(0).field;
         }
 
         @Override
@@ -230,6 +261,11 @@ public class MultiMatchQuery extends MatchQuery {
                 return BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false);
             }
             return BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker);
+        }
+
+        @Override
+        public Query termQuery(MappedFieldType fieldType, Object value) {
+            return blendTerm(fieldType.createTerm(value), fieldType);
         }
     }
 
@@ -266,7 +302,11 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     @Override
-    protected boolean forceAnalyzeQueryString() {
-        return this.queryBuilder == null ? super.forceAnalyzeQueryString() : this.queryBuilder.forceAnalyzeQueryString();
+    protected Query termQuery(MappedFieldType fieldType, Object value) {
+        if (queryBuilder == null) {
+            // Can be null when the MultiMatchQuery collapses into a MatchQuery
+            return super.termQuery(fieldType, value);
+        }
+        return queryBuilder.termQuery(fieldType, value);
     }
 }

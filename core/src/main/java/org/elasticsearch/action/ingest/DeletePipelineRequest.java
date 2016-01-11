@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +29,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeletePipelineRequest extends ActionRequest {
+public class DeletePipelineRequest extends AcknowledgedRequest {
 
     private String id;
 

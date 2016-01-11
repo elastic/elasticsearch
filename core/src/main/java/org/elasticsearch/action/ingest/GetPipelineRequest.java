@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetPipelineRequest extends ActionRequest {
+public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;
 

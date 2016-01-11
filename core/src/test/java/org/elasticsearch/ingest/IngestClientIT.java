@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -32,6 +31,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -164,7 +164,6 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void test() throws Exception {
-
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
         putPipelineRequest.id("_id");
         putPipelineRequest.source(jsonBuilder().startObject()
@@ -200,9 +199,8 @@ public class IngestClientIT extends ESIntegTestCase {
 
         DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest();
         deletePipelineRequest.id("_id");
-        DeleteResponse response = client().deletePipeline(deletePipelineRequest).get();
-        assertThat(response.isFound(), is(true));
-        assertThat(response.getId(), equalTo("_id"));
+        WritePipelineResponse response = client().deletePipeline(deletePipelineRequest).get();
+        assertThat(response.isAcknowledged(), is(true));
 
         getResponse = client().prepareGetPipeline().setIds("_id").get();
         assertThat(getResponse.isFound(), is(false));

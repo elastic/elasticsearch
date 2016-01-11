@@ -27,7 +27,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 public class RestDeletePipelineAction extends BaseRestHandler {
 
@@ -41,6 +41,8 @@ public class RestDeletePipelineAction extends BaseRestHandler {
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         DeletePipelineRequest request = new DeletePipelineRequest();
         request.id(restRequest.param("id"));
-        client.deletePipeline(request, new RestStatusToXContentListener<>(channel));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        client.deletePipeline(request, new AcknowledgedRestListener<>(channel));
     }
 }

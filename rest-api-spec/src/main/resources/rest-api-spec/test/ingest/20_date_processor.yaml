@@ -17,7 +17,7 @@
               }
             ]
           }
-  - match: { _id: "my_pipeline" }
+  - match: { acknowledged: true }
 
   - do:
       index:

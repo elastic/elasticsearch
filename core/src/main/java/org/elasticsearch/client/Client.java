@@ -61,6 +61,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
@@ -605,12 +606,12 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Stores an ingest pipeline
      */
-    void putPipeline(PutPipelineRequest request, ActionListener<IndexResponse> listener);
+    void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener);
 
     /**
      * Stores an ingest pipeline
      */
-    ActionFuture<IndexResponse> putPipeline(PutPipelineRequest request);
+    ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request);
 
     /**
      * Stores an ingest pipeline
@@ -620,12 +621,12 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Deletes a stored ingest pipeline
      */
-    void deletePipeline(DeletePipelineRequest request, ActionListener<DeleteResponse> listener);
+    void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener);
 
     /**
      * Deletes a stored ingest pipeline
      */
-    ActionFuture<DeleteResponse> deletePipeline(DeletePipelineRequest request);
+    ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request);
 
     /**
      * Deletes a stored ingest pipeline

@@ -19,18 +19,30 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
+import java.io.IOException;
 
-    public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
-        super(client, action, new GetPipelineRequest());
+public class WritePipelineResponse extends AcknowledgedResponse {
+
+    WritePipelineResponse() {
     }
 
-    public GetPipelineRequestBuilder setIds(String... ids) {
-        request.ids(ids);
-        return this;
+    public WritePipelineResponse(boolean acknowledge) {
+        super(acknowledge);
     }
 
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        readAcknowledged(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeAcknowledged(out);
+    }
 }

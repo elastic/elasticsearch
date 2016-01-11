@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.elasticsearch.ingest.core;
 
 import java.util.ArrayList;
@@ -78,20 +77,16 @@ public final class Pipeline {
     }
 
     public final static class Factory {
-        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
-            Processor.Factory factory = processorRegistry.get(type);
-            if (factory != null) {
-                List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
-                Processor processor = factory.create(config);
-                if (config.isEmpty() == false) {
-                    throw new IllegalArgumentException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
-                }
-                if (onFailureProcessors.isEmpty()) {
-                    return processor;
-                }
-                return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
+
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
+            String description = ConfigurationUtils.readOptionalStringProperty(config, "description"); // TODO(simonw): can we make these strings constants?
+            List<Processor> processors = readProcessors("processors", processorRegistry, config);
+            List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+            if (config.isEmpty() == false) {
+                throw new IllegalArgumentException("pipeline [" + id + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
             }
-            throw new IllegalArgumentException("No processor type exists with name [" + type + "]");
+            CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));
+            return new Pipeline(id, description, compoundProcessor);
         }
 
         private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {
@@ -108,12 +103,22 @@ public final class Pipeline {
             return onFailureProcessors;
         }
 
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(config, "description"); // TODO(simonw): can we make these strings constants?
-            List<Processor> processors = readProcessors("processors", processorRegistry, config);
-            List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
-            CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));
-            return new Pipeline(id, description, compoundProcessor);
+        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
+            Processor.Factory factory = processorRegistry.get(type);
+            if (factory != null) {
+                List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+                Processor processor = factory.create(config);
+                if (config.isEmpty() == false) {
+                    throw new IllegalArgumentException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+                }
+                if (onFailureProcessors.isEmpty()) {
+                    return processor;
+                }
+                return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
+            }
+            throw new IllegalArgumentException("No processor type exists with name [" + type + "]");
         }
+
+
     }
 }

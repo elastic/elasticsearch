@@ -24,7 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
-public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, IndexResponse, PutPipelineRequestBuilder> {
+public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, WritePipelineResponse, PutPipelineRequestBuilder> {
 
     public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
         super(client, action, new PutPipelineRequest());

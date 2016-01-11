@@ -27,7 +27,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 public class RestPutPipelineAction extends BaseRestHandler {
 
@@ -44,6 +44,8 @@ public class RestPutPipelineAction extends BaseRestHandler {
         if (restRequest.hasContent()) {
             request.source(restRequest.content());
         }
-        client.putPipeline(request, new RestStatusToXContentListener<>(channel));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        client.putPipeline(request, new AcknowledgedRestListener<>(channel));
     }
 }

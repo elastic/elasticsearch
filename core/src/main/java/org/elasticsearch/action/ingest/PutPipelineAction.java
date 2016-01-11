@@ -23,7 +23,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutPipelineAction extends Action<PutPipelineRequest, IndexResponse, PutPipelineRequestBuilder> {
+public class PutPipelineAction extends Action<PutPipelineRequest, WritePipelineResponse, PutPipelineRequestBuilder> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
@@ -38,7 +38,7 @@ public class PutPipelineAction extends Action<PutPipelineRequest, IndexResponse,
     }
 
     @Override
-    public IndexResponse newResponse() {
-        return new IndexResponse();
+    public WritePipelineResponse newResponse() {
+        return new WritePipelineResponse();
     }
 }

@@ -15,25 +15,18 @@
               }
             ]
           }
-  - match: { _index: ".ingest" }
-  - match: { _type: "pipeline" }
-  - match: { _version: 1 }
-  - match: { _id: "my_pipeline" }
+  - match: { acknowledged: true }
 
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
-  - match: { my_pipeline._source.description: "_description" }
-  - match: { my_pipeline._version: 1 }
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
 
   - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
-  - match: { _index: ".ingest" }
-  - match: { _type: "pipeline" }
-  - match: { _version: 2 }
-  - match: { _id: "my_pipeline" }
-  - match: { found: true }
+  - match: { acknowledged: true }
 
   - do:
       catch: missing
@@ -82,25 +75,18 @@
               }
             ]
           }
-  - match: { _index: ".ingest" }
-  - match: { _type: "pipeline" }
-  - match: { _version: 1 }
-  - match: { _id: "my_pipeline" }
+  - match: { acknowledged: true }
 
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
-  - match: { my_pipeline._source.description: "_description" }
-  - match: { my_pipeline._version: 1 }
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
 
   - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
-  - match: { _index: ".ingest" }
-  - match: { _type: "pipeline" }
-  - match: { _version: 2 }
-  - match: { _id: "my_pipeline" }
-  - match: { found: true }
+  - match: { acknowledged: true }
 
   - do:
       catch: missing

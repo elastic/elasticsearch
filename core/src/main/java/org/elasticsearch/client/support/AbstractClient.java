@@ -286,6 +286,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
@@ -806,12 +807,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public void putPipeline(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
+    public void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
         execute(PutPipelineAction.INSTANCE, request, listener);
     }
 
     @Override
-    public ActionFuture<IndexResponse> putPipeline(PutPipelineRequest request) {
+    public ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request) {
         return execute(PutPipelineAction.INSTANCE, request);
     }
 
@@ -821,12 +822,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public void deletePipeline(DeletePipelineRequest request, ActionListener<DeleteResponse> listener) {
+    public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
         execute(DeletePipelineAction.INSTANCE, request, listener);
     }
 
     @Override
-    public ActionFuture<DeleteResponse> deletePipeline(DeletePipelineRequest request) {
+    public ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request) {
         return execute(DeletePipelineAction.INSTANCE, request);
     }
 

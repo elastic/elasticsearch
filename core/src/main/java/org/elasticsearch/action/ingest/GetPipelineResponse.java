@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.PipelineDefinition;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -33,16 +33,16 @@ import java.util.List;
 
 public class GetPipelineResponse extends ActionResponse implements StatusToXContent {
 
-    private List<PipelineDefinition> pipelines;
+    private List<PipelineConfiguration> pipelines;
 
     public GetPipelineResponse() {
     }
 
-    public GetPipelineResponse(List<PipelineDefinition> pipelines) {
+    public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
         this.pipelines = pipelines;
     }
 
-    public List<PipelineDefinition> pipelines() {
+    public List<PipelineConfiguration> pipelines() {
         return pipelines;
     }
 
@@ -52,7 +52,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         int size = in.readVInt();
         pipelines = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineDefinition.readPipelineDefinitionFrom(in));
+            pipelines.add(PipelineConfiguration.readPipelineConfiguration(in));
         }
     }
 
@@ -60,7 +60,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(pipelines.size());
-        for (PipelineDefinition pipeline : pipelines) {
+        for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
         }
     }
@@ -76,9 +76,11 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (PipelineDefinition definition : pipelines) {
-            definition.toXContent(builder, params);
+        builder.startArray("pipelines");
+        for (PipelineConfiguration pipeline : pipelines) {
+            pipeline.toXContent(builder, params);
         }
+        builder.endArray();
         return builder;
     }
 }

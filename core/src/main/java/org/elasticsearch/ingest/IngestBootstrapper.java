@@ -48,11 +48,8 @@ import java.io.InputStream;
  * Instantiates and wires all the services that the ingest plugin will be needing.
  * Also the bootstrapper is in charge of starting and stopping the ingest plugin based on the cluster state.
  */
-public class IngestBootstrapper extends AbstractLifecycleComponent implements ClusterStateListener {
+public class IngestBootstrapper extends AbstractLifecycleComponent {
 
-    static final String INGEST_INDEX_TEMPLATE_NAME = "ingest-template";
-
-    private final ThreadPool threadPool;
     private final Environment environment;
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
@@ -64,31 +61,12 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
     // pipelines into NodeModule? I'd really like to prevent adding yet another module.
     @Inject
     public IngestBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
-                              ClusterService clusterService, TransportService transportService,
-                              ProcessorsRegistry processorsRegistry) {
+                              ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
         super(settings);
-        this.threadPool = threadPool;
         this.environment = environment;
         this.processorsRegistry = processorsRegistry;
-        this.pipelineStore = new PipelineStore(settings, clusterService, transportService);
+        this.pipelineStore = new PipelineStore(settings, clusterService);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
-
-        boolean isNoTribeNode = settings.getByPrefix("tribe.").getAsMap().isEmpty();
-        if (isNoTribeNode) {
-            clusterService.add(this);
-        }
-    }
-
-    // for testing:
-    IngestBootstrapper(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                       PipelineStore pipelineStore, PipelineExecutionService pipelineExecutionService) {
-        super(settings);
-        this.threadPool = threadPool;
-        this.environment = null;
-        clusterService.add(this);
-        this.pipelineStore = pipelineStore;
-        this.pipelineExecutionService = pipelineExecutionService;
-        this.processorsRegistry = null;
     }
 
     public PipelineStore getPipelineStore() {
@@ -100,46 +78,8 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
     }
 
     @Inject
-    public void setClient(Client client) {
-        pipelineStore.setClient(client);
-    }
-
-    @Inject
     public void setScriptService(ScriptService scriptService) {
         pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, environment, scriptService);
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState state = event.state();
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
-
-        if (pipelineStore.isStarted()) {
-            if (validClusterState(state) == false) {
-                stopPipelineStore("cluster state invalid [" + state + "]");
-            }
-        } else {
-            if (validClusterState(state)) {
-                startPipelineStore(state.metaData());
-            }
-        }
-    }
-
-    boolean validClusterState(ClusterState state) {
-        if (state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES) ||
-            state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL)) {
-            return false;
-        }
-
-        if (state.getMetaData().hasConcreteIndex(PipelineStore.INDEX)) {
-            IndexRoutingTable routingTable = state.getRoutingTable().index(PipelineStore.INDEX);
-            return routingTable.allPrimaryShardsActive();
-        } else {
-            // it will be ready when auto create index kicks in before the first pipeline doc gets added
-            return true;
-        }
     }
 
     @Override
@@ -156,35 +96,6 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
             pipelineStore.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    void startPipelineStore(MetaData metaData) {
-        try {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                try {
-                    pipelineStore.start();
-                } catch (Exception e1) {
-                    logger.warn("pipeline store failed to start, retrying...", e1);
-                    startPipelineStore(metaData);
-                }
-            });
-        } catch (EsRejectedExecutionException e) {
-            logger.debug("async pipeline store start failed", e);
-        }
-    }
-
-    void stopPipelineStore(String reason) {
-        try {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                try {
-                    pipelineStore.stop(reason);
-                } catch (Exception e) {
-                    logger.error("pipeline store stop failure", e);
-                }
-            });
-        } catch (EsRejectedExecutionException e) {
-            logger.debug("async pipeline store stop failed", e);
         }
     }
 

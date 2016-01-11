@@ -54,6 +54,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -111,6 +112,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     static {
         // register non plugin custom metadata
         registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
+        registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
     }
 
     /**

@@ -23,6 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,18 +36,36 @@ import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, IndexResponse> {
+public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, WritePipelineResponse> {
 
     private final PipelineStore pipelineStore;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IngestBootstrapper bootstrapper) {
-        super(settings, PutPipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
+    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                      TransportService transportService, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver, IngestBootstrapper bootstrapper) {
+        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
         this.pipelineStore = bootstrapper.getPipelineStore();
     }
 
     @Override
-    protected void doExecute(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected WritePipelineResponse newResponse() {
+        return new WritePipelineResponse();
+    }
+
+    @Override
+    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<WritePipelineResponse> listener) throws Exception {
         pipelineStore.put(request, listener);
     }
+
+    @Override
+    protected ClusterBlockException checkBlock(PutPipelineRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
 }

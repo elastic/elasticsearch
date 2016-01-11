@@ -17,20 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.elasticsearch.ingest;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
-public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
+import java.io.IOException;
 
-    public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
-        super(client, action, new GetPipelineRequest());
+public class PipelineMissingException extends ElasticsearchException {
+
+    public PipelineMissingException(String id) {
+        super("pipeline [{}] is missing", id);
     }
 
-    public GetPipelineRequestBuilder setIds(String... ids) {
-        request.ids(ids);
-        return this;
+    public PipelineMissingException(StreamInput in) throws IOException {
+        super(in);
     }
 
+    @Override
+    public RestStatus status() {
+        return RestStatus.NOT_FOUND;
+    }
 }

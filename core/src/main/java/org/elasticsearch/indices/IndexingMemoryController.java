@@ -26,10 +26,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,7 +48,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class IndexingMemoryController extends AbstractComponent implements Closeable {
+public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -124,11 +126,19 @@ public class IndexingMemoryController extends AbstractComponent implements Close
                      SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
                      SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
         this.scheduler = scheduleTask(threadPool);
+
+        // Need to save this so we can later launch async "write indexing buffer to disk" on shards:
+        this.threadPool = threadPool;
     }
 
     protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
         // it's fine to run it on the scheduler thread, no busy work
-        return threadPool.scheduleWithFixedDelay(statusChecker, interval);
+        if (threadPool != null) {
+            return threadPool.scheduleWithFixedDelay(statusChecker, interval);
+        } else {
+            // tests pass null for threadPool --> no periodic checking
+            return null;
+        }
     }
 
     @Override
@@ -198,7 +208,17 @@ public class IndexingMemoryController extends AbstractComponent implements Close
         shard.deactivateThrottling();
     }
 
-    static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
+    @Override
+    public void postIndex(Engine.Index index) {
+        bytesWritten(index.getTranslogLocation().size);        
+    }
+
+    @Override
+    public void postDelete(Engine.Delete delete) {
+        bytesWritten(delete.getTranslogLocation().size);        
+    }
+
+    private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
         final IndexShard shard;
 

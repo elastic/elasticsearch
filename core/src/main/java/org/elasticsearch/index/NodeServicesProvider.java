@@ -28,7 +28,6 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,10 +49,9 @@ public final class NodeServicesProvider {
     private final ScriptService scriptService;
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final CircuitBreakerService circuitBreakerService;
-    private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, TermVectorsService termVectorsService, @Nullable IndicesWarmer warmer, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, IndicesFieldDataCache indicesFieldDataCache, CircuitBreakerService circuitBreakerService, IndexingMemoryController indexingMemoryController) {
+    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, TermVectorsService termVectorsService, @Nullable IndicesWarmer warmer, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, IndicesFieldDataCache indicesFieldDataCache, CircuitBreakerService circuitBreakerService) {
         this.threadPool = threadPool;
         this.indicesQueryCache = indicesQueryCache;
         this.termVectorsService = termVectorsService;
@@ -64,7 +62,6 @@ public final class NodeServicesProvider {
         this.scriptService = scriptService;
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
-        this.indexingMemoryController = indexingMemoryController;
     }
 
     public ThreadPool getThreadPool() {
@@ -103,9 +100,5 @@ public final class NodeServicesProvider {
 
     public CircuitBreakerService getCircuitBreakerService() {
         return circuitBreakerService;
-    }
-
-    public IndexingMemoryController getIndexingMemoryController() {
-        return indexingMemoryController;
     }
 }

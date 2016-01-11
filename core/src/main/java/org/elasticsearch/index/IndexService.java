@@ -60,6 +60,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,6 +103,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
     private final IndexingSlowLog slowLog;
+    private final IndexingMemoryController indexingMemoryController;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -113,7 +115,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         IndexStore indexStore,
                         IndexEventListener eventListener,
                         IndexModule.IndexSearcherWrapperFactory wrapperFactory,
-                        MapperRegistry mapperRegistry) throws IOException {
+                        MapperRegistry mapperRegistry,
+                        IndexingMemoryController indexingMemoryController) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
@@ -132,6 +135,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.slowLog = new IndexingSlowLog(indexSettings.getSettings());
+        this.indexingMemoryController = indexingMemoryController;
     }
 
     public int numberOfShards() {
@@ -296,7 +300,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider); // no indexing listeners - shadow  engines don't index
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, slowLog);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, slowLog, indexingMemoryController);
             }
 
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

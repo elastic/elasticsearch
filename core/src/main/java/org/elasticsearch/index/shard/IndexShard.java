@@ -167,13 +167,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
     private final NodeServicesProvider provider;
-<<<<<<< HEAD
 
-    /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh */
+    /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
+     *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
+     *  being indexed/deleted. */
     private final AtomicLong writingBytes = new AtomicLong();
 
-=======
->>>>>>> master
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture<?> refreshScheduledFuture;
@@ -216,7 +215,6 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
-    private final IndexingMemoryController indexingMemoryController;
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
@@ -273,7 +271,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-        this.indexingMemoryController = provider.getIndexingMemoryController();
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, newQueryShardContext());
@@ -510,9 +507,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw ex;
         }
 
-        // Notify IMC so that it can go and check heap used by all indexing buffers periodically:
-        indexingMemoryController.bytesWritten(index.getTranslogLocation().size);
-
         indexingOperationListeners.postIndex(index);
 
         return created;
@@ -555,9 +549,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             indexingOperationListeners.postDelete(delete, ex);
             throw ex;
         }
-
-        // Notify IMC so that it can go and check heap used by all indexing buffers periodically:
-        indexingMemoryController.bytesWritten(delete.getTranslogLocation().size);
 
         indexingOperationListeners.postDelete(delete);
     }

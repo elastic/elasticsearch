@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -121,7 +122,12 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static Set<Class<?>> MASTER_CHANNEL_EXCEPTIONS = new HashSet<>(Arrays.asList(NotMasterException.class, NodeDisconnectedException.class));
+    private static Set<Class<?>> MASTER_CHANNEL_EXCEPTIONS =
+        new HashSet<>(Arrays.asList(
+            NotMasterException.class,
+            NodeDisconnectedException.class,
+            Discovery.FailedToCommitClusterStateException.class
+        ));
     private static boolean isMasterChannelException(Throwable cause) {
         return MASTER_CHANNEL_EXCEPTIONS.contains(cause.getClass());
     }

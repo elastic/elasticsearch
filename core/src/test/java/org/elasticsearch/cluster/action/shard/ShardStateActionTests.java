@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -163,6 +165,7 @@ public class ShardStateActionTests extends ESTestCase {
         AtomicBoolean noMaster = new AtomicBoolean();
         AtomicBoolean retried = new AtomicBoolean();
         AtomicBoolean success = new AtomicBoolean();
+        AtomicReference<Exception> exception = new AtomicReference<>();
 
         setUpMasterRetryVerification(noMaster, retried, latch);
 
@@ -176,6 +179,7 @@ public class ShardStateActionTests extends ESTestCase {
             @Override
             public void onShardFailedFailure(Exception e) {
                 success.set(false);
+                exception.set(e);
                 latch.countDown();
             }
         });
@@ -187,9 +191,11 @@ public class ShardStateActionTests extends ESTestCase {
         List<Exception> possibleExceptions = new ArrayList<>();
         possibleExceptions.add(new NotMasterException("simulated"));
         possibleExceptions.add(new NodeDisconnectedException(clusterService.state().nodes().masterNode(), ShardStateAction.SHARD_FAILED_ACTION_NAME));
+        possibleExceptions.add(new Discovery.FailedToCommitClusterStateException("simulated"));
         transport.handleResponse(capturedRequests[0].requestId, randomFrom(possibleExceptions));
 
         latch.await();
+        assertNull(exception.get());
         assertTrue(success.get());
     }
 

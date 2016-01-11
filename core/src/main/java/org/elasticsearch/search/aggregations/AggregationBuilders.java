@@ -74,7 +74,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregator;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
 
@@ -278,8 +278,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link TopHits} aggregation with the given name.
      */
-    public static TopHitsBuilder topHits(String name) {
-        return new TopHitsBuilder(name);
+    public static TopHitsAggregator.Factory topHits(String name) {
+        return new TopHitsAggregator.Factory(name);
     }
 
     /**

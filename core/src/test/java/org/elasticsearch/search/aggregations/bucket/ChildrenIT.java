@@ -175,7 +175,7 @@ public class ChildrenIT extends ESIntegTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(0).subAggregation(
-                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_uid", SortOrder.ASC))
+                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").sort("_uid", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);

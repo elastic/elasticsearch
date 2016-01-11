@@ -256,7 +256,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(TERMS_AGGS_FIELD)
                         .subAggregation(
-                                topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
                         )
                 )
                 .get();
@@ -352,7 +352,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .collectMode(SubAggCollectionMode.BREADTH_FIRST)
                         .field(TERMS_AGGS_FIELD)
-                        .subAggregation(topHits("hits").setSize(3))
+                        .subAggregation(topHits("hits").size(3))
                 ).get();
 
         assertSearchResponse(response);
@@ -403,9 +403,9 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setFrom(from)
-                                                .setSize(size)
+                                        topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                                .from(from)
+                                                .size(size)
                                 )
                 )
                 .get();
@@ -447,7 +447,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .field(TERMS_AGGS_FIELD)
                                 .order(Terms.Order.aggregation("max_sort", false))
                                 .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)).setTrackScores(true)
+                                        topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)).trackScores(true)
                                 )
                                 .subAggregation(
                                         max("max_sort").field(SORT_FIELD)
@@ -487,7 +487,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .setQuery(matchQuery("text", "term rare"))
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field("group")
-                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").setSize(1))
+                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").size(1))
                                 .subAggregation(max("max_score").field("value"))).get();
         assertSearchResponse(response);
 
@@ -529,14 +529,14 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").setSize(1)
+                                        topHits("hits").size(1)
                                             .highlighter(new HighlightBuilder().field("text"))
-                                            .setExplain(true)
-                                            .addField("text")
-                                            .addFieldDataField("field1")
-                                            .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
-                                            .setFetchSource("text", null)
-                                            .setVersion(true)
+                                            .explain(true)
+                                            .field("text")
+                                            .fieldDataField("field1")
+                                            .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                            .fetchSource("text", null)
+                                            .version(true)
                                 )
                 )
                 .get();
@@ -586,7 +586,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                     .executionHint(randomExecutionHint())
                                     .field(TERMS_AGGS_FIELD)
                                     .subAggregation(
-                                            topHits("hits").addSort(SortBuilders.fieldSort("xyz").order(SortOrder.DESC))
+                                            topHits("hits").sort(SortBuilders.fieldSort("xyz").order(SortOrder.DESC))
                                     )
                     ).get();
             fail();
@@ -650,9 +650,9 @@ public class TopHitsIT extends ESIntegTestCase {
                                     .field("group")
                                     .subAggregation(
                                             topHits("hits")
-                                                    .setTrackScores(trackScore)
-                                                    .setSize(1)
-                                                    .addSort("_id", SortOrder.DESC)
+                                                    .trackScores(trackScore)
+                                                    .size(1)
+                                                    .sort("_id", SortOrder.DESC)
                                     )
                     )
                     .get();
@@ -696,7 +696,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                         terms("users")
                                                 .field("comments.user")
                                                 .subAggregation(
-                                                        topHits("top-comments").addSort("comments.date", SortOrder.ASC)
+                                                        topHits("top-comments").sort("comments.date", SortOrder.ASC)
                                                 )
                                 )
                 )
@@ -746,10 +746,10 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .subAggregation(
                                     nested("to-reviewers").path("comments.reviewers").subAggregation(
                                             // Also need to sort on _doc because there are two reviewers with the same name
-                                            topHits("top-reviewers").addSort("comments.reviewers.name", SortOrder.ASC).addSort("_doc", SortOrder.DESC).setSize(7)
+                                            topHits("top-reviewers").sort("comments.reviewers.name", SortOrder.ASC).sort("_doc", SortOrder.DESC).size(7)
                                     )
                                 )
-                                .subAggregation(topHits("top-comments").addSort("comments.date", SortOrder.DESC).setSize(4))
+                                .subAggregation(topHits("top-comments").sort("comments.date", SortOrder.DESC).size(4))
                 ).get();
         assertNoFailures(searchResponse);
 
@@ -849,10 +849,10 @@ public class TopHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
                         nested("to-comments").path("comments").subAggregation(
-                                topHits("top-comments").setSize(1).highlighter(new HighlightBuilder().field(hlField)).setExplain(true)
-                                                .addFieldDataField("comments.user")
-                                        .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).setFetchSource("message", null)
-                                        .setVersion(true).addSort("comments.date", SortOrder.ASC))).get();
+                                topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
+                                                .fieldDataField("comments.user")
+                                        .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("message", null)
+                                        .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
         assertThat(nested.getDocCount(), equalTo(4l));
@@ -901,7 +901,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                                 .path("comments")
                                                 .subAggregation(topHits("comments")
                                                         .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text"))))
-                                                        .addSort("comments.id", SortOrder.ASC))
+                                                        .sort("comments.id", SortOrder.ASC))
                                 )
                 )
                 .get();
@@ -938,7 +938,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1).addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                        topHits("hits").size(ArrayUtil.MAX_ARRAY_LENGTH - 1).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
                                 )
                 )
                 .get();

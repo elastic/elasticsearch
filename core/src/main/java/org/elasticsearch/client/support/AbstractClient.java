@@ -232,18 +232,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -1667,51 +1655,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ValidateQueryRequestBuilder prepareValidateQuery(String... indices) {
             return new ValidateQueryRequestBuilder(this, ValidateQueryAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
-        public ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request) {
-            return execute(PutWarmerAction.INSTANCE, request);
-        }
-
-        @Override
-        public void putWarmer(PutWarmerRequest request, ActionListener<PutWarmerResponse> listener) {
-            execute(PutWarmerAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public PutWarmerRequestBuilder preparePutWarmer(String name) {
-            return new PutWarmerRequestBuilder(this, PutWarmerAction.INSTANCE, name);
-        }
-
-        @Override
-        public ActionFuture<DeleteWarmerResponse> deleteWarmer(DeleteWarmerRequest request) {
-            return execute(DeleteWarmerAction.INSTANCE, request);
-        }
-
-        @Override
-        public void deleteWarmer(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener) {
-            execute(DeleteWarmerAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public DeleteWarmerRequestBuilder prepareDeleteWarmer() {
-            return new DeleteWarmerRequestBuilder(this, DeleteWarmerAction.INSTANCE);
-        }
-
-        @Override
-        public GetWarmersRequestBuilder prepareGetWarmers(String... indices) {
-            return new GetWarmersRequestBuilder(this, GetWarmersAction.INSTANCE, indices);
-        }
-
-        @Override
-        public ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request) {
-            return execute(GetWarmersAction.INSTANCE, request);
-        }
-
-        @Override
-        public void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener) {
-            execute(GetWarmersAction.INSTANCE, request, listener);
         }
 
         @Override

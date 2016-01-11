@@ -109,6 +109,7 @@ public final class Randomness {
         }
     }
 
+    @SuppressForbidden(reason = "ThreadLocalRandom is okay when not running tests")
     private static Random getWithoutSeed() {
         assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
         return ThreadLocalRandom.current();

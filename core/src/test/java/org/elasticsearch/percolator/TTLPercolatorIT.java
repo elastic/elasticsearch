@@ -182,7 +182,7 @@ public class TTLPercolatorIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject()
-                ).setTTL(randomIntBetween(1, 500)).execute().actionGet();
+                ).setTTL(randomIntBetween(1, 500)).setRefresh(true).execute().actionGet();
             } catch (MapperParsingException e) {
                 logger.info("failed indexing {}", i, e);
                 // if we are unlucky the TTL is so small that we see the expiry date is already in the past when

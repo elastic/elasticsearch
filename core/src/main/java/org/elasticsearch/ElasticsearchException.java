@@ -566,7 +566,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         REFRESH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RefreshFailedEngineException.class, org.elasticsearch.index.engine.RefreshFailedEngineException::new, 90),
         AGGREGATION_INITIALIZATION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationInitializationException.class, org.elasticsearch.search.aggregations.AggregationInitializationException::new, 91),
         DELAY_RECOVERY_EXCEPTION(org.elasticsearch.indices.recovery.DelayRecoveryException.class, org.elasticsearch.indices.recovery.DelayRecoveryException::new, 92),
-        INDEX_WARMER_MISSING_EXCEPTION(org.elasticsearch.search.warmer.IndexWarmerMissingException.class, org.elasticsearch.search.warmer.IndexWarmerMissingException::new, 93),
+        // 93 used to be for IndexWarmerMissingException
         NO_NODE_AVAILABLE_EXCEPTION(org.elasticsearch.client.transport.NoNodeAvailableException.class, org.elasticsearch.client.transport.NoNodeAvailableException::new, 94),
         INVALID_SNAPSHOT_NAME_EXCEPTION(org.elasticsearch.snapshots.InvalidSnapshotNameException.class, org.elasticsearch.snapshots.InvalidSnapshotNameException::new, 96),
         ILLEGAL_INDEX_SHARD_STATE_EXCEPTION(org.elasticsearch.index.shard.IllegalIndexShardStateException.class, org.elasticsearch.index.shard.IllegalIndexShardStateException::new, 97),

@@ -27,4 +27,4 @@ $ curl -XGET 'http://localhost:9200/twitter/_settings,_mappings'
 
 The above command will only return the settings and mappings for the index called `twitter`.
 
-The available features are `_settings`, `_mappings`, `_warmers` and `_aliases`.
+The available features are `_settings`, `_mappings` and `_aliases`.

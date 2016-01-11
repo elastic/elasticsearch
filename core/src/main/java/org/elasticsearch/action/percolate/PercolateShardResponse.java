@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.action.percolate;
 
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -43,31 +44,24 @@ import java.util.Map;
  */
 public class PercolateShardResponse extends BroadcastShardResponse {
 
-    private static final BytesRef[] EMPTY_MATCHES = new BytesRef[0];
-    private static final float[] EMPTY_SCORES = new float[0];
-    private static final List<Map<String, HighlightField>> EMPTY_HL = Collections.emptyList();
-
-    private long count;
-    private float[] scores;
-    private BytesRef[] matches;
-    private List<Map<String, HighlightField>> hls;
-    private byte percolatorTypeId;
+    private TopDocs topDocs;
+    private Map<Integer, String> ids;
+    private Map<Integer, Map<String, HighlightField>> hls;
+    private boolean onlyCount;
     private int requestedSize;
 
     private InternalAggregations aggregations;
     private List<SiblingPipelineAggregator> pipelineAggregators;
 
     PercolateShardResponse() {
-        hls = new ArrayList<>();
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, ShardId shardId) {
-        super(shardId);
-        this.matches = matches;
+    public PercolateShardResponse(TopDocs topDocs, Map<Integer, String> ids, Map<Integer, Map<String, HighlightField>> hls, PercolateContext context) {
+        super(new ShardId(context.shardTarget().getIndex(), context.shardTarget().getShardId()));
+        this.topDocs = topDocs;
+        this.ids = ids;
         this.hls = hls;
-        this.count = count;
-        this.scores = scores;
-        this.percolatorTypeId = context.percolatorTypeId;
+        this.onlyCount = context.isOnlyCount();
         this.requestedSize = context.size();
         QuerySearchResult result = context.queryResult();
         if (result != null) {
@@ -78,39 +72,25 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         }
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, ShardId shardId) {
-        this(matches, EMPTY_HL, count, scores, context, shardId);
+    public TopDocs topDocs() {
+        return topDocs;
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, ShardId shardId) {
-        this(matches, hls, count, EMPTY_SCORES, context, shardId);
-    }
-
-    public PercolateShardResponse(long count, PercolateContext context, ShardId shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, shardId);
-    }
-
-    public PercolateShardResponse(PercolateContext context, ShardId shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, shardId);
-    }
-
-    public BytesRef[] matches() {
-        return matches;
-    }
-
-    public float[] scores() {
-        return scores;
-    }
-
-    public long count() {
-        return count;
+    /**
+     * Returns per match the percolator query id. The key is the Lucene docId of the matching percolator query.
+     */
+    public Map<Integer, String> ids() {
+        return ids;
     }
 
     public int requestedSize() {
         return requestedSize;
     }
 
-    public List<Map<String, HighlightField>> hls() {
+    /**
+     * Returns per match the highlight snippets. The key is the Lucene docId of the matching percolator query.
+     */
+    public Map<Integer, Map<String, HighlightField>> hls() {
         return hls;
     }
 
@@ -122,36 +102,35 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         return pipelineAggregators;
     }
 
-    public byte percolatorTypeId() {
-        return percolatorTypeId;
+    public boolean onlyCount() {
+        return onlyCount;
     }
 
     public boolean isEmpty() {
-        return percolatorTypeId == 0x00;
+        return topDocs.totalHits == 0;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        percolatorTypeId = in.readByte();
+        onlyCount = in.readBoolean();
         requestedSize = in.readVInt();
-        count = in.readVLong();
-        matches = new BytesRef[in.readVInt()];
-        for (int i = 0; i < matches.length; i++) {
-            matches[i] = in.readBytesRef();
-        }
-        scores = new float[in.readVInt()];
-        for (int i = 0; i < scores.length; i++) {
-            scores[i] = in.readFloat();
-        }
+        topDocs = Lucene.readTopDocs(in);
         int size = in.readVInt();
+        ids = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
+            ids.put(in.readVInt(), in.readString());
+        }
+        size = in.readVInt();
+        hls = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            int docId = in.readVInt();
             int mSize = in.readVInt();
             Map<String, HighlightField> fields = new HashMap<>();
             for (int j = 0; j < mSize; j++) {
                 fields.put(in.readString(), HighlightField.readHighlightField(in));
             }
-            hls.add(fields);
+            hls.put(docId, fields);
         }
         aggregations = InternalAggregations.readOptionalAggregations(in);
         if (in.readBoolean()) {
@@ -169,23 +148,21 @@ public class PercolateShardResponse extends BroadcastShardResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(percolatorTypeId);
+        out.writeBoolean(onlyCount);
         out.writeVLong(requestedSize);
-        out.writeVLong(count);
-        out.writeVInt(matches.length);
-        for (BytesRef match : matches) {
-            out.writeBytesRef(match);
-        }
-        out.writeVLong(scores.length);
-        for (float score : scores) {
-            out.writeFloat(score);
+        Lucene.writeTopDocs(out, topDocs);
+        out.writeVInt(ids.size());
+        for (Map.Entry<Integer, String> entry : ids.entrySet()) {
+            out.writeVInt(entry.getKey());
+            out.writeString(entry.getValue());
         }
         out.writeVInt(hls.size());
-        for (Map<String, HighlightField> hl : hls) {
-            out.writeVInt(hl.size());
-            for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
+        for (Map.Entry<Integer, Map<String, HighlightField>> entry1 : hls.entrySet()) {
+            out.writeVInt(entry1.getKey());
+            out.writeVInt(entry1.getValue().size());
+            for (Map.Entry<String, HighlightField> entry2 : entry1.getValue().entrySet()) {
+                out.writeString(entry2.getKey());
+                entry2.getValue().writeTo(out);
             }
         }
         out.writeOptionalStreamable(aggregations);

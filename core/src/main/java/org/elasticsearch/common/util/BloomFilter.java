@@ -519,6 +519,7 @@ public class BloomFilter {
         return k;
     }
 
+    @SuppressWarnings("fallthrough") // Uses fallthrough to implement a well know hashing algorithm
     public static long hash3_x64_128(byte[] key, int offset, int length, long seed) {
         final int nblocks = length >> 4; // Process as 128-bit blocks.
 
@@ -598,7 +599,7 @@ public class BloomFilter {
             case 2:
                 k1 ^= ((long) key[offset + 1]) << 8;
             case 1:
-                k1 ^= ((long) key[offset]);
+                k1 ^= (key[offset]);
                 k1 *= c1;
                 k1 = rotl64(k1, 31);
                 k1 *= c2;

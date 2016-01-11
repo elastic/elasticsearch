@@ -58,6 +58,7 @@ public class MapperTestUtils {
         return new MapperService(indexSettings,
             analysisService,
             similarityService,
-            mapperRegistry);
+            mapperRegistry,
+            () -> null);
     }
 }

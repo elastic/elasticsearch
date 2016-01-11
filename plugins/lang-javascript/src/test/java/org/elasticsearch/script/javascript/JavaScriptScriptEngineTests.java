@@ -19,6 +19,12 @@
 
 package org.elasticsearch.script.javascript;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -27,12 +33,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -59,6 +59,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
+    @SuppressWarnings("unchecked")
     public void testMapAccess() {
         Map<String, Object> vars = new HashMap<String, Object>();
 
@@ -75,15 +76,17 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((String) o), equalTo("2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testJavaScriptObjectToMap() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectToMap", "js",
                 se.compile("var obj1 = {}; obj1.prop1 = 'value1'; obj1.obj2 = {}; obj1.obj2.prop2 = 'value2'; obj1", Collections.emptyMap())), vars).run();
-        Map obj1 = (Map) o;
+        Map<String, Object> obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testJavaScriptObjectMapInter() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
@@ -102,6 +105,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testJavaScriptInnerArrayCreation() {
         Map<String, Object> ctx = new HashMap<String, Object>();
         Map<String, Object> doc = new HashMap<String, Object>();
@@ -115,9 +119,10 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
 
         Map<String, Object> unwrap = (Map<String, Object>) script.unwrap(ctx);
 
-        assertThat(((Map) unwrap.get("doc")).get("field1"), instanceOf(List.class));
+        assertThat(((Map<String, Object>) unwrap.get("doc")).get("field1"), instanceOf(List.class));
     }
 
+    @SuppressWarnings("unchecked")
     public void testAccessListInScript() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();

@@ -35,5 +35,3 @@ dependencyLicenses {
   mapping from: /stax-.*/, to: 'stax'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-serial'
-

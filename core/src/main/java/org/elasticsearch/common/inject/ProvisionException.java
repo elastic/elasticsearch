@@ -68,6 +68,4 @@ public final class ProvisionException extends RuntimeException {
     public String getMessage() {
         return Errors.format("Guice provision errors", messages);
     }
-
-    private static final long serialVersionUID = 0;
 }

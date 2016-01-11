@@ -21,7 +21,6 @@ import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
 
-import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -108,8 +107,7 @@ public class MoreTypes {
 
     /**
      * Returns a type that is functionally equal but not necessarily equal
-     * according to {@link Object#equals(Object) Object.equals()}. The returned
-     * type is {@link Serializable}.
+     * according to {@link Object#equals(Object) Object.equals()}.
      */
     public static Type canonicalize(Type type) {
         if (type instanceof ParameterizedTypeImpl
@@ -138,17 +136,6 @@ public class MoreTypes {
             // type is either serializable as-is or unsupported
             return type;
         }
-    }
-
-    /**
-     * Returns a type that's functionally equal but not necessarily equal
-     * according to {@link Object#equals(Object) Object.equals}. The returned
-     * member is {@link Serializable}.
-     */
-    public static Member serializableCopy(Member member) {
-        return member instanceof MemberImpl
-                ? member
-                : new MemberImpl(member);
     }
 
     public static Class<?> getRawType(Type type) {
@@ -450,7 +437,7 @@ public class MoreTypes {
     }
 
     public static class ParameterizedTypeImpl
-            implements ParameterizedType, Serializable, CompositeType {
+            implements ParameterizedType, CompositeType {
         private final Type ownerType;
         private final Type rawType;
         private final Type[] typeArguments;
@@ -527,12 +514,10 @@ public class MoreTypes {
         public String toString() {
             return MoreTypes.toString(this);
         }
-
-        private static final long serialVersionUID = 0;
     }
 
     public static class GenericArrayTypeImpl
-            implements GenericArrayType, Serializable, CompositeType {
+            implements GenericArrayType, CompositeType {
         private final Type componentType;
 
         public GenericArrayTypeImpl(Type componentType) {
@@ -564,8 +549,6 @@ public class MoreTypes {
         public String toString() {
             return MoreTypes.toString(this);
         }
-
-        private static final long serialVersionUID = 0;
     }
 
     /**
@@ -573,7 +556,7 @@ public class MoreTypes {
      * lower bounds. We only support what the Java 6 language needs - at most one
      * bound. If a lower bound is set, the upper bound must be Object.class.
      */
-    public static class WildcardTypeImpl implements WildcardType, Serializable, CompositeType {
+    public static class WildcardTypeImpl implements WildcardType, CompositeType {
         private final Type upperBound;
         private final Type lowerBound;
 
@@ -632,8 +615,6 @@ public class MoreTypes {
         public String toString() {
             return MoreTypes.toString(this);
         }
-
-        private static final long serialVersionUID = 0;
     }
 
     private static void checkNotPrimitive(Type type, String use) {
@@ -647,7 +628,7 @@ public class MoreTypes {
      * our exception types. We workaround this with this serializable implementation. It includes all
      * of the API methods, plus everything we use for line numbers and messaging.
      */
-    public static class MemberImpl implements Member, Serializable {
+    public static class MemberImpl implements Member {
         private final Class<?> declaringClass;
         private final String name;
         private final int modifiers;

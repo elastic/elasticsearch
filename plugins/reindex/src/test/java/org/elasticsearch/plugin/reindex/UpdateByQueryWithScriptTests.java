@@ -24,7 +24,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class UpdateByQueryWithScriptTests extends AsyncBulkIndexByScrollActionTest<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+public class UpdateByQueryWithScriptTests
+        extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     public void testModifyingCtxNotAllowed() {
         /*
          * Its important that none of these actually match any of the fields.

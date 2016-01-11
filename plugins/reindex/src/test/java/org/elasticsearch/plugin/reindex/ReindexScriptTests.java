@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests index-by-search with a script modifying the documents.
  */
-public class ReindexScriptTests extends AsyncBulkIndexByScrollActionTest<ReindexRequest, ReindexResponse> {
+public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, ReindexResponse> {
     public void testSetIndex() throws Exception {
         Object dest = randomFrom(new Object[] {234, 234l, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));

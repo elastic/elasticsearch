@@ -19,21 +19,36 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.junit.Before;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests that indexing from an index back into itself fails the request.
  */
-public class ReindexSameIndexTests extends ReindexTestCase {
-    @Before
-    public void createIndices() {
-        createIndex("target", "target2", "foo", "bar", "baz", "source", "source2");
-        ensureGreen();
-    }
+public class ReindexSameIndexTests extends ESTestCase {
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
+                .put(index("target", "target_alias", "target_multi"), true)
+                .put(index("target2", "target_multi"), true)
+                .put(index("foo"), true)
+                .put(index("bar"), true)
+                .put(index("baz"), true)
+                .put(index("source", "source_multi"), true)
+                .put(index("source2", "source_multi"), true)).build();
+    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
+    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY, INDEX_NAME_EXPRESSION_RESOLVER);
 
     public void testObviousCases() throws Exception {
         fails("target", "target");
@@ -44,11 +59,6 @@ public class ReindexSameIndexTests extends ReindexTestCase {
     }
 
     public void testAliasesContainTarget() throws Exception {
-        assertAcked(client().admin().indices().prepareAliases()
-                .addAlias("target", "target_alias")
-                .addAlias(new String[] {"target", "target2"}, "target_multi")
-                .addAlias(new String[] {"source", "source2"}, "source_multi"));
-
         fails("target", "target_alias");
         fails("target_alias", "target");
         fails("target", "foo", "bar", "target_alias", "baz");
@@ -62,11 +72,8 @@ public class ReindexSameIndexTests extends ReindexTestCase {
     }
 
     public void testTargetIsAlias() throws Exception {
-        assertAcked(client().admin().indices().prepareAliases()
-                .addAlias(new String[] {"target", "target2"}, "target_multi"));
-
         try {
-            reindex().source("foo").destination("target_multi").get();
+            succeeds("target_multi", "foo");
             fail("Expected failure");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
@@ -78,7 +85,7 @@ public class ReindexSameIndexTests extends ReindexTestCase {
 
     private void fails(String target, String... sources) throws Exception {
         try {
-            reindex().source(sources).destination(target).get();
+            succeeds(target, sources);
             fail("Expected an exception");
         } catch (ActionRequestValidationException e) {
             assertThat(e.getMessage(),
@@ -87,6 +94,18 @@ public class ReindexSameIndexTests extends ReindexTestCase {
     }
 
     private void succeeds(String target, String... sources) throws Exception {
-        reindex().source(sources).destination(target).get();
+        TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), INDEX_NAME_EXPRESSION_RESOLVER,
+                AUTO_CREATE_INDEX, STATE);
+    }
+
+    private static IndexMetaData index(String name, String... aliases) {
+        IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
+                .put("index.version.created", Version.CURRENT.id)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1));
+        for (String alias: aliases) {
+            builder.putAlias(AliasMetaData.builder(alias).build());
+        }
+        return builder.build();
     }
 }

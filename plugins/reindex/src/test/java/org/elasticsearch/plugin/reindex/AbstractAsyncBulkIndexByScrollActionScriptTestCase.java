@@ -20,16 +20,11 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,29 +33,8 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AsyncBulkIndexByScrollActionTest<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse> extends ESTestCase {
-    protected ThreadPool threadPool;
-
-    @Before
-    public void setupForTest() {
-        threadPool = new ThreadPool(getTestName());
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        threadPool.shutdown();
-    }
-
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request, Response> action();
-
-    protected abstract Request request();
-
-    protected PlainActionFuture<Response> listener() {
-        return new PlainActionFuture<>();
-    }
-
+public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+        extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
     protected IndexRequest applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         Map<String, SearchHitField> fields = new HashMap<>();

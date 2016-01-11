@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Mutates a document while update-by-query-ing it and asserts that the mutation
- * always sticks. Update-by-query should never revert.
+ * always sticks. Update-by-query should never revert documents.
  */
 public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
     private static final int MAX_MUTATIONS = 50;
@@ -65,9 +65,9 @@ public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
                 IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
                         .setRefresh(true);
                 /*
-                 * Reindex increments the version number so concurrent indexes
-                 * might get version conflict exceptions so we just blindly
-                 * retry.
+                 * Update by query increments the version number so concurrent
+                 * indexes might get version conflict exceptions so we just
+                 * blindly retry.
                  */
                 int attempts = 0;
                 while (true) {

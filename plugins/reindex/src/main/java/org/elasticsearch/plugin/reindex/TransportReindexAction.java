@@ -22,11 +22,13 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -64,23 +66,36 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
-        String target = request.getDestination().index();
-        if (false == autoCreateIndex.shouldAutoCreate(target, clusterService.state())) {
+        validateAgainstAliases(request.getSource(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
+                clusterService.state());
+        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
+    }
+
+    /**
+     * Throws an ActionRequestValidationException if the request tries to index
+     * back into the same index or into an index that points to two indexes.
+     * This cannot be done during request validation because the cluster state
+     * isn't available then. Package private for testing.
+     */
+    static String validateAgainstAliases(SearchRequest source, IndexRequest destination,
+            IndexNameExpressionResolver indexNameExpressionResolver, AutoCreateIndex autoCreateIndex, ClusterState clusterState) {
+        String target = destination.index();
+        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteIndices(clusterService.state(), request.getDestination())[0];
+            target = indexNameExpressionResolver.concreteIndices(clusterState, destination)[0];
         }
-        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterService.state(), request.getSource())) {
+        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterState, source)) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
-        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
+        return target;
     }
 
     /**

@@ -58,7 +58,6 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-
         if (IndexAction.NAME.equals(action)) {
             assert request instanceof IndexRequest;
             IndexRequest indexRequest = (IndexRequest) request;
@@ -70,10 +69,22 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         if (BulkAction.NAME.equals(action)) {
             assert request instanceof BulkRequest;
             BulkRequest bulkRequest = (BulkRequest) request;
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
-            processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
-            return;
+            boolean isIngestRequest = false;
+            for (ActionRequest actionRequest : bulkRequest.requests()) {
+                if (actionRequest instanceof IndexRequest) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    if (Strings.hasText(indexRequest.pipeline())) {
+                        isIngestRequest = true;
+                        break;
+                    }
+                }
+            }
+            if (isIngestRequest) {
+                @SuppressWarnings("unchecked")
+                ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
+                processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
+                return;
+            }
         }
 
         chain.proceed(task, action, request, listener);

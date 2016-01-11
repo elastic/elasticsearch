@@ -78,8 +78,8 @@ supported scripting languages:
 |expression |yes       |built-in
 |mustache   |yes       |built-in
 |mvel       |no        |https://github.com/elastic/elasticsearch-lang-mvel[elasticsearch-lang-mvel]
-|javascript |no        |https://github.com/elastic/elasticsearch-lang-javascript[elasticsearch-lang-javascript]
-|python     |no        |https://github.com/elastic/elasticsearch-lang-python[elasticsearch-lang-python]
+|javascript |no        |https://github.com/elastic/elasticsearch/tree/master/plugins/lang-javascript[elasticsearch-lang-javascript]
+|python     |no        |https://github.com/elastic/elasticsearch/tree/master/plugins/lang-python[elasticsearch-lang-python]
 |=======================================================================
 
 To increase security, Elasticsearch does not allow you to specify scripts for

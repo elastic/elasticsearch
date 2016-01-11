@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -48,13 +47,13 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected MissingAggregator.Factory<ValuesSource> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected MissingAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MissingAggregator.Factory<ValuesSource>(aggregationName, valuesSourceType, targetValueType);
+        return new MissingAggregator.Factory(aggregationName, targetValueType);
     }
 
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new MissingAggregator.Factory<ValuesSource>(null, null, null) };
+        return new AggregatorFactory[] { new MissingAggregator.Factory(null, null) };
     }
 }

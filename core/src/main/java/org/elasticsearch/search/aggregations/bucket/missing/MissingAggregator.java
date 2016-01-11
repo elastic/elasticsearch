@@ -85,10 +85,10 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS, Factory<VS>> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Factory> {
 
-        public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
-            super(name, InternalMissing.TYPE, valuesSourceType, valueType);
+        public Factory(String name, ValueType targetValueType) {
+            super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
         }
 
         @Override
@@ -98,15 +98,15 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected MissingAggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
-        protected Factory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new Factory<VS>(name, valuesSourceType, targetValueType);
+            return new Factory(name, targetValueType);
         }
 
         @Override

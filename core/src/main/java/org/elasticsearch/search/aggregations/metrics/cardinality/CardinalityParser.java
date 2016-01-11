@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -47,10 +46,9 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected CardinalityAggregatorFactory<ValuesSource> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected CardinalityAggregatorFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        CardinalityAggregatorFactory<ValuesSource> factory = new CardinalityAggregatorFactory<>(aggregationName, valuesSourceType,
-                targetValueType);
+        CardinalityAggregatorFactory factory = new CardinalityAggregatorFactory(aggregationName, targetValueType);
         Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregatorFactory.PRECISION_THRESHOLD_FIELD);
         if (precisionThreshold != null) {
             factory.precisionThreshold(precisionThreshold);
@@ -75,6 +73,6 @@ public class CardinalityParser extends AnyValuesSourceParser {
 
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new CardinalityAggregatorFactory<ValuesSource>(null, null, null) };
+        return new AggregatorFactory[] { new CardinalityAggregatorFactory(null, null) };
     }
 }

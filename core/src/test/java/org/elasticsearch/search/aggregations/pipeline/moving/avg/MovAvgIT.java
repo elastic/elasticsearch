@@ -26,10 +26,7 @@ import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregator;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
@@ -1365,9 +1362,9 @@ public class MovAvgIT extends ESIntegTestCase {
 
         switch (rand) {
             case 0:
-                return new MinAggregator.Factory(name).field(field);
+                return min(name).field(field);
             case 2:
-                return new MaxAggregator.Factory(name).field(field);
+                return max(name).field(field);
             case 3:
                 return avg(name).field(field);
             default:

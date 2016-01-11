@@ -21,16 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregator;
 
-public class MissingTests extends BaseAggregationTestCase<ValueCountAggregator.Factory<? extends ValuesSource>> {
+public class MissingTests extends BaseAggregationTestCase<MissingAggregator.Factory> {
 
     @Override
-    protected final ValueCountAggregator.Factory<? extends ValuesSource> createTestAggregatorFactory() {
-        ValueCountAggregator.Factory<ValuesSource> factory = new ValueCountAggregator.Factory<ValuesSource>("foo", ValuesSourceType.ANY,
-                null);
+    protected final MissingAggregator.Factory createTestAggregatorFactory() {
+        MissingAggregator.Factory factory = new MissingAggregator.Factory("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

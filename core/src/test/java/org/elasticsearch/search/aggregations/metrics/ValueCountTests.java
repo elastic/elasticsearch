@@ -22,15 +22,12 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregator.Factory<? extends ValuesSource>> {
+public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregator.Factory> {
 
     @Override
-    protected final ValueCountAggregator.Factory<? extends ValuesSource> createTestAggregatorFactory() {
-        ValueCountAggregator.Factory<ValuesSource> factory = new ValueCountAggregator.Factory<ValuesSource>("foo", ValuesSourceType.ANY,
-                null);
+    protected final ValueCountAggregator.Factory createTestAggregatorFactory() {
+        ValueCountAggregator.Factory factory = new ValueCountAggregator.Factory("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

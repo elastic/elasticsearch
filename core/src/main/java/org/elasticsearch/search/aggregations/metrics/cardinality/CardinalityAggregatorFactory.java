@@ -37,22 +37,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class CardinalityAggregatorFactory<VS extends ValuesSource>
-        extends ValuesSourceAggregatorFactory.LeafOnly<VS, CardinalityAggregatorFactory<VS>> {
+public final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource, CardinalityAggregatorFactory> {
 
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
     private Long precisionThreshold = null;
 
-    public CardinalityAggregatorFactory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
-        super(name, InternalCardinality.TYPE, valuesSourceType, valueType);
+    public CardinalityAggregatorFactory(String name, ValueType targetValueType) {
+        super(name, InternalCardinality.TYPE, ValuesSourceType.ANY, targetValueType);
     }
 
     /**
      * Set a precision threshold. Higher values improve accuracy but also
      * increase memory usage.
      */
-    public CardinalityAggregatorFactory<VS> precisionThreshold(long precisionThreshold) {
+    public CardinalityAggregatorFactory precisionThreshold(long precisionThreshold) {
         this.precisionThreshold = precisionThreshold;
         return this;
     }
@@ -85,16 +84,16 @@ public final class CardinalityAggregatorFactory<VS extends ValuesSource>
     }
 
     @Override
-    protected Aggregator doCreateInternal(VS valuesSource, AggregationContext context, Aggregator parent,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
     }
 
     @Override
-    protected CardinalityAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected CardinalityAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        CardinalityAggregatorFactory<VS> factory = new CardinalityAggregatorFactory<>(name, valuesSourceType, targetValueType);
+        CardinalityAggregatorFactory factory = new CardinalityAggregatorFactory(name, targetValueType);
         if (in.readBoolean()) {
             factory.precisionThreshold = in.readLong();
         }
@@ -125,7 +124,7 @@ public final class CardinalityAggregatorFactory<VS extends ValuesSource>
 
     @Override
     protected boolean innerEquals(Object obj) {
-        CardinalityAggregatorFactory<ValuesSource> other = (CardinalityAggregatorFactory<ValuesSource>) obj;
+        CardinalityAggregatorFactory other = (CardinalityAggregatorFactory) obj;
         return Objects.equals(precisionThreshold, other.precisionThreshold);
     }
 

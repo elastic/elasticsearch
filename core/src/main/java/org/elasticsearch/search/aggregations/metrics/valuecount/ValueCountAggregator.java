@@ -112,10 +112,10 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS, Factory<VS>> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource, Factory> {
 
-        public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
-            super(name, InternalValueCount.TYPE, valuesSourceType, valueType);
+        public Factory(String name, ValueType targetValueType) {
+            super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
         }
 
         @Override
@@ -125,7 +125,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+        protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators,
@@ -133,9 +133,9 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<VS, Factory<VS>> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorFactory<ValuesSource, Factory> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new ValueCountAggregator.Factory<VS>(name, valuesSourceType, targetValueType);
+            return new ValueCountAggregator.Factory(name, targetValueType);
         }
 
         @Override

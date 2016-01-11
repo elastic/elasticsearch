@@ -21,15 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorFactory<? extends ValuesSource>> {
+public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorFactory> {
 
     @Override
-    protected final CardinalityAggregatorFactory<? extends ValuesSource> createTestAggregatorFactory() {
-        CardinalityAggregatorFactory<ValuesSource> factory = new CardinalityAggregatorFactory<ValuesSource>("foo", ValuesSourceType.ANY,
-                null);
+    protected final CardinalityAggregatorFactory createTestAggregatorFactory() {
+        CardinalityAggregatorFactory factory = new CardinalityAggregatorFactory("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

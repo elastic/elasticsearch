@@ -52,31 +52,31 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
-import org.elasticsearch.search.aggregations.metrics.min.MinBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuilder;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricBuilder;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregator;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregator;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregator;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountBuilder;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
 
 /**
  * Utility class to create aggregations.
@@ -89,8 +89,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link ValueCount} aggregation with the given name.
      */
-    public static ValueCountBuilder count(String name) {
-        return new ValueCountBuilder(name);
+    public static ValueCountAggregator.Factory count(String name) {
+        return new ValueCountAggregator.Factory(name, null);
     }
 
     /**
@@ -103,29 +103,29 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Max} aggregation with the given name.
      */
-    public static MaxBuilder max(String name) {
-        return new MaxBuilder(name);
+    public static MaxAggregator.Factory max(String name) {
+        return new MaxAggregator.Factory(name);
     }
 
     /**
      * Create a new {@link Min} aggregation with the given name.
      */
-    public static MinBuilder min(String name) {
-        return new MinBuilder(name);
+    public static MinAggregator.Factory min(String name) {
+        return new MinAggregator.Factory(name);
     }
 
     /**
      * Create a new {@link Sum} aggregation with the given name.
      */
-    public static SumBuilder sum(String name) {
-        return new SumBuilder(name);
+    public static SumAggregator.Factory sum(String name) {
+        return new SumAggregator.Factory(name);
     }
 
     /**
      * Create a new {@link Stats} aggregation with the given name.
      */
-    public static StatsBuilder stats(String name) {
-        return new StatsBuilder(name);
+    public static StatsAggregator.Factory stats(String name) {
+        return new StatsAggregator.Factory(name);
     }
 
     /**
@@ -271,8 +271,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Cardinality} aggregation with the given name.
      */
-    public static CardinalityBuilder cardinality(String name) {
-        return new CardinalityBuilder(name);
+    public static CardinalityAggregatorFactory cardinality(String name) {
+        return new CardinalityAggregatorFactory(name, null);
     }
 
     /**
@@ -285,21 +285,21 @@ public class AggregationBuilders {
     /**
      * Create a new {@link GeoBounds} aggregation with the given name.
      */
-    public static GeoBoundsBuilder geoBounds(String name) {
-        return new GeoBoundsBuilder(name);
+    public static GeoBoundsAggregator.Factory geoBounds(String name) {
+        return new GeoBoundsAggregator.Factory(name);
     }
 
     /**
      * Create a new {@link GeoCentroid} aggregation with the given name.
      */
-    public static GeoCentroidBuilder geoCentroid(String name) {
-        return new GeoCentroidBuilder(name);
+    public static GeoCentroidAggregator.Factory geoCentroid(String name) {
+        return new GeoCentroidAggregator.Factory(name);
     }
 
     /**
      * Create a new {@link ScriptedMetric} aggregation with the given name.
      */
-    public static ScriptedMetricBuilder scriptedMetric(String name) {
-        return new ScriptedMetricBuilder(name);
+    public static ScriptedMetricAggregator.Factory scriptedMetric(String name) {
+        return new ScriptedMetricAggregator.Factory(name);
     }
 }

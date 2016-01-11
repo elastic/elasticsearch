@@ -195,9 +195,6 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  * @author Refactoring from CronTrigger to CronExpression by Aaron Craven
  */
 public class Cron {
-
-    private static final long serialVersionUID = 12423409423L;
-
     protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
     protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
 

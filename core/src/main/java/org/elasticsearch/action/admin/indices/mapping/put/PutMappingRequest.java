@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -96,7 +97,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets the indices this put mapping operation will execute on.
      */
     @Override
-    public PutMappingRequest indices(String[] indices) {
+    public PutMappingRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

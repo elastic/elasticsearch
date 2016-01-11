@@ -113,15 +113,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -770,51 +761,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Validate a query for correctness.
      */
     ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    void putWarmer(PutWarmerRequest request, ActionListener<PutWarmerResponse> listener);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    PutWarmerRequestBuilder preparePutWarmer(String name);
-
-    /**
-     * Deletes an index warmer.
-     */
-    ActionFuture<DeleteWarmerResponse> deleteWarmer(DeleteWarmerRequest request);
-
-    /**
-     * Deletes an index warmer.
-     */
-    void deleteWarmer(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener);
-
-    /**
-     * Deletes an index warmer.
-     */
-    DeleteWarmerRequestBuilder prepareDeleteWarmer();
-
-    /**
-     * Returns a map of index warmers for the given get request.
-     */
-    void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener);
-
-    /**
-     * Returns a map of index warmers for the given get request.
-     */
-    ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request);
-
-    /**
-     * Returns a new builder to fetch index warmer metadata for the given indices.
-     */
-    GetWarmersRequestBuilder prepareGetWarmers(String... indices);
 
     /**
      * Executed a per index settings get request and returns the settings for the indices specified.

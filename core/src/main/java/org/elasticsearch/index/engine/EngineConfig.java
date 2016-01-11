@@ -31,13 +31,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
@@ -57,7 +56,6 @@ public final class EngineConfig {
     private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
-    private final ShardIndexingService indexingService;
     private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
@@ -96,7 +94,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
+    public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
@@ -105,7 +103,6 @@ public final class EngineConfig {
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.indexingService = indexingService;
         this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -144,7 +141,7 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link org.elasticsearch.indices.memory.IndexingMemoryController}
+     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link IndexingMemoryController}
      */
     public ByteSizeValue getIndexingBufferSize() {
         return indexingBufferSize;
@@ -186,18 +183,6 @@ public final class EngineConfig {
      */
     public ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    /**
-     * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index. The operations are used for statistic purposes etc.
-     *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
-     *
-     */
-    public ShardIndexingService getIndexingService() {
-        return indexingService;
     }
 
     /**

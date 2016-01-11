@@ -181,6 +181,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenizers.put("standard", StandardTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.put("keyword", KeywordTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
         tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
@@ -409,6 +410,7 @@ public final class AnalysisRegistry implements Closeable {
             // Tokenizer aliases
             tokenizerFactories.put("nGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.NGRAM.getTokenizerFactory(Version.CURRENT)));
             tokenizerFactories.put("edgeNGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.EDGE_NGRAM.getTokenizerFactory(Version.CURRENT)));
+            tokenizerFactories.put("PathHierarchy", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.PATH_HIERARCHY.getTokenizerFactory(Version.CURRENT)));
 
 
             // Token filters

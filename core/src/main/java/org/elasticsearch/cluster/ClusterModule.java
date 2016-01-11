@@ -67,7 +67,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.indexing.IndexingSlowLog;
+import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 import org.elasticsearch.index.shard.IndexShard;

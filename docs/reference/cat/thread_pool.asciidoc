@@ -63,7 +63,7 @@ Currently available <<modules-threadpool,thread pools>>:
 |`search` |`s` |Thread pool used for <<search-search,search>>/<<search-count,count>> operations
 |`snapshot` |`sn` |Thread pool used for <<modules-snapshots,snapshot>> operations
 |`suggest` |`su` |Thread pool used for <<search-suggesters,suggester>> operations
-|`warmer` |`w` |Thread pool used for <<indices-warmers,index warm-up>> operations
+|`warmer` |`w` |Thread pool used for index warm-up operations
 |=======================================================================
 
 The thread pool name (or alias) must be combined with a thread pool field below

@@ -26,6 +26,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -71,7 +71,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     IndexRoutingTable(String index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
-        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {

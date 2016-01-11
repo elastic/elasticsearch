@@ -86,11 +86,6 @@ import java.util.Objects;
  *
  */
 public class Lucene {
-
-    // TODO: remove VERSION, and have users use Version.LATEST.
-    public static final Version VERSION = Version.LATEST;
-    public static final Version ANALYZER_VERSION = VERSION;
-    public static final Version QUERYPARSER_VERSION = VERSION;
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
     public static final String LATEST_CODEC = "Lucene54";
@@ -109,7 +104,6 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
 
-    @SuppressWarnings("deprecation")
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;

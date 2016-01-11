@@ -52,7 +52,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
                 Collections.emptyMap());
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
     }
 
     public void testDefaults() throws Exception {
@@ -128,7 +128,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
@@ -144,7 +144,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", "murmur3")

@@ -51,6 +51,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -177,10 +179,10 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
-
+        private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
+        private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
-
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public Releasable acquireThrottle() {
@@ -190,6 +192,7 @@ public abstract class Engine implements Closeable {
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
+            startOfThrottleNS = System.nanoTime();
             lock = lockReference;
         }
 
@@ -197,7 +200,45 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
             lock = NOOP_LOCK;
+
+            assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
+            long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
+            if (throttleTimeNS >= 0) {
+                // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
+                throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
+            }
         }
+
+        long getThrottleTimeInMillis() {
+            long currentThrottleNS = 0;
+            if (isThrottled() && startOfThrottleNS != 0) {
+                currentThrottleNS +=  System.nanoTime() - startOfThrottleNS;
+                if (currentThrottleNS < 0) {
+                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip must have happened, have to ignore this value
+                    currentThrottleNS = 0;
+                }
+            }
+            return throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS);
+        }
+
+        boolean isThrottled() {
+            return lock != NOOP_LOCK;
+        }
+    }
+
+    /**
+     * Returns the number of milliseconds this engine was under index throttling.
+     */
+    public long getIndexThrottleTimeInMillis() {
+        return 0;
+    }
+
+    /**
+     * Returns the <code>true</code> iff this engine is currently under index throttling.
+     * @see #getIndexThrottleTimeInMillis()
+     */
+    public boolean isThrottled() {
+        return false;
     }
 
     /** A Lock implementation that always allows the lock to be acquired */
@@ -923,7 +964,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class GetResult {
+    public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
         private final Translog.Source source;
@@ -967,6 +1008,11 @@ public abstract class Engine implements Closeable {
 
         public Versions.DocIdAndVersion docIdAndVersion() {
             return docIdAndVersion;
+        }
+
+        @Override
+        public void close() {
+            release();
         }
 
         public void release() {

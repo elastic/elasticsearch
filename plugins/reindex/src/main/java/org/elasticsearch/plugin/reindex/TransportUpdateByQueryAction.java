@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -57,15 +58,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(UpdateByQueryRequest request,
             ActionListener<BulkIndexByScrollResponse> listener) {
-        new AsyncIndexBySearchAction(request, listener).start();
+        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
     }
 
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
-        public AsyncIndexBySearchAction(UpdateByQueryRequest request,
-                ActionListener<BulkIndexByScrollResponse> listener) {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        public AsyncIndexBySearchAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
+                UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
             super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 

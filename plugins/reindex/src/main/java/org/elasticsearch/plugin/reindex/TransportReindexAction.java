@@ -29,6 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
@@ -79,7 +80,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 throw e;
             }
         }
-        new AsyncIndexBySearchAction(request, listener).start();
+        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
     }
 
     /**
@@ -88,8 +89,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
-        public AsyncIndexBySearchAction(ReindexRequest request, ActionListener<ReindexResponse> listener) {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
+        public AsyncIndexBySearchAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
+                ReindexRequest request, ActionListener<ReindexResponse> listener) {
             super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 

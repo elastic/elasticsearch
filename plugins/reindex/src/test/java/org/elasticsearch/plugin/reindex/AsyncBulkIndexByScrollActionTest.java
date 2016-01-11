@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -39,16 +38,12 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncBulkIndexByScrollActionTest extends ESTestCase {
-    private ThreadPool threadPool;
-    private DummyBulkIndexByScrollRequest mainRequest;
-    private PlainActionFuture<BulkIndexByScrollResponse> listener;
+public abstract class AsyncBulkIndexByScrollActionTest<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse> extends ESTestCase {
+    protected ThreadPool threadPool;
 
     @Before
     public void setupForTest() {
         threadPool = new ThreadPool(getTestName());
-        mainRequest = new DummyBulkIndexByScrollRequest();
-        listener = new PlainActionFuture<>();
     }
 
     @After
@@ -58,104 +53,39 @@ public class AsyncBulkIndexByScrollActionTest extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testScriptAddingJunkToCtxIsError() {
+    protected abstract AbstractAsyncBulkIndexByScrollAction<Request, Response> action();
+
+    protected abstract Request request();
+
+    protected PlainActionFuture<Response> listener() {
+        return new PlainActionFuture<>();
+    }
+
+    protected IndexRequest applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         Map<String, SearchHitField> fields = new HashMap<>();
         InternalSearchHit doc = new InternalSearchHit(0, "id", new StringText("type"), fields);
         doc.shardTarget(new SearchShardTarget("nodeid", "index", 1));
-        ExecutableScript script = new SimpleExecuteableScript((Map<String, Object> ctx) -> ctx.put("junk", "junk"));
+        ExecutableScript script = new SimpleExecutableScript(scriptBody);
+        action().applyScript(index, doc, script, new HashMap<>());
+        return index;
+    }
+
+    public void testScriptAddingJunkToCtxIsError() {
         try {
-            new DummyAsyncBulkIndexByScrollAction().applyScript(index, doc, script, new HashMap<>());
+            applyScript((Map<String, Object> ctx) -> ctx.put("junk", "junk"));
             fail("Expected error");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Invalid fields added to ctx [junk]"));
         }
     }
 
-    private class DummyAsyncBulkIndexByScrollAction
-            extends AbstractAsyncBulkIndexByScrollAction<DummyBulkIndexByScrollRequest, BulkIndexByScrollResponse> {
-
-        public DummyAsyncBulkIndexByScrollAction() {
-            super(logger, null, null, threadPool, AsyncBulkIndexByScrollActionTest.this.mainRequest, null, listener);
-        }
-
-        @Override
-        protected IndexRequest buildIndexRequest(SearchHit doc) {
-            return null;
-        }
-
-        @Override
-        protected void scriptChangedIndex(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedType(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedId(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedVersion(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedRouting(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedParent(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedTimestamp(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected void scriptChangedTTL(IndexRequest index, Object to) {
-        }
-
-        @Override
-        protected BulkIndexByScrollResponse buildResponse(long took) {
-            return null;
-        }
-    }
-
-    private static class DummyBulkIndexByScrollRequest extends AbstractBulkIndexByScrollRequest<DummyBulkIndexByScrollRequest> {
-        @Override
-        protected DummyBulkIndexByScrollRequest self() {
-            return null;
-        }
-    }
-
-    private static class SimpleExecuteableScript implements ExecutableScript {
-        private final Consumer<Map<String, Object>> script;
-        private Map<String, Object> ctx;
-
-        public SimpleExecuteableScript(Consumer<Map<String, Object>> script) {
-            this.script = script;
-        }
-
-        @Override
-        public Object run() {
-            script.accept(ctx);
-            return null;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void setNextVar(String name, Object value) {
-            if ("ctx".equals(name)) {
-                ctx = (Map<String, Object>) value;
-            } else {
-                throw new IllegalArgumentException("Unsupported var [" + name + "]");
-            }
-        }
-
-        @Override
-        public Object unwrap(Object value) {
-            return value;
-        }
+    public void testChangeSource() {
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+            source.put("bar", "cat");
+        });
+        assertEquals("cat", index.sourceAsMap().get("bar"));
     }
 }

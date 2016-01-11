@@ -160,7 +160,7 @@ shared file system repository.
 Other repository backends are available in these official plugins:
 
 * {plugins}/repository-s3.html[repository-s3] for S3 repository support
-* {plugins}/repository-s3.html[repository-hdfs] for HDFS repository support in Hadoop environments
+* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
 * {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
 
 [float]

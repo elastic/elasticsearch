@@ -31,13 +31,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -45,6 +44,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,26 +67,6 @@ public class ShardStateActionTests extends ESTestCase {
             super(settings, clusterService, transportService, allocationService, routingService);
         }
 
-        private Runnable onBeforeTimeout;
-
-        public void setOnBeforeTimeout(Runnable onBeforeTimeout) {
-            this.onBeforeTimeout = onBeforeTimeout;
-        }
-
-        private Runnable onAfterTimeout;
-
-
-        public void setOnAfterTimeout(Runnable onAfterTimeout) {
-            this.onAfterTimeout = onAfterTimeout;
-        }
-
-        @Override
-        protected void handleTimeout(ShardRoutingEntry shardRoutingEntry, ClusterStateObserver observer, TransportRequestOptions options, Listener listener) {
-            onBeforeTimeout.run();
-            super.handleTimeout(shardRoutingEntry, observer, options, listener);
-            onAfterTimeout.run();
-        }
-
         private Runnable onBeforeWaitForNewMasterAndRetry;
 
         public void setOnBeforeWaitForNewMasterAndRetry(Runnable onBeforeWaitForNewMasterAndRetry) {
@@ -99,9 +80,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, TransportRequestOptions options, Listener listener) {
+        protected void waitForNewMasterAndRetry(ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, Listener listener) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(observer, shardRoutingEntry, options, listener);
+            super.waitForNewMasterAndRetry(observer, shardRoutingEntry, listener);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }
@@ -121,8 +102,6 @@ public class ShardStateActionTests extends ESTestCase {
         transportService.start();
         this.timeout = new AtomicBoolean();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
-        shardStateAction.setOnBeforeTimeout(() -> {});
-        shardStateAction.setOnAfterTimeout(() -> {});
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {});
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});
     }
@@ -173,7 +152,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertTrue(success.get());
     }
 
-    public void testMasterLeft() throws InterruptedException {
+    public void testMasterChannelException() throws InterruptedException {
         final String index = "test";
 
         clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
@@ -193,13 +172,22 @@ public class ShardStateActionTests extends ESTestCase {
                 success.set(true);
                 latch.countDown();
             }
+
+            @Override
+            public void onShardFailedFailure(Exception e) {
+                success.set(false);
+                latch.countDown();
+            }
         });
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
         transport.clear();
         assertThat(capturedRequests.length, equalTo(1));
         assertFalse(success.get());
-        transport.handleResponse(capturedRequests[0].requestId, new NotMasterException("simulated"));
+        List<Exception> possibleExceptions = new ArrayList<>();
+        possibleExceptions.add(new NotMasterException("simulated"));
+        possibleExceptions.add(new NodeDisconnectedException(clusterService.state().nodes().masterNode(), ShardStateAction.SHARD_FAILED_ACTION_NAME));
+        transport.handleResponse(capturedRequests[0].requestId, randomFrom(possibleExceptions));
 
         latch.await();
         assertTrue(success.get());

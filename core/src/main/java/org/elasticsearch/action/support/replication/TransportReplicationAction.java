@@ -92,8 +92,6 @@ import java.util.function.Supplier;
  */
 public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
-    public static final String SHARD_FAILURE_TIMEOUT = "action.support.replication.shard.failure_timeout";
-
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
@@ -101,7 +99,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
     protected final MappingUpdatedAction mappingUpdatedAction;
-    private final TimeValue shardFailedTimeout;
 
     final String transportReplicaAction;
     final String transportPrimaryAction;
@@ -133,8 +130,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         this.transportOptions = transportOptions();
 
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
-        // TODO: set a default timeout
-        shardFailedTimeout = settings.getAsTime(SHARD_FAILURE_TIMEOUT, null);
     }
 
     @Override
@@ -608,7 +603,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
                 }
-                replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference, shardFailedTimeout);
+                replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
             } catch (Throwable e) {
                 if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
                     if (logger.isTraceEnabled()) {
@@ -732,15 +727,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final AtomicInteger pending;
         private final int totalShards;
         private final Releasable indexShardReference;
-        private final TimeValue shardFailedTimeout;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
-                                TransportChannel channel, Releasable indexShardReference, TimeValue shardFailedTimeout) {
+                                TransportChannel channel, Releasable indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
             this.indexShardReference = indexShardReference;
-            this.shardFailedTimeout = shardFailedTimeout;
             this.shardId = shardId;
 
             // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
@@ -889,7 +882,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                     indexUUID,
                                     message,
                                     exp,
-                                    shardFailedTimeout,
                                     new ShardStateAction.Listener() {
                                         @Override
                                         public void onSuccess() {

@@ -489,7 +489,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(request,
                         new Response(),
-                        request.shardId(), createTransportChannel(listener), reference, null);
+                        request.shardId(), createTransportChannel(listener), reference);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));

@@ -61,6 +61,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -134,8 +135,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
-        new ReroutePhase(request, listener).run();
+    protected final void doExecute(Request request, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("the task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        new ReroutePhase(task, request, listener).run();
     }
 
     protected abstract Response newResponseInstance();
@@ -244,8 +250,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            execute(request, new ActionListener<Response>() {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
+            execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {
                     try {
@@ -264,6 +270,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     }
                 }
             });
+        }
+
+        @Override
+        public void messageReceived(Request request, TransportChannel channel) throws Exception {
+            throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
     }
 
@@ -407,8 +418,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final ClusterStateObserver observer;
         private final AtomicBoolean finished = new AtomicBoolean();
 
-        ReroutePhase(Request request, ActionListener<Response> listener) {
+        ReroutePhase(Task task, Request request, ActionListener<Response> listener) {
             this.request = request;
+            if (task != null) {
+                this.request.setParentTask(clusterService.localNode().getId(), task.getId());
+            }
             this.listener = listener;
             this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         }

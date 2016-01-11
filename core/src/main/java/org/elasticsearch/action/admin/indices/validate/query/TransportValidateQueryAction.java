@@ -52,6 +52,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -89,9 +90,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected void doExecute(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
+    protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override

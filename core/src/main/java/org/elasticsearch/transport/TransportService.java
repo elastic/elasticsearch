@@ -117,7 +117,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
-        taskManager = new TaskManager(settings);
+        taskManager = createTaskManager();
     }
 
     /**
@@ -139,6 +139,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     protected Adapter createAdapter() {
         return new Adapter();
+    }
+
+    protected TaskManager createTaskManager() {
+        return new TaskManager(settings);
     }
 
     // These need to be optional as they don't exist in the context of a transport client

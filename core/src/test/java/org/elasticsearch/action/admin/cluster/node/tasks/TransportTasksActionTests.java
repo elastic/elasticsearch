@@ -48,10 +48,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.ChildTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -95,12 +96,11 @@ public class TransportTasksActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    @Before
-    public final void setupTestNodes() throws Exception {
+    public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, Settings.EMPTY);
+            testNodes[i] = new TestNode("node" + i, threadPool, settings);
         }
     }
 
@@ -113,11 +113,20 @@ public class TransportTasksActionTests extends ESTestCase {
 
     private static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
-            clusterService = new TestClusterService(threadPool);
-            transportService = new TransportService(Settings.EMPTY,
-                new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool);
+            transportService = new TransportService(settings,
+                new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
+                threadPool){
+                @Override
+                protected TaskManager createTaskManager() {
+                    if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+                        return new MockTaskManager(settings);
+                    } else {
+                        return super.createTaskManager();
+                    }
+                }
+            };
             transportService.start();
+            clusterService = new TestClusterService(threadPool, transportService);
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(), Version.CURRENT);
             transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
                 new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(settings));
@@ -150,6 +159,15 @@ public class TransportTasksActionTests extends ESTestCase {
         }
     }
 
+    public static RecordingTaskManagerListener[] setupListeners(TestNode[] nodes, String... actionMasks) {
+        RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
+        for (int i = 0; i < nodes.length; i++) {
+            listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode, actionMasks);
+            ((MockTaskManager)(nodes[i].clusterService.getTaskManager())).addListener(listeners[i]);
+        }
+        return listeners;
+    }
+
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
         private boolean enableTaskManager;
@@ -180,7 +198,7 @@ public class TransportTasksActionTests extends ESTestCase {
 
         @Override
         public String getDescription() {
-            return "NodeRequest[" + requestName  + ", " + enableTaskManager +  "]";
+            return "NodeRequest[" + requestName + ", " + enableTaskManager + "]";
         }
 
         @Override
@@ -464,6 +482,7 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testRunningTasksCount() throws Exception {
+        setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -553,6 +572,7 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testFindChildTasks() throws Exception {
+        setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
@@ -586,10 +606,11 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testTaskManagementOptOut() throws Exception {
+        setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         // Starting actions that disable task manager
-        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch,  new NodesRequest("Test Request", false));
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request", false));
 
         TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
 
@@ -606,6 +627,7 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testTasksDescriptions() throws Exception {
+        setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
@@ -637,8 +659,11 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testFailedTasksCount() throws ExecutionException, InterruptedException, IOException {
+        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER, true).build();
+        setupTestNodes(settings);
         connectNodes(testNodes);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
+        RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
@@ -656,9 +681,21 @@ public class TransportTasksActionTests extends ESTestCase {
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = actions[0].execute(request).get();
         assertEquals(nodesCount, responses.failureCount());
+
+        // Make sure that actions are still registered in the task manager on all nodes
+        // Twice on the coordinating node and once on all other nodes.
+        assertEquals(4, listeners[0].getEvents().size());
+        assertEquals(2, listeners[0].getRegistrationEvents().size());
+        assertEquals(2, listeners[0].getUnregistrationEvents().size());
+        for (int i = 1; i < listeners.length; i++) {
+            assertEquals(2, listeners[i].getEvents().size());
+            assertEquals(1, listeners[i].getRegistrationEvents().size());
+            assertEquals(1, listeners[i].getUnregistrationEvents().size());
+        }
     }
 
     public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException, IOException {
+        setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
@@ -672,7 +709,7 @@ public class TransportTasksActionTests extends ESTestCase {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
                     logger.info("Task action on node " + node);
-                    if (failTaskOnNode == node && ((ChildTask) task).getParentNode() != null) {
+                    if (failTaskOnNode == node && task.getParentNode() != null) {
                         logger.info("Failing on node " + node);
                         throw new RuntimeException("Task level failure");
                     }

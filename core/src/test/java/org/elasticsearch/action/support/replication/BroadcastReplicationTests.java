@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -207,7 +208,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected void shardExecute(DummyBroadcastRequest request, ShardId shardId, ActionListener<ReplicationResponse> shardActionListener) {
+        protected void shardExecute(Task task, DummyBroadcastRequest request, ShardId shardId, ActionListener<ReplicationResponse> shardActionListener) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));
         }
     }

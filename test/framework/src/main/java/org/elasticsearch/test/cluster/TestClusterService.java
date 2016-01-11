@@ -49,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -75,6 +76,11 @@ public class TestClusterService implements ClusterService {
     public TestClusterService(ThreadPool threadPool) {
         this(ClusterState.builder(new ClusterName("test")).build(), threadPool);
         taskManager = new TaskManager(Settings.EMPTY);
+    }
+
+    public TestClusterService(ThreadPool threadPool, TransportService transportService) {
+        this(ClusterState.builder(new ClusterName("test")).build(), threadPool);
+        taskManager = transportService.getTaskManager();
     }
 
     public TestClusterService(ClusterState state) {

@@ -45,10 +45,12 @@ import org.mockito.stubbing.Answer;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -211,5 +213,27 @@ public class IngestActionFilterTests extends ESTestCase {
             }
             assertThat(assertedRequests, equalTo(numRequest));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexApiSinglePipelineExecution() {
+        Answer answer = invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Consumer<Boolean> listener = (Consumer) invocationOnMock.getArguments()[2];
+            listener.accept(true);
+            return null;
+        };
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
+
+        Task task = mock(Task.class);
+        ActionListener actionListener = mock(ActionListener.class);
+        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
+
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id").source("field", "value");
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
+        assertThat(indexRequest.pipeline(), nullValue());
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
+        verify(executionService, times(1)).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(actionFilterChain, times(2)).proceed(task, IndexAction.NAME, indexRequest, actionListener);
     }
 }

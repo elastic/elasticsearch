@@ -46,8 +46,6 @@ import java.util.Set;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
 
-    static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
-
     private final PipelineExecutionService executionService;
 
     @Inject
@@ -96,18 +94,15 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
-        // The IndexRequest has the same type on the node that receives the request and the node that
-        // processes the primary action. This could lead to a pipeline being executed twice for the same
-        // index request, hence this check
-        if (indexRequest.hasHeader(PIPELINE_ALREADY_PROCESSED)) {
-            chain.proceed(task, action, indexRequest, listener);
-            return;
-        }
+
         executionService.execute(indexRequest, t -> {
             logger.error("failed to execute pipeline [{}]", t, indexRequest.pipeline());
             listener.onFailure(t);
         }, success -> {
-            indexRequest.putHeader(PIPELINE_ALREADY_PROCESSED, true);
+            // TransportIndexAction uses IndexRequest and same action name on the node that receives the request and the node that
+            // processes the primary action. This could lead to a pipeline being executed twice for the same
+            // index request, hence we set the pipeline to null once its execution completed.
+            indexRequest.pipeline(null);
             chain.proceed(task, action, indexRequest, listener);
         });
     }

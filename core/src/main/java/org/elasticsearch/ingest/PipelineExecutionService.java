@@ -61,6 +61,8 @@ public class PipelineExecutionService {
                     if (Strings.hasText(indexRequest.pipeline())) {
                         try {
                             innerExecute(indexRequest, getPipeline(indexRequest.pipeline()));
+                            //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
+                            indexRequest.pipeline(null);
                         } catch (Throwable e) {
                             itemFailureHandler.accept(new Tuple<>(indexRequest, e));
                         }

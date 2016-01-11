@@ -37,7 +37,6 @@ import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.ingest.processor.SplitProcessor;
 import org.elasticsearch.ingest.processor.TrimProcessor;
 import org.elasticsearch.ingest.processor.UppercaseProcessor;
-import org.elasticsearch.rest.action.ingest.IngestRestFilter;
 
 import java.util.function.BiFunction;
 
@@ -68,7 +67,6 @@ public class IngestModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        binder().bind(IngestRestFilter.class).asEagerSingleton();
         bind(ProcessorsRegistry.class).toInstance(processorsRegistry);
         binder().bind(IngestBootstrapper.class).asEagerSingleton();
     }

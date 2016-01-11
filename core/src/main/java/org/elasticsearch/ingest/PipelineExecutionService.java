@@ -21,6 +21,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,8 +40,8 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(IndexRequest request, String pipelineId, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
-        Pipeline pipeline = getPipeline(pipelineId);
+    public void execute(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
+        Pipeline pipeline = getPipeline(request.pipeline());
         threadPool.executor(ThreadPool.Names.INGEST).execute(() -> {
             try {
                 innerExecute(request, pipeline);
@@ -50,21 +52,18 @@ public class PipelineExecutionService {
         });
     }
 
-    public void execute(Iterable<ActionRequest> actionRequests, String pipelineId,
-                        Consumer<Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
-        Pipeline pipeline = getPipeline(pipelineId);
+    public void execute(Iterable<ActionRequest> actionRequests,
+                        Consumer<Tuple<IndexRequest, Throwable>> itemFailureHandler, Consumer<Boolean> completionHandler) {
         threadPool.executor(ThreadPool.Names.INGEST).execute(() -> {
             for (ActionRequest actionRequest : actionRequests) {
-                if ((actionRequest instanceof IndexRequest) == false) {
-                    continue;
-                }
-
-                IndexRequest indexRequest = (IndexRequest) actionRequest;
-                try {
-                    innerExecute(indexRequest, pipeline);
-                } catch (Throwable e) {
-                    if (itemFailureHandler != null) {
-                        itemFailureHandler.accept(e);
+                if ((actionRequest instanceof IndexRequest)) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    if (Strings.hasText(indexRequest.pipeline())) {
+                        try {
+                            innerExecute(indexRequest, getPipeline(indexRequest.pipeline()));
+                        } catch (Throwable e) {
+                            itemFailureHandler.accept(new Tuple<>(indexRequest, e));
+                        }
                     }
                 }
             }

@@ -79,7 +79,7 @@
 ---
 "Test index api with pipeline id fails when node.ingest is set to false":
   - do:
-      catch: /node.ingest is set to false, cannot execute pipeline with id \[my_pipeline_1\]/
+      catch: /node.ingest is set to false, cannot execute pipeline/
       index:
         index: test
         type: test
@@ -94,7 +94,7 @@
 ---
 "Test bulk api with pipeline id fails when node.ingest is set to false":
   - do:
-      catch: /node.ingest is set to false, cannot execute pipeline with id \[my_pipeline_1\]/
+      catch: /node.ingest is set to false, cannot execute pipeline/
       bulk:
         pipeline: "my_pipeline_1"
         body:
@@ -107,5 +107,23 @@
               _index: test_index
               _type:  test_type
               _id:    test_id2
+          - f1: v2
+
+---
+"Test bulk api that contains a single index call with pipeline id fails when node.ingest is set to false":
+  - do:
+      catch: /node.ingest is set to false, cannot execute pipeline/
+      bulk:
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v1
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+              pipeline: my_pipeline_1
           - f1: v2
 

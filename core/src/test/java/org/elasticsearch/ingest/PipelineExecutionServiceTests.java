@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -32,6 +33,7 @@ import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
@@ -67,15 +69,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         executionService = new PipelineExecutionService(store, threadPool);
     }
 
-    public void testExecutePipelineDoesNotExist() {
-        when(store.get("_id")).thenReturn(null);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+    public void testExecuteIndexPipelineDoesNotExist() {
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         try {
-            executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+            executionService.execute(indexRequest, failureHandler, completionHandler);
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("pipeline with id [_id] does not exist"));
@@ -84,16 +85,47 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(completionHandler, never()).accept(anyBoolean());
     }
 
+    public void testExecuteBulkPipelineDoesNotExist() {
+        CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
+        BulkRequest bulkRequest = new BulkRequest();
+
+        IndexRequest indexRequest1 = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("does_not_exist");
+        bulkRequest.add(indexRequest2);
+        @SuppressWarnings("unchecked")
+        Consumer<Tuple<IndexRequest, Throwable>> failureHandler = mock(Consumer.class);
+        @SuppressWarnings("unchecked")
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        executionService.execute(bulkRequest.requests(), failureHandler, completionHandler);
+        verify(failureHandler, times(1)).accept(argThat(new CustomTypeSafeMatcher<Tuple<IndexRequest,Throwable>>("failure handler was not called with the expected arguments") {
+            @Override
+            protected boolean matchesSafely(Tuple<IndexRequest, Throwable> item) {
+                if( item.v1() != indexRequest2) {
+                    return false;
+                }
+                if (item.v2() instanceof IllegalArgumentException == false) {
+                    return false;
+                }
+                IllegalArgumentException iae = (IllegalArgumentException) item.v2();
+                return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
+            }
+
+        }));
+        verify(completionHandler, times(1)).accept(anyBoolean());
+    }
+
     public void testExecuteSuccess() throws Exception {
         CompoundProcessor processor = mock(CompoundProcessor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
@@ -114,12 +146,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         }).when(processor).execute(any());
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(any());
         verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
@@ -136,13 +168,13 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecuteFailure() throws Exception {
         CompoundProcessor processor = mock(CompoundProcessor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -153,13 +185,13 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Processor onFailureProcessor = mock(Processor.class);
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, never()).accept(any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(true);
     }
@@ -169,14 +201,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Processor onFailureProcessor = mock(Processor.class);
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -189,7 +221,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor),
             Collections.singletonList(new CompoundProcessor(Collections.singletonList(onFailureProcessor), Collections.singletonList(onFailureOnFailureProcessor))));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
@@ -197,7 +229,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -207,12 +239,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "5d"));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl")));
         verify(failureHandler, never()).accept(any());
@@ -223,12 +255,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "abc"));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("_id");
         @SuppressWarnings("unchecked")
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, times(1)).accept(any(ElasticsearchParseException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -236,12 +268,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecuteProvidedTTL() throws Exception {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", mock(CompoundProcessor.class)));
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id")
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id")
                 .source(Collections.emptyMap())
                 .ttl(1000L);
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        executionService.execute(indexRequest, failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(new TimeValue(1000L)));
         verify(failureHandler, never()).accept(any());
@@ -250,6 +282,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
+        String pipelineId = "_id";
 
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
@@ -262,7 +295,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                     request = new UpdateRequest("_index", "_type", "_id");
                 }
             } else {
-                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline(pipelineId);
                 indexRequest.source("field1", "value1");
                 request = indexRequest;
                 numIndexRequests++;
@@ -270,39 +303,37 @@ public class PipelineExecutionServiceTests extends ESTestCase {
             bulkRequest.add(request);
         }
 
-        String pipelineId = "_id";
-
         CompoundProcessor processor = mock(CompoundProcessor.class);
         Exception error = new RuntimeException();
         doThrow(error).when(processor).execute(any());
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
 
-        Consumer<Throwable> requestItemErrorHandler = mock(Consumer.class);
+        Consumer<Tuple<IndexRequest, Throwable>> requestItemErrorHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(bulkRequest.requests(), pipelineId, requestItemErrorHandler, completionHandler);
+        executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(error);
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(new Tuple<>(any(IndexRequest.class), error));
         verify(completionHandler, times(1)).accept(true);
     }
 
     public void testBulkRequestExecution() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
+        String pipelineId = "_id";
 
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+            IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline(pipelineId);
             indexRequest.source("field1", "value1");
             bulkRequest.add(indexRequest);
         }
 
-        String pipelineId = "_id";
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, new CompoundProcessor()));
 
         @SuppressWarnings("unchecked")
-        Consumer<Throwable> requestItemErrorHandler = mock(Consumer.class);
+        Consumer<Tuple<IndexRequest, Throwable>> requestItemErrorHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(bulkRequest.requests(), pipelineId, requestItemErrorHandler, completionHandler);
+        executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);

@@ -254,17 +254,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null, null, true);
+        return add(data, defaultIndex, defaultType, null, null, null, null, true);
     }
 
     /**
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null, null, allowExplicitIndex);
+        return add(data, defaultIndex, defaultType, null, null, null, null, allowExplicitIndex);
     }
 
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int line = 0;
         int from = 0;
@@ -305,6 +305,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
                 int retryOnConflict = 0;
+                String pipeline = defaultPipeline;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -345,6 +346,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 versionType = VersionType.fromString(parser.text());
                             } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
                                 retryOnConflict = parser.intValue();
+                            } else if ("pipeline".equals(currentFieldName)) {
+                                pipeline = parser.text();
                             } else if ("fields".equals(currentFieldName)) {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains a simple value for parameter [fields] while a list is expected");
                             } else {
@@ -381,15 +384,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .source(data.slice(from, nextMarker - from)), payload);
+                                    .pipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .create("create".equals(opType))
+                                    .create("create".equals(opType)).pipeline(pipeline)
                                     .source(data.slice(from, nextMarker - from)), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                .create(true)
+                                .create(true).pipeline(pipeline)
                                 .source(data.slice(from, nextMarker - from)), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)

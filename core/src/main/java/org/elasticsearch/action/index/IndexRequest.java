@@ -155,6 +155,8 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
+    private String pipeline;
+
     public IndexRequest() {
     }
 
@@ -361,6 +363,21 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
      */
     public TimeValue ttl() {
         return this.ttl;
+    }
+
+    /**
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequest pipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    /**
+     * Returns the ingest pipeline to be executed before indexing the document
+     */
+    public String pipeline() {
+        return this.pipeline;
     }
 
     /**
@@ -658,6 +675,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        pipeline = in.readOptionalString();
     }
 
     @Override
@@ -679,6 +697,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        out.writeOptionalString(pipeline);
     }
 
     @Override

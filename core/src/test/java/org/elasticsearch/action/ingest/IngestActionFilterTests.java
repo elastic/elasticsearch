@@ -21,10 +21,12 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -40,7 +42,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
-import org.mockito.Matchers;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashSet;
@@ -51,9 +52,9 @@ import static org.elasticsearch.action.ingest.IngestActionFilter.BulkRequestModi
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -72,43 +73,29 @@ public class IngestActionFilterTests extends ESTestCase {
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
     }
 
-    public void testApplyNoIngestId() throws Exception {
+    public void testApplyNoPipelineId() throws Exception {
         IndexRequest indexRequest = new IndexRequest();
         Task task = mock(Task.class);
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
+        verify(actionFilterChain).proceed(task, IndexAction.NAME, indexRequest, actionListener);
         verifyZeroInteractions(executionService, actionFilterChain);
     }
 
+    @SuppressWarnings("unchecked")
     public void testApplyIngestIdViaRequestParam() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(Matchers.any(IndexRequest.class), Matchers.eq("_id"), Matchers.any(Consumer.class), Matchers.any(Consumer.class));
-        verifyZeroInteractions(actionFilterChain);
-    }
-
-    public void testApplyIngestIdViaContext() throws Exception {
-        Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
-        indexRequest.source("field", "value");
-        indexRequest.putInContext(IngestActionFilter.PIPELINE_ID_PARAM_CONTEXT_KEY, "_id");
-        ActionListener actionListener = mock(ActionListener.class);
-        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
-
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
-
-        verify(executionService).execute(Matchers.any(IndexRequest.class), Matchers.eq("_id"), Matchers.any(Consumer.class), Matchers.any(Consumer.class));
+        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -116,57 +103,54 @@ public class IngestActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         indexRequest.putHeader(IngestActionFilter.PIPELINE_ALREADY_PROCESSED, true);
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
-
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
-
-        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
+        verify(actionFilterChain).proceed(task, IndexAction.NAME, indexRequest, actionListener);
         verifyZeroInteractions(executionService, actionListener);
     }
 
+    @SuppressWarnings("unchecked")
     public void testApplyExecuted() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
         Answer answer = invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            Consumer<Boolean> listener = (Consumer) invocationOnMock.getArguments()[3];
+            Consumer<Boolean> listener = (Consumer) invocationOnMock.getArguments()[2];
             listener.accept(true);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        verify(actionFilterChain).proceed(task, "_action", indexRequest, actionListener);
+        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(actionFilterChain).proceed(task, IndexAction.NAME, indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
 
+    @SuppressWarnings("unchecked")
     public void testApplyFailed() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
         RuntimeException exception = new RuntimeException();
         Answer answer = invocationOnMock -> {
-            Consumer<Throwable> handler = (Consumer) invocationOnMock.getArguments()[2];
+            Consumer<Throwable> handler = (Consumer) invocationOnMock.getArguments()[1];
             handler.accept(exception);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(Consumer.class), any(Consumer.class));
-        filter.apply(task, "_action", indexRequest, actionListener, actionFilterChain);
+        doAnswer(answer).when(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(Matchers.any(IndexRequest.class), Matchers.eq("_id"), Matchers.any(Consumer.class), Matchers.any(Consumer.class));
+        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verify(actionListener).onFailure(exception);
         verifyZeroInteractions(actionFilterChain);
     }
@@ -195,7 +179,6 @@ public class IngestActionFilterTests extends ESTestCase {
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(IngestActionFilter.PIPELINE_ID_PARAM, "_id");
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             if (rarely()) {
@@ -207,7 +190,7 @@ public class IngestActionFilterTests extends ESTestCase {
                 }
                 bulkRequest.add(request);
             } else {
-                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
                 indexRequest.source("field1", "value1");
                 bulkRequest.add(indexRequest);
             }
@@ -216,26 +199,23 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply(task, "_action", bulkRequest, actionListener, actionFilterChain);
+        filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                verify(actionFilterChain).proceed(task, "_action", bulkRequest, actionListener);
-                verifyZeroInteractions(actionListener);
+        assertBusy(() -> {
+            verify(actionFilterChain).proceed(task, BulkAction.NAME, bulkRequest, actionListener);
+            verifyZeroInteractions(actionListener);
 
-                int assertedRequests = 0;
-                for (ActionRequest actionRequest : bulkRequest.requests()) {
-                    if (actionRequest instanceof IndexRequest) {
-                        IndexRequest indexRequest = (IndexRequest) actionRequest;
-                        assertThat(indexRequest.sourceAsMap().size(), equalTo(2));
-                        assertThat(indexRequest.sourceAsMap().get("field1"), equalTo("value1"));
-                        assertThat(indexRequest.sourceAsMap().get("field2"), equalTo("value2"));
-                    }
-                    assertedRequests++;
+            int assertedRequests = 0;
+            for (ActionRequest actionRequest : bulkRequest.requests()) {
+                if (actionRequest instanceof IndexRequest) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    assertThat(indexRequest.sourceAsMap().size(), equalTo(2));
+                    assertThat(indexRequest.sourceAsMap().get("field1"), equalTo("value1"));
+                    assertThat(indexRequest.sourceAsMap().get("field2"), equalTo("value2"));
                 }
-                assertThat(assertedRequests, equalTo(numRequest));
+                assertedRequests++;
             }
+            assertThat(assertedRequests, equalTo(numRequest));
         });
     }
 
@@ -279,7 +259,7 @@ public class IngestActionFilterTests extends ESTestCase {
         }
     }
 
-    private final static class CaptureActionListener implements ActionListener<BulkResponse> {
+    private static class CaptureActionListener implements ActionListener<BulkResponse> {
 
         private BulkResponse response;
 

@@ -22,12 +22,15 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +46,6 @@ import java.util.Set;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
 
-    public static final String PIPELINE_ID_PARAM_CONTEXT_KEY = "__pipeline_id__";
-    public static final String PIPELINE_ID_PARAM = "pipeline";
     static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
 
     private final PipelineExecutionService executionService;
@@ -57,25 +58,25 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(PIPELINE_ID_PARAM_CONTEXT_KEY);
-        if (pipelineId == null) {
-            pipelineId = request.getHeader(PIPELINE_ID_PARAM);
-            if (pipelineId == null) {
-                chain.proceed(task, action, request, listener);
+
+        if (IndexAction.NAME.equals(action)) {
+            assert request instanceof IndexRequest;
+            IndexRequest indexRequest = (IndexRequest) request;
+            if (Strings.hasText(indexRequest.pipeline())) {
+                processIndexRequest(task, action, listener, chain, (IndexRequest) request);
                 return;
             }
         }
-
-        if (request instanceof IndexRequest) {
-            processIndexRequest(task, action, listener, chain, (IndexRequest) request, pipelineId);
-        } else if (request instanceof BulkRequest) {
+        if (BulkAction.NAME.equals(action)) {
+            assert request instanceof BulkRequest;
             BulkRequest bulkRequest = (BulkRequest) request;
             @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
-            processBulkIndexRequest(task, bulkRequest, pipelineId, action, chain, actionListener);
-        } else {
-            chain.proceed(task, action, request, listener);
+            processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
+            return;
         }
+
+        chain.proceed(task, action, request, listener);
     }
 
     @Override
@@ -83,7 +84,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         chain.proceed(action, response, listener);
     }
 
-    void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest, String pipelineId) {
+    void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
         // The IndexRequest has the same type on the node that receives the request and the node that
         // processes the primary action. This could lead to a pipeline being executed twice for the same
         // index request, hence this check
@@ -91,8 +92,8 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             chain.proceed(task, action, indexRequest, listener);
             return;
         }
-        executionService.execute(indexRequest, pipelineId, t -> {
-            logger.error("failed to execute pipeline [{}]", t, pipelineId);
+        executionService.execute(indexRequest, t -> {
+            logger.error("failed to execute pipeline [{}]", t, indexRequest.pipeline());
             listener.onFailure(t);
         }, success -> {
             indexRequest.putHeader(PIPELINE_ALREADY_PROCESSED, true);
@@ -100,18 +101,20 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         });
     }
 
-    void processBulkIndexRequest(Task task, BulkRequest original, String pipelineId, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
+    void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        executionService.execute(() -> bulkRequestModifier, pipelineId, e -> {
-            logger.debug("failed to execute pipeline [{}]", e, pipelineId);
-            bulkRequestModifier.markCurrentItemAsFailed(e);
+        executionService.execute(() -> bulkRequestModifier, tuple -> {
+            IndexRequest indexRequest = tuple.v1();
+            Throwable throwable = tuple.v2();
+            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.pipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
+            bulkRequestModifier.markCurrentItemAsFailed(throwable);
         }, (success) -> {
             BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
             ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
             if (bulkRequest.requests().isEmpty()) {
-                // in this stage, the transport bulk action can't deal with a bulk request with no requests,
-                // so we stop and send a empty response back to the client.
-                // (this will happen if all preprocessing all items in the bulk failed)
+                // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                // so we stop and send an empty response back to the client.
+                // (this will happen if pre-processing all items in the bulk failed)
                 actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
             } else {
                 chain.proceed(task, action, bulkRequest, actionListener);

@@ -21,23 +21,40 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.Task;
 
 public final class IngestDisabledActionFilter implements ActionFilter {
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(IngestActionFilter.PIPELINE_ID_PARAM_CONTEXT_KEY);
-        if (pipelineId != null) {
-            failRequest(pipelineId);
+        boolean isIngestRequest = false;
+        if (IndexAction.NAME.equals(action)) {
+            assert request instanceof IndexRequest;
+            IndexRequest indexRequest = (IndexRequest) request;
+            isIngestRequest = Strings.hasText(indexRequest.pipeline());
+        } else if (BulkAction.NAME.equals(action)) {
+            assert request instanceof BulkRequest;
+            BulkRequest bulkRequest = (BulkRequest) request;
+            for (ActionRequest actionRequest : bulkRequest.requests()) {
+                if (actionRequest instanceof IndexRequest) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    if (Strings.hasText(indexRequest.pipeline())) {
+                        isIngestRequest = true;
+                        break;
+                    }
+                }
+            }
         }
-        pipelineId = request.getHeader(IngestActionFilter.PIPELINE_ID_PARAM);
-        if (pipelineId != null) {
-            failRequest(pipelineId);
+        if (isIngestRequest) {
+            throw new IllegalArgumentException("node.ingest is set to false, cannot execute pipeline");
         }
-
         chain.proceed(task, action, request, listener);
     }
 
@@ -50,9 +67,4 @@ public final class IngestDisabledActionFilter implements ActionFilter {
     public int order() {
         return Integer.MAX_VALUE;
     }
-
-    private static void failRequest(String pipelineId) {
-        throw new IllegalArgumentException("node.ingest is set to false, cannot execute pipeline with id [" + pipelineId + "]");
-    }
-
 }

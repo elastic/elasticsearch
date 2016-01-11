@@ -21,6 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -106,6 +107,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
+    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15846
     public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");

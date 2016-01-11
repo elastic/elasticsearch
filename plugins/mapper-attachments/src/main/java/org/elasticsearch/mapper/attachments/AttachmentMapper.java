@@ -100,6 +100,7 @@ public class AttachmentMapper extends FieldMapper {
             super(ref);
         }
 
+        @Override
         public AttachmentMapper.AttachmentFieldType clone() {
             return new AttachmentMapper.AttachmentFieldType(this);
         }
@@ -109,6 +110,7 @@ public class AttachmentMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
         public String value(Object value) {
             return value == null?null:value.toString();
         }
@@ -292,7 +294,7 @@ public class AttachmentMapper extends FieldMapper {
                 type = "string";
             }
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, (Map<String, Object>) propNode, parserContext);
+            Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, propNode, parserContext);
 
             return mapperBuilder;
         }
@@ -414,6 +416,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15843
     public Mapper parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;

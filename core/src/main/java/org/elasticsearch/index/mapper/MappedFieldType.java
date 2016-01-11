@@ -390,7 +390,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /** Creates a term associated with the field of this mapper for the given value */
-    public Term createTerm(Object value) {
+    protected Term createTerm(Object value) {
         return new Term(name(), indexedValueForSearch(value));
     }
 

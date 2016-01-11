@@ -212,6 +212,10 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
+    protected boolean forceAnalyzeQueryString() {
+        return false;
+    }
+
     protected Analyzer getAnalyzer(MappedFieldType fieldType) {
         if (this.analyzer == null) {
             if (fieldType != null) {
@@ -236,18 +240,9 @@ public class MatchQuery {
             field = fieldName;
         }
 
-        /*
-         * If the user forced an analyzer we really don't care if they are
-         * searching a type that wants term queries to be used with query string
-         * because the QueryBuilder will take care of it. If they haven't forced
-         * an analyzer then types like NumberFieldType that want terms with
-         * query string will blow up because their analyzer isn't capable of
-         * passing through QueryBuilder.
-         */
-        boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.useTermQueryWithQueryString() && noForcedAnalyzer) {
+        if (fieldType != null && fieldType.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
             try {
-                return termQuery(fieldType, value);
+                return fieldType.termQuery(value, context);
             } catch (RuntimeException e) {
                 if (lenient) {
                     return null;
@@ -256,7 +251,6 @@ public class MatchQuery {
             }
 
         }
-
         Analyzer analyzer = getAnalyzer(fieldType);
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
@@ -286,15 +280,6 @@ public class MatchQuery {
         } else {
             return query;
         }
-    }
-
-    /**
-     * Creates a TermQuery-like-query for MappedFieldTypes that don't support
-     * QueryBuilder which is very string-ish. Just delegates to the
-     * MappedFieldType for MatchQuery but gets more complex for blended queries.
-     */
-    protected Query termQuery(MappedFieldType fieldType, Object value) {
-        return fieldType.termQuery(value, context);
     }
 
     protected Query zeroTermsQuery() {

@@ -27,6 +27,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
+import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -121,7 +122,14 @@ public final class DateProcessor implements Processor {
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
             String localeString = ConfigurationUtils.readOptionalStringProperty(config, "locale");
-            Locale locale = localeString == null ? Locale.ENGLISH : Locale.forLanguageTag(localeString);
+            Locale locale = Locale.ENGLISH;
+            if (localeString != null) {
+                try {
+                    locale = (new Locale.Builder()).setLanguageTag(localeString).build();
+                } catch (IllformedLocaleException e) {
+                    throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
+                }
+            }
             List<String> matchFormats = ConfigurationUtils.readList(config, "match_formats");
             return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
         }

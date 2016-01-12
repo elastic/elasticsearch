@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -80,5 +82,11 @@ public class IngestModule extends AbstractModule {
 
     public static boolean isIngestEnabled(Settings settings) {
         return settings.getAsBoolean("node.ingest", true);
+    }
+
+    public static boolean isIngestEnabled(ImmutableOpenMap<String, String> nodeAttributes) {
+        String ingestEnabled = nodeAttributes.get("ingest");
+        //reproduces same logic used in settings.getAsBoolean used above
+        return Booleans.parseBoolean(ingestEnabled, true);
     }
 }

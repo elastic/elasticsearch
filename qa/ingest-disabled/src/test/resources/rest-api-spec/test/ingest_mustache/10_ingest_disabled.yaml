@@ -79,7 +79,7 @@
 ---
 "Test index api with pipeline id fails when node.ingest is set to false":
   - do:
-      catch: /node.ingest is set to false, cannot execute pipeline/
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
       index:
         index: test
         type: test
@@ -94,7 +94,7 @@
 ---
 "Test bulk api with pipeline id fails when node.ingest is set to false":
   - do:
-      catch: /node.ingest is set to false, cannot execute pipeline/
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
       bulk:
         pipeline: "my_pipeline_1"
         body:
@@ -112,7 +112,7 @@
 ---
 "Test bulk api that contains a single index call with pipeline id fails when node.ingest is set to false":
   - do:
-      catch: /node.ingest is set to false, cannot execute pipeline/
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
       bulk:
         body:
           - index:

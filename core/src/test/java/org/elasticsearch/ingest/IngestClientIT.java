@@ -36,6 +36,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -51,7 +52,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IngestClientIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        if (nodeOrdinal % 2 == 0) {
+            return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
+        }
+        return super.nodeSettings(nodeOrdinal);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

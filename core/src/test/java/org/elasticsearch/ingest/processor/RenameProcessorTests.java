@@ -125,7 +125,6 @@ public class RenameProcessorTests extends ESTestCase {
 
     public void testRenameAtomicOperationSetFails() throws Exception {
         Map<String, Object> source = new HashMap<String, Object>() {
-            private static final long serialVersionUID = 362498820763181265L;
             @Override
             public Object put(String key, Object value) {
                 if (key.equals("new_field")) {
@@ -150,7 +149,6 @@ public class RenameProcessorTests extends ESTestCase {
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
         Map<String, Object> source = new HashMap<String, Object>() {
-            private static final long serialVersionUID = 362498820763181265L;
             @Override
             public Object remove(Object key) {
                 if (key.equals("list")) {

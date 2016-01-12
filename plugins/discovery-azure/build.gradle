@@ -56,7 +56,7 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-path,-serial,-unchecked'
+compileJava.options.compilerArgs << '-Xlint:-path,-unchecked'
 
 thirdPartyAudit.excludes = [
   // classes are missing

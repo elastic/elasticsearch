@@ -150,6 +150,10 @@ Removed support for the deprecated top level `filter` in the search api, replace
 
 Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
 
+==== `span_near`'s' `collect_payloads` deprecated
+
+Payloads are now loaded when needed.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 

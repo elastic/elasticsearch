@@ -43,7 +43,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index:   src
           dest:
             index:   dest

@@ -19,7 +19,7 @@
       catch: /Unknown key for a START_OBJECT in \[junk\]./
       reindex:
         body:
-          src:
+          source:
             junk: {}
 
 ---
@@ -50,43 +50,11 @@
   - do:
       reindex:
         body:
-          src:
+          source:
             index: source
             size:  1000
           dest:
             index: dest
-
----
-"destination can used instead of 'dest'":
-  - do:
-      index:
-        index:   source
-        type:    foo
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      reindex:
-        body:
-          src:
-            index: source
-          destination:
-            index:   dest
-
----
-"source can used instead of 'src'":
-  - do:
-      index:
-        index:   source
-        type:    foo
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      reindex:
-        body:
-          source:
-            index: source
-          dest:
-            index:   dest
 
 ---
 "search size fails if not a number":

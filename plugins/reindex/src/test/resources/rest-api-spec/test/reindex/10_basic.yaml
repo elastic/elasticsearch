@@ -12,7 +12,7 @@
   - do:
       reindex:
         body:
-          src:
+          source:
             index: source
           dest:
             index: dest
@@ -43,7 +43,7 @@
   - do:
       reindex:
         body:
-          src:
+          source:
             index:   source
           dest:
             index:   dest
@@ -75,7 +75,7 @@
       catch: conflict
       reindex:
         body:
-          src:
+          source:
             index:   source
           dest:
             index:   dest
@@ -115,7 +115,7 @@
       reindex:
         body:
           conflicts: proceed
-          src:
+          source:
             index:   source
           dest:
             index:   dest
@@ -142,7 +142,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -173,7 +173,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
             type:  tweet
           dest:
@@ -205,7 +205,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
             query:
               match:
@@ -239,7 +239,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
             type:  tweet
           dest:
@@ -273,7 +273,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: [twitter, blog]
             type:  [tweet, post]
           dest:

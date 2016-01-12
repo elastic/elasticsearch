@@ -13,7 +13,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -52,7 +52,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -111,7 +111,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -154,7 +154,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -212,7 +212,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -257,7 +257,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -304,7 +304,7 @@
   - do:
       reindex:
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -338,7 +338,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter
@@ -378,7 +378,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: twitter
           dest:
             index: new_twitter

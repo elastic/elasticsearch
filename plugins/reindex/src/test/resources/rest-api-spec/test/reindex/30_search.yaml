@@ -19,7 +19,7 @@
       reindex:
         refresh: true
         body:
-          src:
+          source:
             index: test
             query:
               match:
@@ -54,7 +54,7 @@
         refresh: true
         body:
           size: 1
-          src:
+          source:
             index: test
             sort: order
           dest:

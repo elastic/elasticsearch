@@ -186,7 +186,7 @@ This will copy documents from `twitter` into `new_twitter`:
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -210,9 +210,6 @@ That will return something like this:
 }
 --------------------------------------------------
 
-The `src` parameter can also be specified as `source` for those that like that
-sort of thing. `dest` can also be specified as `destination`.
-
 Just like `_update_by_query`, `_reindex` gets a snapshot of the source index
 but its target must be a **different** index so version conflicts are unlikely.
 The `dest` element can be configured like the index API to control optimistic
@@ -224,7 +221,7 @@ target, overwriting any that happen to have the same type and id:
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -244,7 +241,7 @@ in the source index:
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -263,7 +260,7 @@ conflict:
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -282,7 +279,7 @@ count them by settings `"conflicts": "proceed"` in the request body:
 POST /_reindex
 {
   "conflicts": "proceed",
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -293,14 +290,14 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
-You can limit the documents by adding a type to the `src` or by adding a query.
-This will only copy `tweet`s made by `kimchy` into `new_twitter`:
+You can limit the documents by adding a type to the `source` or by adding a
+query. This will only copy `tweet`s made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter",
     "type": "tweet",
     "query": {
@@ -316,10 +313,10 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
-`index` and `type` in `src` can both be lists, allowing you to copy from lots
-of sources in one request. This will copy documents from the `tweet` and `post`
-types in the `twitter` and `blog` index. It'd include the `post` type in the
-`twitter` index and the `tweet` type in the `blog` index. If you want to be
+`index` and `type` in `source` can both be lists, allowing you to copy from
+lots of sources in one request. This will copy documents from the `tweet` and
+`post` types in the `twitter` and `blog` index. It'd include the `post` type in
+the `twitter` index and the `tweet` type in the `blog` index. If you want to be
 more specific you'll need to use the `query`. It also makes no effort to handle
 id collisions. The target index will remain valid but it's not easy to predict
 which document will survive because the iteration order isn't well defined.
@@ -328,7 +325,7 @@ Just avoid that situation, ok?
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": ["twitter", "blog"],
     "type": ["tweet", "post"]
   },
@@ -348,7 +345,7 @@ It's also possible to limit the number of processed documents by setting
 POST /_reindex
 {
   "size": 1,
-  "src": {
+  "source": {
     "index": "twitter"
   },
   "dest": {
@@ -368,7 +365,7 @@ This will copy 10000 documents from `twitter` into `new_twitter`:
 POST /_reindex
 {
   "size": 10000,
-  "src": {
+  "source": {
     "index": "twitter",
     "sort": { "date": "desc" }
   },
@@ -387,7 +384,7 @@ document's metadata. This example bumps the version of the source document:
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
+  "source": {
     "index": "twitter",
   },
   "dest": {
@@ -436,14 +433,14 @@ Sets the routing on the bulk request sent for each match to all text after
 the `=`.
 
 For example, you can use the following request to copy all documents from
-the `src` index with the company name `cat` into the `dest` index with
+the `source` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
 [source,js]
 --------------------------------------------------
 POST /_reindex
 {
-  "src": {
-    "index": "src"
+  "source": {
+    "index": "source"
     "query": {
       "match": {
         "company": "cat"
@@ -645,7 +642,7 @@ But you don't like the name `flag` and want to replace it with `tag`.
 --------------------------------------------------
 POST _reindex?pretty
 {
-  "src": {
+  "source": {
     "index": "test"
   },
   "dest": {

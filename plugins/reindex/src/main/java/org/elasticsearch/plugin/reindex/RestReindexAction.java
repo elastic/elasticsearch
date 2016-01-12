@@ -19,10 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -46,6 +42,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
@@ -90,10 +90,8 @@ public class RestReindexAction extends BaseRestHandler {
         destParser.declareString(IndexRequest::timestamp, new ParseField("timestamp"));
         destParser.declareString((i, ttl) -> i.ttl(parseTimeValue(ttl, TimeValue.timeValueMillis(-1), "ttl").millis()), new ParseField("ttl"));
 
-        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("src"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("destination"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));

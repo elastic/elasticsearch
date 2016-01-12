@@ -24,7 +24,7 @@
       reindex:
         timeout: 1s
         body:
-          src:
+          source:
             index: src
           dest:
             index: dest
@@ -35,7 +35,7 @@
       reindex:
         consistency: one
         body:
-          src:
+          source:
             index: src
           dest:
             index: dest

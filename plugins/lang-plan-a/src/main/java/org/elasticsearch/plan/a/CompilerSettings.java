@@ -20,12 +20,23 @@
 package org.elasticsearch.plan.a;
 
 /**
- * Settings to use when compiling a script
+ * Settings to use when compiling a script.
  */
 final class CompilerSettings {
+    /**
+     * Constant to be used when specifying numeric overflow when compiling a script.
+     */
+    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
 
+    /**
+     * Constant to be used when specifying the maximum loop counter when compiling a script.
+     */
+    public static final String MAX_LOOP_COUNTER = "max_loop_counter";
+
+    // Whether or not to allow numeric values to overflow without exception.
     private boolean numericOverflow = true;
 
+    // The maximum number of statements allowed to be run in a loop.
     private int maxLoopCounter = 10000;
 
     /**

@@ -106,5 +106,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             assertTrue(expected.getMessage().contains(
                 "The maximum number of statements that can be executed in a loop has been reached."));
         }
+
+        exec("try { throw new PlanAError(\"test\") } catch (PlanAError) {}");
+        fail("should have hit PlanAError");
     }
 }

@@ -29,16 +29,17 @@ import java.util.Set;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.script.ScoreAccessor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import static org.elasticsearch.plan.a.Adapter.ExpressionMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExtNodeMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExternalMetadata;
-import static org.elasticsearch.plan.a.Adapter.StatementMetadata;
-import static org.elasticsearch.plan.a.Adapter.error;
+import static org.elasticsearch.plan.a.Metadata.ExpressionMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExtNodeMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExternalMetadata;
+import static org.elasticsearch.plan.a.Metadata.StatementMetadata;
+import static org.elasticsearch.plan.a.Metadata.error;
 import static org.elasticsearch.plan.a.Definition.Cast;
 import static org.elasticsearch.plan.a.Definition.Constructor;
 import static org.elasticsearch.plan.a.Definition.Field;
@@ -116,18 +117,13 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private static class Branch {
         final ParserRuleContext source;
 
-        Label begin;
-        Label end;
-        Label tru;
-        Label fals;
+        Label begin = null;
+        Label end = null;
+        Label tru = null;
+        Label fals = null;
 
         private Branch(final ParserRuleContext source) {
             this.source = source;
-
-            begin = null;
-            end = null;
-            tru = null;
-            fals = null;
         }
     }
 
@@ -146,6 +142,14 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
     private final static org.objectweb.asm.Type DEFINITION_TYPE = org.objectweb.asm.Type.getType(Definition.class);
+
+    private final static org.objectweb.asm.Type MAP_TYPE = org.objectweb.asm.Type.getType(Map.class);
+    private final static org.objectweb.asm.commons.Method MAP_GET =
+        org.objectweb.asm.commons.Method.getMethod("Object get(Object)");
+
+    private final static org.objectweb.asm.Type SCORE_ACCESSOR_TYPE = org.objectweb.asm.Type.getType(ScoreAccessor.class);
+    private final static org.objectweb.asm.commons.Method SCORE_ACCESSOR_FLOAT =
+        org.objectweb.asm.commons.Method.getMethod("float floatValue()");
 
     private final static org.objectweb.asm.commons.Method DEF_METHOD_CALL = org.objectweb.asm.commons.Method.getMethod(
         "java.lang.Object methodCall(java.lang.Object, java.lang.String, " +
@@ -302,35 +306,31 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_DOUBLE =
         org.objectweb.asm.commons.Method.getMethod("double subtractWithoutOverflow(double, double)");
 
-    static byte[] write(Adapter adapter) {
-        Writer writer = new Writer(adapter);
+    static byte[] write(Metadata metadata) {
+        Writer writer = new Writer(metadata);
 
         return writer.getBytes();
     }
 
-    private final Adapter adapter;
+    private final Metadata metadata;
     private final Definition definition;
     private final ParseTree root;
     private final String source;
     private final CompilerSettings settings;
 
-    private final Map<ParserRuleContext, Branch> branches;
-    private final Deque<Branch> jumps;
-    private final Set<ParserRuleContext> strings;
+    private final Map<ParserRuleContext, Branch> branches = new HashMap<>();
+    private final Deque<Branch> jumps = new ArrayDeque<>();
+    private final Set<ParserRuleContext> strings = new HashSet<>();
 
     private ClassWriter writer;
     private GeneratorAdapter execute;
 
-    private Writer(final Adapter adapter) {
-        this.adapter = adapter;
-        definition = adapter.definition;
-        root = adapter.root;
-        source = adapter.source;
-        settings = adapter.settings;
-
-        branches = new HashMap<>();
-        jumps = new ArrayDeque<>();
-        strings = new HashSet<>();
+    private Writer(final Metadata metadata) {
+        this.metadata = metadata;
+        definition = metadata.definition;
+        root = metadata.root;
+        source = metadata.source;
+        settings = metadata.settings;
 
         writeBegin();
         writeConstructor();
@@ -383,15 +383,33 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private void writeExecute() {
         final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNTHETIC;
         execute = new GeneratorAdapter(access, EXECUTE, SIGNATURE, null, writer);
+
+        final Label fals = new Label();
+        final Label end = new Label();
+        execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+        execute.push("#score");
+        execute.invokeInterface(MAP_TYPE, MAP_GET);
+        execute.dup();
+        execute.ifNull(fals);
+        execute.checkCast(SCORE_ACCESSOR_TYPE);
+        execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
+        execute.goTo(end);
+        execute.mark(fals);
+        execute.pop();
+        execute.push(0F);
+        execute.mark(end);
+        execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+
         execute.push(settings.getMaxLoopCounter());
-        execute.visitVarInsn(Opcodes.ISTORE, adapter.loopCounterSlot);
+        execute.visitVarInsn(Opcodes.ISTORE, metadata.loopCounterSlot);
+
         visit(root);
         execute.endMethod();
     }
 
     @Override
     public Void visitSource(final SourceContext ctx) {
-        final StatementMetadata sourcesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata sourcesmd = metadata.getStatementMetadata(ctx);
 
         for (final StatementContext sctx : ctx.statement()) {
             visit(sctx);
@@ -416,7 +434,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         visit(exprctx);
 
         final BlockContext blockctx0 = ctx.block(0);
-        final StatementMetadata blockmd0 = adapter.getStatementMetadata(blockctx0);
+        final StatementMetadata blockmd0 = metadata.getStatementMetadata(blockctx0);
         visit(blockctx0);
 
         if (els) {
@@ -449,7 +467,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         boolean allLast = false;
 
         if (blockctx != null) {
-            final StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
+            final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
             allLast = blocksmd.allLast;
             writeLoopCounter(blocksmd.count > 0 ? blocksmd.count : 1);
             visit(blockctx);
@@ -479,7 +497,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         branch.fals = branch.end;
 
         final BlockContext blockctx = ctx.block();
-        final StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
+        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
 
         jumps.push(branch);
         execute.mark(start);
@@ -520,7 +538,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         boolean allLast = false;
 
         if (blockctx != null) {
-            StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
+            StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
             allLast = blocksmd.allLast;
 
             int count = blocksmd.count > 0 ? blocksmd.count : 1;
@@ -597,7 +615,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         execute.mark(branch.begin);
 
         final BlockContext blockctx = ctx.block();
-        final StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
+        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
         visit(blockctx);
 
         if (!blocksmd.allLast) {
@@ -627,9 +645,9 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExpr(final ExprContext ctx) {
-        final StatementMetadata exprsmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata exprsmd = metadata.getStatementMetadata(ctx);
         final ExpressionContext exprctx = ctx.expression();
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(exprctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
         visit(exprctx);
 
         if (exprsmd.methodEscape) {
@@ -670,7 +688,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         if (declctx != null) {
             visit(declctx);
         } else if (exprctx != null) {
-            final ExpressionMetadata expremd = adapter.getExpressionMetadata(exprctx);
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
             visit(exprctx);
             writePop(expremd.to.type.getSize());
         } else {
@@ -683,7 +701,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     @Override
     public Void visitAfterthought(AfterthoughtContext ctx) {
         final ExpressionContext exprctx = ctx.expression();
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(exprctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
         visit(ctx.expression());
         writePop(expremd.to.type.getSize());
 
@@ -706,7 +724,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDeclvar(final DeclvarContext ctx) {
-        final ExpressionMetadata declvaremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
         final org.objectweb.asm.Type type = declvaremd.to.type;
         final Sort sort = declvaremd.to.sort;
         final int slot = (int)declvaremd.postConst;
@@ -738,7 +756,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitTrap(final TrapContext ctx) {
-        final StatementMetadata trapsmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata trapsmd = metadata.getStatementMetadata(ctx);
 
         final Branch branch = getBranch(ctx);
         final Label jump = new Label();
@@ -771,7 +789,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitNumeric(final NumericContext ctx) {
-        final ExpressionMetadata numericemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata numericemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = numericemd.postConst;
 
         if (postConst == null) {
@@ -788,7 +806,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitChar(final CharContext ctx) {
-        final ExpressionMetadata charemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata charemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = charemd.postConst;
 
         if (postConst == null) {
@@ -805,7 +823,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitTrue(final TrueContext ctx) {
-        final ExpressionMetadata trueemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata trueemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = trueemd.postConst;
         final Branch branch = getBranch(ctx);
 
@@ -825,7 +843,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitFalse(final FalseContext ctx) {
-        final ExpressionMetadata falseemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata falseemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = falseemd.postConst;
         final Branch branch = getBranch(ctx);
 
@@ -845,7 +863,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitNull(final NullContext ctx) {
-        final ExpressionMetadata nullemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata nullemd = metadata.getExpressionMetadata(ctx);
 
         execute.visitInsn(Opcodes.ACONST_NULL);
         checkWriteCast(nullemd);
@@ -856,7 +874,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExternal(final ExternalContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -867,7 +885,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPostinc(final PostincContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -877,7 +895,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPreinc(final PreincContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -887,7 +905,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitUnary(final UnaryContext ctx) {
-        final ExpressionMetadata unaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata unaryemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = unaryemd.postConst;
         final Object preConst = unaryemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -989,7 +1007,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitCast(final CastContext ctx) {
-        final ExpressionMetadata castemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata castemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = castemd.postConst;
 
         if (postConst == null) {
@@ -1006,7 +1024,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBinary(final BinaryContext ctx) {
-        final ExpressionMetadata binaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata binaryemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = binaryemd.postConst;
         final Object preConst = binaryemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -1028,7 +1046,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
 
             final ExpressionContext exprctx0 = ctx.expression(0);
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(exprctx0);
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(exprctx0);
             strings.add(exprctx0);
             visit(exprctx0);
 
@@ -1038,7 +1056,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
 
             final ExpressionContext exprctx1 = ctx.expression(1);
-            final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(exprctx1);
+            final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(exprctx1);
             strings.add(exprctx1);
             visit(exprctx1);
 
@@ -1088,7 +1106,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitComp(final CompContext ctx) {
-        final ExpressionMetadata compemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata compemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = compemd.postConst;
         final Object preConst = compemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -1112,10 +1130,10 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
         } else {
             final ExpressionContext exprctx0 = ctx.expression(0);
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(exprctx0);
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(exprctx0);
 
             final ExpressionContext exprctx1 = ctx.expression(1);
-            final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(exprctx1);
+            final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(exprctx1);
             final org.objectweb.asm.Type type = expremd1.to.type;
             final Sort sort1 = expremd1.to.sort;
 
@@ -1254,7 +1272,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBool(final BoolContext ctx) {
-        final ExpressionMetadata boolemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata boolemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = boolemd.postConst;
         final Object preConst = boolemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -1353,7 +1371,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitConditional(final ConditionalContext ctx) {
-        final ExpressionMetadata condemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata condemd = metadata.getExpressionMetadata(ctx);
         final Branch branch = getBranch(ctx);
 
         final ExpressionContext expr0 = ctx.expression(0);
@@ -1384,7 +1402,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAssignment(final AssignmentContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -1394,10 +1412,10 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtstart(ExtstartContext ctx) {
-        final ExternalMetadata startemd = adapter.getExternalMetadata(ctx);
+        final ExternalMetadata startemd = metadata.getExternalMetadata(ctx);
 
         if (startemd.token == ADD) {
-            final ExpressionMetadata storeemd = adapter.getExpressionMetadata(startemd.storeExpr);
+            final ExpressionMetadata storeemd = metadata.getExpressionMetadata(startemd.storeExpr);
 
             if (startemd.current.sort == Sort.STRING || storeemd.from.sort == Sort.STRING) {
                 writeNewStrings();
@@ -1470,7 +1488,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtcast(final ExtcastContext ctx) {
-        ExtNodeMetadata castenmd = adapter.getExtNodeMetadata(ctx);
+        ExtNodeMetadata castenmd = metadata.getExtNodeMetadata(ctx);
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
@@ -1502,7 +1520,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtbrace(final ExtbraceContext ctx) {
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         visit(exprctx);
         writeLoadStoreExternal(ctx);
@@ -1606,7 +1624,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtstring(ExtstringContext ctx) {
-        final ExtNodeMetadata stringenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata stringenmd = metadata.getExtNodeMetadata(ctx);
 
         writeConstant(ctx, stringenmd.target);
 
@@ -1629,7 +1647,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitIncrement(IncrementContext ctx) {
-        final ExpressionMetadata incremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata incremd = metadata.getExpressionMetadata(ctx);
         final Object postConst = incremd.postConst;
 
         if (postConst == null) {
@@ -1647,8 +1665,8 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private void writeLoopCounter(final int count) {
         final Label end = new Label();
 
-        execute.iinc(adapter.loopCounterSlot, -count);
-        execute.visitVarInsn(Opcodes.ILOAD, adapter.loopCounterSlot);
+        execute.iinc(metadata.loopCounterSlot, -count);
+        execute.visitVarInsn(Opcodes.ILOAD, metadata.loopCounterSlot);
         execute.push(0);
         execute.ifICmp(GeneratorAdapter.GT, end);
         execute.throwException(PLAN_A_ERROR_TYPE,
@@ -1955,8 +1973,8 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void writeLoadStoreExternal(final ParserRuleContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceenmd.parent);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
 
         final boolean length = "#length".equals(sourceenmd.target);
         final boolean array = "#brace".equals(sourceenmd.target);
@@ -1978,7 +1996,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         if (length) {
             execute.arrayLength();
         } else if (sourceenmd.last && parentemd.storeExpr != null) {
-            final ExpressionMetadata expremd = adapter.getExpressionMetadata(parentemd.storeExpr);
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(parentemd.storeExpr);
             final boolean cat = strings.contains(parentemd.storeExpr);
 
             if (cat) {
@@ -2083,7 +2101,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
                                            final boolean store, final boolean variable,
                                            final boolean field, final boolean name,
                                            final boolean array, final boolean shortcut) {
-        final ExtNodeMetadata sourceemd = adapter.getExtNodeMetadata(source);
+        final ExtNodeMetadata sourceemd = metadata.getExtNodeMetadata(source);
 
         if (variable) {
             writeLoadStoreVariable(source, store, sourceemd.type, (int)sourceemd.target);
@@ -2140,9 +2158,9 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     private void writeLoadStoreField(final ParserRuleContext source, final boolean store, final String name) {
         if (store) {
-            final ExtNodeMetadata sourceemd = adapter.getExtNodeMetadata(source);
-            final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceemd.parent);
-            final ExpressionMetadata expremd = adapter.getExpressionMetadata(parentemd.storeExpr);
+            final ExtNodeMetadata sourceemd = metadata.getExtNodeMetadata(source);
+            final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceemd.parent);
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(parentemd.storeExpr);
 
             execute.push(name);
             execute.loadThis();
@@ -2164,12 +2182,12 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
         if (type.sort == Sort.DEF) {
             final ExtbraceContext bracectx = (ExtbraceContext)source;
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(bracectx.expression());
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(bracectx.expression());
 
             if (store) {
-                final ExtNodeMetadata braceenmd = adapter.getExtNodeMetadata(bracectx);
-                final ExternalMetadata parentemd = adapter.getExternalMetadata(braceenmd.parent);
-                final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(parentemd.storeExpr);
+                final ExtNodeMetadata braceenmd = metadata.getExtNodeMetadata(bracectx);
+                final ExternalMetadata parentemd = metadata.getExternalMetadata(braceenmd.parent);
+                final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(parentemd.storeExpr);
 
                 execute.loadThis();
                 execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
@@ -2228,8 +2246,8 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void writeNewExternal(final ExtnewContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceenmd.parent);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
 
         final boolean makearray = "#makearray".equals(sourceenmd.target);
         final boolean constructor = sourceenmd.target instanceof Constructor;
@@ -2265,7 +2283,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void writeCallExternal(final ExtcallContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
 
         final boolean method = sourceenmd.target instanceof Method;
         final boolean def = sourceenmd.target instanceof String;
@@ -2315,7 +2333,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 execute.dup();
                 execute.push(argument);
-                execute.push(adapter.getExpressionMetadata(arguments.get(argument)).typesafe);
+                execute.push(metadata.getExpressionMetadata(arguments.get(argument)).typesafe);
                 execute.arrayStore(definition.booleanType.type);
             }
 

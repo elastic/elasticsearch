@@ -78,6 +78,9 @@ public final class GrokProcessor implements Processor {
         private final Map<String, String> builtinPatternBank;
 
         public Factory() throws IOException {
+            // TODO(simonw): we should have a static helper method to load these patterns and make this
+            // factory only accept a String->String map instead. That way we can load
+            // the patterns in the IngestGrokPlugin ctor or even in a static context and this ctor doesn't need to throw any exception.
             Map<String, String> builtinPatterns = new HashMap<>();
             for (String pattern : PATTERN_NAMES) {
                 try(InputStream is = getClass().getResourceAsStream("/patterns/" + pattern)) {

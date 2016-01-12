@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+//TODO(simonw): can all these classes go into org.elasticsearch.ingest?
 
 package org.elasticsearch.ingest.core;
 
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * A Processor that executes a list of other "processors". It executes a separate list of
  * "onFailureProcessors" when any of the processors throw an {@link Exception}.
  */
-public class CompoundProcessor implements Processor {
+public final class CompoundProcessor implements Processor {
     static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
     static final String ON_FAILURE_PROCESSOR_FIELD = "on_failure_processor";
 

@@ -109,7 +109,7 @@ public final class Pipeline {
         }
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
+            String description = ConfigurationUtils.readOptionalStringProperty(config, "description"); // TODO(simonw): can we make these strings constants?
             List<Processor> processors = readProcessors("processors", processorRegistry, config);
             List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
             CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));

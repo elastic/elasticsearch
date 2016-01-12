@@ -20,6 +20,10 @@ https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino[Rhino JavaScript
 The Python language plugin enables the use of Python in Elasticsearch
 scripts, via the http://www.jython.org/[Jython] Java implementation of Python.
 
+<<lang-plan-a,Plan A Language>>::
+
+The Plan A language plugin enables Elasticsearch's internal scripting language.
+
 [float]
 === Abandoned community scripting plugins
 
@@ -30,3 +34,5 @@ This plugin has been contributed by our community, but appears to be abandoned:
 include::lang-javascript.asciidoc[]
 
 include::lang-python.asciidoc[]
+
+include::lang-plan-a.asciidoc[]

@@ -685,45 +685,39 @@ class Definition {
         addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
         addMethod("Boolean", "booleanValue", null, false, booleanType, new Type[] {}, null, null);
 
-        addConstructor("Byte", "new", new Type[]{byteType}, null);
+        addConstructor("Byte", "new", new Type[] {byteType}, null);
         addMethod("Byte", "valueOf", null, true, byteobjType, new Type[] {byteType}, null, null);
-        addMethod("Byte", "byteValue", null, false, byteType, new Type[] {}, null, null);
         addField("Byte", "MIN_VALUE", null, true, byteType, null);
         addField("Byte", "MAX_VALUE", null, true, byteType, null);
 
-        addConstructor("Short", "new", new Type[]{shortType}, null);
+        addConstructor("Short", "new", new Type[] {shortType}, null);
         addMethod("Short", "valueOf", null, true, shortobjType, new Type[] {shortType}, null, null);
-        addMethod("Short", "shortValue", null, false, shortType, new Type[] {}, null, null);
         addField("Short", "MIN_VALUE", null, true, shortType, null);
         addField("Short", "MAX_VALUE", null, true, shortType, null);
 
-        addConstructor("Character", "new", new Type[]{charType}, null);
+        addConstructor("Character", "new", new Type[] {charType}, null);
         addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
         addMethod("Character", "charValue", null, false, charType, new Type[] {}, null, null);
         addField("Character", "MIN_VALUE", null, true, charType, null);
         addField("Character", "MAX_VALUE", null, true, charType, null);
 
-        addConstructor("Integer", "new", new Type[]{intType}, null);
+        addConstructor("Integer", "new", new Type[] {intType}, null);
         addMethod("Integer", "valueOf", null, true, intobjType, new Type[] {intType}, null, null);
-        addMethod("Integer", "intValue", null, false, intType, new Type[] {}, null, null);
         addField("Integer", "MIN_VALUE", null, true, intType, null);
         addField("Integer", "MAX_VALUE", null, true, intType, null);
 
-        addConstructor("Long", "new", new Type[]{longType}, null);
+        addConstructor("Long", "new", new Type[] {longType}, null);
         addMethod("Long", "valueOf", null, true, longobjType, new Type[] {longType}, null, null);
-        addMethod("Long", "longValue", null, false, longType, new Type[] {}, null, null);
         addField("Long", "MIN_VALUE", null, true, longType, null);
         addField("Long", "MAX_VALUE", null, true, longType, null);
 
-        addConstructor("Float", "new", new Type[]{floatType}, null);
+        addConstructor("Float", "new", new Type[] {floatType}, null);
         addMethod("Float", "valueOf", null, true, floatobjType, new Type[] {floatType}, null, null);
-        addMethod("Float", "floatValue", null, false, floatType, new Type[] {}, null, null);
         addField("Float", "MIN_VALUE", null, true, floatType, null);
         addField("Float", "MAX_VALUE", null, true, floatType, null);
 
-        addConstructor("Double", "new", new Type[]{doubleType}, null);
+        addConstructor("Double", "new", new Type[] {doubleType}, null);
         addMethod("Double", "valueOf", null, true, doubleobjType, new Type[] {doubleType}, null, null);
-        addMethod("Double", "doubleValue", null, false, doubleType, new Type[] {}, null, null);
         addField("Double", "MIN_VALUE", null, true, doubleType, null);
         addField("Double", "MAX_VALUE", null, true, doubleType, null);
 

@@ -31,8 +31,8 @@ public class TranslogSnapshot extends TranslogReader implements Translog.Snapsho
     protected final long length;
 
     private final ByteBuffer reusableBuffer;
-    long position;
-    int readOperations;
+    private long position;
+    private int readOperations;
     private BufferedChecksumStreamInput reuse;
 
 
@@ -51,7 +51,7 @@ public class TranslogSnapshot extends TranslogReader implements Translog.Snapsho
     }
 
     @Override
-    public final int estimatedTotalOperations() {
+    public final int totalOperations() {
         return totalOperations;
     }
 
@@ -77,10 +77,6 @@ public class TranslogSnapshot extends TranslogReader implements Translog.Snapsho
 
     public long sizeInBytes() {
         return length;
-    }
-
-    public int totalOperations() {
-        return totalOperations;
     }
 
     /**

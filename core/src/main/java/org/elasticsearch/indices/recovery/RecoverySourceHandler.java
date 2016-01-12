@@ -462,14 +462,14 @@ public class RecoverySourceHandler {
                 // make sense to re-enable throttling in this phase
                 cancellableThreads.execute(() -> {
                     final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                            request.recoveryId(), request.shardId(), operations, snapshot.estimatedTotalOperations());
+                            request.recoveryId(), request.shardId(), operations, snapshot.totalOperations());
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                             recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 });
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
                             indexName, shardId, ops, new ByteSizeValue(size),
-                            snapshot.estimatedTotalOperations(),
+                            snapshot.totalOperations(),
                             request.targetNode());
                 }
 
@@ -487,7 +487,7 @@ public class RecoverySourceHandler {
         if (!operations.isEmpty()) {
             cancellableThreads.execute(() -> {
                 RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                        request.recoveryId(), request.shardId(), operations, snapshot.estimatedTotalOperations());
+                        request.recoveryId(), request.shardId(), operations, snapshot.totalOperations());
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                         recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             });
@@ -496,7 +496,7 @@ public class RecoverySourceHandler {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}][{}] sent final batch of [{}][{}] (total: [{}]) translog operations to {}",
                     indexName, shardId, ops, new ByteSizeValue(size),
-                    snapshot.estimatedTotalOperations(),
+                    snapshot.totalOperations(),
                     request.targetNode());
         }
         return totalOperations;

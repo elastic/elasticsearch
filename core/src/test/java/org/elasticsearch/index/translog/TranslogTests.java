@@ -238,12 +238,12 @@ public class TranslogTests extends ESTestCase {
         addToTranslogAndList(translog, ops, new Translog.Index("test", "1", new byte[]{1}));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
+        assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
         addToTranslogAndList(translog, ops, new Translog.Delete(newUid("2")));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
+        assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
         snapshot = translog.newSnapshot();
 
@@ -263,12 +263,12 @@ public class TranslogTests extends ESTestCase {
 
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
+        assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
         translog.commit();
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(0));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(0));
+        assertThat(snapshot.totalOperations(), equalTo(0));
     }
 
     protected TranslogStats stats() throws IOException {
@@ -357,15 +357,15 @@ public class TranslogTests extends ESTestCase {
 
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        assertThat(snapshot.totalOperations(), equalTo(1));
 
         snapshot = translog.newSnapshot();
         Translog.Snapshot snapshot1 = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        assertThat(snapshot.totalOperations(), equalTo(1));
 
         assertThat(snapshot1, SnapshotMatchers.size(1));
-        assertThat(snapshot1.estimatedTotalOperations(), equalTo(1));
+        assertThat(snapshot1.totalOperations(), equalTo(1));
     }
 
     public void testSnapshotWithNewTranslog() throws IOException {
@@ -387,7 +387,7 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot snapshot2 = translog.newSnapshot();
             translog.commit();
             assertThat(snapshot2, SnapshotMatchers.equalsTo(ops));
-            assertThat(snapshot2.estimatedTotalOperations(), equalTo(ops.size()));
+            assertThat(snapshot2.totalOperations(), equalTo(ops.size()));
         }
     }
 
@@ -576,7 +576,7 @@ public class TranslogTests extends ESTestCase {
         Translog.Snapshot snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(1));
         assertFileIsPresent(translog, 1);
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        assertThat(snapshot.totalOperations(), equalTo(1));
         translog.close();
 
         assertFileIsPresent(translog, 1);
@@ -1322,7 +1322,7 @@ public class TranslogTests extends ESTestCase {
             assertFalse(tlog.syncNeeded());
 
             Translog.Snapshot snapshot = tlog.newSnapshot();
-            assertEquals(opsSynced, snapshot.estimatedTotalOperations());
+            assertEquals(opsSynced, snapshot.totalOperations());
             for (int i = 0; i < opsSynced; i++) {
                 assertEquals("expected operation" + i + " to be in the previous translog but wasn't", tlog.currentFileGeneration() - 1, locations.get(i).generation);
                 Translog.Operation next = snapshot.next();
@@ -1339,7 +1339,7 @@ public class TranslogTests extends ESTestCase {
         for (int opsAdded = 0; opsAdded < numOps; opsAdded++) {
             locations.add(translog.add(new Translog.Index("test", "" + opsAdded, lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8")))));
             Translog.Snapshot snapshot = this.translog.newSnapshot();
-            assertEquals(opsAdded + 1, snapshot.estimatedTotalOperations());
+            assertEquals(opsAdded + 1, snapshot.totalOperations());
             for (int i = 0; i < opsAdded; i++) {
                 assertEquals("expected operation" + i + " to be in the current translog but wasn't", translog.currentFileGeneration(), locations.get(i).generation);
                 Translog.Operation next = snapshot.next();
@@ -1448,14 +1448,14 @@ public class TranslogTests extends ESTestCase {
             config.setTranslogGeneration(translog.getGeneration());
             try (Translog tlog = new Translog(config)) {
                 Translog.Snapshot snapshot = tlog.newSnapshot();
-                if (writtenOperations.size() != snapshot.estimatedTotalOperations()) {
+                if (writtenOperations.size() != snapshot.totalOperations()) {
                     for (int i = 0; i < threadCount; i++) {
                         if (threadExceptions[i] != null) {
                             threadExceptions[i].printStackTrace();
                         }
                     }
                 }
-                assertEquals(writtenOperations.size(), snapshot.estimatedTotalOperations());
+                assertEquals(writtenOperations.size(), snapshot.totalOperations());
                 for (int i = 0; i < writtenOperations.size(); i++) {
                     assertEquals("expected operation" + i + " to be in the previous translog but wasn't", tlog.currentFileGeneration() - 1, writtenOperations.get(i).location.generation);
                     Translog.Operation next = snapshot.next();
@@ -1799,7 +1799,7 @@ public class TranslogTests extends ESTestCase {
 
             try (Translog translog = new Translog(config)) {
                 Translog.Snapshot snapshot = translog.newSnapshot();
-                assertEquals(syncedDocs.size(), snapshot.estimatedTotalOperations());
+                assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
                     assertEquals(syncedDocs.get(i), next.getSource().source.toUtf8());

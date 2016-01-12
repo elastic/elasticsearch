@@ -28,7 +28,7 @@ import java.util.Arrays;
 final class MultiSnapshot implements Translog.Snapshot {
 
     private final Translog.Snapshot[] translogs;
-    private final int estimatedTotalOperations;
+    private final int totalOperations;
     private int index;
 
     /**
@@ -36,14 +36,14 @@ final class MultiSnapshot implements Translog.Snapshot {
      */
     MultiSnapshot(Translog.Snapshot[] translogs) {
         this.translogs = translogs;
-        estimatedTotalOperations = Arrays.stream(translogs).mapToInt(Translog.Snapshot::estimatedTotalOperations).sum();
+        totalOperations = Arrays.stream(translogs).mapToInt(Translog.Snapshot::totalOperations).sum();
         index = 0;
     }
 
 
     @Override
-    public int estimatedTotalOperations() {
-        return estimatedTotalOperations;
+    public int totalOperations() {
+        return totalOperations;
     }
 
     @Override

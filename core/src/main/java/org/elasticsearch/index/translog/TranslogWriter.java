@@ -179,21 +179,14 @@ public class TranslogWriter extends TranslogReader implements Closeable {
     /**
      * closes this writer and transfers it's underlying file channel to a new immutable reader
      */
-    public synchronized ImmutableTranslogReader closeIntoReader() throws TranslogException, IOException {
+    public synchronized ImmutableTranslogReader closeIntoReader() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            boolean success = false;
             try {
                 sync();
-                ImmutableTranslogReader reader = new ImmutableTranslogReader(this.generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
-                success = true;
-                return reader;
-            } catch (Throwable e) {
+                return new ImmutableTranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+            } catch (IOException e) {
                 closeWithTragicEvent(e);
-                throw new TranslogException(shardId, "exception while creating an immutable reader", e);
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(channel);
-                }
+                throw e;
             }
         } else {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);

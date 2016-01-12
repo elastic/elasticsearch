@@ -66,6 +66,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -527,7 +528,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public boolean ensureSynced(Location location) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
-            if (location.generation == current.generation) { // if we have a new one it's already synced
+            if (location.generation == current.getGeneration()) { // if we have a new one it's already synced
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
@@ -700,7 +701,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * The total number of operations in the translog.
          */
-        int estimatedTotalOperations();
+        int totalOperations();
 
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
@@ -1201,8 +1202,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingGeneration);
             }
-            currentCommittingGeneration = current.generation;
-            current.sync();
+            currentCommittingGeneration = current.getGeneration();
             ImmutableTranslogReader currentCommittingTranslog = current.closeIntoReader();
             readers.add(currentCommittingTranslog);
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
@@ -1229,6 +1229,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 prepareCommit();
             }
             assert currentCommittingGeneration != NOT_SET_GENERATION;
+            assert readers.stream().filter(r -> r.getGeneration() == currentCommittingGeneration).findFirst().isPresent()
+                    : "reader list doesn't contain committing generation [" + currentCommittingGeneration + "]";
             lastCommittedTranslogFileGeneration = current.getGeneration(); // this is important - otherwise old files will not be cleaned up
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
@@ -1243,28 +1245,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
-            while (readers.isEmpty() == false) {
-                ImmutableTranslogReader reader = readers.get(0);
-                if (reader.getGeneration() >= minReferencedGen) {
-                    return;
-                }
-                readers.remove(0);
-                Path translogPath = reader.path();
+            final long finalMinReferencedGen = minReferencedGen;
+            List<ImmutableTranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+            unreferenced.forEach(unreferencedReader -> {
+                Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
-                IOUtils.closeWhileHandlingException(reader);
+                IOUtils.closeWhileHandlingException(unreferencedReader);
                 IOUtils.deleteFilesIgnoringExceptions(translogPath);
-                IOUtils.deleteFilesIgnoringExceptions(translogPath.resolveSibling(getCommitCheckpointFileName(reader.getGeneration())));
-            }
+                IOUtils.deleteFilesIgnoringExceptions(translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
+            });
+            readers.removeAll(unreferenced);
         }
     }
 
     void closeFilesIfNoPendingViews() {
         try (ReleasableLock ignored = writeLock.acquire()) {
-            if (closed.get() == false) {
-                // we are not closed yet.
-                return;
-            }
-            if (outstandingViews.isEmpty()) {
+            if (closed.get() && outstandingViews.isEmpty()) {
                 logger.trace("closing files. translog is closed and there are no pending views");
                 try {
                     ArrayList<Closeable> toClose = new ArrayList<>(readers);

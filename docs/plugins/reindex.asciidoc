@@ -395,14 +395,21 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
-Think of the possibilities! Just be careful! With great power.... Anyway! You
-can also change the "_type" and "_id" and even "_index" to change the
-destination as much as you need.
+Think of the possibilities! Just be careful! With great power.... You can
+change:
+ * "_id"
+ * "_type"
+ * "_index"
+ * "_version"
+ * "_routing"
+ * "_parent"
+ * "_timestamp"
+ * "_ttl"
 
-Another thing about `version`, setting it to `null` or clearing it from the
-`ctx` map is just like not sending the version in an indexing request: it will
-cause that document to be overwritten in the target index regardless of the
-versioning there.
+Setting `_version` to `null` or clearing it from the `ctx` map is just like not
+sending the version in an indexing request. It will cause that document to be
+overwritten in the target index regardless of the version on the target or the
+version type you use in the `_reindex` request.
 
 By default if `_reindex` sees a document with routing then the routing is
 preserved unless it's changed by scripting. You can set `routing` on the `dest`
@@ -422,7 +429,7 @@ Sets the routing on the bulk request sent for each match to null.
 Sets the routing on the bulk request sent for each match to all text after
 the `=`.
 
-For example, you can use the following query to copy all documents from
+For example, you can use the following request to copy all documents from
 the `src` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
 [source,js]

@@ -560,30 +560,30 @@ and high risk of being misused. The ability to change the thread pool type for a
 that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
 the thread pool type, `keep_alive`, `queue_size`, etc.).
 
+[[breaking_30_cpu_stats]]
 === System CPU stats
 
 The recent CPU usage (as a percent) has been added to the OS stats
 reported under the node stats API and the cat nodes API. The breaking
-change here is that there is a new object in the "os" object in the node
-stats response. This object is called "cpu" and includes "percent" and
-"load_average" as fields. This moves the "load_average" field that was
-previously a top-level field in the "os" object to the "cpu" object. The
-format of the "load_average" field has changed to an array of length
-three representing the one-minute, five-minute and fifteen-minute load
-averages (a value of -1 for any of array components indicates that the
-corresponding metric is not available).
+change here is that there is a new object in the `os` object in the node
+stats response. This object is called `cpu` and includes "percent" and
+`load_average` as fields. This moves the `load_average` field that was
+previously a top-level field in the `os` object to the `cpu` object. The
+format of the `load_average` field has changed to an object with fields
+`1m`, `5m`, and `15m` representing the one-minute, five-minute and
+fifteen-minute loads respectively. If any of these fields are not present,
+it indicates that the corresponding value is not available.
 
-In the cat nodes API response, the "cpu" field is output by default. The
-previous "load" field has been removed and is replaced by "load_1m",
-"load_5m", and "load_15m" which represent the one-minute, five-minute
-and fifteen-minute loads respectively. These values are output by
-default, and a value of -1 indicates that the corresponding metric is
-not available.
+In the cat nodes API response, the `cpu` field is output by default. The
+previous `load` field has been removed and is replaced by `load_1m`,
+`load_5m`, and `load_15m` which represent the one-minute, five-minute
+and fifteen-minute loads respectively. The field will be null if the
+corresponding value is not available.
 
-Finally, the API for org.elasticsearch.monitor.os.OsStats has
+Finally, the API for `org.elasticsearch.monitor.os.OsStats` has
 changed. The `getLoadAverage` method has been removed. The value for
 this can now be obtained from `OsStats.Cpu#getLoadAverage` but it is no
-longer a double and is instead an object encapuslating the one-minute,
+longer a double and is instead an object encapsulating the one-minute,
 five-minute and fifteen-minute load averages. Additionally, the recent
 CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 

@@ -30,7 +30,11 @@
     },
     "os": {
       "cpu": {
-        "load_average": 0.66
+        "load_average": [
+          0.66,
+          0.87,
+          1.28
+        ]
       }
     },
     "process": {

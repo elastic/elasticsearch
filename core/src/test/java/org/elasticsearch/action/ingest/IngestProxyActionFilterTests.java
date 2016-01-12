@@ -68,6 +68,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
     private IngestProxyActionFilter buildFilter(int ingestNodes, int totalNodes) {
         ClusterState clusterState = mock(ClusterState.class);
         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
+        DiscoveryNode localNode = null;
         for (int i = 0; i < totalNodes; i++) {
             String nodeId = "node" + i;
             Map<String, String> attributes = new HashMap<>();
@@ -76,10 +77,15 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             } else if (randomBoolean()) {
                 attributes.put("ingest", "true");
             }
-            builder.put(new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, VersionUtils.randomVersion(random())));
+            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, VersionUtils.randomVersion(random()));
+            builder.put(node);
+            if (i == totalNodes - 1) {
+                localNode = node;
+            }
         }
         when(clusterState.nodes()).thenReturn(builder.build());
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.state()).thenReturn(clusterState);
         transportService = mock(TransportService.class);
         return new IngestProxyActionFilter(clusterService, transportService);

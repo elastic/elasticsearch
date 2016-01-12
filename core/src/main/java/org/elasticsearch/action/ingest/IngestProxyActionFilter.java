@@ -29,9 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -127,11 +125,9 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     private DiscoveryNode randomIngestNode() {
-        ClusterState state = clusterService.state();
-        DiscoveryNodes nodes = state.nodes();
-        assert IngestModule.isIngestEnabled(nodes.localNode().attributes()) == false;
+        assert IngestModule.isIngestEnabled(clusterService.localNode().attributes()) == false;
         List<DiscoveryNode> ingestNodes = new ArrayList<>();
-        for (DiscoveryNode node : nodes) {
+        for (DiscoveryNode node : clusterService.state().nodes()) {
             if (IngestModule.isIngestEnabled(node.getAttributes())) {
                 ingestNodes.add(node);
             }

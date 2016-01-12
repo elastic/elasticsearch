@@ -77,8 +77,8 @@ supported scripting languages:
 |groovy     |no        |built-in
 |expression |yes       |built-in
 |mustache   |yes       |built-in
-|javascript |no        |https://www.elastic.co/guide/en/elasticsearch/plugins/current/lang-javascript.html[elasticsearch-lang-javascript]
-|python     |no        |https://www.elastic.co/guide/en/elasticsearch/plugins/current/lang-python.html[elasticsearch-lang-python]
+|javascript |no        |{plugins}/lang-javascript.html[elasticsearch-lang-javascript]
+|python     |no        |{plugins}/lang-python.html[elasticsearch-lang-python]
 |=======================================================================
 
 To increase security, Elasticsearch does not allow you to specify scripts for

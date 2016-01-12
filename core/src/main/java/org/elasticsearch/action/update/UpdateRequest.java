@@ -639,8 +639,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Map<String, Object> scriptParams = null;
         Script script = null;
-        XContentType xContentType = XContentFactory.xContentType(source);
-        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 return this;
@@ -657,10 +656,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("scripted_upsert".equals(currentFieldName)) {
                     scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
+                    XContentType xContentType = XContentFactory.xContentType(source);
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
                     safeUpsertRequest().source(builder);
                 } else if ("doc".equals(currentFieldName)) {
+                    XContentType xContentType = XContentFactory.xContentType(source);
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);

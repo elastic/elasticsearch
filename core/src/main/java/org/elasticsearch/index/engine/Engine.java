@@ -35,6 +35,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
@@ -430,8 +431,8 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
-    /** How much heap Lucene's IndexWriter is using */
-    abstract public long indexWriterRAMBytesUsed();
+    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    abstract public long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -529,10 +530,16 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Refreshes the engine for new search operations to reflect the latest
+     * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
+     */
+    // NOTE: do NOT rename this to something containing flush or refresh!
+    public abstract void writeIndexingBuffer() throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.
@@ -1142,4 +1149,14 @@ public abstract class Engine implements Closeable {
          */
         void warm(Engine.Searcher searcher, boolean isTopLevelReader);
     }
+
+    /**
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link deactivateThrottling}.
+     */
+    public abstract void activateThrottling();
+
+    /**
+     * Reverses a previous {@link #activateThrottling} call.
+     */
+    public abstract void deactivateThrottling();
 }

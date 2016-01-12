@@ -293,14 +293,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
-        indexModule.addIndexEventListener(indexingMemoryController);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
         indexModule.addIndexEventListener(oldShardsStats);
         final IndexEventListener listener = indexModule.freeze();
         listener.beforeIndexCreated(index, idxSettings.getSettings());
-        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry);
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry, indexingMemoryController);
         boolean success = false;
         try {
             assert indexService.getIndexEventListener() == listener;

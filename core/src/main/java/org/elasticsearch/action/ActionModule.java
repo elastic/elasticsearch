@@ -150,7 +150,7 @@ import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptActi
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
 import org.elasticsearch.action.ingest.IngestActionFilter;
-import org.elasticsearch.action.ingest.IngestDisabledActionFilter;
+import org.elasticsearch.action.ingest.IngestProxyActionFilter;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
@@ -256,7 +256,7 @@ public class ActionModule extends AbstractModule {
             if (ingestEnabled) {
                 registerFilter(IngestActionFilter.class);
             } else {
-                registerFilter(IngestDisabledActionFilter.class);
+                registerFilter(IngestProxyActionFilter.class);
             }
         }
 

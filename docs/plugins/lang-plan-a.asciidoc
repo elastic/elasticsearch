@@ -198,9 +198,16 @@ GET test/_search
 
 The following types are available for use in the Plan A language:
 
+Dynamic Types:
+[source,plan-a]
+----
+def (This type can be used to represent any other type.)
+----
+
 Basic Types:
 [source,plan-a]
 ----
+void
 boolean
 byte
 short
@@ -216,6 +223,8 @@ Complex Types:
 Note the following:
 1. Non-static methods/members in superclasses are available to subclasses.
 2. Generic types with unspecified generic parameters are parameters of type def.
+3. Most types/methods correspond to their Java equivalent and more information can be
+   found in the JavaDocs for that type/method.
 
 [source,plan-a]
 ----
@@ -231,6 +240,8 @@ Number extends Object
     long longValue()
     float floatValue()
     double doubleValue()
+
+Void extends Object
 
 Boolean extends Object
     <init>(boolean)
@@ -280,16 +291,96 @@ Double extends Number
     static double MIN_VALUE
     static double MAX_VALUE
 
-String extends Object
+CharSequence extends Object
+    char charAt(int)
+    int length()
+
+String extends CharSequence
     <init>(String)
     int codePointAt(int)
     int compareTo(String)
+    String concat(String)
+    boolean endsWith(String)
+    int indexOf(String, int)
+    boolean isEmpty()
+    String replace(CharSequence, CharSequence)
+    boolean startsWith(String)
+    String substring(int, int)
+    char[] toCharArray()
+    String trim()
+
+Iterator extends Object
+    boolean hasNext()
+    def next()
+    void remove()
+
+Iterator<Object> extends Object
+    boolean hasNext()
+    Object next()
+    void remove()
+
+Iterator<String> extends Object
+    boolean hasNext()
+    String next()
+    void remove()
+
+Collection extends Object
+    boolean add(def)
+    void clear()
+    boolean contains(def)
+    boolean isEmpty()
+    Iterator iterator()
+    boolean remove(def)
+    int size()
+
+Collection<Object> extends Object
+    boolean add(Object)
+    void clear()
+    boolean contains(Object)
+    boolean isEmpty()
+    Iterator iterator()
+    boolean remove(Object)
+    int size()
+
+Collection<String> extends Object
+    boolean add(String)
+    void clear()
+    boolean contains(String)
+    boolean isEmpty()
+    Iterator iterator()
+    boolean remove(String)
+    int size()
+
+List extends Collection
+    def set(int, def)
+    def get(int)
+    def remove(int)
+
+List<Object> extends Collection
+    Object set(int, Object)
+    Object get(int)
+    Object remove(int)
+
+List<String> extends Collection
+    String set(int, String)
+    String get(int)
+    String remove(int)
+
+ArrayList extends List
+    <init>()
+
+ArrayList<Object> extends List<Object>
+    <init>()
+
+ArrayList<String> extends List<String>
+    <init>()
+
+Set extends Collection
+
+Set<Object> extends Collection<Object>
+
+Set<String> extends Collection<String>
 
 
-----
 
-Dynamic Types:
-[source,plan-a]
-----
-def (This type can be used to represent any other type.)
 ----

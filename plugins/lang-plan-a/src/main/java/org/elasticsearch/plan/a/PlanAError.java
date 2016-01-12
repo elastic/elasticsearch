@@ -20,8 +20,6 @@
 package org.elasticsearch.plan.a;
 
 public class PlanAError extends Error {
-    static final long serialVersionUID = 0L;
-
     public PlanAError(final String message) {
        super(message);
     }

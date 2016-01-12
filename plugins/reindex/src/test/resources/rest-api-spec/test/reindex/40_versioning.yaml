@@ -76,6 +76,7 @@
       reindex:
         refresh: true
         body:
+          conflicts: proceed
           src:
             index:   src
           dest:

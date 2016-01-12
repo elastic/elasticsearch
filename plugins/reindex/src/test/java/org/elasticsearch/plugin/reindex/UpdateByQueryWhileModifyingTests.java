@@ -48,8 +48,8 @@ public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
                 try {
-                    assertThat(request().source("test").refresh(true).get(), responseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
-                            .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
+                    assertThat(request().source("test").refresh(true).abortOnVersionConflict(false).get(), responseMatcher()
+                            .updated(either(equalTo(0L)).or(equalTo(1L))).versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                 } catch (Throwable t) {
                     failure.set(t);
                 }

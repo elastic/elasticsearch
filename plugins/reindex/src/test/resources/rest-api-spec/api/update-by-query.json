@@ -63,7 +63,7 @@
             "note": "This is not copied from search",
             "type" : "enum",
             "options": ["abort", "proceed"],
-            "default": "proceed",
+            "default": "abort",
             "description" : "What to do when the reindex hits version conflicts?"
         },
         "expand_wildcards": {

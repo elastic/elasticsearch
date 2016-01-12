@@ -72,42 +72,9 @@
       indices.refresh: {}
 
   - do:
-      reindex:
-        body:
-          src:
-            index:   source
-          dest:
-            index:   dest
-            op_type: create
-  - match: {created: 0}
-  - match: {updated: 0}
-  - match: {version_conflicts: 1}
-  - match: {batches: 1}
-  - match: {failures: []}
-  - is_true: took
-
----
-"Response format for version conflict with conflicts=abort":
-  - do:
-      index:
-        index:   source
-        type:    foo
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      index:
-        index:   dest
-        type:    foo
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      indices.refresh: {}
-
-  - do:
       catch: conflict
       reindex:
         body:
-          conflicts: abort
           src:
             index:   source
           dest:
@@ -125,6 +92,39 @@
   - match: {failures.0.cause.reason: "[foo][1]: version conflict, document already exists (current version [1])"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  dest}
+  - is_true: took
+
+---
+"Response format for version conflict with conflicts=proceed":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   dest
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        body:
+          conflicts: proceed
+          src:
+            index:   source
+          dest:
+            index:   dest
+            op_type: create
+  - match: {created: 0}
+  - match: {updated: 0}
+  - match: {version_conflicts: 1}
+  - match: {batches: 1}
+  - match: {failures: []}
   - is_true: took
 
 ---

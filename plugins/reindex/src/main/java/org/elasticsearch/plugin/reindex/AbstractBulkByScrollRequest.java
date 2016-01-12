@@ -52,9 +52,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private int size = SIZE_ALL_MATCHES;
 
     /**
-     * Should version conflicts cause aborts? Defaults to false.
+     * Should version conflicts cause aborts? Defaults to true.
      */
-    private boolean abortOnVersionConflict = false;
+    private boolean abortOnVersionConflict = true;
 
     /**
      * Call refresh on the indexes we've written to after the request ends?

@@ -46,7 +46,7 @@ mapping change. Here is the API:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query
+POST /twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
 // AUTOSENSE
 
@@ -69,25 +69,27 @@ conflict if the document changes between the time when the snapshot was taken
 and when the index request is processed. When the versions match the document
 is updated and the version number is incremented.
 
-All non-version conflict update failures cause the `_update_by_query` to abort
-and are returned in the `failures` of the response. The updates that have been
+All update and query failures cause the `_update_by_query` to abort and are
+returned in the `failures` of the response. The updates that have been
 performed still stick. In other words, the process is not rolled back, only
 aborted. While the first failure causes the abort all failures that are
 returned by the failing bulk request are returned in the `failures` element so
 it's possible for there to be quite a few.
 
-By default version conflict failures are simply counted and do not cause the
-`_update_by_query` to abort. You can request that they cause it to abort by
-setting `conflicts=abort` on the url or `"conflicts": "abort"` in the request
-body. If you do then the `failures` element will contain version conflict
-information. Version conflicts cannot be recorded without causing aborts.
+If you want to simply count version conflicts not cause the `_update_by_query`
+to abort you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
+in the request body. The first example does this because it is just trying to
+pick up an online mapping change and a version conflict simply means that the
+conflicting document was updated between the start of the `_update_by_query`
+and the time when it attempted to update the document. This is fine because
+that update will have picked up the online mapping update.
 
 Back to the API format, you can limit `_update_by_query` to a single type. This
 will only update `tweet`s from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_update_by_query
+POST /twitter/tweet/_update_by_query?conflicts=proceed
 --------------------------------------------------
 // AUTOSENSE
 
@@ -97,7 +99,7 @@ You can also limit `_update_by_query` using the
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query
+POST /twitter/_update_by_query?conflicts=proceed
 {
   "query": { <1>
     "term": {
@@ -139,6 +141,9 @@ your script decides that it doesn't have to make any changes. That will cause
 anything else is an error. If you want to delete by a query you can use the
 <<plugins-delete-by-query,Delete by Query Plugin>> instead. Setting any other
 field in `ctx` is an error.
+
+Note that we stopped specifying `conflicts=proceed`. In this case we want a
+version conflict to abort the process so we can handle the failure.
 
 This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
@@ -269,13 +274,14 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
-You can cause aborts on version conflicts with:
+By default version conflicts abort the `_reindex` process but you can just
+count them by settings `"conflicts": "proceed"` in the request body:
 
 [source,js]
 --------------------------------------------------
 POST /_reindex
 {
-  "conflicts": "abort",
+  "conflicts": "proceed",
   "src": {
     "index": "twitter"
   },
@@ -507,8 +513,9 @@ The number of version conflicts that the `_reindex_` or `_update_by_query` hit.
 
 `failures`::
 
-Array of all indexing failures. By default version conflicts are not included
-in this list. See `conflicts` for how to get them included.
+Array of all indexing failures. If this is non-empty then the request aborted
+because of those failures. See `conflicts` for how to prevent version conflicts
+from aborting the operation.
 
 `created`::
 
@@ -593,7 +600,7 @@ But you can issue an `_update_by_query` request to pick up the new mapping:
 
 [source,js]
 --------------------------------------------------
-POST test/_update_by_query?refresh
+POST test/_update_by_query?refresh&conflicts=proceed
 POST test/_search?filter_path=hits.total
 {
   "query": {

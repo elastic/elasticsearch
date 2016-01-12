@@ -384,7 +384,16 @@ public class FixedPointFieldMapper extends NumberFieldMapper {
 
         @Override
         public String numericAsString() {
-            return Double.toString(number / decimalFactor);
+            return Double.toString(ToDouble());
+        }
+
+        @Override
+        public Number numericValue() {
+            return ToDouble();
+        }
+
+        private double ToDouble() {
+            return (double)number / (double)decimalFactor;
         }
     }
 }

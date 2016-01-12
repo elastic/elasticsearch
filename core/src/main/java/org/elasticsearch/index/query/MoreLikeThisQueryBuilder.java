@@ -875,14 +875,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         }
 
-        BooleanQuery boolQuery = new BooleanQuery();
+        BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
         boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
         // exclude the items from the search
         if (!include) {
             handleExclude(boolQuery, likeItems);
         }
-        return boolQuery;
+        return boolQuery.build();
     }
 
     private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
@@ -949,7 +949,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 
-    private static void handleExclude(BooleanQuery boolQuery, Item[] likeItems) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {

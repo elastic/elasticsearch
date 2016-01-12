@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
@@ -79,11 +80,6 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
                 .put(Storage.CONTAINER, "snapshots");
-
-        // We use sometime deprecated settings in tests
-        builder.put(Storage.ACCOUNT_DEPRECATED, "mock_azure_account")
-                .put(Storage.KEY_DEPRECATED, "mock_azure_key");
-
         return builder.build();
     }
 

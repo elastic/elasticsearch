@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.services.s3.AmazonS3;
+
 import org.elasticsearch.common.component.LifecycleComponent;
 
 /**
@@ -37,10 +38,6 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
         public static final String SIGNER = "cloud.aws.signer";
         public static final String REGION = "cloud.aws.region";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
     }
 
     final class CLOUD_S3 {
@@ -53,10 +50,6 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String PROXY_PASSWORD = "cloud.aws.s3.proxy.password";
         public static final String SIGNER = "cloud.aws.s3.signer";
         public static final String ENDPOINT = "cloud.aws.s3.endpoint";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.s3.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.s3.proxy_port";
     }
 
     final class REPOSITORY_S3 {

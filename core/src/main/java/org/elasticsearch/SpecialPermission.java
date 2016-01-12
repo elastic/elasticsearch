@@ -22,15 +22,15 @@ package org.elasticsearch;
 import java.security.BasicPermission;
 
 /**
- * Elasticsearch-specific permission to check before entering 
- * {@code AccessController.doPrivileged()} blocks. 
+ * Elasticsearch-specific permission to check before entering
+ * {@code AccessController.doPrivileged()} blocks.
  * <p>
- * We try to avoid these blocks in our code and keep security simple, 
- * but we need them for a few special places to contain hacks for third 
+ * We try to avoid these blocks in our code and keep security simple,
+ * but we need them for a few special places to contain hacks for third
  * party code, or dangerous things used by scripting engines.
  * <p>
  * All normal code has this permission, but checking this before truncating the stack
- * prevents unprivileged code (e.g. scripts), which do not have it, from gaining elevated 
+ * prevents unprivileged code (e.g. scripts), which do not have it, from gaining elevated
  * privileges.
  * <p>
  * In other words, don't do this:
@@ -57,9 +57,6 @@ import java.security.BasicPermission;
  * </code></pre>
  */
 public final class SpecialPermission extends BasicPermission {
-
-    private static final long serialVersionUID = -4129500096157408168L;
-
     /**
      * Creates a new SpecialPermision object.
      */
@@ -68,11 +65,11 @@ public final class SpecialPermission extends BasicPermission {
         // but let's just keep it simple if we can.
         super("*");
     }
-    
+
     /**
      * Creates a new SpecialPermission object.
      * This constructor exists for use by the {@code Policy} object to instantiate new Permission objects.
-     * 
+     *
      * @param name ignored
      * @param actions ignored
      */

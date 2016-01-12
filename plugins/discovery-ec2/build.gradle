@@ -42,8 +42,6 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-rawtypes,-deprecation'
-
 test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 

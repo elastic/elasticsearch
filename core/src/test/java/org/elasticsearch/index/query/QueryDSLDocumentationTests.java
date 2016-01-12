@@ -331,8 +331,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         spanNearQuery(spanTermQuery("field","value1"), 12)
         .clause(spanTermQuery("field","value2"))
         .clause(spanTermQuery("field","value3"))
-        .inOrder(false)
-        .collectPayloads(false);
+        .inOrder(false);
     }
 
     public void testSpanNot() {

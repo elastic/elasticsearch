@@ -23,21 +23,22 @@ import org.apache.lucene.util.LuceneTestCase;
 
 import java.nio.file.FileSystem;
 
-/** 
- * Exposes some package private stuff in PathUtils for framework purposes only! 
+/**
+ * Exposes some package private stuff in PathUtils for framework purposes only!
  */
 public class PathUtilsForTesting {
-    
+
     /** Sets a new default filesystem for testing */
+    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15845
     public static void setup() {
         installMock(LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
     }
-    
+
     /** Installs a mock filesystem for testing */
     public static void installMock(FileSystem mock) {
         PathUtils.DEFAULT = mock;
     }
-    
+
     /** Resets filesystem back to the real system default */
     public static void teardown() {
         PathUtils.DEFAULT = PathUtils.ACTUAL_DEFAULT;

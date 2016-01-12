@@ -150,6 +150,10 @@ Removed support for the deprecated top level `filter` in the search api, replace
 
 Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
 
+==== `span_near`'s' `collect_payloads` deprecated
+
+Payloads are now loaded when needed.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
@@ -194,7 +198,6 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
-
 ==== Recovery settings
 
 Recovery settings deprecated in 1.x have been removed:
@@ -237,6 +240,11 @@ Please change the setting in your configuration files or in the clusterstate to 
 ==== Similarity settings
 
 The 'default' similarity has been renamed to 'classic'.
+
+==== Indexing settings
+
+`indices.memory.min_shard_index_buffer_size` and `indices.memory.max_shard_index_buffer_size` are removed since Elasticsearch now allows any one shard to any
+amount of heap as long as the total indexing buffer heap used across all shards is below the node's `indices.memory.index_buffer_size` (default: 10% of the JVM heap)
 
 [[breaking_30_mapping_changes]]
 === Mapping changes
@@ -552,17 +560,32 @@ and high risk of being misused. The ability to change the thread pool type for a
 that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
 the thread pool type, `keep_alive`, `queue_size`, etc.).
 
-=== Adding system CPU percent to OS stats
+=== System CPU stats
 
-The recent CPU usage (as a percent) has been added to the OS stats reported under the node stats API and the cat nodes
-API. The breaking change here is that there is a new object in the "os" object in the node stats response. This object
-is called "cpu" and includes "percent" and "load_average" as fields. This moves the "load_average" field that was
-previously a top-level field in the "os" object to the "cpu" object. Additionally, the "cpu" field in the cat nodes API
-response is output by default.
+The recent CPU usage (as a percent) has been added to the OS stats
+reported under the node stats API and the cat nodes API. The breaking
+change here is that there is a new object in the "os" object in the node
+stats response. This object is called "cpu" and includes "percent" and
+"load_average" as fields. This moves the "load_average" field that was
+previously a top-level field in the "os" object to the "cpu" object. The
+format of the "load_average" field has changed to an array of length
+three representing the one-minute, five-minute and fifteen-minute load
+averages (a value of -1 for any of array components indicates that the
+corresponding metric is not available).
 
-Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
-value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
-from `OsStats.Cpu#getPercent`.
+In the cat nodes API response, the "cpu" field is output by default. The
+previous "load" field has been removed and is replaced by "load_1m",
+"load_5m", and "load_15m" which represent the one-minute, five-minute
+and fifteen-minute loads respectively. These values are output by
+default, and a value of -1 indicates that the corresponding metric is
+not available.
+
+Finally, the API for org.elasticsearch.monitor.os.OsStats has
+changed. The `getLoadAverage` method has been removed. The value for
+this can now be obtained from `OsStats.Cpu#getLoadAverage` but it is no
+longer a double and is instead an object encapuslating the one-minute,
+five-minute and fifteen-minute load averages. Additionally, the recent
+CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 
 === Fields option
 Only stored fields are retrievable with this option.

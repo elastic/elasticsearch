@@ -26,6 +26,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -49,9 +50,7 @@ public final class EngineConfig {
     private final ShardId shardId;
     private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
-    private volatile ByteSizeValue indexingBufferSize;
-    private volatile ByteSizeValue versionMapSize;
-    private volatile String versionMapSizeSetting;
+    private final ByteSizeValue indexingBufferSize;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
@@ -82,21 +81,11 @@ public final class EngineConfig {
      */
     public static final String INDEX_CODEC_SETTING = "index.codec";
 
-    /**
-     * The maximum size the version map should grow to before issuing a refresh. Can be an absolute value or a percentage of
-     * the current index memory buffer (defaults to 25%)
-     */
-    public static final String INDEX_VERSION_MAP_SIZE = "index.version_map_size";
-
-
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
-
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-
-    public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
     private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
@@ -124,11 +113,11 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
-        // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
-        indexingBufferSize = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
+        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
+        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
+        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
+        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
-        versionMapSizeSetting = settings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
-        updateVersionMapSize();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
@@ -137,49 +126,9 @@ public final class EngineConfig {
         this.flushMergesAfter = flushMergesAfter;
     }
 
-    /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
-    private void updateVersionMapSize() {
-        if (versionMapSizeSetting.endsWith("%")) {
-            double percent = Double.parseDouble(versionMapSizeSetting.substring(0, versionMapSizeSetting.length() - 1));
-            versionMapSize = new ByteSizeValue((long) ((double) indexingBufferSize.bytes() * (percent / 100)));
-        } else {
-            versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting, INDEX_VERSION_MAP_SIZE);
-        }
-    }
-
-    /**
-     * Settings the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
-     */
-    public void setVersionMapSizeSetting(String versionMapSizeSetting) {
-        this.versionMapSizeSetting = versionMapSizeSetting;
-        updateVersionMapSize();
-    }
-
-    /**
-     * current setting for the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
-     */
-    public String getVersionMapSizeSetting() {
-        return versionMapSizeSetting;
-    }
-
     /** if true the engine will start even if the translog id in the commit point can not be found */
     public boolean forceNewTranslog() {
         return forceNewTranslog;
-    }
-
-    /**
-     * returns the size of the version map that should trigger a refresh
-     */
-    public ByteSizeValue getVersionMapSize() {
-        return versionMapSize;
-    }
-
-    /**
-     * Sets the indexing buffer
-     */
-    public void setIndexingBufferSize(ByteSizeValue indexingBufferSize) {
-        this.indexingBufferSize = indexingBufferSize;
-        updateVersionMapSize();
     }
 
     /**

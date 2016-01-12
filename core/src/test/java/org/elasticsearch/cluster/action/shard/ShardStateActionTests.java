@@ -135,8 +135,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
         });
 
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         assert !failure.get();
         transport.handleResponse(capturedRequests[0].requestId, new TransportException("simulated"));
@@ -171,8 +170,7 @@ public class ShardStateActionTests extends ESTestCase {
         progress.set(true);
         assertTrue(timedOut.get());
 
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
     }
 

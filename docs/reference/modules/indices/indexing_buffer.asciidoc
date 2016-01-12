@@ -12,7 +12,7 @@ in the cluster:
 
     Accepts either a percentage or a byte size value. It defaults to `10%`,
     meaning that `10%` of the total heap allocated to a node will be used as the
-    indexing buffer size.
+    indexing buffer size shared across all shards.
 
 `indices.memory.min_index_buffer_size`::
 
@@ -23,10 +23,3 @@ in the cluster:
 
     If the `index_buffer_size` is specified as a percentage, then this
     setting can be used to specify an absolute maximum.  Defaults to unbounded.
-
-`indices.memory.min_shard_index_buffer_size`::
-
-    Sets a hard lower limit for the memory allocated per shard for its own
-    indexing buffer. Defaults to `4mb`.
-
-

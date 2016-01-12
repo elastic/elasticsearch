@@ -19,6 +19,11 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.Ec2Module;
@@ -32,16 +37,11 @@ import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.Plugin;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collection;
-
 /**
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin {
-  
+
     // ClientConfiguration clinit has some classloader problems
     // TODO: fix that
     static {
@@ -87,6 +87,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // Supertype uses rawtype
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.add(AwsEc2ServiceImpl.class);

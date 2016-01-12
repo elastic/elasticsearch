@@ -42,7 +42,7 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
      * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
      * a LineString must contain two or more coordinates
      * @param coordinates the initial list of coordinates
-     * @throw {@link IllegalArgumentException} if there are less then two coordinates defined
+     * @throws IllegalArgumentException if there are less then two coordinates defined
      */
     public LineStringBuilder(List<Coordinate> coordinates) {
         super(coordinates);

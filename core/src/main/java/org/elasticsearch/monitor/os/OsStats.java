@@ -87,7 +87,13 @@ public class OsStats implements Streamable, ToXContent {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.getPercent());
-            builder.field(Fields.LOAD_AVERAGE, cpu.getLoadAverage());
+            if (cpu.getLoadAverage() != null) {
+                builder.startArray(Fields.LOAD_AVERAGE);
+                builder.value(cpu.getLoadAverage()[0]);
+                builder.value(cpu.getLoadAverage()[1]);
+                builder.value(cpu.getLoadAverage()[2]);
+                builder.endArray();
+            }
             builder.endObject();
         }
 
@@ -152,8 +158,9 @@ public class OsStats implements Streamable, ToXContent {
     }
 
     public static class Cpu implements Streamable {
+
         short percent = -1;
-        double loadAverage = -1;
+        double[] loadAverage = null;
 
         Cpu() {}
 
@@ -166,20 +173,29 @@ public class OsStats implements Streamable, ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             percent = in.readShort();
-            loadAverage = in.readDouble();
+            if (in.readBoolean()) {
+                loadAverage = in.readDoubleArray();
+            } else {
+                loadAverage = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeShort(percent);
-            out.writeDouble(loadAverage);
+            if (loadAverage == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeDoubleArray(loadAverage);
+            }
         }
 
         public short getPercent() {
             return percent;
         }
 
-        public double getLoadAverage() {
+        public double[] getLoadAverage() {
             return loadAverage;
         }
     }

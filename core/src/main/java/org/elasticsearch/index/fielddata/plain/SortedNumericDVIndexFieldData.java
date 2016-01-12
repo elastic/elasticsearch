@@ -274,33 +274,6 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
     }
 
-    /*
-    static final class SortedNumericFixedPointFieldData extends AtomicLongFieldData {
-        final LeafReader reader;
-        final String field;
-
-        SortedNumericFixedPointFieldData(LeafReader reader, String field) {
-            super(0L);
-            this.reader = reader;
-            this.field = field;
-        }
-
-        @Override
-        public SortedNumericDocValues getLongValues() {
-            try {
-                return DocValues.getSortedNumeric(reader, field);
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-    }
-    */
-
     static final class SortedNumericFixedPointFieldData extends AtomicDoubleFieldData {
         final LeafReader reader;
         final String field;
@@ -328,6 +301,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             return Collections.emptyList();
         }
 
+        /**
+         * Thin Wrapper class which converts the long into a double based on the scaling factor
+         */
         public static class SortedNumericFixedPointDocValues extends SortedNumericDoubleValues {
             private final long decimalFactor;
             private final SortedNumericDocValues dv;

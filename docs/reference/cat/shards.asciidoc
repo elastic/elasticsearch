@@ -65,7 +65,7 @@ wiki1 2 r INITIALIZING    0   14mb 192.168.56.10 Stiletto
 wiki1 2 p STARTED      3973 38.1mb 192.168.56.20 Commander Kraken
 --------------------------------------------------
 
-If a shard cannot be assigned, for example you've over allocated the
+If a shard cannot be assigned, for example you've overallocated the
 number of replicas for the number of nodes in the cluster, the shard
 will remain `UNASSIGNED` with the reason code `ALLOCATION_FAILED`.
 
@@ -94,27 +94,28 @@ wiki1 2 r UNASSIGNED ALLOCATION_FAILED
 
 These are the possible reasons for a shard be in a unassigned state:
 
-    - `INDEX_CREATED`: unassigned as a result of an API creation of
-    an index.
-    - `CLUSTER_RECOVERED`: unassigned as a result of a full cluster
-    recovery.
-    - `INDEX_REOPENED`: unassigned as a result of opening a closed
-    index.
-    - `DANGLING_INDEX_IMPORTED`: unassigned as a result of importing
-    a dangling index.
-    - `NEW_INDEX_RESTORED`: unassigned as a result of restoring into
-    a new index.
-    - `EXISTING_INDEX_RESTORED`: unassigned as a result of restoring
-    into a closed index.
-    - `REPLICA_ADDED`: unassigned as a result of explicit addition of
-     a replica.
-    - `ALLOCATION_FAILED`: unassigned as a result of a failed
-    allocation of the shard.
-    - `NODE_LEFT`: unassigned as a result of the node hosting it
-    leaving the cluster.
-    - `REROUTE_CANCELLED`: unassigned as a result of explicit cancel
-    reroute command.
-    - `REINITIALIZED`: when a shard moves from started back to
-    initializing, for example, during shadow replica.
-    - `REALLOCATED_REPLICA`: a better replica location is identified
-    and causes the existing replica allocation to be cancelled.
+[horizontal]
+`INDEX_CREATED`:: unassigned as a result of an API creation of
+an index.
+`CLUSTER_RECOVERED`:: unassigned as a result of a full cluster
+recovery.
+`INDEX_REOPENED`:: unassigned as a result of opening a closed
+index.
+`DANGLING_INDEX_IMPORTED`:: unassigned as a result of importing
+a dangling index.
+`NEW_INDEX_RESTORED`:: unassigned as a result of restoring into
+a new index.
+`EXISTING_INDEX_RESTORED`:: unassigned as a result of restoring
+into a closed index.
+`REPLICA_ADDED`:: unassigned as a result of explicit addition of
+ a replica.
+`ALLOCATION_FAILED`:: unassigned as a result of a failed
+allocation of the shard.
+`NODE_LEFT`:: unassigned as a result of the node hosting it
+leaving the cluster.
+`REROUTE_CANCELLED`:: unassigned as a result of explicit cancel
+reroute command.
+`REINITIALIZED`:: when a shard moves from started back to
+initializing, for example, during shadow replica.
+`REALLOCATED_REPLICA`:: a better replica location is identified
+and causes the existing replica allocation to be cancelled.

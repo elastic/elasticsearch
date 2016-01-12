@@ -19,11 +19,10 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.action.ingest.DeletePipelineAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -42,6 +41,6 @@ public class RestDeletePipelineAction extends BaseRestHandler {
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         DeletePipelineRequest request = new DeletePipelineRequest();
         request.id(restRequest.param("id"));
-        client.execute(DeletePipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        client.deletePipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

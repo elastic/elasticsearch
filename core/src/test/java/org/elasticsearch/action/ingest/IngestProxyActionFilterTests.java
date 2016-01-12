@@ -168,12 +168,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         IndexRequest indexRequest = new IndexRequest().pipeline("_id");
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(transportService).sendRequest(argThat(new CustomTypeSafeMatcher<DiscoveryNode>("discovery node should be an ingest node") {
-            @Override
-            protected boolean matchesSafely(DiscoveryNode node) {
-                return IngestModule.isIngestEnabled(node.getAttributes());
-            }
-        }), eq(IndexAction.NAME), same(indexRequest), any(TransportResponseHandler.class));
+        verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(IndexAction.NAME), same(indexRequest), any(TransportResponseHandler.class));
         verifyZeroInteractions(actionFilterChain);
         verify(actionListener).onResponse(any(IndexResponse.class));
         verify(actionListener, never()).onFailure(any(TransportException.class));
@@ -201,12 +196,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         }
         filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
 
-        verify(transportService).sendRequest(argThat(new CustomTypeSafeMatcher<DiscoveryNode>("discovery node should be an ingest node") {
-            @Override
-            protected boolean matchesSafely(DiscoveryNode node) {
-                return IngestModule.isIngestEnabled(node.getAttributes());
-            }
-        }), eq(BulkAction.NAME), same(bulkRequest), any(TransportResponseHandler.class));
+        verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(BulkAction.NAME), same(bulkRequest), any(TransportResponseHandler.class));
         verifyZeroInteractions(actionFilterChain);
         verify(actionListener).onResponse(any(BulkResponse.class));
         verify(actionListener, never()).onFailure(any(TransportException.class));
@@ -238,14 +228,20 @@ public class IngestProxyActionFilterTests extends ESTestCase {
 
         filter.apply(task, action, request, actionListener, actionFilterChain);
 
-        verify(transportService).sendRequest(argThat(new CustomTypeSafeMatcher<DiscoveryNode>("discovery node should be an ingest node") {
-            @Override
-            protected boolean matchesSafely(DiscoveryNode node) {
-                return IngestModule.isIngestEnabled(node.getAttributes());
-            }
-        }), eq(action), same(request), any(TransportResponseHandler.class));
+        verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(action), same(request), any(TransportResponseHandler.class));
         verifyZeroInteractions(actionFilterChain);
         verify(actionListener).onFailure(any(TransportException.class));
         verify(actionListener, never()).onResponse(any(TransportResponse.class));
+    }
+
+    private static class IngestNodeMatcher extends CustomTypeSafeMatcher<DiscoveryNode> {
+        private IngestNodeMatcher() {
+            super("discovery node should be an ingest node");
+        }
+
+        @Override
+        protected boolean matchesSafely(DiscoveryNode node) {
+            return IngestModule.isIngestEnabled(node.getAttributes());
+        }
     }
 }

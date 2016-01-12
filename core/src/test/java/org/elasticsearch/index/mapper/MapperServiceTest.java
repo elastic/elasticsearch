@@ -19,9 +19,19 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -30,7 +40,6 @@ import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasToString;
 
 public class MapperServiceTest extends ESSingleNodeTestCase {
@@ -86,5 +95,22 @@ public class MapperServiceTest extends ESSingleNodeTestCase {
                 .addMapping(type, field, "type=string")
                 .execute()
                 .actionGet();
+    }
+
+    @Test
+    public void testSearchFilter() {
+        IndexService indexService = createIndex("index1", client().admin().indices().prepareCreate("index1")
+                .addMapping("type1", "field1", "type=nested")
+                .addMapping("type2", new Object[0])
+        );
+
+        Query searchFilter = indexService.mapperService().searchFilter("type1", "type3");
+        BooleanQuery typesBool = new BooleanQuery();
+        typesBool.add(new ConstantScoreQuery(new TermQuery(new Term(TypeFieldMapper.NAME, "type1"))), BooleanClause.Occur.SHOULD);
+        typesBool.add(new TermQuery(new Term(TypeFieldMapper.NAME, "type3")), BooleanClause.Occur.SHOULD);
+        BooleanQuery expectedQuery = new BooleanQuery();
+        expectedQuery.add(typesBool, BooleanClause.Occur.MUST);
+        expectedQuery.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
+        assertThat(searchFilter, Matchers.<Query>equalTo(new ConstantScoreQuery(expectedQuery)));
     }
 }

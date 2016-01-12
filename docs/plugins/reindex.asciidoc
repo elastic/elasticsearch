@@ -532,7 +532,7 @@ PUT test
 {
   "mappings": {
     "test": {
-      "dynamic": false,
+      "dynamic": false,   <1>
       "properties": {
         "text": {"type": "string"}
       }
@@ -550,7 +550,7 @@ POST test/test?refresh
   "text": "words words",
   "flag": "foo"
 }'
-PUT test/_mapping/test
+PUT test/_mapping/test   <2>
 {
   "properties": {
     "text": {"type": "string"},
@@ -559,6 +559,11 @@ PUT test/_mapping/test
 }
 --------------------------------------------------
 // AUTOSENSE
+
+<1> This means that new fields won't be indexed, just stored in `_source`.
+
+<2> This updates the mapping to add the new `flag` field. To pick up the new
+field you have to reindex all documents with it.
 
 Searching for the data won't find anything:
 

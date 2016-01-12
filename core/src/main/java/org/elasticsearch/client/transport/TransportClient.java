@@ -97,6 +97,9 @@ public class TransportClient extends AbstractClient {
          * The settings to configure the transport client with.
          */
         public Builder settings(Settings settings) {
+            if (settings.get("plugin.types") != null) {
+                throw new IllegalArgumentException("plugin.types is no longer supported. Use the addPlugin method on TransportClient.");
+            }
             this.settings = settings;
             return this;
         }

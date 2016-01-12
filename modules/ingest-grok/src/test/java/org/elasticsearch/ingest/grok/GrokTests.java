@@ -57,6 +57,13 @@ public class GrokTests extends ESTestCase {
         );
     }
 
+    public void testMatchWithoutCaptures() {
+        String line = "value";
+        Grok grok = new Grok(basePatterns, "value");
+        Map<String, Object> matches = grok.captures(line);
+        assertEquals(0, matches.size());
+    }
+
     public void testSimpleSyslogLine() {
         String line = "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]";
         Grok grok = new Grok(basePatterns, "%{SYSLOGLINE}");

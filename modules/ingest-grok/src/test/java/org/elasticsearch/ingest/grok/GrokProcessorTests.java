@@ -57,6 +57,17 @@ public class GrokProcessorTests extends ESTestCase {
         }
     }
 
+    public void testMatchWithoutCaptures() throws Exception {
+        String fieldName = "value";
+        IngestDocument originalDoc = new IngestDocument(new HashMap<>(), new HashMap<>());
+        originalDoc.setFieldValue(fieldName, fieldName);
+        IngestDocument doc = new IngestDocument(originalDoc);
+        Grok grok = new Grok(Collections.emptyMap(), fieldName);
+        GrokProcessor processor = new GrokProcessor(grok, fieldName);
+        processor.execute(doc);
+        assertThat(doc, equalTo(originalDoc));
+    }
+
     public void testNotStringField() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());

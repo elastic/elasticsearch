@@ -134,7 +134,7 @@ final class Grok {
         Map<String, Object> fields = new HashMap<>();
         Matcher matcher = compiledExpression.matcher(textAsBytes);
         int result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
-        if (result != -1) {
+        if (result != -1 && compiledExpression.numberOfNames() > 0) {
             Region region = matcher.getEagerRegion();
             for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
                 NameEntry e = entry.next();
@@ -148,11 +148,11 @@ final class Grok {
                 GrokMatchGroup match = new GrokMatchGroup(groupName, matchValue);
                 fields.put(match.getName(), match.getValue());
             }
-        } else {
-            return null;
+            return fields;
+        } else if (result != -1) {
+            return fields;
         }
-
-        return fields;
+        return null;
     }
 }
 

@@ -97,6 +97,9 @@ public class TransportClient extends AbstractClient {
          * The settings to configure the transport client with.
          */
         public Builder settings(Settings settings) {
+            if (settings.get("plugin.types") != null) {
+                throw new IllegalArgumentException("plugin.types is no longer supported. Use the addPlugin method on TransportClient.");
+            }
             this.settings = settings;
             return this;
         }
@@ -113,9 +116,6 @@ public class TransportClient extends AbstractClient {
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            if (settings.get("plugin.types") != null) {
-                throw new IllegalArgumentException("plugin.types is no longer supported. Use the addPlugin method on TransportClient.");
-            }
             Settings settings = InternalSettingsPreparer.prepareSettings(this.settings);
             settings = settingsBuilder()
                     .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval

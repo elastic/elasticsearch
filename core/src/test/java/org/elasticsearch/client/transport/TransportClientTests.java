@@ -28,7 +28,6 @@ public class TransportClientTests extends ESTestCase {
         try {
             TransportClient.Builder builder = TransportClient.builder();
             builder.settings(Settings.builder().put("plugin.types", "BogusPlugin").build());
-            builder.build();
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("plugin.types is no longer supported"));

@@ -34,7 +34,7 @@ import java.util.List;
 public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
 
     public static final ParseField SLOP_FIELD = new ParseField("slop");
-    public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads");
+    public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads").withAllDeprecated("no longer supported");
     public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     public static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
 

@@ -32,7 +32,7 @@ In addition, the following routing-related node settings have been deprecated:
 
 The delete API used to be broadcast to all shards in the index which meant
 that, when using custom routing, the `routing` parameter was optional. Now,
-the delete request is forwarded only to the document holding the shard. If you
+the delete request is forwarded only to the shard holding the document. If you
 are using custom routing then you should specify the `routing` value when
 deleting a document, just as is already required for the `index`, `create`,
 and `update` APIs.

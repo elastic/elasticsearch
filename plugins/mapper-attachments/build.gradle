@@ -61,7 +61,7 @@ dependencies {
   compile 'org.apache.commons:commons-compress:1.10'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-rawtypes'
+compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes'
 
 forbiddenPatterns {
   exclude '**/*.docx'

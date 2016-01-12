@@ -31,6 +31,7 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -94,7 +95,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         return getClient(endpoint, protocol, account, key, maxRetries);
     }
 
-
     private synchronized AmazonS3 getClient(String endpoint, String protocol, String account, String key, Integer maxRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<String, String>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
@@ -119,11 +119,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             throw new IllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
 
-        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST, settings.get(CLOUD_AWS.DEPRECATED_PROXY_HOST));
-        proxyHost = settings.get(CLOUD_S3.PROXY_HOST, settings.get(CLOUD_S3.DEPRECATED_PROXY_HOST, proxyHost));
+        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST);
+        proxyHost = settings.get(CLOUD_S3.PROXY_HOST, proxyHost);
         if (proxyHost != null) {
-            String portString = settings.get(CLOUD_AWS.PROXY_PORT, settings.get(CLOUD_AWS.DEPRECATED_PROXY_PORT, "80"));
-            portString = settings.get(CLOUD_S3.PROXY_PORT, settings.get(CLOUD_S3.DEPRECATED_PROXY_PORT, portString));
+            String portString = settings.get(CLOUD_AWS.PROXY_PORT, "80");
+            portString = settings.get(CLOUD_S3.PROXY_PORT, portString);
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);

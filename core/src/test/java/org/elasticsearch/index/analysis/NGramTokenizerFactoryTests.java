@@ -23,11 +23,7 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -116,79 +112,6 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(" a!$ 9"));
         assertTokenStreamContents(tokenizer,
                 new String[] {" a", " a!"});
-    }
-
-    public void testBackwardsCompatibilityEdgeNgramTokenizer() throws Exception {
-        int iters = scaledRandomIntBetween(20, 100);
-        final Index index = new Index("test");
-        final String name = "ngr";
-        for (int i = 0; i < iters; i++) {
-            Version v = randomVersion(random());
-            if (v.onOrAfter(Version.V_0_90_2)) {
-                Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit");
-                boolean compatVersion = false;
-                if ((compatVersion = random().nextBoolean())) {
-                    builder.put("version", "4." + random().nextInt(3));
-                    builder.put("side", "back");
-                }
-                Settings settings = builder.build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
-                edgeNGramTokenizer.setReader(new StringReader("foo bar"));
-                if (compatVersion) {
-                    assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
-                } else {
-                    assertThat(edgeNGramTokenizer, instanceOf(EdgeNGramTokenizer.class));
-                }
-
-            } else {
-                Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
-                edgeNGramTokenizer.setReader(new StringReader("foo bar"));
-                assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
-            }
-        }
-        Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
-        Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        try {
-            new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
-            fail("should fail side:back is not supported anymore");
-        } catch (IllegalArgumentException ex) {
-        }
-
-    }
-
-    public void testBackwardsCompatibilityNgramTokenizer() throws Exception {
-        int iters = scaledRandomIntBetween(20, 100);
-        for (int i = 0; i < iters; i++) {
-            final Index index = new Index("test");
-            final String name = "ngr";
-            Version v = randomVersion(random());
-            if (v.onOrAfter(Version.V_0_90_2)) {
-                Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit");
-                boolean compatVersion = false;
-                if ((compatVersion = random().nextBoolean())) {
-                    builder.put("version", "4." + random().nextInt(3));
-                }
-                Settings settings = builder.build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
-                nGramTokenizer.setReader(new StringReader("foo bar"));
-                if (compatVersion) {
-                    assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
-                } else {
-                    assertThat(nGramTokenizer, instanceOf(NGramTokenizer.class));
-                }
-
-            } else {
-                Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
-                nGramTokenizer.setReader(new StringReader("foo bar"));
-                assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
-            }
-        }
     }
 
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {

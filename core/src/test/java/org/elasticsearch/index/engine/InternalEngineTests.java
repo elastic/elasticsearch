@@ -95,6 +95,7 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
@@ -439,7 +440,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testSegmentsWithMergeFlag() throws Exception {
         try (Store store = createStore();
-             Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(newUid("1"), doc);
             engine.index(index);
@@ -769,7 +770,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
                      new LogByteSizeMergePolicy()), false)) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -1026,7 +1027,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
                      new LogByteSizeMergePolicy()), false)) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1465,7 +1466,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1584,44 +1585,6 @@ public class InternalEngineTests extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
-    }
-
-    // #10312
-    public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        try (Store store = createStore();
-             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
-                     false)) {
-            engine.config().setIndexingBufferSize(new ByteSizeValue(1, ByteSizeUnit.KB));
-            for (int i = 0; i < 100; i++) {
-                String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
-                engine.index(new Engine.Index(newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            }
-
-            // Force merge so we know all merges are done before we start deleting:
-            engine.forceMerge(true, 1, false, false, false);
-
-            Searcher s = engine.acquireSearcher("test");
-            final long version1 = ((DirectoryReader) s.reader()).getVersion();
-            s.close();
-            for (int i = 0; i < 100; i++) {
-                String id = Integer.toString(i);
-                engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-            }
-
-            // We must assertBusy because refresh due to version map being full is done in background (REFRESH) thread pool:
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    Searcher s2 = engine.acquireSearcher("test");
-                    long version2 = ((DirectoryReader) s2.reader()).getVersion();
-                    s2.close();
-
-                    // 100 buffered deletes will easily exceed 25% of our 1 KB indexing buffer so it should have forced a refresh:
-                    assertThat(version2, greaterThan(version1));
-                }
-            });
-        }
     }
 
     public void testMissingTranslog() throws IOException {

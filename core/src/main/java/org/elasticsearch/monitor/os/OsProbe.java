@@ -20,11 +20,16 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.monitor.Probes;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.util.List;
 
 public class OsProbe {
 
@@ -103,17 +108,40 @@ public class OsProbe {
     }
 
     /**
-     * Returns the system load average for the last minute.
+     * Returns the system load averages
      */
-    public double getSystemLoadAverage() {
+    public double[] getSystemLoadAverage() {
+        if (Constants.LINUX) {
+            double[] loadAverage = readProcLoadavg("/proc/loadavg");
+            if (loadAverage != null) {
+                return loadAverage;
+            }
+            // fallback
+        }
         if (getSystemLoadAverage == null) {
-            return -1;
+            return null;
         }
         try {
-            return (double) getSystemLoadAverage.invoke(osMxBean);
+            double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
+            return new double[] { oneMinuteLoadAverage, -1, -1 };
         } catch (Throwable t) {
-            return -1;
+            return null;
         }
+    }
+
+    @SuppressForbidden(reason = "access /proc")
+    private static double[] readProcLoadavg(String procLoadavg) {
+        try {
+            List<String> lines = Files.readAllLines(PathUtils.get(procLoadavg));
+            if (!lines.isEmpty()) {
+                String[] fields = lines.get(0).split("\\s+");
+                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
+            }
+        } catch (IOException e) {
+            // do not fail Elasticsearch if something unexpected
+            // happens here
+        }
+        return null;
     }
 
     public short getSystemCpuPercent() {

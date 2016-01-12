@@ -40,8 +40,6 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
 
         // VERSION MAP SIZE
         long indexBufferSize = engine.config().getIndexingBufferSize().bytes();
-        long versionMapSize = engine.config().getVersionMapSize().bytes();
-        assertThat(versionMapSize, equalTo((long) (indexBufferSize * 0.25)));
 
         final int iters = between(1, 20);
         for (int i = 0; i < iters; i++) {
@@ -51,14 +49,8 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             // the full long range here else the assert below fails:
             long gcDeletes = random().nextLong() & (Long.MAX_VALUE >> 11);
 
-            boolean versionMapAsPercent = randomBoolean();
-            double versionMapPercent = randomIntBetween(0, 100);
-            long versionMapSizeInMB = randomIntBetween(10, 20);
-            String versionMapString = versionMapAsPercent ? versionMapPercent + "%" : versionMapSizeInMB + "mb";
-
             Settings build = Settings.builder()
                     .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes, TimeUnit.MILLISECONDS)
-                    .put(EngineConfig.INDEX_VERSION_MAP_SIZE, versionMapString)
                     .build();
             assertEquals(gcDeletes, build.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, null).millis());
 
@@ -71,12 +63,6 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             assertEquals(engine.getGcDeletesInMillis(), gcDeletes);
 
             indexBufferSize = engine.config().getIndexingBufferSize().bytes();
-            versionMapSize = engine.config().getVersionMapSize().bytes();
-            if (versionMapAsPercent) {
-                assertThat(versionMapSize, equalTo((long) (indexBufferSize * (versionMapPercent / 100))));
-            } else {
-                assertThat(versionMapSize, equalTo(1024 * 1024 * versionMapSizeInMB));
-            }
         }
 
         Settings settings = Settings.builder()
@@ -101,37 +87,5 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
         assertTrue(engine.config().isEnableGcDeletes());
-
-        settings = Settings.builder()
-                .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "sdfasfd")
-                .build();
-        try {
-            client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
-            fail("settings update didn't fail, but should have");
-        } catch (IllegalArgumentException e) {
-            // good
-        }
-
-        settings = Settings.builder()
-                .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "-12%")
-                .build();
-        try {
-            client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
-            fail("settings update didn't fail, but should have");
-        } catch (IllegalArgumentException e) {
-            // good
-        }
-
-        settings = Settings.builder()
-                .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "130%")
-                .build();
-        try {
-            client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
-            fail("settings update didn't fail, but should have");
-        } catch (IllegalArgumentException e) {
-            // good
-        }
     }
-
-
 }

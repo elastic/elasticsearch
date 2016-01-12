@@ -70,7 +70,6 @@ public interface IndexEventListener {
      */
     default void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
-
     /**
      * Called after a shard's {@link org.elasticsearch.index.shard.IndexShardState} changes.
      * The order of concurrent events is preserved. The execution must be lightweight.
@@ -88,13 +87,6 @@ public interface IndexEventListener {
      * @param indexShard The shard that was marked inactive
      */
     default void onShardInactive(IndexShard indexShard) {}
-
-    /**
-     * Called when a shard is marked as active ie. was previously inactive and is now active again.
-     *
-     * @param indexShard The shard that was marked active
-     */
-    default void onShardActive(IndexShard indexShard) {}
 
     /**
      * Called before the index gets created. Note that this is also called

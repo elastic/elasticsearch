@@ -73,15 +73,10 @@ import java.util.Locale;
  */
 public enum PreBuiltAnalyzers {
 
-    STANDARD(CachingStrategy.ELASTICSEARCH) { // we don't do stopwords anymore from 1.0Beta on
+    STANDARD(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            final Analyzer a;
-            if (version.onOrAfter(Version.V_1_0_0_Beta1)) {
-                a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
-            } else {
-                a = new StandardAnalyzer();
-            }
+            final Analyzer a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
             a.setVersion(version.luceneVersion);
             return a;
         }
@@ -151,22 +146,14 @@ public enum PreBuiltAnalyzers {
     PATTERN(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
-            }
-            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
         }
     },
 
     STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            final Analyzer analyzer;
-            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
-            } else {
-                analyzer = new StandardHtmlStripAnalyzer();
-            }
+            final Analyzer analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
             analyzer.setVersion(version.luceneVersion);
             return analyzer;
         }

@@ -377,6 +377,21 @@ public class ShardStateAction extends AbstractComponent {
         default void onSuccess() {
         }
 
+        /**
+         * Notification for non-channel exceptions that are not handled
+         * by {@link ShardStateAction}.
+         *
+         * The exceptions that are handled by {@link ShardStateAction}
+         * are:
+         *  - {@link NotMasterException}
+         *  - {@link NodeDisconnectedException}
+         *  - {@link Discovery.FailedToCommitClusterStateException}
+         *
+         * Any other exception is communicated to the requester via
+         * this notification.
+         *
+         * @param e the unexpected cause of the failure on the master
+         */
         default void onShardFailedFailure(final Exception e) {
         }
     }

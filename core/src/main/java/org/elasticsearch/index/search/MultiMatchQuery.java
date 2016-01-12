@@ -128,11 +128,11 @@ public class MultiMatchQuery extends MatchQuery {
                 return groupQuery.get(0);
             }
             if (groupDismax) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
+                List<Query> queries = new ArrayList<>();
                 for (Query query : groupQuery) {
-                    disMaxQuery.add(query);
+                    queries.add(query);
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, tieBreaker);
             } else {
                 final BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
                 for (Query query : groupQuery) {

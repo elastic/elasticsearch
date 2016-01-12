@@ -34,6 +34,7 @@ import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiLineString;
 import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

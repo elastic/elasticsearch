@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.ingest.IngestModule;
@@ -49,7 +50,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AtomicInteger randomNodeGenerator = new AtomicInteger();
+    private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     @Inject
     public IngestProxyActionFilter(ClusterService clusterService, TransportService transportService) {

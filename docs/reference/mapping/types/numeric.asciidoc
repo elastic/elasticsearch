@@ -10,6 +10,7 @@ The following numeric types are supported:
 `byte`::    A signed 8-bit integer with a minimum value of +-128+ and a maximum value of +127+.
 `double`::  A double-precision 64-bit IEEE 754 floating point.
 `float`::   A single-precision 32-bit IEEE 754 floating point.
+`fixed`::   A variable-precision representation of real numbers
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -91,4 +92,54 @@ The following parameters are accepted by numeric types:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+
+==== fixed Type
+
+The `fixed` numeric type provides a variable-precision representation of real-valued quantities,
+like a `float` or `double`.  Precision is controlled by specifying `decimal_places`, which
+controls how many significant digits should appear after the radix point ("decimal point").
+
+For example, if `decimal_places` is set to `2`, the following values are all considered
+equivalent: `1.23`, `1.234`, `1.23999999`.  They are equivalent because only two digits are
+stored after the decimal point, so all values are converted into `1.23`.
+
+Internally, `fixed` fields are stored as a `long` with an associated scaling factor.  With
+two decimal places, the value `1.23` is stored as `123` and has an associated scaling factor of
+`100`.  To obtain our original real-valued numeric, we simply divide the stored long by
+the scaling factor: `123 / 100 == 1.23`
+
+Fixed point fields provide different precision/range tradeoffs compared to floating point values.
+They are primarily useful when your data only contains a few significant digits (e.g. your
+sensor only guarantees two sig-figs of real signal before noise takes over), or you only care
+about `n` decimal places.  In these cases, storing the data in a long saves considerable
+on-disk space.  Longs are much easier to compress in a random-access fashion compared to
+floats / doubles, which are stored at their full width.
+
+Fixed point precision is controlled with the `decimal_places` parameter:
+
+[horizontal]
+
+`decimal_places`::
+    Controls the number of significant digits that should be stored after the radix point
+    ("decimal point").  The value must be greater than `0` and smaller than `19`.
+
+
+[WARNING]
+====
+Increasing the size of `decimal_places` directly decreases the range of values that can be stored,
+because more bits are going to the fractional portion.  The range of a particular fixed point is
+`[-9223372036854775807 * 10^n^, 9223372036854775807 * 10^n^]` where `n` is the number of decimal
+places.
+
+For example, `n=18` will give you 18 decimal places of precision, but a range of roughly `-9.223` to
+`9.223`.
+====
+
+[WARNING]
+====
+Fixed point fields are similar to `Decimal` or `Currency` fields in databases, but *should not be
+used as such*. Fixed point fields are cast to Doubles for use in aggregations, which means
+floating point math (and all the caveats/trade-offs associated with floating point math) will be
+used for calculations.  Fixed-point arithmetic *is not* used.  It is simply a storage optimization.
+====
 

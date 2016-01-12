@@ -21,8 +21,6 @@ package org.elasticsearch.index;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -108,7 +106,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final IndexSettings indexSettings;
     private final IndexingSlowLog slowLog;
     private final IndexingOperationListener[] listeners;
-    private volatile RefreshTasks refreshTask;
+    private volatile AsyncRefreshTask refreshTask;
+    private final AsyncTranslogFSync fsyncTask;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -145,7 +144,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.listeners = new IndexingOperationListener[1+listenersIn.length];
         this.listeners[0] = slowLog;
         System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
-        this.refreshTask = new RefreshTasks(this, nodeServicesProvider.getThreadPool());
+        // kick off async ops for the first shard in this index
+        if (this.indexSettings.getTranslogSyncInterval().millis() != 0) {
+            this.fsyncTask = new AsyncTranslogFSync(this);
+        } else {
+            this.fsyncTask = null;
+        }
+        this.refreshTask = new AsyncRefreshTask(this);
     }
 
     public int numberOfShards() {
@@ -221,7 +226,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService);
+                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService, refreshTask, fsyncTask);
             }
         }
     }
@@ -312,17 +317,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             } else {
                 indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, listeners);
             }
-
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             indexShard.updateRoutingEntry(routing, true);
-            if (shards.isEmpty()) {
-                ThreadPool threadPool = nodeServicesProvider.getThreadPool();
-                if (this.indexSettings.getTranslogSyncInterval().millis() != 0) {
-                    new AsyncTranslogFSync(this, threadPool); // kick this off if we are the first shard in this service.
-                }
-                rescheduleRefreshTasks();
-            }
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
@@ -590,7 +587,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         try {
             refreshTask.close();
         } finally {
-            refreshTask = new RefreshTasks(this, nodeServicesProvider.getThreadPool());
+            refreshTask = new AsyncRefreshTask(this);
         }
 
     }
@@ -662,16 +659,16 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private volatile Exception lastThrownException;
 
-        BaseAsyncTask(IndexService indexService, ThreadPool threadPool, TimeValue interval) {
+        BaseAsyncTask(IndexService indexService, TimeValue interval) {
             this.indexService = indexService;
-            this.threadPool = threadPool;
+            this.threadPool = indexService.getThreadPool();
             this.interval = interval;
             onTaskCompletion();
         }
 
         boolean mustReschedule() {
             // don't re-schedule if its closed or if we dont' have a single shard here..., we are done
-            return (indexService.closed.get() || indexService.shards.isEmpty()) == false
+            return indexService.closed.get() == false
                 && closed.get() == false && interval.millis() > 0;
         }
 
@@ -685,13 +682,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             }
         }
 
+        boolean isScheduled() {
+            return scheduledFuture != null;
+        }
+
         public final void run() {
             try {
                 runInternal();
             } catch (Exception ex) {
                 if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                     // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
-                    indexService.logger.warn("failed to run task {} - supressing re-occuring exceptions unless the exception changes", ex, toString());
+                    indexService.logger.warn("failed to run task {} - suppressing re-occurring exceptions unless the exception changes", ex, toString());
                     lastThrownException = ex;
                 }
             } finally {
@@ -746,8 +747,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      */
     final static class AsyncTranslogFSync extends BaseAsyncTask {
 
-        AsyncTranslogFSync(IndexService indexService, ThreadPool threadPool) {
-            super(indexService, threadPool, indexService.getIndexSettings().getTranslogSyncInterval());
+        AsyncTranslogFSync(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getTranslogSyncInterval());
         }
 
         protected String getThreadPool() {
@@ -764,10 +765,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
     }
 
-    final class RefreshTasks extends BaseAsyncTask {
+    final class AsyncRefreshTask extends BaseAsyncTask {
 
-        RefreshTasks(IndexService indexService, ThreadPool threadPool) {
-            super(indexService, threadPool, indexService.getIndexSettings().getRefreshInterval());
+        AsyncRefreshTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getRefreshInterval());
         }
 
         @Override
@@ -785,10 +786,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
     }
 
-    RefreshTasks getRefreshTask() { // for tests
+    AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }
 
-
-
+    AsyncTranslogFSync getFsyncTask() { // for tests
+        return fsyncTask;
+    }
 }

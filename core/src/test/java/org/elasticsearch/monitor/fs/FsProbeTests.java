@@ -42,10 +42,6 @@ public class FsProbeTests extends ESTestCase {
 
             if (Constants.LINUX) {
                 assertNotNull(stats.getIoStats());
-                assertThat(stats.getIoStats().getReadCharacters(), greaterThan(0L));
-                assertThat(stats.getIoStats().getWriteCharacters(), greaterThan(0L));
-                assertThat(stats.getIoStats().getReadSysCalls(), greaterThan(0L));
-                assertThat(stats.getIoStats().getWriteSysCalls(), greaterThan(0L));
                 // it is possible none of the write operations touched the physical disk
                 assertThat(stats.getIoStats().getReadBytes(), greaterThanOrEqualTo(0L));
                 assertThat(stats.getIoStats().getWriteBytes(), greaterThanOrEqualTo(0L));

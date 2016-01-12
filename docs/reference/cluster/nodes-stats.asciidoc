@@ -121,26 +121,6 @@ information that concern the file system:
 	`null` means we could not determine it, `true` means the device possibly spins
 	 and `false` means it does not (ex: solid-state disks).
 
-`fs.io_stats.read_characters` (Linux only)::
-    The number of bytes the Elasticsearch process caused to read from
-    storage (could be satisfied by the page cache, so could be larger
-    than actual physical I/O).
-
-`fs.io_stats.write_characters` (Linux only)::
-    The number of bytes the Elasticsearch process caused to written to
-    storage (could be satisfied by the page cache, so could be larger
-    than actual physical I/O).
-
-`fs.io_stats.read_sys_calls` (Linux only)::
-    The number of read I/O operations by the Elasticsearch process
-    (could be satisfied by the page cache, so could be larger than
-    actual physical I/O).
-
-`fs.io_stats.write_sys_calls` (Linux only)::
-    The number of write I/O operations by the Elasticsearch process
-    (could be satisfied by the page cache, so could be larger than
-    actual physical I/O).
-
 `fs.io_stats.read_bytes` (Linux only)::
     The number of bytes the Elasticsearch process caused to be read that
     actually hit the storage layer

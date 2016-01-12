@@ -65,7 +65,7 @@ public class FsProbe extends AbstractComponent {
                 for (int i = 0; i < 6; i++) {
                     values[i] = Long.parseLong(lines.get(i).split("\\s+")[1]);
                 }
-                return new FsInfo.IoStats(values[0], values[1], values[2], values[3], values[4], values[5]);
+                return new FsInfo.IoStats(values[4], values[5]);
             }
         } catch (IOException e) {
             // do not fail Elasticsearch if something unexpected

@@ -190,58 +190,26 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
     }
 
     public static class IoStats implements Writeable, ToXContent {
-        private long readCharacters;
-        private long writeCharacters;
-        private long readSysCalls;
-        private long writeSysCalls;
         private long readBytes;
         private long writeBytes;
 
         private IoStats() {
         }
 
-        public IoStats(long readCharacters, long writeCharacters, long readSysCalls, long writeSysCalls, long readBytes, long writeBytes) {
-            this.readCharacters = readCharacters;
-            this.writeCharacters = writeCharacters;
-            this.readSysCalls = readSysCalls;
-            this.writeSysCalls = writeSysCalls;
+        public IoStats(long readBytes, long writeBytes) {
             this.readBytes = readBytes;
             this.writeBytes = writeBytes;
         }
 
         public IoStats(StreamInput in) throws IOException {
-            readCharacters = in.readVLong();
-            writeCharacters = in.readVLong();
-            readSysCalls = in.readVLong();
-            writeSysCalls = in.readVLong();
             readBytes = in.readVLong();
             writeBytes = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(readCharacters);
-            out.writeVLong(writeCharacters);
-            out.writeVLong(readSysCalls);
-            out.writeVLong(writeSysCalls);
             out.writeVLong(readBytes);
             out.writeVLong(writeBytes);
-        }
-
-        public long getReadCharacters() {
-            return readCharacters;
-        }
-
-        public long getWriteCharacters() {
-            return writeCharacters;
-        }
-
-        public long getReadSysCalls() {
-            return readSysCalls;
-        }
-
-        public long getWriteSysCalls() {
-            return writeSysCalls;
         }
 
         public long getReadBytes() {
@@ -255,10 +223,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Fields.READ_CHARACTERS, readCharacters);
-            builder.field(Fields.WRITE_CHARACTERS, writeCharacters);
-            builder.field(Fields.READ_SYS_CALLS, readSysCalls);
-            builder.field(Fields.WRITE_SYS_CALLS, writeSysCalls);
             builder.field(Fields.READ_BYTES, readBytes);
             builder.field(Fields.WRITE_BYTES, writeBytes);
             builder.endObject();
@@ -266,10 +230,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
 
         private static final class Fields {
-            private static final String READ_CHARACTERS = "read_characters";
-            private static final String WRITE_CHARACTERS = "write_characters";
-            private static final String READ_SYS_CALLS = "read_sys_calls";
-            private static final String WRITE_SYS_CALLS = "write_sys_calls";
             private static final String READ_BYTES = "read_bytes";
             private static final String WRITE_BYTES = "write_bytes";
         }

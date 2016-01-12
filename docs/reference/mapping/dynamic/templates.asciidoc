@@ -254,17 +254,18 @@ PUT my_index/my_type/1
 [[override-default-template]]
 === Override default template
 
-Elasticsearch provides you the default mappings configuration for all properties of
-the document. It prevents you to declare a new mapping for each document field that
-you want store.
+Elasticsearch provides you the default mappings configuration for all
+properties of the document. It prevents you to declare a new mapping for each
+document field that you want to index.
 
-In some cases you might want to configure a different kind of mapping for a specific
-document field, for instance, you want your field called `attachment_doc` mapped as
-`attachment` type, not `string`.
+In some cases you might need to configure a different kind of mapping for the
+document fields or a generic mapping.
+When you know the index name and the type you just need to add the details in
+a new template, however if you do not know the index name and the type, you
+need to change in the template config a little bit.
 
-In order to do achieve that you need to build a new template with your custom
-mappings. Let's consider you want this new mapping applied for all indexes and all
-types, when it matches the particular field of the document `attachment_doc`.
+In order to achieve that, your new template with a generic custom mappings,
+which means it will be applied to any index and any type, will be similar to:
 
 [source,js]
 --------------------------------------------------
@@ -279,11 +280,8 @@ PUT _template/your_new_template_name
       },
       "_default_": { <4>
         "properties": { <5>
-          "website_id": { <6>
-            "type": "long"
-          },
-          "attachment_doc": { <7>
-            "type": "attachment" <8>
+          "_all": { <6>
+            "type": "string"
           }
         }
       }
@@ -292,17 +290,12 @@ PUT _template/your_new_template_name
 }
 --------------------------------------------------
 // AUTOSENSE
-<1> Applies the mappings to any `index` that matches the pattern `*`, in this
-case all indexes. You can also set a specific `index` name.
-<2> The mapping configuration is defined for all types. You can also set a
-specific `type` name.
-<3> Disables the default mappings configuration to avoid conflicts with your
+<1> Applies the mappings to an `index` which matches the pattern `*`, in this
+case any index. You can also set a specific `index` name here.
+<2> The mapping configuration is defined for `_all` types. You can also set a
+specific `type` name here.
+<3> Disables the `_default` mappings configuration to avoid conflicts with your
 new setup.
 <4> Overrides the `_default_` setup for all types within all indexes.
-<5> Configures the document properties you want the custom mappings.
-<6> Declares the mappers for other properties of the document, if you have
-disabled the default mappings for all types.
-<7> Declares the document property called `attachment_doc`.
-<8> Sets the property type as `attachment`, if you do not declare this mapper,
-the property `attachment_doc` is mapped as `string` by default.
-Make sure you have the `Mapper Attachments Plugin` in place before proceed.
+<5> Declares the document properties you want the custom mapping.
+<6> In this case `_all` fields will be mapped as `string`.

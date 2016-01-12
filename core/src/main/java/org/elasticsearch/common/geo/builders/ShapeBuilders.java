@@ -65,6 +65,14 @@ public class ShapeBuilders {
     }
 
     /**
+     * Create a new lineString
+     * @return a new {@link LineStringBuilder}
+     */
+    public static LineStringBuilder newLineString(CoordinatesBuilder coordinates) {
+        return new LineStringBuilder(coordinates);
+    }
+
+    /**
      * Create a new Collection of lineStrings
      * @return a new {@link MultiLineStringBuilder}
      */
@@ -73,10 +81,18 @@ public class ShapeBuilders {
     }
 
     /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
+     * Create a new PolygonBuilder
+     * @return a new {@link PolygonBuilder}
      */
     public static PolygonBuilder newPolygon(List<Coordinate> shell) {
+        return new PolygonBuilder(new CoordinatesBuilder().coordinates(shell));
+    }
+
+    /**
+     * Create a new PolygonBuilder
+     * @return a new {@link PolygonBuilder}
+     */
+    public static PolygonBuilder newPolygon(CoordinatesBuilder shell) {
         return new PolygonBuilder(shell);
     }
 

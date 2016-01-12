@@ -22,6 +22,7 @@ package org.elasticsearch.common.geo.builders;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,22 +30,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
+public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
-    public final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder(Arrays.asList(new Coordinate[]{new Coordinate(0.0, 0.0)}));
+    final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());
 
     /**
      * Create a new {@link MultiPointBuilder}.
-     * @param points needs at least two points to be valid, otherwise will throw an exception
+     * @param coordinates needs at least two coordinates to be valid, otherwise will throw an exception
      */
-    public MultiPointBuilder(List<Coordinate> points) {
-        super(points);
+    public MultiPointBuilder(List<Coordinate> coordinates) {
+        super(coordinates);
     }
 
     @Override
@@ -61,8 +61,8 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
     public Shape build() {
         //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
         //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
-        List<Point> shapes = new ArrayList<>(points.size());
-        for (Coordinate coord : points) {
+        List<Point> shapes = new ArrayList<>(coordinates.size());
+        for (Coordinate coord : coordinates) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
         }
         XShapeCollection<Point> multiPoints = new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
@@ -77,7 +77,7 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(points);
+        return Objects.hash(coordinates);
     }
 
     @Override
@@ -89,13 +89,13 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
             return false;
         }
         MultiPointBuilder other = (MultiPointBuilder) obj;
-        return Objects.equals(points, other.points);
+        return Objects.equals(coordinates, other.coordinates);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(points.size());
-        for (Coordinate point : points) {
+        out.writeVInt(coordinates.size());
+        for (Coordinate point : coordinates) {
             writeCoordinateTo(point, out);
         }
     }

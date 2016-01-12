@@ -31,13 +31,13 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.builders.CoordinateCollection;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PointCollection;
-import org.elasticsearch.common.geo.builders.PointListBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.search.geo.GeoShapeQueryTests;
@@ -189,12 +189,12 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 // if this number gets out of hand, the number of self intersections for a linestring can become
                 // (n^2-n)/2 and computing the relation intersection matrix will become NP-Hard
                 int numPoints = RandomInts.randomIntBetween(r, 3, 10);
-                PointListBuilder pl = new PointListBuilder();
+                CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
                 for (int i=0; i<numPoints; ++i) {
                     p = xRandomPointIn(r, within);
-                    pl.point(p.getX(), p.getY());
+                    coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
-                PointCollection pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder(pl.list()) : new LineStringBuilder(pl.list());
+                CoordinateCollection pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder(coordinatesBuilder.build()) : new LineStringBuilder(coordinatesBuilder);
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
@@ -222,7 +222,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     shellCoords[2] = new Coordinate(within.getMaxX(), within.getMaxY());
                     shellCoords[3] = new Coordinate(within.getMaxX(), within.getMinY());
                 }
-                PolygonBuilder pgb = new PolygonBuilder(new PointListBuilder().points(shellCoords).close().list());
+                PolygonBuilder pgb = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoords).close());
                 if (validate) {
                     // This test framework builds semi-random geometry (in the sense that points are not truly random due to spatial
                     // auto-correlation) As a result of the semi-random nature of the geometry, one can not predict the orientation

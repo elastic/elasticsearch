@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -37,7 +36,7 @@ import java.util.Objects;
 public class MultiPolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
-    public static final MultiPolygonBuilder PROTOTYPE = new MultiPolygonBuilder();
+    static final MultiPolygonBuilder PROTOTYPE = new MultiPolygonBuilder();
 
     private final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
 
@@ -60,7 +59,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
      * {@link MultiPolygonBuilder} to the polygon if polygon has different orientation.
      */
     public MultiPolygonBuilder polygon(PolygonBuilder polygon) {
-        PolygonBuilder pb = new PolygonBuilder(Arrays.asList(polygon.shell().coordinates(false)), this.orientation);
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinates(polygon.shell().coordinates(false)), this.orientation);
         for (LineStringBuilder hole : polygon.holes()) {
             pb.hole(hole);
         }

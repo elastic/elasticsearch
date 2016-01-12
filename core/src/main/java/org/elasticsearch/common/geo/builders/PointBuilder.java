@@ -32,7 +32,7 @@ import java.util.Objects;
 public class PointBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
-    public static final PointBuilder PROTOTYPE = new PointBuilder();
+    static final PointBuilder PROTOTYPE = new PointBuilder();
 
     private Coordinate coordinate;
 

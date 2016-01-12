@@ -20,10 +20,12 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,21 +33,21 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
 
     public void testInvalidConstructorArgs() {
         try {
-            new LineStringBuilder(null);
+            new LineStringBuilder((List<Coordinate>) null);
             fail("Exception expected");
         } catch (IllegalArgumentException e) {
             assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
         }
 
        try {
-            new LineStringBuilder(new PointListBuilder().list());
+            new LineStringBuilder(new CoordinatesBuilder());
             fail("Exception expected");
         } catch (IllegalArgumentException e) {
             assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
         }
 
        try {
-           new LineStringBuilder(new PointListBuilder().point(0.0, 0.0).list());
+           new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0));
            fail("Exception expected");
        } catch (IllegalArgumentException e) {
            assertThat("invalid number of points in LineString (found [1] - must be >= 2)", equalTo(e.getMessage()));
@@ -79,7 +81,7 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
                 coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
             }
         }
-        return mutation.points(coordinates);
+        return mutation.coordinates(coordinates);
     }
 
     static LineStringBuilder createRandomShape() {

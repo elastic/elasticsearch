@@ -25,10 +25,10 @@ import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.PointListBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -198,13 +198,13 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testReusableBuilder() throws IOException {
-        ShapeBuilder polygon = ShapeBuilders.newPolygon(new PointListBuilder()
-                .point(170, -10).point(190, -10).point(190, 10).point(170, 10).close().list())
-                .hole(new LineStringBuilder(new PointListBuilder().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close().list()));
+        ShapeBuilder polygon = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
         assertUnmodified(polygon);
 
-        ShapeBuilder linestring = ShapeBuilders.newLineString(new PointListBuilder()
-                .point(170, -10).point(190, -10).point(190, 10).point(170, 10).close().list());
+        ShapeBuilder linestring = ShapeBuilders.newLineString(new CoordinatesBuilder()
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
         assertUnmodified(linestring);
     }
 
@@ -377,8 +377,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 "location",
                 ShapeBuilders.newGeometryCollection()
                         .polygon(
-                                ShapeBuilders.newPolygon(new PointListBuilder().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0)
-                                        .point(99.0, -1.0).list()))).relation(ShapeRelation.INTERSECTS);
+                                ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0)
+                                        .coordinate(99.0, -1.0)))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
@@ -386,17 +386,17 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         filter = QueryBuilders.geoShapeQuery(
                 "location",
                 ShapeBuilders.newGeometryCollection().polygon(
-                        ShapeBuilders.newPolygon(new PointListBuilder().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
-                                .point(199.0, -11.0).list()))).relation(ShapeRelation.INTERSECTS);
+                        ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                                .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
         filter = QueryBuilders.geoShapeQuery("location", ShapeBuilders.newGeometryCollection()
-                .polygon(ShapeBuilders.newPolygon(new PointListBuilder().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0).list()))
+                .polygon(ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
                         .polygon(
-                                ShapeBuilders.newPolygon(new PointListBuilder().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
-                                        .point(199.0, -11.0).list()))).relation(ShapeRelation.INTERSECTS);
+                                ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                                        .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);

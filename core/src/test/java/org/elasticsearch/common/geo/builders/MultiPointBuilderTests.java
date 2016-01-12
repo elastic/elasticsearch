@@ -38,14 +38,14 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
         }
 
         try {
-            new MultiPointBuilder(new PointListBuilder().list());
+            new MultiPointBuilder(new CoordinatesBuilder().build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
             assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
         }
 
         // one point is minimum
-        new MultiPointBuilder(new PointListBuilder().point(0.0, 0.0).list());
+        new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());
     }
 
     @Override
@@ -79,7 +79,7 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
         } else {
             coordinates = new Coordinate[]{new Coordinate(1.0, 1.0)};
         }
-        return mutation.points(coordinates);
+        return mutation.coordinates(coordinates);
     }
 
     static MultiPointBuilder createRandomShape() {

@@ -27,60 +27,60 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A builder for a list of points (of {@link Coordinate} type).
- * Enables chaining of individual points either as long/lat pairs
+ * A builder for a list of coordinates.
+ * Enables chaining of individual coordinates either as long/lat pairs
  * or as {@link Coordinate} elements, arrays or collections.
  */
-public class PointListBuilder {
+public class CoordinatesBuilder {
 
     private final List<Coordinate> points = new ArrayList<>();
 
     /**
-     * Add a new point to the collection
-     * @param longitude longitude of the coordinate
-     * @param latitude latitude of the coordinate
+     * Add a new coordinate to the collection
+     * @param coordinate the coordinate to add
      * @return this
      */
-    public PointListBuilder point(double longitude, double latitude) {
-        return this.point(new Coordinate(longitude, latitude));
-    }
-
-    /**
-     * Add a new point to the collection
-     * @param coordinate coordinate of the point
-     * @return this
-     */
-    public PointListBuilder point(Coordinate coordinate) {
+    public CoordinatesBuilder coordinate(Coordinate coordinate) {
         this.points.add(coordinate);
         return this;
     }
 
     /**
-     * Add a array of points to the collection
-     *
-     * @param coordinates array of {@link Coordinate}s to add
+     * Add a new coordinate to the collection
+     * @param longitude longitude of the coordinate
+     * @param latitude latitude of the coordinate
      * @return this
      */
-    public PointListBuilder points(Coordinate...coordinates) {
-        return this.points(Arrays.asList(coordinates));
+    public CoordinatesBuilder coordinate(double longitude, double latitude) {
+        return this.coordinate(new Coordinate(longitude, latitude));
     }
 
     /**
-     * Add a collection of points to the collection
+     * Add an array of coordinates to the current coordinates
      *
      * @param coordinates array of {@link Coordinate}s to add
      * @return this
      */
-    public PointListBuilder points(Collection<? extends Coordinate> coordinates) {
+    public CoordinatesBuilder coordinates(Coordinate...coordinates) {
+        return this.coordinates(Arrays.asList(coordinates));
+    }
+
+    /**
+     * Add a collection of coordinates to the current coordinates
+     *
+     * @param coordinates collection of {@link Coordinate}s to add
+     * @return this
+     */
+    public CoordinatesBuilder coordinates(Collection<? extends Coordinate> coordinates) {
         this.points.addAll(coordinates);
         return this;
     }
 
     /**
-     * Closes the current list of points by adding the starting point as the end point
-     * if they are not already the same
+     * Makes a closed ring out of the current coordinates by adding the starting point as the end point.
+     * Will have no effect of starting and end point are already the same coordinate.
      */
-    public PointListBuilder close() {
+    public CoordinatesBuilder close() {
         Coordinate start = points.get(0);
         Coordinate end = points.get(points.size()-1);
         if(start.x != end.x || start.y != end.y) {
@@ -90,9 +90,9 @@ public class PointListBuilder {
     }
 
     /**
-     * @return the current list of points
+     * @return a list containing the current coordinates
      */
-    public List<Coordinate> list() {
+    public List<Coordinate> build() {
         return new ArrayList<>(this.points);
     }
 }

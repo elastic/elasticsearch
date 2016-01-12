@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -54,7 +55,6 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     @Inject
     public IngestProxyActionFilter(ClusterService clusterService, TransportService transportService) {
-        assert IngestModule.isIngestEnabled(clusterService.state().nodes().localNode().attributes()) == false;
         this.clusterService = clusterService;
         this.transportService = transportService;
     }
@@ -128,8 +128,10 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     private DiscoveryNode randomIngestNode() {
         ClusterState state = clusterService.state();
+        DiscoveryNodes nodes = state.nodes();
+        assert IngestModule.isIngestEnabled(nodes.localNode().attributes()) == false;
         List<DiscoveryNode> ingestNodes = new ArrayList<>();
-        for (DiscoveryNode node : state.nodes()) {
+        for (DiscoveryNode node : nodes) {
             if (IngestModule.isIngestEnabled(node.getAttributes())) {
                 ingestNodes.add(node);
             }

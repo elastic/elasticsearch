@@ -78,8 +78,6 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             }
             builder.put(new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, VersionUtils.randomVersion(random())));
         }
-        //at least one node must not have ingest enabled, and that will always be the last one
-        builder.localNodeId("node" + (totalNodes - 1));
         when(clusterState.nodes()).thenReturn(builder.build());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);

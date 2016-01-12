@@ -77,6 +77,7 @@ public class S3RepositoryPlugin extends Plugin {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // Supertype declaration has raw types
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         return Collections.<Class<? extends LifecycleComponent>>singleton(S3Module.getS3ServiceImpl());
     }

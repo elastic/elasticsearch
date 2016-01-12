@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.indexing;
+package org.elasticsearch.index;
 
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.indexing.IndexingSlowLog.SlowLogParsedDocumentPrinter;
+import org.elasticsearch.index.IndexingSlowLog.SlowLogParsedDocumentPrinter;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESTestCase;
 

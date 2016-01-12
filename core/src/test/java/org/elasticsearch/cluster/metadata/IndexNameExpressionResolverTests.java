@@ -192,7 +192,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         context = new IndexNameExpressionResolver.Context(state, lenientExpand);
         results = indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);
-        assertEquals(4, results.length);
+        assertEquals(Arrays.toString(results), 4, results.length);
 
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
         results = indexNameExpressionResolver.concreteIndices(context,  "foofoo*");
@@ -866,5 +866,38 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             mdBuilder.put(indexBuilder(concreteIndex));
         }
         return mdBuilder.build();
+    }
+
+    public void testFilterClosedIndicesOnAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0")))
+            .put(indexBuilder("test-1").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("alias-1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+        String[] strings = indexNameExpressionResolver.concreteIndices(context, "alias-*");
+        assertArrayEquals(new String[] {"test-0"}, strings);
+
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpen());
+        strings = indexNameExpressionResolver.concreteIndices(context, "alias-*");
+
+        assertArrayEquals(new String[] {"test-0"}, strings);
+    }
+
+    public void testFilteringAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0").filter("{ \"term\": \"foo\"}")))
+            .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetaData.builder("alias-1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "alias-*");
+        assertArrayEquals(new String[] {"alias-0"}, strings);
+
+        // concrete index supersedes filtering alias
+        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-0,alias-*");
+        assertNull(strings);
+
+        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-*,alias-*");
+        assertNull(strings);
     }
 }

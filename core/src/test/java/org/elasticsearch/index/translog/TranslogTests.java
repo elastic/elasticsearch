@@ -1836,6 +1836,12 @@ public class TranslogTests extends ESTestCase {
                             syncedDocs.clear();
                         }
                     }
+                    // we survived all the randomness!!!
+                    // lets close the translog and if it succeeds we are all synced again. If we don't do this we will close
+                    // it in the finally block but miss to copy over unsynced docs to syncedDocs and fail the assertion down the road...
+                    failableTLog.close();
+                    syncedDocs.addAll(unsynced);
+                    unsynced.clear();
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                     // fair enough
                 } catch (IOException ex) {

@@ -356,7 +356,8 @@ if __name__ == "__main__":
   debs3_list_cmd = 'deb-s3 list -b %s --prefix %s' % (bucket, debs3_prefix)
   debs3_verify_cmd = 'deb-s3 verify -b %s --prefix %s' % (bucket, debs3_prefix)
   rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, package_repo_version)
-  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 100 %s' % (bucket, rpms3_prefix, rpm)
+  # external-1 is the alias name for the us-east-1 region. This is used by rpm-s3 to construct the hostname
+  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 100 %s -r external-1' % (bucket, rpms3_prefix, rpm)
 
   if deploy_s3:
     run(s3cmd_sync_to_staging_bucket_cmd)

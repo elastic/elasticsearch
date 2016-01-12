@@ -75,6 +75,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return TimeValue.timeValueMillis(0);
     }
 
+    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
     @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
         Thread[] allThreads = null;
@@ -118,6 +119,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return stopped;
     }
 
+    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
     @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected void resumeThreads(Set<Thread> threads) {
         for (Thread thread : threads) {

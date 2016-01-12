@@ -73,6 +73,19 @@ the request with two different groups:
 }
 --------------------------------------------------
 
+[float]
+[[global-search-timeout]]
+== Global Search Timeout
+
+Individual searches can have a timeout as part of the
+<<search-request-body>>. Since search requests can originate from many
+sources, Elasticsearch has a dynamic cluster-level setting for a global
+search timeout that applies to all search requests that do not set a
+timeout in the <<search-request-body>>. The default value is no global
+timeout. The setting key is `search.default_search_timeout` and can be
+set using the <<cluster-update-settings>> endpoints. Setting this value
+to `-1` resets the global search timeout to no timeout.
+
 --
 
 include::search/search.asciidoc[]

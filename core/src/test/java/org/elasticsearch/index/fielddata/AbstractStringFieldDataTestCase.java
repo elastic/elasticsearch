@@ -46,12 +46,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -385,7 +388,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 writer.commit();
             }
         }
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        DirectoryReader directoryReader = DirectoryReader.open(writer, true);
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
         final Object missingValue;
         switch (randomInt(4)) {

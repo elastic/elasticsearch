@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -59,7 +60,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -108,7 +108,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         // Hard-code routing to limit request to a single shard, but still, randomize it...
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.indices());
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, Integer.toString(Randomness.get().nextInt(1000)), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
     }
 

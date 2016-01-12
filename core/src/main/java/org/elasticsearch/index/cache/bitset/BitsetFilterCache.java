@@ -118,6 +118,12 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId != null // can't require it because of the percolator
+                && indexSettings.getIndex().getName().equals(shardId.getIndex()) == false) {
+            // insanity
+            throw new IllegalStateException("Trying to load bit set for index [" + shardId.getIndex()
+                    + "] with cache of index [" + indexSettings.getIndex().getName() + "]");
+        }
         Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
             context.reader().addCoreClosedListener(BitsetFilterCache.this);
             return CacheBuilder.<Query, Value>builder().build();
@@ -208,6 +214,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
 
         @Override
         public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
+            if (indexSettings.getIndex().equals(indexShard.getIndexSettings().getIndex()) == false) {
+                // this is from a different index
+                return TerminationHandle.NO_WAIT;
+            }
+
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }

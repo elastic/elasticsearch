@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.memory;
+package org.elasticsearch.indices;
 
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,16 +31,16 @@ import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 
-public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> implements IndexEventListener {
+public class IndexingMemoryController extends AbstractComponent implements IndexEventListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -70,10 +69,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** Once a shard becomes inactive, we reduce the {@code IndexWriter} buffer to this value (500 KB) to let active shards use the heap instead. */
     public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb", "INACTIVE_SHARD_INDEXING_BUFFER");
 
-    /** Once a shard becomes inactive, we reduce the {@code Translog} buffer to this value (1 KB) to let active shards use the heap instead. */
-    public static final ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb", "INACTIVE_SHARD_TRANSLOG_BUFFER");
-
-    private final ThreadPool threadPool;
     private final IndicesService indicesService;
 
     private final ByteSizeValue indexingBuffer;
@@ -81,22 +76,20 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final ByteSizeValue maxShardIndexBufferSize;
     private final TimeValue interval;
 
-    private volatile ScheduledFuture scheduler;
+    private final ScheduledFuture scheduler;
 
     private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(
             IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    @Inject
-    public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this(settings, threadPool, indicesService, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
     }
 
     // for testing
-    protected IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService, long jvmMemoryInBytes) {
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService, long jvmMemoryInBytes) {
         super(settings);
-        this.threadPool = threadPool;
         this.indicesService = indicesService;
 
         ByteSizeValue indexingBuffer;
@@ -131,29 +124,24 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, this.minShardIndexBufferSize,
                 MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, this.maxShardIndexBufferSize,
                 SHARD_INACTIVE_INTERVAL_TIME_SETTING, this.interval);
+        this.scheduler = scheduleTask(threadPool);
     }
 
-    @Override
-    protected void doStart() {
+    protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
         // it's fine to run it on the scheduler thread, no busy work
-        this.scheduler = threadPool.scheduleWithFixedDelay(statusChecker, interval);
+        return threadPool.scheduleWithFixedDelay(statusChecker, interval);
     }
 
     @Override
-    protected void doStop() {
+    public void close() {
         FutureUtils.cancel(scheduler);
-        scheduler = null;
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     /**
      * returns the current budget for the total amount of indexing buffers of
      * active shards on this node
      */
-    public ByteSizeValue indexingBufferSize() {
+    ByteSizeValue indexingBufferSize() {
         return indexingBuffer;
     }
 
@@ -188,7 +176,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /** check if any shards active status changed, now. */
-    public void forceCheck() {
+    void forceCheck() {
         statusChecker.run();
     }
 

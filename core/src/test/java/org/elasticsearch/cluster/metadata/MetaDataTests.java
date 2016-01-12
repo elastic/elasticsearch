@@ -20,8 +20,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -108,6 +114,38 @@ public class MetaDataTests extends ESTestCase {
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        }
+    }
+
+    public void testUnknownFieldClusterMetaData() throws IOException {
+        BytesReference metadata = JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("meta-data")
+                    .field("random", "value")
+                .endObject()
+            .endObject().bytes();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
+        try {
+            MetaData.Builder.fromXContent(parser);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unexpected field [random]", e.getMessage());
+        }
+    }
+
+    public void testUnknownFieldIndexMetaData() throws IOException {
+        BytesReference metadata = JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("index_name")
+                    .field("random", "value")
+                .endObject()
+            .endObject().bytes();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
+        try {
+            IndexMetaData.Builder.fromXContent(parser);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unexpected field [random]", e.getMessage());
         }
     }
 }

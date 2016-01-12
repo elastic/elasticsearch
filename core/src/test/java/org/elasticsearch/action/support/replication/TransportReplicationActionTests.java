@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -193,7 +194,8 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
         final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-        final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
+        final List<CapturingTransport.CapturedRequest> capturedRequests =
+            transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         assertThat(capturedRequests.get(0).action, equalTo("testAction[p]"));
@@ -235,7 +237,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertThat(request.shardId(), equalTo(shardId));
         logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
-        final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
+        final List<CapturingTransport.CapturedRequest> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         if (clusterService.state().nodes().localNodeId().equals(primaryNodeId)) {
@@ -256,7 +258,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         primaryPhase.run();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         final String replicaNodeId = clusterService.state().getRoutingTable().shardRoutingTable(index, shardId.id()).replicaShards().get(0).currentNodeId();
-        final List<CapturingTransport.CapturedRequest> requests = transport.capturedRequestsByTargetNode().get(replicaNodeId);
+        final List<CapturingTransport.CapturedRequest> requests = transport.getCapturedRequestsByTargetNodeAndClear().get(replicaNodeId);
         assertThat(requests, notNullValue());
         assertThat(requests.size(), equalTo(1));
         assertThat("replica request was not sent", requests.get(0).action, equalTo("testAction[r]"));
@@ -286,8 +288,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = actionWithAddedReplicaAfterPrimaryOp.new PrimaryPhase(request, createTransportChannel(listener));
         primaryPhase.run();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequestsByTargetNode = transport.getCapturedRequestsByTargetNodeAndClear();
         for (ShardRouting replica : stateWithAddedReplicas.getRoutingTable().shardRoutingTable(index, shardId.id()).replicaShards()) {
-            List<CapturingTransport.CapturedRequest> requests = transport.capturedRequestsByTargetNode().get(replica.currentNodeId());
+            List<CapturingTransport.CapturedRequest> requests = capturedRequestsByTargetNode.get(replica.currentNodeId());
             assertThat(requests, notNullValue());
             assertThat(requests.size(), equalTo(1));
             assertThat("replica request was not sent", requests.get(0).action, equalTo("testAction[r]"));
@@ -319,8 +322,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         primaryPhase.run();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         ShardRouting relocatingReplicaShard = stateWithRelocatingReplica.getRoutingTable().shardRoutingTable(index, shardId.id()).replicaShards().get(0);
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequestsByTargetNode = transport.getCapturedRequestsByTargetNodeAndClear();
         for (String node : new String[] {relocatingReplicaShard.currentNodeId(), relocatingReplicaShard.relocatingNodeId()}) {
-            List<CapturingTransport.CapturedRequest> requests = transport.capturedRequestsByTargetNode().get(node);
+            List<CapturingTransport.CapturedRequest> requests = capturedRequestsByTargetNode.get(node);
             assertThat(requests, notNullValue());
             assertThat(requests.size(), equalTo(1));
             assertThat("replica request was not sent to replica", requests.get(0).action, equalTo("testAction[r]"));
@@ -489,8 +493,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
         replicationPhase.run();
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
 
         HashMap<String, Request> nodesSentTo = new HashMap<>();
         boolean executeOnReplica =
@@ -544,8 +547,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
                 transport.handleResponse(capturedRequest.requestId, t);
                 if (criticalFailure) {
-                    CapturingTransport.CapturedRequest[] shardFailedRequests = transport.capturedRequests();
-                    transport.clear();
+                    CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
                     assertEquals(1, shardFailedRequests.length);
                     CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
                     // get the shard the request was sent to
@@ -636,19 +638,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         // try once with successful response
         transport.handleResponse(transport.capturedRequests()[0].requestId, TransportResponse.Empty.INSTANCE);
-        assertIndexShardCounter(1);
         transport.clear();
+        assertIndexShardCounter(1);
         request = new Request(shardId).timeout("100ms");
         primaryPhase = action.new PrimaryPhase(request, createTransportChannel(listener));
         primaryPhase.run();
         assertIndexShardCounter(2);
-        CapturingTransport.CapturedRequest[] replicationRequests = transport.capturedRequests();
-        transport.clear();
+        CapturingTransport.CapturedRequest[] replicationRequests = transport.getCapturedRequestsAndClear();
         assertThat(replicationRequests.length, equalTo(1));
         // try with failure response
         transport.handleResponse(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
-        CapturingTransport.CapturedRequest[] shardFailedRequests = transport.capturedRequests();
-        transport.clear();
+        CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, shardFailedRequests.length);
         transport.handleResponse(shardFailedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
         assertIndexShardCounter(1);

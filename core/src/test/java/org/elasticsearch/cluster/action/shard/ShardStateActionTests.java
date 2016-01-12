@@ -58,7 +58,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class ShardStateActionTests extends ESTestCase {
     private static ThreadPool THREAD_POOL;
 
-    private AtomicBoolean timeout;
     private TestShardStateAction shardStateAction;
     private CapturingTransport transport;
     private TransportService transportService;
@@ -102,7 +101,6 @@ public class ShardStateActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
-        this.timeout = new AtomicBoolean();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {});
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});

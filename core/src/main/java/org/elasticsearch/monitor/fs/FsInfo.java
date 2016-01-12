@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.fs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -188,12 +189,100 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
     }
 
+    public static class IoStats implements Writeable, ToXContent {
+        private long readCharacters;
+        private long writeCharacters;
+        private long readSysCalls;
+        private long writeSysCalls;
+        private long readBytes;
+        private long writeBytes;
+
+        private IoStats() {
+        }
+
+        public IoStats(long readCharacters, long writeCharacters, long readSysCalls, long writeSysCalls, long readBytes, long writeBytes) {
+            this.readCharacters = readCharacters;
+            this.writeCharacters = writeCharacters;
+            this.readSysCalls = readSysCalls;
+            this.writeSysCalls = writeSysCalls;
+            this.readBytes = readBytes;
+            this.writeBytes = writeBytes;
+        }
+
+        public IoStats(StreamInput in) throws IOException {
+            readCharacters = in.readVLong();
+            writeCharacters = in.readVLong();
+            readSysCalls = in.readVLong();
+            writeSysCalls = in.readVLong();
+            readBytes = in.readVLong();
+            writeBytes = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(readCharacters);
+            out.writeVLong(writeCharacters);
+            out.writeVLong(readSysCalls);
+            out.writeVLong(writeSysCalls);
+            out.writeVLong(readBytes);
+            out.writeVLong(writeBytes);
+        }
+
+        public long getReadCharacters() {
+            return readCharacters;
+        }
+
+        public long getWriteCharacters() {
+            return writeCharacters;
+        }
+
+        public long getReadSysCalls() {
+            return readSysCalls;
+        }
+
+        public long getWriteSysCalls() {
+            return writeSysCalls;
+        }
+
+        public long getReadBytes() {
+            return readBytes;
+        }
+
+        public long getWriteBytes() {
+            return writeBytes;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields.READ_CHARACTERS, readCharacters);
+            builder.field(Fields.WRITE_CHARACTERS, writeCharacters);
+            builder.field(Fields.READ_SYS_CALLS, readSysCalls);
+            builder.field(Fields.WRITE_SYS_CALLS, writeSysCalls);
+            builder.field(Fields.READ_BYTES, readBytes);
+            builder.field(Fields.WRITE_BYTES, writeBytes);
+            builder.endObject();
+            return builder;
+        }
+
+        private static final class Fields {
+            private static final String READ_CHARACTERS = "read_characters";
+            private static final String WRITE_CHARACTERS = "write_characters";
+            private static final String READ_SYS_CALLS = "read_sys_calls";
+            private static final String WRITE_SYS_CALLS = "write_sys_calls";
+            private static final String READ_BYTES = "read_bytes";
+            private static final String WRITE_BYTES = "write_bytes";
+        }
+    }
+
     final long timestamp;
     final Path[] paths;
+    final IoStats ioStats;
     Path total;
 
-    public FsInfo(long timestamp, Path[] paths) {
+    public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
         this.timestamp = timestamp;
+        this.ioStats = ioStats;
         this.paths = paths;
         this.total = null;
     }
@@ -203,6 +292,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
      */
     public FsInfo(StreamInput in) throws IOException {
         timestamp = in.readVLong();
+        ioStats = in.readOptionalWriteable(IoStats::new);
         paths = new Path[in.readVInt()];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = new Path(in);
@@ -212,6 +302,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
+        out.writeOptionalWriteable(ioStats);
         out.writeVInt(paths.length);
         for (Path path : paths) {
             path.writeTo(out);
@@ -244,16 +335,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         return timestamp;
     }
 
+    public IoStats getIoStats() {
+        return ioStats;
+    }
+
     @Override
     public Iterator<Path> iterator() {
         return Arrays.stream(paths).iterator();
-    }
-
-    static final class Fields {
-        static final String FS = "fs";
-        static final String TIMESTAMP = "timestamp";
-        static final String DATA = "data";
-        static final String TOTAL = "total";
     }
 
     @Override
@@ -267,7 +355,20 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             path.toXContent(builder, params);
         }
         builder.endArray();
+        if (ioStats != null) {
+            builder.field(Fields.IO_STATS);
+            ioStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
+
+    static final class Fields {
+        static final String FS = "fs";
+        static final String TIMESTAMP = "timestamp";
+        static final String DATA = "data";
+        static final String TOTAL = "total";
+        static final String IO_STATS = "io_stats";
+    }
+
 }

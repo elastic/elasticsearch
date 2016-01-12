@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -37,6 +39,19 @@ public class FsProbeTests extends ESTestCase {
             FsInfo stats = probe.stats();
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
+
+            if (Constants.LINUX) {
+                assertNotNull(stats.getIoStats());
+                assertThat(stats.getIoStats().getReadCharacters(), greaterThan(0L));
+                assertThat(stats.getIoStats().getWriteCharacters(), greaterThan(0L));
+                assertThat(stats.getIoStats().getReadSysCalls(), greaterThan(0L));
+                assertThat(stats.getIoStats().getWriteSysCalls(), greaterThan(0L));
+                // it is possible none of the write operations touched the physical disk
+                assertThat(stats.getIoStats().getReadBytes(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getIoStats().getWriteBytes(), greaterThanOrEqualTo(0L));
+            } else {
+                assertNull(stats.getIoStats());
+            }
 
             FsInfo.Path total = stats.getTotal();
             assertNotNull(total);

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -166,6 +167,9 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                 shardRequest.source(in.readBytesReference());
                 shardRequest.docSource(in.readBytesReference());
                 shardRequest.onlyCount(in.readBoolean());
+                if (in.getVersion().onOrAfter(Version.V_2_3_0)) {
+                    shardRequest.startTime(in.readLong());
+                }
                 Item item = new Item(slot, shardRequest);
                 items.add(item);
             }
@@ -184,6 +188,9 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                 out.writeBytesReference(item.request.source());
                 out.writeBytesReference(item.request.docSource());
                 out.writeBoolean(item.request.onlyCount());
+                if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
+                    out.writeLong(item.request.getStartTime());
+                }
             }
         }
 

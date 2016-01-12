@@ -105,6 +105,10 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         return startTime;
     }
 
+    void startTime(long startTime) {
+        this.startTime = startTime;
+    }
+
     OriginalIndices originalIndices() {
         return originalIndices;
     }

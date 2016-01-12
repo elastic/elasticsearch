@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,8 +32,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -150,5 +156,109 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     private void add(IndexService service, String alias, @Nullable CompressedXContent filter) {
         IndexMetaData build = IndexMetaData.builder(service.getMetaData()).putAlias(AliasMetaData.builder(alias).filter(filter).build()).build();
         service.updateMetaData(build);
+    }
+
+    public void testBaseAsyncTask() throws InterruptedException, IOException {
+        IndexService indexService = newIndexService();
+        ThreadPool pool = indexService.getThreadPool();
+        AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
+        AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
+        final AtomicInteger count = new AtomicInteger();
+        IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(indexService, pool, TimeValue.timeValueMillis(1)) {
+            @Override
+            protected void runInternal() {
+                count.incrementAndGet();
+                assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
+                latch.get().countDown();
+                try {
+                    latch2.get().await();
+                } catch (InterruptedException e) {
+                    fail("interrupted");
+                }
+                if (randomBoolean()) { // task can throw exceptions!!
+                    if (randomBoolean()) {
+                        throw new RuntimeException("foo");
+                    } else {
+                        throw new RuntimeException("bar");
+                    }
+                }
+            }
+
+            @Override
+            protected String getThreadPool() {
+                return ThreadPool.Names.GENERIC;
+            }
+        };
+        latch.get().await();
+        latch.set(new CountDownLatch(1));
+        assertEquals(1, count.get());
+        latch2.get().countDown();
+        latch2.set(new CountDownLatch(1));
+
+        latch.get().await();
+        assertEquals(2, count.get());
+        task.close();
+        latch2.get().countDown();
+        assertEquals(2, count.get());
+
+
+        task = new IndexService.BaseAsyncTask(indexService, pool, TimeValue.timeValueMillis(1000000)) {
+            @Override
+            protected void runInternal() {
+
+            }
+        };
+        assertTrue(task.mustReschedule());
+        if (randomBoolean()) {
+            for (Integer id : indexService.shardIds()) {
+                indexService.removeShard(id, "simon says");
+            }
+        } else {
+            indexService.close("simon says", false);
+        }
+
+        assertFalse("no shards left", task.mustReschedule());
+    }
+
+    public void testRefreshTaskIsUpdated() {
+        IndexService indexService = newIndexService();
+        IndexService.RefreshTasks refreshTask = indexService.getRefreshTask();
+        assertEquals(1000, refreshTask.getInterval().millis());
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+
+        // now disable
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)).build();
+        indexService.updateMetaData(metaData);
+        assertNotSame(refreshTask, indexService.getRefreshTask());
+        assertTrue(refreshTask.isClosed());
+        assertFalse(indexService.getRefreshTask().mustReschedule());
+
+        // set it to 100ms
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "100ms")).build();
+        indexService.updateMetaData(metaData);
+        assertNotSame(refreshTask, indexService.getRefreshTask());
+        assertTrue(refreshTask.isClosed());
+
+        refreshTask = indexService.getRefreshTask();
+        assertTrue(refreshTask.mustReschedule());
+        assertEquals(100, refreshTask.getInterval().millis());
+
+        // set it to 200ms
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "200ms")).build();
+        indexService.updateMetaData(metaData);
+        assertNotSame(refreshTask, indexService.getRefreshTask());
+        assertTrue(refreshTask.isClosed());
+
+        refreshTask = indexService.getRefreshTask();
+        assertTrue(refreshTask.mustReschedule());
+        assertEquals(200, refreshTask.getInterval().millis());
+
+        // set it to 200ms again
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "200ms")).build();
+        indexService.updateMetaData(metaData);
+        assertSame(refreshTask, indexService.getRefreshTask());
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+        assertFalse(refreshTask.isClosed());
+        assertEquals(200, refreshTask.getInterval().millis());
     }
 }

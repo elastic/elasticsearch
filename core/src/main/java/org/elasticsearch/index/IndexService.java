@@ -21,12 +21,14 @@ package org.elasticsearch.index;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,6 +44,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
@@ -104,6 +108,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final IndexSettings indexSettings;
     private final IndexingSlowLog slowLog;
     private final IndexingOperationListener[] listeners;
+    private volatile RefreshTasks refreshTask;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -140,6 +145,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.listeners = new IndexingOperationListener[1+listenersIn.length];
         this.listeners[0] = slowLog;
         System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
+        this.refreshTask = new RefreshTasks(this, nodeServicesProvider.getThreadPool());
     }
 
     public int numberOfShards() {
@@ -310,9 +316,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             indexShard.updateRoutingEntry(routing, true);
-            if (shards.isEmpty() && this.indexSettings.getTranslogSyncInterval().millis() != 0) {
+            if (shards.isEmpty()) {
                 ThreadPool threadPool = nodeServicesProvider.getThreadPool();
-                new AsyncTranslogFSync(this, threadPool).schedule(); // kick this off if we are the first shard in this service.
+                if (this.indexSettings.getTranslogSyncInterval().millis() != 0) {
+                    new AsyncTranslogFSync(this, threadPool); // kick this off if we are the first shard in this service.
+                }
+                rescheduleRefreshTasks();
             }
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
@@ -402,6 +411,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     public QueryShardContext getQueryShardContext() {
         return new QueryShardContext(indexSettings, nodeServicesProvider.getClient(), indexCache.bitsetFilterCache(), indexFieldData, mapperService(), similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry());
+    }
+
+    ThreadPool getThreadPool() {
+        return nodeServicesProvider.getThreadPool();
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -567,7 +580,19 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             } catch (Exception e) {
                 logger.warn("failed to refresh slowlog settings", e);
             }
+            if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
+                rescheduleRefreshTasks();
+            }
         }
+    }
+
+    private void rescheduleRefreshTasks() {
+        try {
+            refreshTask.close();
+        } finally {
+            refreshTask = new RefreshTasks(this, nodeServicesProvider.getThreadPool());
+        }
+
     }
 
     public interface ShardStoreDeleter {
@@ -605,40 +630,165 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
     }
 
+    private void maybeRefreshEngine() {
+        if (indexSettings.getRefreshInterval().millis() > 0) {
+            for (IndexShard shard : this.shards.values()) {
+                switch (shard.state()) {
+                    case CREATED:
+                    case RECOVERING:
+                    case CLOSED:
+                        continue;
+                    case POST_RECOVERY:
+                    case STARTED:
+                    case RELOCATED:
+                        try {
+                            shard.refresh("schedule");
+                        } catch (EngineClosedException | AlreadyClosedException ex) {
+                            // fine - continue;
+                        }
+                        continue;
+                    default:
+                        throw new IllegalStateException("unknown state: " + shard.state());
+                }
+            }
+        }
+    }
+
+    static abstract class BaseAsyncTask implements Runnable, Closeable {
+        protected final IndexService indexService;
+        protected final ThreadPool threadPool;
+        private final TimeValue interval;
+        private ScheduledFuture<?> scheduledFuture;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private volatile Exception lastThrownException;
+
+        BaseAsyncTask(IndexService indexService, ThreadPool threadPool, TimeValue interval) {
+            this.indexService = indexService;
+            this.threadPool = threadPool;
+            this.interval = interval;
+            onTaskCompletion();
+        }
+
+        boolean mustReschedule() {
+            // don't re-schedule if its closed or if we dont' have a single shard here..., we are done
+            return (indexService.closed.get() || indexService.shards.isEmpty()) == false
+                && closed.get() == false && interval.millis() > 0;
+        }
+
+        private synchronized void onTaskCompletion() {
+            if (mustReschedule()) {
+                indexService.logger.debug("scheduling {} every {}", toString(), interval);
+                this.scheduledFuture = threadPool.schedule(interval, getThreadPool(), BaseAsyncTask.this);
+            } else {
+                indexService.logger.debug("scheduled {} disabled", toString());
+                this.scheduledFuture = null;
+            }
+        }
+
+        public final void run() {
+            try {
+                runInternal();
+            } catch (Exception ex) {
+                if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
+                    // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
+                    indexService.logger.warn("failed to run task {} - supressing re-occuring exceptions unless the exception changes", ex, toString());
+                    lastThrownException = ex;
+                }
+            } finally {
+                onTaskCompletion();
+            }
+        }
+
+        private static boolean sameException(Exception left, Exception right) {
+            if (left.getClass() == right.getClass()) {
+                if ((left.getMessage() != null && left.getMessage().equals(right.getMessage()))
+                    || left.getMessage() == right.getMessage()) {
+                    StackTraceElement[] stackTraceLeft = left.getStackTrace();
+                    StackTraceElement[] stackTraceRight = right.getStackTrace();
+                    if (stackTraceLeft.length == stackTraceRight.length) {
+                        for (int i = 0; i < stackTraceLeft.length; i++) {
+                            if (stackTraceLeft[i].equals(stackTraceRight[i]) == false) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        protected abstract void runInternal();
+
+        protected String getThreadPool() {
+            return ThreadPool.Names.SAME;
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                FutureUtils.cancel(scheduledFuture);
+                scheduledFuture = null;
+            }
+        }
+
+        TimeValue getInterval() {
+            return interval;
+        }
+
+        boolean isClosed() {
+            return this.closed.get();
+        }
+    }
 
     /**
      * FSyncs the translog for all shards of this index in a defined interval.
      */
-    final static class AsyncTranslogFSync implements Runnable {
-        private final IndexService indexService;
-        private final ThreadPool threadPool;
+    final static class AsyncTranslogFSync extends BaseAsyncTask {
 
         AsyncTranslogFSync(IndexService indexService, ThreadPool threadPool) {
-            this.indexService = indexService;
-            this.threadPool = threadPool;
+            super(indexService, threadPool, indexService.getIndexSettings().getTranslogSyncInterval());
         }
 
-        boolean mustRun() {
-            // don't re-schedule if its closed or if we dont' have a single shard here..., we are done
-            return (indexService.closed.get() || indexService.shards.isEmpty()) == false;
+        protected String getThreadPool() {
+            return ThreadPool.Names.FLUSH;
         }
-
-        void schedule() {
-            threadPool.schedule(indexService.getIndexSettings().getTranslogSyncInterval(), ThreadPool.Names.SAME, AsyncTranslogFSync.this);
+        @Override
+        protected void runInternal() {
+            indexService.maybeFSyncTranslogs();
         }
 
         @Override
-        public void run() {
-            if (mustRun()) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
-                    indexService.maybeFSyncTranslogs();
-                    if (mustRun()) {
-                        schedule();
-                    }
-                });
-            }
+        public String toString() {
+            return "translog_sync";
         }
     }
+
+    final class RefreshTasks extends BaseAsyncTask {
+
+        RefreshTasks(IndexService indexService, ThreadPool threadPool) {
+            super(indexService, threadPool, indexService.getIndexSettings().getRefreshInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeRefreshEngine();
+        }
+
+        protected String getThreadPool() {
+            return ThreadPool.Names.REFRESH;
+        }
+
+        @Override
+        public String toString() {
+            return "refresh";
+        }
+    }
+
+    RefreshTasks getRefreshTask() { // for tests
+        return refreshTask;
+    }
+
 
 
 }

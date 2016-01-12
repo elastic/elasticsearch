@@ -26,7 +26,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -82,7 +81,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  */
@@ -516,6 +514,16 @@ public class PercolateContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return trackScores;
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return null;
     }
 
     @Override

@@ -367,12 +367,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
-        assertEquals(Boolean.TRUE, result);
+        indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
         assertBusy(() -> {
             IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
             assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        });
+            indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
+            }
+        );
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }

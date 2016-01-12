@@ -194,7 +194,6 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
-
 ==== Recovery settings
 
 Recovery settings deprecated in 1.x have been removed:
@@ -237,6 +236,11 @@ Please change the setting in your configuration files or in the clusterstate to 
 ==== Similarity settings
 
 The 'default' similarity has been renamed to 'classic'.
+
+==== Indexing settings
+
+`indices.memory.min_shard_index_buffer_size` and `indices.memory.max_shard_index_buffer_size` are removed since Elasticsearch now allows any one shard to any
+amount of heap as long as the total indexing buffer heap used across all shards is below the node's `indices.memory.index_buffer_size` (default: 10% of the JVM heap)
 
 [[breaking_30_mapping_changes]]
 === Mapping changes

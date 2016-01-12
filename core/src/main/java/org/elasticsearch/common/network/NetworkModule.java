@@ -48,6 +48,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
@@ -228,6 +229,7 @@ public class NetworkModule extends AbstractModule {
             registerRestHandler(RestFieldStatsAction.class, RestFieldStatsAction::new);
             registerRestHandler(RestSuggestAction.class, RestSuggestAction::new);
             registerRestHandler(RestTypesExistsAction.class, RestTypesExistsAction::new);
+            registerRestHandler(RestListTasksAction.class, RestListTasksAction::new);
 
             registerAliasActions();
             registerCatActions();

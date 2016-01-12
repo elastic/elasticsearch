@@ -556,7 +556,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-//        if (getEngine().refreshNeeded()) {
+        if (getEngine().refreshNeeded()) {
             if (canIndex()) {
                 long bytes = getEngine().getIndexBufferRAMBytesUsed();
                 writingBytes.addAndGet(bytes);
@@ -575,7 +575,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
             }
-//        }
+        }
     }
 
     /** Returns how many bytes we are currently moving from heap to disk */

@@ -322,6 +322,13 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             assertFalse(shard.getTranslog().syncNeeded());
         });
+    }
 
+    public void testNoFsyncTaskIfDisabled() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "0ms") // disable
+            .build();
+        IndexService indexService = createIndex("test", settings);
+        assertNull(indexService.getFsyncTask());
     }
 }

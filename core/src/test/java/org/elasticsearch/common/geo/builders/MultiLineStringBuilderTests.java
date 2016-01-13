@@ -40,30 +40,37 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
     static MultiLineStringBuilder mutate(MultiLineStringBuilder original) throws IOException {
         MultiLineStringBuilder mutation = (MultiLineStringBuilder) copyShape(original);
         Coordinate[][] coordinates = mutation.coordinates();
-        int lineToChange = randomInt(coordinates.length - 1);
-        for (int i = 0; i < coordinates.length; i++) {
-            Coordinate[] line = coordinates[i];
-            if (i == lineToChange) {
-                Coordinate coordinate = randomFrom(line);
-                if (randomBoolean()) {
-                    if (coordinate.x != 0.0) {
-                        coordinate.x = coordinate.x / 2;
+        if (coordinates.length > 0) {
+            int lineToChange = randomInt(coordinates.length - 1);
+            for (int i = 0; i < coordinates.length; i++) {
+                Coordinate[] line = coordinates[i];
+                if (i == lineToChange) {
+                    Coordinate coordinate = randomFrom(line);
+                    if (randomBoolean()) {
+                        if (coordinate.x != 0.0) {
+                            coordinate.x = coordinate.x / 2;
+                        } else {
+                            coordinate.x = randomDoubleBetween(-180.0, 180.0, true);
+                        }
                     } else {
-                        coordinate.x = randomDoubleBetween(-180.0, 180.0, true);
-                    }
-                } else {
-                    if (coordinate.y != 0.0) {
-                        coordinate.y = coordinate.y / 2;
-                    } else {
-                        coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
+                        if (coordinate.y != 0.0) {
+                            coordinate.y = coordinate.y / 2;
+                        } else {
+                            coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
+                        }
                     }
                 }
             }
+        } else {
+            mutation.linestring((LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING));
         }
         return mutation;
     }
 
     static MultiLineStringBuilder createRandomShape() {
+        if (true) {
+            return new MultiLineStringBuilder();
+        }
         return (MultiLineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTILINESTRING);
     }
 }

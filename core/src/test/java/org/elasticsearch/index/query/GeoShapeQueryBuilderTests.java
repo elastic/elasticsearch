@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.vividsolutions.jts.geom.Coordinate;
+
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
@@ -215,7 +217,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {
-        EnvelopeBuilder envelopeBuilder = ShapeBuilders.newEnvelope().topLeft(0, 0).bottomRight(10, 10);
+        EnvelopeBuilder envelopeBuilder = ShapeBuilders.newEnvelope(new Coordinate(0, 0), new Coordinate(10, 10));
         GeoShapeQueryBuilder geoQuery = QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder);
         JsonXContent.contentBuilder().startArray().value(geoQuery).endArray();
     }

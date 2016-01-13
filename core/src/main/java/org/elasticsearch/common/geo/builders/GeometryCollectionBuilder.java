@@ -20,6 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +36,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
-    public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
+    static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
 

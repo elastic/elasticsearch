@@ -26,8 +26,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -54,6 +57,8 @@ public final class IndexSettings {
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
+    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
 
     private final String uuid;
     private final List<Consumer<Settings>> updateListeners;
@@ -76,6 +81,9 @@ public final class IndexSettings {
     private final Predicate<String> indexNameMatcher;
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
+    private volatile TimeValue refreshInterval;
+
+
 
     /**
      * Returns the default search field for this index.
@@ -156,7 +164,7 @@ public final class IndexSettings {
         final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST.name());
         this.durability = getFromSettings(settings, Translog.Durability.REQUEST);
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
-
+        refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
         assert indexNameMatcher.test(indexMetaData.getIndex());
     }
 
@@ -346,10 +354,19 @@ public final class IndexSettings {
             logger.info("updating durability from [{}] to [{}]", this.durability, durability);
             this.durability = durability;
         }
+
+        TimeValue refreshInterval = settings.getAsTime(IndexSettings.INDEX_REFRESH_INTERVAL, this.refreshInterval);
+        if (!refreshInterval.equals(this.refreshInterval)) {
+            logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
+            this.refreshInterval = refreshInterval;
+        }
     }
 
     public TimeValue getTranslogSyncInterval() {
         return syncInterval;
     }
 
+    public TimeValue getRefreshInterval() {
+        return refreshInterval;
+    }
 }

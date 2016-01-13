@@ -43,16 +43,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;
 
-    /** Default for flag controlling whether payloads are collected */
-    public static boolean DEFAULT_COLLECT_PAYLOADS = true;
-
     private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private final int slop;
 
     private boolean inOrder = DEFAULT_IN_ORDER;
-
-    private boolean collectPayloads = DEFAULT_COLLECT_PAYLOADS;
 
     static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
@@ -107,21 +102,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return this.inOrder;
     }
 
-    /**
-     * @param collectPayloads flag controlling whether payloads are collected
-     */
-    public SpanNearQueryBuilder collectPayloads(boolean collectPayloads) {
-        this.collectPayloads = collectPayloads;
-        return this;
-    }
-
-    /**
-     * @see SpanNearQueryBuilder#collectPayloads(boolean)
-     */
-    public boolean collectPayloads() {
-        return this.collectPayloads;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -132,7 +112,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endArray();
         builder.field(SpanNearQueryParser.SLOP_FIELD.getPreferredName(), slop);
         builder.field(SpanNearQueryParser.IN_ORDER_FIELD.getPreferredName(), inOrder);
-        builder.field(SpanNearQueryParser.COLLECT_PAYLOADS_FIELD.getPreferredName(), collectPayloads);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -145,7 +124,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             assert query instanceof SpanQuery;
             spanQueries[i] = (SpanQuery) query;
         }
-        return new SpanNearQuery(spanQueries, slop, inOrder, collectPayloads);
+        return new SpanNearQuery(spanQueries, slop, inOrder);
     }
 
     @Override
@@ -155,7 +134,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         for (int i = 1; i < clauses.size(); i++) {
             queryBuilder.clauses.add((SpanQueryBuilder)clauses.get(i));
         }
-        queryBuilder.collectPayloads = in.readBoolean();
         queryBuilder.inOrder = in.readBoolean();
         return queryBuilder;
 
@@ -165,20 +143,18 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeQueries(out, clauses);
         out.writeVInt(slop);
-        out.writeBoolean(collectPayloads);
         out.writeBoolean(inOrder);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(clauses, slop, collectPayloads, inOrder);
+        return Objects.hash(clauses, slop, inOrder);
     }
 
     @Override
     protected boolean doEquals(SpanNearQueryBuilder other) {
         return Objects.equals(clauses, other.clauses) &&
                Objects.equals(slop, other.slop) &&
-               Objects.equals(collectPayloads, other.collectPayloads) &&
                Objects.equals(inOrder, other.inOrder);
     }
 

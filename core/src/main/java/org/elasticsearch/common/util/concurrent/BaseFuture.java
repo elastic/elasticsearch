@@ -180,9 +180,6 @@ public abstract class BaseFuture<V> implements Future<V> {
      * pass around a -1 everywhere.
      */
     static final class Sync<V> extends AbstractQueuedSynchronizer {
-
-        private static final long serialVersionUID = 0L;
-
         /* Valid states. */
         static final int RUNNING = 0;
         static final int COMPLETING = 1;

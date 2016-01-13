@@ -519,16 +519,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 return termsFilter;
             }
         } else {
-            // Current bool filter requires that at least one should clause matches, even with a must clause.
-            BooleanQuery.Builder bool = new BooleanQuery.Builder();
+            BooleanQuery.Builder typesBool = new BooleanQuery.Builder();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
-                    bool.add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD);
+                    typesBool.add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD);
                 } else {
-                    bool.add(docMapper.typeFilter(), BooleanClause.Occur.SHOULD);
+                    typesBool.add(docMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
+            BooleanQuery.Builder bool = new BooleanQuery.Builder();
+            bool.add(typesBool.build(), Occur.MUST);
             if (filterPercolateType) {
                 bool.add(percolatorType, BooleanClause.Occur.MUST_NOT);
             }

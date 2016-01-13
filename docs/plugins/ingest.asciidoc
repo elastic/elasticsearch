@@ -21,7 +21,7 @@ on an index or bulk request to tell the ingest plugin what pipeline is going to 
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/my-type/my-id?ingest=my_pipeline_id
+PUT /my-index/my-type/my-id?pipeline=my_pipeline_id
 {
   ...
 }
@@ -80,7 +80,8 @@ name must not exist.
 --------------------------------------------------
 {
   "rename": {
-    "field": "foo"
+    "field": "foo",
+    "to": "foobar"
   }
 }
 --------------------------------------------------

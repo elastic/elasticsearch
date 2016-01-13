@@ -22,6 +22,10 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -86,17 +90,19 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
 
             // let's run as without authorization
             try {
-                client.admin().cluster().prepareHealth().putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME).get();
+                client.filterWithHeader(Collections.singletonMap(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME))
+                        .admin().cluster().prepareHealth().get();
                 fail("run as should be unauthorized for the transport client user");
             } catch (ElasticsearchSecurityException e) {
                 assertThat(e.getMessage(), containsString("unauthorized"));
                 assertThat(e.getMessage(), containsString("run as"));
             }
 
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+            headers.put(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME);
             // lets set the user
-            ClusterHealthResponse response = client.admin().cluster().prepareHealth()
-                    .putHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                    .putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME).get();
+            ClusterHealthResponse response = client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
             assertThat(response.isTimedOut(), is(false));
         }
     }
@@ -134,9 +140,11 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
             });
 
             try {
-                client.admin().cluster().prepareHealth()
-                        .putHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                        .putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "").get();
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                headers.put(InternalAuthenticationService.RUN_AS_USER_HEADER, "");
+
+                client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
                 fail("run as header should not be allowed to be empty");
             } catch (ElasticsearchSecurityException e) {
                 assertThat(e.getMessage(), containsString("unable to authenticate"));
@@ -161,9 +169,11 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
             });
 
             try {
-                client.admin().cluster().prepareHealth()
-                        .putHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                        .putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "idontexist").get();
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                headers.put(InternalAuthenticationService.RUN_AS_USER_HEADER, "idontexist");
+
+                client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
                 fail("run as header should not accept non-existent users");
             } catch (ElasticsearchSecurityException e) {
                 assertThat(e.getMessage(), containsString("unauthorized"));

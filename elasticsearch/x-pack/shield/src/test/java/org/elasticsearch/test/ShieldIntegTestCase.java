@@ -9,8 +9,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -26,10 +26,14 @@ import org.junit.rules.ExternalResource;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -302,5 +306,11 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
         assertNoTimeout(clusterHealthResponse);
         assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
+    }
+
+    @Override
+    protected Function<Client,Client> getClientWrapper() {
+        Map<String, String> headers = Collections.singletonMap("Authorization", basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 }

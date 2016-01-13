@@ -8,11 +8,14 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
 import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.support.AutomatonPredicate;
+import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +33,7 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT;
@@ -45,6 +49,8 @@ import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRAN
 public class ShieldServerTransportService extends TransportService {
 
     public static final String SETTING_NAME = "shield.type";
+    // FIXME clean up this hack
+    static final Predicate<String> INTERNAL_PREDICATE = new AutomatonPredicate(Automatons.patterns("internal:*"));
 
     protected final AuthenticationService authcService;
     protected final AuthorizationService authzService;
@@ -72,29 +78,46 @@ public class ShieldServerTransportService extends TransportService {
 
     @Override
     public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-        try {
-            clientFilter.outbound(action, request);
-            super.sendRequest(node, action, request, options, handler);
-        } catch (Throwable t) {
-            handler.handleException(new TransportException("failed sending request", t));
+        try (ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext()) {
+            // FIXME this is really just a hack. What happens is that we send a request and we always copy headers over
+            // Sometimes a system action gets executed like a internal create index request or update mappings request
+            // which means that the user is copied over to system actions and these really fail for internal things...
+            if ((clientFilter instanceof ClientTransportFilter.Node) && INTERNAL_PREDICATE.test(action)) {
+                try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+                    try {
+                        clientFilter.outbound(action, request);
+                        super.sendRequest(node, action, request, options, handler);
+                    } catch (Throwable t) {
+                        handler.handleException(new TransportException("failed sending request", t));
+                    }
+                }
+            } else {
+                try {
+                    clientFilter.outbound(action, request);
+                    super.sendRequest(node, action, request, options, handler);
+                } catch (Throwable t) {
+                    handler.handleException(new TransportException("failed sending request", t));
+                }
+            }
         }
     }
 
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState);
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState, threadPool.getThreadContext());
         super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState);
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState, threadPool.getThreadContext());
         super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
         if (!(transport instanceof ShieldNettyTransport)) {
-            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, false));
+            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE,
+                    new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), false));
         }
 
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
@@ -108,10 +131,10 @@ public class ShieldServerTransportService extends TransportService {
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper, extractClientCert));
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
                     break;
                 default:
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
             }
         }
 
@@ -119,7 +142,7 @@ public class ShieldServerTransportService extends TransportService {
             final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
             final boolean clientAuth = SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
-            profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
+            profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -135,17 +158,20 @@ public class ShieldServerTransportService extends TransportService {
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
         private final ShieldLicenseState licenseState;
+        private final ThreadContext threadContext;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters, ShieldLicenseState licenseState) {
+        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
+                                            ShieldLicenseState licenseState, ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;
             this.licenseState = licenseState;
+            this.threadContext = threadContext;
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-            try {
+            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
                 if (licenseState.securityEnabled()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
@@ -161,7 +187,8 @@ public class ShieldServerTransportService extends TransportService {
                     assert filter != null;
                     filter.inbound(action, request, channel);
                 }
-                RequestContext context = new RequestContext(request);
+                // FIXME we should remove the RequestContext completely since we have ThreadContext but cannot yet due to the query cache
+                RequestContext context = new RequestContext(request, threadContext);
                 RequestContext.setCurrent(context);
                 handler.messageReceived(request, channel, task);
             } catch (Throwable t) {

@@ -28,7 +28,7 @@ public class RestClearRealmCacheAction extends BaseRestHandler {
 
     @Inject
     public RestClearRealmCacheAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_shield/realm/{realms}/_cache/clear", this);
     }
 

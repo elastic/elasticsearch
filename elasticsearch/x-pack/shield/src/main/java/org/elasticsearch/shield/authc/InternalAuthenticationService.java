@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -15,10 +14,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.crypto.CryptoService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
@@ -44,32 +45,35 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final CryptoService cryptoService;
     private final AnonymousService anonymousService;
     private final AuthenticationFailureHandler failureHandler;
+    private final ThreadContext threadContext;
     private final boolean signUserHeader;
     private final boolean runAsEnabled;
 
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
-                                         AnonymousService anonymousService, AuthenticationFailureHandler failureHandler) {
+                                         AnonymousService anonymousService, AuthenticationFailureHandler failureHandler,
+                                         ThreadPool threadPool) {
         super(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
         this.cryptoService = cryptoService;
         this.anonymousService = anonymousService;
         this.failureHandler = failureHandler;
+        this.threadContext = threadPool.getThreadContext();
         this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
         this.runAsEnabled = settings.getAsBoolean(SETTING_RUN_AS_ENABLED, true);
     }
 
     @Override
-    public User authenticate(RestRequest request) throws ElasticsearchSecurityException {
-        User user = getUserFromContext(request);
+    public User authenticate(RestRequest request) throws IOException, ElasticsearchSecurityException {
+        User user = getUserFromContext();
         if (user != null) {
             return user;
         }
 
         AuthenticationToken token;
         try {
-            token = token(request);
+            token = token();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("failed to extract token from request", e);
@@ -84,7 +88,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (anonymousService.enabled()) {
                 // we must put the user in the request context, so it'll be copied to the
                 // transport request - without it, the transport will assume system user
-                request.putInContext(USER_KEY, anonymousService.anonymousUser());
+                putUserInContext(anonymousService.anonymousUser());
                 return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(request);
@@ -144,17 +148,17 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
         // we must put the user in the request context, so it'll be copied to the
         // transport request - without it, the transport will assume system user
-        request.putInContext(USER_KEY, user);
+        putUserInContext(user);
         return user;
     }
 
     @Override
     public User authenticate(String action, TransportMessage message, User fallbackUser) throws IOException {
-        User user = getUserFromContext(message);
+        User user = getUserFromContext();
         if (user != null) {
             return user;
         }
-        String header = message.getHeader(USER_KEY);
+        String header = threadContext.getHeader(USER_KEY);
         if (header != null) {
             if (signUserHeader) {
                 try {
@@ -168,36 +172,46 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
         if (user == null) {
             user = authenticateWithRealms(action, message, fallbackUser);
-            header = signUserHeader ? cryptoService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
-            message.putHeader(USER_KEY, header);
+            setUserHeader(user);
         }
-        message.putInContext(USER_KEY, user);
+        putUserInContext(user);
         return user;
     }
 
     @Override
-    public void attachUserHeaderIfMissing(ContextAndHeaderHolder message, User user) throws IOException {
-        if (message.hasHeader(USER_KEY)) {
+    public void attachUserHeaderIfMissing(User user) throws IOException {
+        if (threadContext.getHeader(USER_KEY) != null) {
             return;
         }
-        User userFromContext = message.getFromContext(USER_KEY);
-        if (userFromContext != null) {
-            String userHeader = signUserHeader ? cryptoService.sign(encodeUser(userFromContext, logger)) : encodeUser(userFromContext, logger);
-            message.putHeader(USER_KEY, userHeader);
+        User transientUser = threadContext.getTransient(USER_KEY);
+        if (transientUser != null) {
+            setUserHeader(transientUser);
             return;
         }
 
-        message.putInContext(USER_KEY, user);
-        String userHeader = signUserHeader ? cryptoService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
-        message.putHeader(USER_KEY, userHeader);
+        setUser(user);
     }
 
-    User getUserFromContext(ContextAndHeaderHolder message) {
-        User user = message.getFromContext(USER_KEY);
-        if (user != null) {
-            return user;
+    void setUserHeader(User user) throws IOException {
+        String userHeader = signUserHeader ? cryptoService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+        threadContext.putHeader(USER_KEY, userHeader);
+    }
+
+    void setUser(User user) throws IOException {
+        putUserInContext(user);
+        setUserHeader(user);
+    }
+
+    void putUserInContext(User user) {
+        if (threadContext.getTransient(USER_KEY) != null) {
+            User ctxUser = threadContext.getTransient(USER_KEY);
+            throw new IllegalArgumentException("context already has user [" + ctxUser.principal() + "]. trying to set user [" + user.principal() + "]");
         }
-        return null;
+        threadContext.putTransient(USER_KEY, user);
+    }
+
+    User getUserFromContext() {
+        return threadContext.getTransient(USER_KEY);
     }
 
     static User decodeUser(String text) {
@@ -283,7 +297,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
 
         if (runAsEnabled) {
-            String runAsUsername = message.getHeader(RUN_AS_USER_HEADER);
+            String runAsUsername = threadContext.getHeader(RUN_AS_USER_HEADER);
             if (runAsUsername != null) {
                 if (runAsUsername.isEmpty()) {
                     logger.warn("user [{}] attempted to runAs with an empty username", user.principal());
@@ -359,11 +373,12 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
     }
 
-    AuthenticationToken token(RestRequest request) throws ElasticsearchSecurityException {
+    AuthenticationToken token() throws ElasticsearchSecurityException {
+        assert threadContext.getTransient(TOKEN_KEY) == null;
         for (Realm realm : realms) {
-            AuthenticationToken token = realm.token(request);
+            AuthenticationToken token = realm.token(threadContext);
             if (token != null) {
-                request.putInContext(TOKEN_KEY, token);
+                threadContext.putTransient(TOKEN_KEY, token);
                 return token;
             }
         }
@@ -372,19 +387,19 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @SuppressWarnings("unchecked")
     AuthenticationToken token(String action, TransportMessage<?> message) {
-        AuthenticationToken token = message.getFromContext(TOKEN_KEY);
+        AuthenticationToken token = threadContext.getTransient(TOKEN_KEY);
         if (token != null) {
             return token;
         }
         for (Realm realm : realms) {
-            token = realm.token(message);
+            token = realm.token(threadContext);
             if (token != null) {
 
                 if (logger.isTraceEnabled()) {
                     logger.trace("realm [{}] resolved authentication token [{}] from transport request with action [{}]", realm, token.principal(), action);
                 }
 
-                message.putInContext(TOKEN_KEY, token);
+                threadContext.putTransient(TOKEN_KEY, token);
                 return token;
             }
         }

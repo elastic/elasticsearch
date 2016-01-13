@@ -45,7 +45,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         if (context == null) {
             throw new IllegalStateException("opting out of the query cache. current request can't be found");
         }
-        final IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = context.getThreadContext().getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
             return weight;

@@ -8,6 +8,7 @@ package org.elasticsearch.shield.action.interceptor;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -16,8 +17,8 @@ import org.elasticsearch.transport.TransportRequest;
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor<SearchRequest> {
 
     @Inject
-    public SearchRequestInterceptor(Settings settings) {
-        super(settings);
+    public SearchRequestInterceptor(Settings settings, ThreadPool threadPool) {
+        super(settings, threadPool.getThreadContext());
     }
 
     @Override

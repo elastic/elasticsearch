@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -93,8 +94,8 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
         builder.get();
 
         for (int roleI = 1; roleI <= numberOfRoles; roleI++) {
-            SearchResponse searchResponse1 = client().prepareSearch("test")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD))
+            SearchResponse searchResponse1 = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
+                    .prepareSearch("test")
                     .get();
             SearchResponse searchResponse2 = client().prepareSearch("alias" + roleI).get();
             assertThat(searchResponse1.getHits().getTotalHits(), equalTo(searchResponse2.getHits().getTotalHits()));

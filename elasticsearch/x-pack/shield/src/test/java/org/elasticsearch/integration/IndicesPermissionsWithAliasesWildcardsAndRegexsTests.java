@@ -13,6 +13,8 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Collections;
+
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -72,20 +74,20 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Shield
                 .setRefresh(true)
                 .get();
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "1")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        GetResponse getResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field1"), equalTo("value1"));
 
-        getResponse = client().prepareGet("my_alias", "type1", "1")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        getResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareGet("my_alias", "type1", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field2"), equalTo("value2"));
 
-        getResponse = client().prepareGet("an_alias", "type1", "1")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        getResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareGet("an_alias", "type1", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field3"), equalTo("value3"));

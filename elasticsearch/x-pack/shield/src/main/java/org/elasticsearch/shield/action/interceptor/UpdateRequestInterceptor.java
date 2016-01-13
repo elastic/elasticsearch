@@ -10,6 +10,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -22,8 +23,8 @@ import org.elasticsearch.transport.TransportRequest;
 public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor<UpdateRequest> {
 
     @Inject
-    public UpdateRequestInterceptor(Settings settings) {
-        super(settings);
+    public UpdateRequestInterceptor(Settings settings, ThreadPool threadPool) {
+        super(settings, threadPool.getThreadContext());
     }
 
     @Override

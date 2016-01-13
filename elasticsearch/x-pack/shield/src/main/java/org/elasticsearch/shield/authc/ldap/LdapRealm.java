@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.AbstractLdapRealm;
@@ -35,8 +36,8 @@ public class LdapRealm extends AbstractLdapRealm {
         private final ClientSSLService clientSSLService;
 
         @Inject
-        public Factory(ResourceWatcherService watcherService, ClientSSLService clientSSLService) {
-            super(TYPE);
+        public Factory(ResourceWatcherService watcherService, ClientSSLService clientSSLService, RestController restController) {
+            super(TYPE, restController);
             this.watcherService = watcherService;
             this.clientSSLService = clientSSLService;
         }

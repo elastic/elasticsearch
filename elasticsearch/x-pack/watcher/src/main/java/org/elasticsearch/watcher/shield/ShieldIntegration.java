@@ -6,14 +6,12 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 
@@ -33,26 +31,19 @@ public class ShieldIntegration {
         settingsFilter = enabled ? injector.getInstance(ShieldSettingsFilter.class) : null;
     }
 
-    public void bindWatcherUser(TransportMessage message) {
-        if (authcService != null) {
-            try {
-                authcService.attachUserHeaderIfMissing(message, InternalWatcherUser.INSTANCE);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to attach watcher user to request", e);
-            }
-        }
-    }
-
     public void filterOutSettings(String... patterns) {
         if (settingsFilter != null) {
             settingsFilter.filterOut(patterns);
         }
     }
 
-    // TODO this is a hack that needs to go away with proper fixes in core
-    public void putUserInContext(HasContext context) {
+    public void setWatcherUser() {
         if (enabled) {
-            context.putInContext("_shield_user", InternalWatcherUser.INSTANCE);
+            try {
+                authcService.attachUserHeaderIfMissing(InternalWatcherUser.INSTANCE);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to attach watcher user to request", e);
+            }
         }
     }
 

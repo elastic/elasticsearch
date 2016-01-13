@@ -9,8 +9,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -20,7 +20,6 @@ import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.TrustManager;
@@ -66,13 +65,8 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     }
 
     @Override
-    public X509AuthenticationToken token(RestRequest request) {
-        return token(request.getFromContext(PKI_CERT_HEADER_NAME), principalPattern, logger);
-    }
-
-    @Override
-    public X509AuthenticationToken token(TransportMessage<?> message) {
-        return token(message.getFromContext(PKI_CERT_HEADER_NAME), principalPattern, logger);
+    public X509AuthenticationToken token(ThreadContext context) {
+        return token(context.getTransient(PKI_CERT_HEADER_NAME), principalPattern, logger);
     }
 
     @Override

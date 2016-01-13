@@ -6,8 +6,11 @@
 package org.elasticsearch.shield.authz.esnative;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -21,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -33,12 +37,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.action.admin.role.AddRoleRequest;
 import org.elasticsearch.shield.action.admin.role.DeleteRoleRequest;
@@ -52,7 +56,6 @@ import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.client.ShieldClient;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -110,16 +113,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         this.threadPool = threadPool;
     }
 
-    private final void attachUser(TransportMessage message) {
-        try {
-            authService.attachUserHeaderIfMissing(message, adminUser.user());
-        } catch (IOException e) {
-            logger.error("failed to attach authorization to internal message!", e);
-            throw new ElasticsearchSecurityException("unable to attach administrative user to transport message",
-                    RestStatus.SERVICE_UNAVAILABLE, e);
-        }
-    }
-
     @Nullable
     private RoleDescriptor transformRole(GetResponse response) {
         if (response.isExists() == false) {
@@ -161,7 +154,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     .setSize(scrollSize)
                     .setFetchSource(true)
                     .request();
-            attachUser(request);
             request.indicesOptions().ignoreUnavailable();
 
             // This function is MADNESS! But it works, don't think about it too hard...
@@ -178,11 +170,9 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                         }
                         SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
                                 .setScroll(scrollKeepAlive).request();
-                        attachUser(scrollRequest);
                         client.searchScroll(scrollRequest, this);
                     } else {
                         ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(resp.getScrollId()).request();
-                        attachUser(clearScrollRequest);
                         client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                             @Override
                             public void onResponse(ClearScrollResponse response) {
@@ -231,7 +221,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         try {
             GetRequest request = client.prepareGet(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, INDEX_ROLE_TYPE, role).request();
             request.indicesOptions().ignoreUnavailable();
-            attachUser(request);
             client.get(request, listener);
         } catch (Exception e) {
             logger.error("unable to retrieve role", e);
@@ -248,7 +237,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
                     INDEX_ROLE_TYPE, deleteRoleRequest.role()).request();
             request.indicesOptions().ignoreUnavailable();
-            attachUser(request);
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -324,7 +312,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     INDEX_ROLE_TYPE, addRoleRequest.name())
                     .setSource(addRoleRequest.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
                     .request();
-            attachUser(request);
             client.index(request, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
@@ -379,9 +366,21 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = clientProvider.get();
-                this.shieldClient = new ShieldClient(client);
                 this.authService = authProvider.get();
+                this.client = new FilterClient(clientProvider.get()) {
+                    @Override
+                    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
+                            try {
+                                authService.attachUserHeaderIfMissing(adminUser.user());
+                            } catch (IOException e) {
+                                throw new ElasticsearchException("failed to set shield user", e);
+                            }
+                            super.doExecute(action, request, listener);
+                        }
+                    }
+                };
+                this.shieldClient = new ShieldClient(client);
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
                 TimeValue pollInterval = settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L));
@@ -435,7 +434,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
         ClearRolesCacheRequest request = new ClearRolesCacheRequest().roles(role);
-        attachUser(request);
         shieldClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
             @Override
             public void onResponse(ClearRolesCacheResponse nodes) {
@@ -504,7 +502,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                         .setFetchSource(true)
                         .setVersion(true)
                         .request();
-                attachUser(request);
                 response = client.search(request).actionGet();
 
                 boolean keepScrolling = response.getHits().getHits().length > 0;
@@ -529,7 +526,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                         });
                     }
                     SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
-                    attachUser(scrollRequest);
                     response = client.searchScroll(scrollRequest).actionGet();
                     keepScrolling = response.getHits().getHits().length > 0;
                 }
@@ -545,7 +541,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
             } finally {
                 if (response != null) {
                     ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
-                    attachUser(clearScrollRequest);
                     client.clearScroll(clearScrollRequest).actionGet();
                 }
             }

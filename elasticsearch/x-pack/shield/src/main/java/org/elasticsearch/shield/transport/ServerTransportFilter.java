@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -51,12 +52,15 @@ public interface ServerTransportFilter {
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
         private final ShieldActionMapper actionMapper;
+        private final ThreadContext threadContext;
         private final boolean extractClientCert;
 
-        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, boolean extractClientCert) {
+        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
+                           ShieldActionMapper actionMapper, ThreadContext threadContext, boolean extractClientCert) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.actionMapper = actionMapper;
+            this.threadContext = threadContext;
             this.extractClientCert = extractClientCert;
         }
 
@@ -78,14 +82,14 @@ public interface ServerTransportFilter {
             }
 
             if (extractClientCert && (unwrappedChannel instanceof NettyTransportChannel)) {
-                Channel channel = ((NettyTransportChannel)unwrappedChannel).getChannel();
+                Channel channel = ((NettyTransportChannel) unwrappedChannel).getChannel();
                 SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
                 assert sslHandler != null;
 
                 try {
                     Certificate[] certs = sslHandler.getEngine().getSession().getPeerCertificates();
                     if (certs instanceof X509Certificate[]) {
-                        request.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, certs);
+                        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
                     }
                 } catch (SSLPeerUnverifiedException e) {
                     // this happens when we only request client authentication and the client does not provide it
@@ -110,8 +114,9 @@ public interface ServerTransportFilter {
      */
     class ClientProfile extends NodeProfile {
 
-        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, boolean extractClientCert) {
-            super(authcService, authzService, actionMapper, extractClientCert);
+        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
+                             ShieldActionMapper actionMapper, ThreadContext threadContext, boolean extractClientCert) {
+            super(authcService, authzService, actionMapper, threadContext, extractClientCert);
         }
 
         @Override

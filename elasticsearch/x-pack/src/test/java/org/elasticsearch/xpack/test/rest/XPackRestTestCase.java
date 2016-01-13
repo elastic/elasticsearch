@@ -15,8 +15,8 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
@@ -67,7 +67,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
         return Settings.builder()
-                .put(Headers.PREFIX + ".Authorization", token)
+                .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }
 }

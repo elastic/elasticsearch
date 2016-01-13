@@ -26,7 +26,7 @@ public class RestDeleteRoleAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteRoleAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.DELETE, "/_shield/role/{role}", this);
     }
 

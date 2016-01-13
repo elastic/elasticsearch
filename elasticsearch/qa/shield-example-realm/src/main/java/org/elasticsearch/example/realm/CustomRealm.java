@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.example.realm;
 
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.transport.TransportMessage;
 
 public class CustomRealm extends Realm<UsernamePasswordToken> {
 
@@ -35,22 +34,10 @@ public class CustomRealm extends Realm<UsernamePasswordToken> {
     }
 
     @Override
-    public UsernamePasswordToken token(RestRequest request) {
-        String user = request.header(USER_HEADER);
+    public UsernamePasswordToken token(ThreadContext threadContext) {
+        String user = threadContext.getHeader(USER_HEADER);
         if (user != null) {
-            String password = request.header(PW_HEADER);
-            if (password != null) {
-                return new UsernamePasswordToken(user, new SecuredString(password.toCharArray()));
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public UsernamePasswordToken token(TransportMessage<?> message) {
-        String user = message.getHeader(USER_HEADER);
-        if (user != null) {
-            String password = message.getHeader(PW_HEADER);
+            String password = threadContext.getHeader(PW_HEADER);
             if (password != null) {
                 return new UsernamePasswordToken(user, new SecuredString(password.toCharArray()));
             }

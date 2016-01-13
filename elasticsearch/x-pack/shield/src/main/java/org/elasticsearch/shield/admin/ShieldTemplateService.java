@@ -6,9 +6,15 @@
 package org.elasticsearch.shield.admin;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,11 +27,13 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -58,8 +66,7 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
     }
 
     private void createShieldTemplate() {
-        Client client = this.clientProvider.get();
-        AuthenticationService authService = this.authProvider.get();
+        final Client client = getClient();
         try (InputStream is = getClass().getResourceAsStream("/" + SHIELD_TEMPLATE_NAME + ".json")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
@@ -67,7 +74,6 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
             logger.info("--> putting the shield index template");
             PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
                     .preparePutTemplate(SHIELD_TEMPLATE_NAME).setSource(template).request();
-            authService.attachUserHeaderIfMissing(putTemplateRequest, adminUser.user());
             PutIndexTemplateResponse templateResponse = client.admin().indices().putTemplate(putTemplateRequest).get();
             if (templateResponse.isAcknowledged() == false) {
                 throw new ElasticsearchException("adding template for shield admin index was not acknowledged");
@@ -79,6 +85,23 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
                     SHIELD_ADMIN_INDEX_NAME + "]", e);
         }
 
+    }
+
+    Client getClient() {
+        Client unwrapped = clientProvider.get();
+        return new FilterClient(unwrapped) {
+            @Override
+            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
+                    try {
+                        authProvider.get().attachUserHeaderIfMissing(adminUser.user());
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("failed to set shield user", e);
+                    }
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
     }
 
     @Override

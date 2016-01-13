@@ -30,7 +30,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
     @Inject
     public RestWatcherStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, URI_BASE + "/stats", this);
         controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
     }

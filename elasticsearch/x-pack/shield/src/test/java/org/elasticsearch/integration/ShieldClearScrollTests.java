@@ -19,8 +19,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -85,9 +88,11 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
     public void testThatClearingAllScrollIdsWorks() throws Exception {
         String shieldUser = "allowed_user:change_me";
         String basicAuth = basicAuthHeaderValue("allowed_user", new SecuredString("change_me".toCharArray()));
-        ClearScrollResponse clearScrollResponse = internalCluster().transportClient().prepareClearScroll()
-            .putHeader("shield.user", shieldUser)
-            .putHeader("Authorization", basicAuth)
+        Map<String, String> headers = new HashMap<>();
+        headers.put("shield.user", shieldUser);
+        headers.put(BASIC_AUTH_HEADER, basicAuth);
+        ClearScrollResponse clearScrollResponse = internalCluster().transportClient().filterWithHeader(headers)
+            .prepareClearScroll()
             .addScrollId("_all").get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
@@ -97,10 +102,11 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
         String shieldUser = "denied_user:change_me";
         String basicAuth = basicAuthHeaderValue("denied_user", new SecuredString("change_me".toCharArray()));
-
-        assertThrows(internalCluster().transportClient().prepareClearScroll()
-                .putHeader("shield.user", shieldUser)
-                .putHeader("Authorization", basicAuth)
+        Map<String, String> headers = new HashMap<>();
+        headers.put("shield.user", shieldUser);
+        headers.put(BASIC_AUTH_HEADER, basicAuth);
+        assertThrows(internalCluster().transportClient().filterWithHeader(headers)
+                .prepareClearScroll()
                 .addScrollId("_all"), ElasticsearchSecurityException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work

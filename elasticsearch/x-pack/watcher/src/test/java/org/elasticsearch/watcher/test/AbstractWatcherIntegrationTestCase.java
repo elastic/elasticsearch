@@ -10,6 +10,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -43,7 +45,6 @@ import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
-import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -74,15 +75,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.WatcherModule.HISTORY_TEMPLATE_NAME;
 import static org.elasticsearch.watcher.WatcherModule.TRIGGERED_TEMPLATE_NAME;
@@ -159,6 +163,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+    }
+
+    @Override
+    protected Function<Client,Client> getClientWrapper() {
+        if (shieldEnabled == false) {
+            return Function.identity();
+        }
+        Map<String, String> headers = Collections.singletonMap("Authorization",
+                basicAuthHeaderValue(ShieldSettings.TEST_USERNAME, new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())));
+        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -284,8 +298,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected long docCount(String index, String type, SearchSourceBuilder source) {
-        SearchRequestBuilder builder = client().prepareSearch(index)
-.setSource(source).setSize(0);
+        SearchRequestBuilder builder = client().prepareSearch(index).setSource(source).setSize(0);
         if (type != null) {
             builder.setTypes(type);
         }
@@ -665,7 +678,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 Path folder = createTempDir().resolve("watcher_shield");
                 Files.createDirectories(folder);
                 return builder.put("shield.enabled", true)
-                        .put("shield.user", "test:changeme")
                         .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                         .put("shield.authc.realms.esusers.order", 0)
                         .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))

@@ -28,7 +28,7 @@ public class RestWatcherInfoAction extends WatcherRestHandler {
 
     @Inject
     public RestWatcherInfoAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, URI_BASE, this);
     }
 

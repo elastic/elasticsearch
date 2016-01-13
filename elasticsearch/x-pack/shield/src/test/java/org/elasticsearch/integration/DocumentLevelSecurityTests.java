@@ -29,6 +29,8 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Collections;
+
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -100,14 +102,14 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        SearchResponse response = client().prepareSearch("test")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery())
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
-        response = client().prepareSearch("test")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery())
                 .get();
         assertHitCount(response, 1);
@@ -125,31 +127,31 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        GetResponse response = client().prepareGet("test", "type1", "1")
+        GetResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), equalTo("1"));
-        response = client().prepareGet("test", "type1", "2")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareGet("test", "type1", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), equalTo("2"));
 
-        response = client().prepareGet("test", "type1", "1")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(false));
-        response = client().prepareGet("test", "type1", "2")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareGet("test", "type1", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(false));
     }
@@ -165,40 +167,40 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        MultiGetResponse response = client().prepareMultiGet()
+        MultiGetResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareMultiGet()
                 .add("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getId(), equalTo("1"));
 
-        response = client().prepareMultiGet()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareMultiGet()
                 .add("test", "type1", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getId(), equalTo("2"));
 
-        response = client().prepareMultiGet()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareMultiGet()
                 .add("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
 
-        response = client().prepareMultiGet()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareMultiGet()
                 .add("test", "type1", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
@@ -216,29 +218,29 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1")
+        TermVectorsResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
                 .setRealtime(realtime)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("1"));
 
-        response = client().prepareTermVectors("test", "type1", "2")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "2")
                 .setRealtime(realtime)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("2"));
 
-        response = client().prepareTermVectors("test", "type1", "1")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
                 .setRealtime(realtime)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(false));
 
-        response = client().prepareTermVectors("test", "type1", "2")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "2")
                 .setRealtime(realtime)
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.isExists(), is(false));
     }
@@ -255,32 +257,32 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        MultiTermVectorsResponse response = client().prepareMultiTermVectors()
+        MultiTermVectorsResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareMultiTermVectors()
                 .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getId(), is("1"));
 
-        response = client().prepareMultiTermVectors()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareMultiTermVectors()
                 .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getId(), is("2"));
 
-        response = client().prepareMultiTermVectors()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareMultiTermVectors()
                 .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
 
-        response = client().prepareMultiTermVectors()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareMultiTermVectors()
                 .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
@@ -309,9 +311,9 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value2"));
         assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1l));
 
-        response = client().prepareSearch("test")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("field2").field("field2")))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
@@ -349,11 +351,11 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value3"));
         assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1l));
 
-        response = client().prepareSearch("test")
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setTypes("type1")
                 .addAggregation(AggregationBuilders.children("children").childType("type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
@@ -392,27 +394,27 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
 
         // Both user1 and user2 can't see field1 and field2, no parent/child query should yield results:
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertHitCount(searchResponse, 0l);
     }
@@ -427,30 +429,30 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // Percolator without a query just evaluates all percolator queries that are loaded, so we have a match:
-        PercolateResponse response = client().preparePercolate()
+        PercolateResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .preparePercolate()
                 .setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getCount(), equalTo(1l));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         // Percolator with a query on a document that the current user can see. Percolator will have one query to evaluate, so there is a match:
-        response = client().preparePercolate()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .preparePercolate()
                 .setDocumentType("type")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getCount(), equalTo(1l));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         // Percolator with a query on a document that the current user can't see. Percolator will not have queries to evaluate, so there is no match:
-        response = client().preparePercolate()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .preparePercolate()
                 .setDocumentType("type")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                 .get();
         assertThat(response.getCount(), equalTo(0l));
 
@@ -459,10 +461,10 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         ensureGreen("test");
 
         // Ensure that the query loading that happens at startup has permissions to load the percolator queries:
-        response = client().preparePercolate()
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .preparePercolate()
                 .setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 .get();
         assertThat(response.getCount(), equalTo(1l));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
@@ -482,19 +484,19 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         int max = scaledRandomIntBetween(4, 32);
         for (int i = 0; i < max; i++) {
             Boolean requestCache = randomFrom(true, null);
-            SearchResponse response = client().prepareSearch("test")
+            SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
                     .setSize(0)
                     .setQuery(termQuery("field1", "value1"))
                     .setRequestCache(requestCache)
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                     .get();
             assertNoFailures(response);
             assertHitCount(response, 1);
-            response = client().prepareSearch("test")
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                    .prepareSearch("test")
                     .setSize(0)
                     .setQuery(termQuery("field1", "value1"))
                     .setRequestCache(requestCache)
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
                     .get();
             assertNoFailures(response);
             assertHitCount(response, 0);
@@ -511,8 +513,8 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         // With document level security enabled the update is not allowed:
         try {
-            client().prepareUpdate("test", "type", "1").setDoc("field1", "value2")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareUpdate("test", "type", "1").setDoc("field1", "value2")
                     .get();
             fail("failed, because update request shouldn't be allowed if document level security is enabled");
         } catch (ElasticsearchSecurityException e) {
@@ -528,8 +530,8 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         // With document level security enabled the update in bulk is not allowed:
         try {
-            client().prepareBulk()
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareBulk()
                     .add(new UpdateRequest("test", "type", "1").doc("field1", "value3"))
                     .get();
             fail("failed, because bulk request with updates shouldn't be allowed if field or document level security is enabled");

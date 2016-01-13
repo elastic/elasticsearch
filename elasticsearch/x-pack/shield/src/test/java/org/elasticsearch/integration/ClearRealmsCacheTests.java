@@ -140,11 +140,11 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         public abstract void executeRequest() throws Exception;
 
         static void executeTransportRequest(ClearRealmCacheRequest request) throws Exception {
-            ShieldClient client = new ShieldClient(client());
+            ShieldClient shieldClient = new ShieldClient(client());
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
-            client.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+            shieldClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
                     assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));

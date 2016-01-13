@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.license.plugin.core.LicenseState;
@@ -203,7 +203,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             .put(internalCluster().transportClient().settings());
         // remove user info
         builder.remove("shield.user");
-        builder.remove(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
+        builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
 
         // basic has no auth
         try (TransportClient client = TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build()) {

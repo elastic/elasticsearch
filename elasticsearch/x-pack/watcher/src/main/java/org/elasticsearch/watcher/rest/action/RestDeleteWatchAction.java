@@ -31,7 +31,7 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
 
     @Inject
     public RestDeleteWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(DELETE, URI_BASE + "/watch/{id}", this);
     }
 

@@ -66,12 +66,14 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
     public SecuredClient securedClient() {
         MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class);
-        return new SecuredClient(client(), integration);
+        // we must get the client from the same node!
+        return new SecuredClient(integration.getClient(), integration);
     }
 
     public SecuredClient securedClient(String nodeId) {
-        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class);
-        return new SecuredClient(client(nodeId), integration);
+        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class, nodeId);
+        // we must get the client from the same node!
+        return new SecuredClient(integration.getClient(), integration);
     }
 
     protected void assertCanCollect(AbstractCollector collector) {

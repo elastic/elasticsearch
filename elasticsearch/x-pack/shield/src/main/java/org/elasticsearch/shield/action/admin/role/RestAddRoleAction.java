@@ -27,7 +27,7 @@ public class RestAddRoleAction extends BaseRestHandler {
 
     @Inject
     public RestAddRoleAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/_shield/role/{role}", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_shield/role/{role}", this);
     }

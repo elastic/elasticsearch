@@ -30,7 +30,7 @@ public class RestDeleteUserAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteUserAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.DELETE, "/_shield/user/{username}", this);
     }
 

@@ -90,7 +90,8 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
             // this checks that the transport client is really running in a limited state
             ClusterHealthResponse response;
             if (useTransportUser) {
-                response = client.admin().cluster().prepareHealth().putHeader("Authorization", basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()))).get();
+                response = client.filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()))))
+                        .admin().cluster().prepareHealth().get();
             } else {
                 response = client.admin().cluster().prepareHealth().get();
             }

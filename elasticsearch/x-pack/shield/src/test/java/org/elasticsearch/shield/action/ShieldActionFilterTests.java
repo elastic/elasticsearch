@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -20,6 +21,7 @@ import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.HashSet;
@@ -56,7 +58,9 @@ public class ShieldActionFilterTests extends ESTestCase {
         shieldLicenseState = mock(ShieldLicenseState.class);
         when(shieldLicenseState.securityEnabled()).thenReturn(true);
         when(shieldLicenseState.statsAndHealthEnabled()).thenReturn(true);
-        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, shieldLicenseState, new ShieldActionMapper(), new HashSet<RequestInterceptor>());
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, shieldLicenseState, new ShieldActionMapper(), new HashSet<RequestInterceptor>(), threadPool);
     }
 
     public void testApply() throws Exception {

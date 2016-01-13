@@ -13,6 +13,7 @@ import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -40,8 +41,8 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     @Inject
     public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                          IPFilter ipFilter, ServerSSLService sslService) {
-        super(settings, networkService, bigArrays);
+                                          IPFilter ipFilter, ServerSSLService sslService, ThreadPool threadPool) {
+        super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = settings.getAsBoolean(HTTP_SSL_SETTING, HTTP_SSL_DEFAULT);
         this.sslService =  sslService;
@@ -89,7 +90,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
         private final SSLClientAuth clientAuth;
 
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
-            super(transport, detailedErrorsEnabled);
+            super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
             clientAuth = SSLClientAuth.parse(settings.get(HTTP_CLIENT_AUTH_SETTING), HTTP_CLIENT_AUTH_DEFAULT);
         }
 

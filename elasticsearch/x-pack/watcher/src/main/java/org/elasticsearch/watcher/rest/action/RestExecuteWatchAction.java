@@ -40,7 +40,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
 
     @Inject
     public RestExecuteWatchAction(Settings settings, RestController controller, Client client, TriggerService triggerService) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/_execute", this);

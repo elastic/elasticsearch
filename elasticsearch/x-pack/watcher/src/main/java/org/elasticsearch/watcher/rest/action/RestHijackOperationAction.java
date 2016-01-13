@@ -27,9 +27,9 @@ public class RestHijackOperationAction extends WatcherRestHandler {
 
     @Inject
     public RestHijackOperationAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         if (!settings.getAsBoolean(ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING, false)) {
-            WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings, controller, client);
+            WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings, client);
             controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch", this);
             controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch/{id}", this);
             controller.registerHandler(RestRequest.Method.PUT, WatchStore.INDEX + "/watch/{id}", this);
@@ -56,10 +56,10 @@ public class RestHijackOperationAction extends WatcherRestHandler {
         channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
     }
 
-    public static class UnsupportedHandler extends WatcherRestHandler{
+    public static class UnsupportedHandler extends WatcherRestHandler {
 
-        public UnsupportedHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        public UnsupportedHandler(Settings settings, Client client) {
+            super(settings, client);
         }
 
         @Override

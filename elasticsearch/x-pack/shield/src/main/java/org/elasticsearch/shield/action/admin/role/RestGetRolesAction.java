@@ -28,7 +28,7 @@ public class RestGetRolesAction extends BaseRestHandler {
 
     @Inject
     public RestGetRolesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/role/", this);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/role/{roles}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/roles/", this);

@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authc.pki;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
@@ -14,7 +14,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
@@ -53,25 +52,13 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], "", "")), is(true));
     }
 
-    public void testExtractTokenFromRestRequest() throws Exception {
+    public void testExtractToken() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
-        RestRequest restRequest = new FakeRestRequest();
-        restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings), mock(DnRoleMapper.class));
 
-        X509AuthenticationToken token = realm.token(restRequest);
-        assertThat(token, is(notNullValue()));
-        assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(token.principal(), is("Elasticsearch Test Node"));
-    }
-
-    public void testExtractTokenFromTransportMessage() throws Exception {
-        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
-        Message message = new Message();
-        message.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[]{certificate});
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings), mock(DnRoleMapper.class));
-
-        X509AuthenticationToken token = realm.token(message);
+        X509AuthenticationToken token = realm.token(threadContext);
         assertThat(token, is(notNullValue()));
         assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
         assertThat(token.principal(), is("Elasticsearch Test Node"));
@@ -96,10 +83,10 @@ public class PkiRealmTests extends ESTestCase {
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings), roleMapper);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
-        FakeRestRequest restRequest = new FakeRestRequest();
-        restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
-        X509AuthenticationToken token = realm.token(restRequest);
+        X509AuthenticationToken token = realm.token(threadContext);
         User user = realm.authenticate(token);
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("elasticsearch"));
@@ -117,10 +104,10 @@ public class PkiRealmTests extends ESTestCase {
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings), roleMapper);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
-        FakeRestRequest restRequest = new FakeRestRequest();
-        restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
-        X509AuthenticationToken token = realm.token(restRequest);
+        X509AuthenticationToken token = realm.token(threadContext);
         User user = realm.authenticate(token);
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
@@ -138,10 +125,10 @@ public class PkiRealmTests extends ESTestCase {
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings), roleMapper);
         when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
-        FakeRestRequest restRequest = new FakeRestRequest();
-        restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
-        X509AuthenticationToken token = realm.token(restRequest);
+        X509AuthenticationToken token = realm.token(threadContext);
         User user = realm.authenticate(token);
         assertThat(user, is(nullValue()));
     }

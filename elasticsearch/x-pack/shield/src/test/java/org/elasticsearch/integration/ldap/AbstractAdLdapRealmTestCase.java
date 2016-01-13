@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
@@ -24,6 +25,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -107,20 +109,19 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
     }
 
     protected void assertAccessAllowed(String user, String index) throws IOException {
-        IndexResponse indexResponse = client().prepareIndex(index, "type").
+        Client client = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)));
+        IndexResponse indexResponse = client.prepareIndex(index, "type").
                 setSource(jsonBuilder()
                         .startObject()
                         .field("name", "value")
                         .endObject())
-                .putHeader(BASIC_AUTH_HEADER, userHeader(user, PASSWORD))
                 .execute().actionGet();
 
         assertThat("user " + user + " should have write access to index " + index, indexResponse.isCreated(), is(true));
 
         refresh();
 
-        GetResponse getResponse = client().prepareGet(index, "type", indexResponse.getId())
-                .putHeader(BASIC_AUTH_HEADER, userHeader(user, PASSWORD))
+        GetResponse getResponse = client.prepareGet(index, "type", indexResponse.getId())
                 .get();
 
         assertThat("user " + user + " should have read access to index " + index, getResponse.getId(), equalTo(indexResponse.getId()));
@@ -128,12 +129,12 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
 
     protected void assertAccessDenied(String user, String index) throws IOException {
         try {
-            client().prepareIndex(index, "type").
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)))
+                    .prepareIndex(index, "type").
                     setSource(jsonBuilder()
                             .startObject()
                             .field("name", "value")
                             .endObject())
-                    .putHeader(BASIC_AUTH_HEADER, userHeader(user, PASSWORD))
                     .execute().actionGet();
             fail("Write access to index " + index + " should not be allowed for user " + user);
         } catch (ElasticsearchSecurityException e) {

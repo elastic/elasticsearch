@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.stream.Stream;
 
 /**
  *
@@ -13,6 +14,8 @@ import java.util.concurrent.BlockingQueue;
 public interface WatchExecutor {
 
     BlockingQueue<Runnable> queue();
+
+    Stream<Runnable> tasks();
 
     long largestPoolSize();
 

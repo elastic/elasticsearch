@@ -30,10 +30,10 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
     @Inject
     public RestActivateWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_activate", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_activate", this);
-        DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings, controller, client);
+        DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
     }
@@ -53,8 +53,8 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
     static class DeactivateRestHandler extends WatcherRestHandler {
 
-        public DeactivateRestHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        public DeactivateRestHandler(Settings settings, Client client) {
+            super(settings, client);
         }
 
         @Override

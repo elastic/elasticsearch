@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -92,9 +93,9 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
 
         // first lets try with "admin"... all should work
 
-        PutIndexTemplateResponse putResponse = client.admin().indices().preparePutTemplate("template1")
+        PutIndexTemplateResponse putResponse = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
+            .admin().indices().preparePutTemplate("template1")
             .setTemplate("test_*")
-            .putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(transportClientUsername(), transportClientPassword()))
             .get();
         assertAcked(putResponse);
 
@@ -106,9 +107,9 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
         // now lets try with "user"
 
         try {
-            client.admin().indices().preparePutTemplate("template1")
+            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user", transportClientPassword())))
+                    .admin().indices().preparePutTemplate("template1")
                     .setTemplate("test_*")
-                    .putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user", transportClientPassword()))
                     .get();
             fail("expected an authorization exception as template APIs should require cluster ALL permission");
         } catch (ElasticsearchSecurityException e) {
@@ -117,8 +118,8 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
         }
 
         try {
-            client.admin().indices().prepareGetTemplates("template1")
-                    .putHeader("Authorization", basicAuthHeaderValue("user", SecuredStringTests.build("test123")))
+            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user", SecuredStringTests.build("test123"))))
+                    .admin().indices().prepareGetTemplates("template1")
                     .get();
             fail("expected an authorization exception as template APIs should require cluster ALL permission");
         } catch (ElasticsearchSecurityException e) {

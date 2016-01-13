@@ -149,7 +149,8 @@ public class ExecutionService extends AbstractComponent {
     }
 
     public List<QueuedWatch> queuedWatches() {
-        List<Runnable> snapshot = new ArrayList<>(executor.queue());
+        List<Runnable> snapshot = new ArrayList<>();
+        executor.tasks().forEach(t -> snapshot.add(t));
         if (snapshot.isEmpty()) {
             return Collections.emptyList();
         }

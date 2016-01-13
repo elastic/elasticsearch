@@ -10,6 +10,8 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Collections;
+
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
@@ -51,21 +53,21 @@ public class AnalyzeTests extends ShieldIntegTestCase {
         ensureGreen();
 
         //ok: user has permissions for analyze on test_*
-        client().admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))).get();
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+                .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
 
         try {
             //fails: user doesn't have permissions for analyze on index non_authorized
-            client().admin().indices().prepareAnalyze("this is my text").setIndex("non_authorized").setAnalyzer("standard")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))).get();
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+                    .admin().indices().prepareAnalyze("this is my text").setIndex("non_authorized").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_indices]"));
         }
 
         try {
             //fails: user doesn't have permissions for cluster level analyze
-            client().admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))).get();
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+                    .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [cluster:admin/analyze] is unauthorized for user [analyze_indices]"));
         }
@@ -76,13 +78,13 @@ public class AnalyzeTests extends ShieldIntegTestCase {
 
         try {
             //fails: user doesn't have permissions for analyze on index test_1
-            client().admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))).get();
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))))
+                    .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_cluster]"));
         }
 
-        client().admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))).get();
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))))
+                .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();
     }
 }

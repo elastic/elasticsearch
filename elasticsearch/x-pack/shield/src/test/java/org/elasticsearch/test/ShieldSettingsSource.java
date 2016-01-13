@@ -6,9 +6,9 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -16,7 +16,6 @@ import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
@@ -134,12 +133,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authc.realms.index.type", ESNativeRealm.TYPE)
                 .put("shield.authc.realms.index.order", "1")
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
-                // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
+                // Test framework sometimes randomly selects the 'index' or 'none' cache and that makes the
                 // validation in ShieldPlugin fail.
                 .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
-
-        setUser(builder, nodeClientUsername(), nodeClientPassword());
 
         return builder.build();
     }
@@ -148,7 +145,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     public Settings transportClientSettings() {
         Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
                 .put(getClientSSLSettings());
-        setUser(builder, transportClientUsername(), transportClientPassword());
+        if (randomBoolean()) {
+            builder.put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()));
+        } else {
+            builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()));
+        }
         return builder.build();
     }
 
@@ -196,14 +197,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     protected Class<? extends XPackPlugin> xpackPluginClass() {
         return XPackPlugin.class;
-    }
-
-    private void setUser(Settings.Builder builder, String username, SecuredString password) {
-        if (randomBoolean()) {
-            builder.put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(username, password));
-        } else {
-            builder.put("shield.user", username + ":" + new String(password.internalChars()));
-        }
     }
 
     private static byte[] generateKey() {

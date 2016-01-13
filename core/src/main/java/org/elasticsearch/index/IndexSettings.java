@@ -64,10 +64,10 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
 
     /**
-     * Index setting to control if a flush is executed before engine is closed
-     * This setting is realtime updateable.
+     * Index setting to control if a flush is executed before engine is closed. The default is <code>true</code>
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
+
     /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
@@ -97,7 +97,7 @@ public final class IndexSettings {
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
-    private volatile boolean flushOnClose = true;
+    private final boolean flushOnClose;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
 
@@ -389,12 +389,6 @@ public final class IndexSettings {
         if (!flushThresholdSize.equals(this.flushThresholdSize)) {
             logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
             this.flushThresholdSize = flushThresholdSize;
-        }
-
-        final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, this.flushOnClose);
-        if (flushOnClose != this.flushOnClose) {
-            logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
-            this.flushOnClose = flushOnClose;
         }
 
         final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());

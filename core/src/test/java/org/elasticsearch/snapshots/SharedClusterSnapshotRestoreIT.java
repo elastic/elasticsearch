@@ -102,6 +102,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@TestLogging("_root:TRACE")
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
     public void testBasicWorkflow() throws Exception {
         SnapshotSharedTest.testBasicWorkflow(logger, this, AfterSnapshotAction.NOOP, equalTo(Version.CURRENT));

@@ -1799,14 +1799,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
     }
 
-    /** Return the mock plugins the cluster should use. These may be randomly omitted based on the cluster seed. */
+    /** Return the mock plugins the cluster should use */
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return pluginList(MockTransportService.TestPlugin.class,
-                          MockFSIndexStore.TestPlugin.class,
-                          NodeMocksPlugin.class,
-                          MockEngineFactoryPlugin.class,
-                          MockSearchService.TestPlugin.class,
-                          AssertingLocalTransport.TestPlugin.class);
+        final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
+        if (randomBoolean()) { // sometimes run without those completely
+            if (randomBoolean()) {
+                mocks.add(MockTransportService.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockFSIndexStore.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(NodeMocksPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockEngineFactoryPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockSearchService.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(AssertingLocalTransport.TestPlugin.class);
+            }
+        }
+        return Collections.unmodifiableList(mocks);
     }
 
     /**

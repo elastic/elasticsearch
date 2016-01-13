@@ -47,7 +47,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     final Map<String, AzureStorageSettings> secondariesStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
-    
+
     @Inject
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
@@ -81,7 +81,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.error("can not create azure storage client: {}", e.getMessage());
         }
     }
-    
+
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
@@ -115,9 +115,18 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // NOTE: for now, just set the location mode in case it is different;
         // only one mode per storage account can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
+
+        // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
+        try {
+            int timeout = (int) azureStorageSettings.getTimeout().getMillis();
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
+                "]. It can not be longer than 2,147,483,647ms.");
+        }
         return client;
     }
-    
+
     @Override
     public boolean doesContainerExist(String account, LocationMode mode, String container) {
         try {
@@ -217,9 +226,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
-        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and 
+        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
-        
+
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
 

@@ -148,7 +148,7 @@ public class NettyHttpChannel extends HttpChannel {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {
-                    resp.headers().add(headerEntry.getKey(), headerValue);
+                    resp.headers().add(headerEntry.getKey(), RestUtils.encodeHeader(headerValue));
                 }
             }
         }

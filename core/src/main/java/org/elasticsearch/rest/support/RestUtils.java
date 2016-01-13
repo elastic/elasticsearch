@@ -22,6 +22,7 @@ package org.elasticsearch.rest.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.path.PathTrie;
 
+import java.io.CharArrayWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -31,6 +32,9 @@ import java.util.regex.Pattern;
  *
  */
 public class RestUtils {
+
+    // cannot instantiate
+    private RestUtils() { }
 
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
@@ -57,7 +61,7 @@ public class RestUtils {
         if (fromIndex >= s.length()) {
             return;
         }
-        
+
         int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
 
         String name = null;
@@ -237,5 +241,46 @@ public class RestUtils {
         }
 
         return null;
+    }
+
+    /**
+     * URL encode an HTTP response header value.  Non-ascii
+     * characters are encoded as a '?' character.
+     *
+     * @param value The string to encode (can be empty).
+     * @return The encoded string, or {@code value} if there is
+     *         nothing to encode.  If the string to encode is
+     *         {@code null}, returns an empty string.
+     */
+    public static String encodeHeader(String value) {
+        if (value == null) {
+            return null;
+        }
+        final int length = value.length();
+        boolean needsEncoding = false;
+        for (int i = 0; i < length; i++) {
+            char c = value.charAt(i);
+            if (c == '\r' || c == '\n' || (int)c > 0x7F) {
+                needsEncoding = true;
+                break;
+            }
+        }
+        if (needsEncoding) {
+            CharArrayWriter writer = new CharArrayWriter();
+            for (int i = 0; i < length; i++) {
+                char c = value.charAt(i);
+                if (c == '\r') {
+                    writer.append("%0D");
+                } else if (c == '\n') {
+                    writer.append("%0A");
+                } else if ((int)c > 0x7F) {
+                    writer.append('?');
+                } else {
+                    writer.append(c);
+                }
+            }
+            return writer.toString();
+        }
+        return value;
     }
 }

@@ -50,6 +50,7 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -124,6 +125,38 @@ public class NettyHttpChannelTests extends ESTestCase {
         assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
         String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
         assertThat(allowedOrigins, is("remote-host"));
+    }
+
+    public void testHttpResponseHeadersEncoding() {
+        Settings settings = Settings.builder().build();
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        HttpRequest httpRequest = new TestHttpRequest();
+        httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
+        httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
+        WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
+        NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
+
+        NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
+        RestResponse restResponse = new TestReponse();
+        // Add headers that need to be encoded to the response
+        restResponse.addHeader("empty", "");
+        restResponse.addHeader("with-space", " abc");
+        restResponse.addHeader("with-crlf", "\r\n");
+        restResponse.addHeader("complicated", "\r\n \n \n <svg+onload=alert(1)>/bla/1");
+        restResponse.addHeader("with-non-ascii", "\r\n \n \n \u2122<svg+onload=alert(1)>/bla/1");
+
+        // Send the response
+        channel.sendResponse(restResponse);
+
+        // Inspect what was written
+        List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
+        assertThat(writtenObjects.size(), is(1));
+        HttpResponse response = (HttpResponse) writtenObjects.get(0);
+        assertThat(response.headers().get("empty"), equalTo(""));
+        assertThat(response.headers().get("with-space"), equalTo(" abc"));
+        assertThat(response.headers().get("with-crlf"), equalTo("%0D%0A"));
+        assertThat(response.headers().get("complicated"), equalTo("%0D%0A %0A %0A <svg+onload=alert(1)>/bla/1"));
+        assertThat(response.headers().get("with-non-ascii"), equalTo("%0D%0A %0A %0A ?<svg+onload=alert(1)>/bla/1"));
     }
 
     private static class WriteCapturingChannel implements Channel {

@@ -145,6 +145,47 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(1));
     }
 
+    public void testResponseHeaderURLEncodingNotNeeded() {
+        assertURLEncodingEquals(null);
+        assertURLEncodingEquals("");
+        assertURLEncodingEquals(" ");
+        assertURLEncodingEquals("abc");
+        assertURLEncodingEquals("123");
+        assertURLEncodingEquals("a1");
+        assertURLEncodingEquals("ZABC");
+        assertURLEncodingEquals("_abc");
+        assertURLEncodingEquals("-abc");
+        assertURLEncodingEquals("*abc");
+        assertURLEncodingEquals(".abc");
+        assertURLEncodingEquals(".");
+        assertURLEncodingEquals("_");
+        assertURLEncodingEquals("*");
+        assertURLEncodingEquals("-");
+    }
+
+    public void testResponseHeaderURLEncoding() {
+        String value = "\r\n";
+        String result = RestUtils.encodeHeader(value);
+        assertThat(result, equalTo("%0D%0A"));
+
+        value = "\r";
+        result = RestUtils.encodeHeader(value);
+        assertThat(result, equalTo("%0D"));
+
+        value = "\n";
+        result = RestUtils.encodeHeader(value);
+        assertThat(result, equalTo("%0A"));
+
+        value = "\r\n \n \n <svg+onload=alert(1)>/bla/1";
+        result = RestUtils.encodeHeader(value);
+        assertThat(result, equalTo("%0D%0A %0A %0A <svg+onload=alert(1)>/bla/1"));
+    }
+
+    private void assertURLEncodingEquals(final String value) {
+        final String result = RestUtils.encodeHeader(value);
+        assertThat(result, equalTo(value));
+    }
+
     private void assertCorsSettingRegexIsNull(String settingsValue) {
         assertThat(RestUtils.checkCorsSettingForRegex(settingsValue), is(nullValue()));
     }

@@ -22,6 +22,9 @@ package org.elasticsearch.rest.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.path.PathTrie;
 
+import java.io.CharArrayWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -31,6 +34,9 @@ import java.util.regex.Pattern;
  *
  */
 public class RestUtils {
+
+    // cannot instantiate
+    private RestUtils() { }
 
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
@@ -57,7 +63,7 @@ public class RestUtils {
         if (fromIndex >= s.length()) {
             return;
         }
-        
+
         int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
 
         String name = null;
@@ -237,5 +243,45 @@ public class RestUtils {
         }
 
         return null;
+    }
+
+    /**
+     * URL encode an HTTP response header value.
+     *
+     * This URL encodes CRLF characters to prevent HTTP response
+     * splitting attacks.
+     *
+     * @param value The string to encode (can be empty).
+     * @return The encoded string, or {@code value} if there is
+     *         nothing to encode.  If the string to encode is
+     *         {@code null}, returns an empty string.
+     */
+    public static String encodeHeader(String value) {
+        if (value == null) {
+            return null;
+        }
+        final int length = value.length();
+        boolean needsEncoding = false;
+        for (int i = 0; i < length; i++) {
+            if (value.charAt(i) == '\r' || value.charAt(i) == '\n') {
+                needsEncoding = true;
+                break;
+            }
+        }
+        if (needsEncoding) {
+            CharArrayWriter writer = new CharArrayWriter();
+            for (int i = 0; i < length; i++) {
+                char c = value.charAt(i);
+                if (c == '\r') {
+                    writer.append("%0D");
+                } else if (c == '\n') {
+                    writer.append("%0A");
+                } else {
+                    writer.append(c);
+                }
+            }
+            return writer.toString();
+        }
+        return value;
     }
 }

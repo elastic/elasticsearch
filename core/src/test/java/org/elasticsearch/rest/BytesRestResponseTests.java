@@ -34,6 +34,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -144,6 +145,26 @@ public class BytesRestResponseTests extends ESTestCase {
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
+    }
+
+    public void testHeadersURLEncoded() throws Exception {
+        BytesRestResponse response = new BytesRestResponse(RestStatus.OK);
+        response.addHeader("empty", "");
+        response.addHeader("with-space", " abc");
+        response.addHeader("with-crlf", "\r\n");
+        response.addHeader("complicated", "\r\n \n \n <svg+onload=alert(1)>/bla/1");
+
+        response.getHeaders().forEach( (k,v) -> {
+            if (k.equals("empty")) {
+                assertThat(v.get(0), equalTo(""));
+            } else if (k.equals("with-space")) {
+                assertThat(v.get(0), equalTo(" abc"));
+            } else if (k.equals("with-crlf")) {
+                assertThat(v.get(0), equalTo("%0D%0A"));
+            } else if (k.equals("complicated")) {
+                assertThat(v.get(0), equalTo("%0D%0A %0A %0A <svg+onload=alert(1)>/bla/1"));
+            }
+        });
     }
 
     public static class WithHeadersException extends ElasticsearchException {

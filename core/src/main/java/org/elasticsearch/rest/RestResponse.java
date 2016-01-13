@@ -22,11 +22,14 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.support.RestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -64,7 +67,9 @@ public abstract class RestResponse {
                 values = new ArrayList<>();
                 customHeaders.put(key, values);
             }
-            values.addAll(ex.getHeader(key));
+            for (String value : ex.getHeader(key)) {
+                addHeader(key, value);
+            }
         }
     }
 
@@ -80,7 +85,7 @@ public abstract class RestResponse {
             header = new ArrayList<>();
             customHeaders.put(name, header);
         }
-        header.add(value);
+        header.add(RestUtils.encodeHeader(value));
     }
 
     /**

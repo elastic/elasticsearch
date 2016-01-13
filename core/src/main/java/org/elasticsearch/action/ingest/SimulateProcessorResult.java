@@ -31,26 +31,31 @@ import java.io.IOException;
 import java.util.Collections;
 
 public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
+    private final String processorId;
+    private final WriteableIngestDocument ingestDocument;
+    private final Exception failure;
 
-    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult("_na", new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
-
-    private String processorId;
-    private WriteableIngestDocument ingestDocument;
-    private Exception failure;
+    public SimulateProcessorResult(StreamInput in) throws IOException {
+        this.processorId = in.readString();
+        if (in.readBoolean()) {
+            this.failure = in.readThrowable();
+            this.ingestDocument = null;
+        } else {
+            this.ingestDocument =  new WriteableIngestDocument(in);
+            this.failure = null;
+        }
+    }
 
     public SimulateProcessorResult(String processorId, IngestDocument ingestDocument) {
         this.processorId = processorId;
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-    }
-
-    private SimulateProcessorResult(String processorId, WriteableIngestDocument ingestDocument) {
-        this.processorId = processorId;
-        this.ingestDocument = ingestDocument;
+        this.failure = null;
     }
 
     public SimulateProcessorResult(String processorId, Exception failure) {
         this.processorId = processorId;
         this.failure = failure;
+        this.ingestDocument = null;
     }
 
     public IngestDocument getIngestDocument() {
@@ -68,18 +73,9 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         return failure;
     }
 
-    public static SimulateProcessorResult readSimulateProcessorResultFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
     @Override
     public SimulateProcessorResult readFrom(StreamInput in) throws IOException {
-        String processorId = in.readString();
-        if (in.readBoolean()) {
-            Exception exception = in.readThrowable();
-            return new SimulateProcessorResult(processorId, exception);
-        }
-        return new SimulateProcessorResult(processorId, WriteableIngestDocument.readWriteableIngestDocumentFrom(in));
+        return new SimulateProcessorResult(in);
     }
 
     @Override
@@ -97,7 +93,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.PROCESSOR_ID, processorId);
+        builder.field("processor_id", processorId);
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
@@ -105,9 +101,5 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         }
         builder.endObject();
         return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString PROCESSOR_ID = new XContentBuilderString("processor_id");
     }
 }

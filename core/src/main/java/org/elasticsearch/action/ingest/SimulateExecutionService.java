@@ -20,6 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
@@ -65,12 +66,15 @@ class SimulateExecutionService {
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
-        threadPool.executor(THREAD_POOL_NAME).execute(() -> {
-            List<SimulateDocumentResult> responses = new ArrayList<>();
-            for (IngestDocument ingestDocument : request.getDocuments()) {
-                responses.add(executeDocument(request.getPipeline(), ingestDocument, request.isVerbose()));
+        threadPool.executor(THREAD_POOL_NAME).execute(new ActionRunnable<SimulatePipelineResponse>(listener) {
+            @Override
+            protected void doRun() throws Exception {
+                List<SimulateDocumentResult> responses = new ArrayList<>();
+                for (IngestDocument ingestDocument : request.getDocuments()) {
+                    responses.add(executeDocument(request.getPipeline(), ingestDocument, request.isVerbose()));
+                }
+                listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
             }
-            listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
         });
     }
 }

@@ -58,6 +58,10 @@ public class IngestBootstrapper extends AbstractLifecycleComponent implements Cl
     private final PipelineExecutionService pipelineExecutionService;
     private final ProcessorsRegistry processorsRegistry;
 
+    // TODO(simonw): I would like to stress this abstraction a little more and move it's construction into
+    // NodeService and instead of making it AbstractLifecycleComponent just impl Closeable.
+    // that way we can start the effort of making NodeModule the central point of required service and also move the registration of the
+    // pipelines into NodeModule? I'd really like to prevent adding yet another module.
     @Inject
     public IngestBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
                               ClusterService clusterService, TransportService transportService,

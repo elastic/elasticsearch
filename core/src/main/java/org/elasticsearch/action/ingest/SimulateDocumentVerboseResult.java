@@ -51,7 +51,7 @@ public class SimulateDocumentVerboseResult implements SimulateDocumentResult<Sim
         int size = in.readVInt();
         List<SimulateProcessorResult> processorResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            processorResults.add(SimulateProcessorResult.readSimulateProcessorResultFrom(in));
+            processorResults.add(new SimulateProcessorResult(in));
         }
         return new SimulateDocumentVerboseResult(processorResults);
     }
@@ -67,16 +67,12 @@ public class SimulateDocumentVerboseResult implements SimulateDocumentResult<Sim
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray(Fields.PROCESSOR_RESULTS);
+        builder.startArray("processor_results");
         for (SimulateProcessorResult processorResult : processorResults) {
             processorResult.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString PROCESSOR_RESULTS = new XContentBuilderString("processor_results");
     }
 }

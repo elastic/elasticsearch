@@ -231,6 +231,8 @@ public final class GeoIpProcessor implements Processor {
         private final Map<String, DatabaseReader> databaseReaders;
 
         public Factory(Path configDirectory) {
+
+            // TODO(simonw): same as fro grok we should load this outside of the factory in a static method and hass the map to the ctor
             Path geoIpConfigDirectory = configDirectory.resolve("ingest-geoip");
             if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
                 throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");

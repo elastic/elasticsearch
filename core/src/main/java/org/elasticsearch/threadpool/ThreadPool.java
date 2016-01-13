@@ -88,7 +88,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
-        public static final String INGEST = "ingest";
+        public static final String INGEST = "ingest"; //TODO(simonw): wow what is the reason for having yet another threadpool? I really think we should just use index for this.
     }
 
     public enum ThreadPoolType {

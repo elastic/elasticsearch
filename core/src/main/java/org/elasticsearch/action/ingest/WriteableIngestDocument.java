@@ -34,8 +34,6 @@ import java.util.Objects;
 
 final class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
 
-    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap()));
-
     private final IngestDocument ingestDocument;
 
     WriteableIngestDocument(IngestDocument ingestDocument) {
@@ -43,20 +41,21 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
         this.ingestDocument = ingestDocument;
     }
 
+    WriteableIngestDocument(StreamInput in) throws IOException {
+        Map<String, Object> sourceAndMetadata = in.readMap();
+        @SuppressWarnings("unchecked")
+        Map<String, String> ingestMetadata = (Map<String, String>) in.readGenericValue();
+        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+    }
+
     IngestDocument getIngestDocument() {
         return ingestDocument;
     }
 
-    static WriteableIngestDocument readWriteableIngestDocumentFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
 
     @Override
     public WriteableIngestDocument readFrom(StreamInput in) throws IOException {
-        Map<String, Object> sourceAndMetadata = in.readMap();
-        @SuppressWarnings("unchecked")
-        Map<String, String> ingestMetadata = (Map<String, String>) in.readGenericValue();
-        return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
+       return new WriteableIngestDocument(in);
     }
 
     @Override
@@ -67,13 +66,13 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.DOCUMENT);
+        builder.startObject("doc");
         Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
         for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
             builder.field(metadata.getKey().getFieldName(), metadata.getValue());
         }
-        builder.field(Fields.SOURCE, ingestDocument.getSourceAndMetadata());
-        builder.startObject(Fields.INGEST);
+        builder.field("_source", ingestDocument.getSourceAndMetadata());
+        builder.startObject("_ingest");
         for (Map.Entry<String, String> ingestMetadata : ingestDocument.getIngestMetadata().entrySet()) {
             builder.field(ingestMetadata.getKey(), ingestMetadata.getValue());
         }
@@ -102,11 +101,5 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
     @Override
     public String toString() {
         return ingestDocument.toString();
-    }
-
-    static final class Fields {
-        static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
-        static final XContentBuilderString SOURCE = new XContentBuilderString("_source");
-        static final XContentBuilderString INGEST = new XContentBuilderString("_ingest");
     }
 }

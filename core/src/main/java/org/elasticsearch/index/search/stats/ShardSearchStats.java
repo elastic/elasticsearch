@@ -41,8 +41,8 @@ public final class ShardSearchStats {
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
 
-    public ShardSearchStats(Settings indexSettings) {
-        this.slowLogSearchService = new SearchSlowLog(indexSettings);
+    public ShardSearchStats(SearchSlowLog searchSlowLog) {
+        this.slowLogSearchService = searchSlowLog;
     }
 
     /**

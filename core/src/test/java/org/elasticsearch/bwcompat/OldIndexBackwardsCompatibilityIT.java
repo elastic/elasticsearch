@@ -50,7 +50,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;

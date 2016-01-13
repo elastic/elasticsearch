@@ -61,6 +61,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -108,6 +109,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final IndexingOperationListener[] listeners;
     private volatile AsyncRefreshTask refreshTask;
     private final AsyncTranslogFSync fsyncTask;
+    private final SearchSlowLog searchSlowLog;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -151,6 +153,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             this.fsyncTask = null;
         }
         this.refreshTask = new AsyncRefreshTask(this);
+        searchSlowLog = new SearchSlowLog(indexSettings.getSettings());
     }
 
     public int numberOfShards() {
@@ -313,9 +316,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> nodeServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider); // no indexing listeners - shadow  engines don't index
+                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, searchSlowLog); // no indexing listeners - shadow  engines don't index
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, listeners);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, searchSlowLog, listeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -412,6 +415,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     ThreadPool getThreadPool() {
         return nodeServicesProvider.getThreadPool();
+    }
+
+    public SearchSlowLog getSearchSlowLog() {
+        return searchSlowLog;
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -562,9 +569,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             final Settings settings = indexSettings.getSettings();
             for (final IndexShard shard : this.shards.values()) {
                 try {
-                    shard.onRefreshSettings(settings);
+                    shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn("[{}] failed to refresh shard settings", e, shard.shardId().id());
+                    logger.warn("[{}] failed to notify shard about setting change", e, shard.shardId().id());
                 }
             }
             try {
@@ -574,6 +581,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             }
             try {
                 slowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
+            } catch (Exception e) {
+                logger.warn("failed to refresh slowlog settings", e);
+            }
+
+            try {
+                searchSlowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
             } catch (Exception e) {
                 logger.warn("failed to refresh slowlog settings", e);
             }

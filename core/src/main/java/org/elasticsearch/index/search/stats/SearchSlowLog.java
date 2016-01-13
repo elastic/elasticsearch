@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public final class SearchSlowLog{
+public final class SearchSlowLog {
 
     private boolean reformat;
 
@@ -62,7 +62,7 @@ public final class SearchSlowLog{
     public static final String INDEX_SEARCH_SLOWLOG_REFORMAT = INDEX_SEARCH_SLOWLOG_PREFIX + ".reformat";
     public static final String INDEX_SEARCH_SLOWLOG_LEVEL = INDEX_SEARCH_SLOWLOG_PREFIX + ".level";
 
-    SearchSlowLog(Settings indexSettings) {
+    public SearchSlowLog(Settings indexSettings) {
 
         this.reformat = indexSettings.getAsBoolean(INDEX_SEARCH_SLOWLOG_REFORMAT, true);
 
@@ -109,7 +109,7 @@ public final class SearchSlowLog{
         }
     }
 
-    synchronized void onRefreshSettings(Settings settings) {
+    public void onRefreshSettings(Settings settings) {
         long queryWarnThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN, TimeValue.timeValueNanos(this.queryWarnThreshold)).nanos();
         if (queryWarnThreshold != this.queryWarnThreshold) {
             this.queryWarnThreshold = queryWarnThreshold;

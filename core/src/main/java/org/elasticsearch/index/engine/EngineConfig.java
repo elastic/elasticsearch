@@ -31,15 +31,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.concurrent.TimeUnit;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -51,7 +48,6 @@ public final class EngineConfig {
     private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
-    private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
@@ -60,7 +56,6 @@ public final class EngineConfig {
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
-    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
@@ -68,12 +63,6 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-
-    /**
-     * Index setting to enable / disable deletes garbage collection.
-     * This setting is realtime updateable
-     */
-    public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -84,8 +73,6 @@ public final class EngineConfig {
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
-    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-
     private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
     private boolean create = false;
@@ -95,7 +82,7 @@ public final class EngineConfig {
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
-                        MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
+                        MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
@@ -106,7 +93,6 @@ public final class EngineConfig {
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
-        this.mergeSchedulerConfig = mergeSchedulerConfig;
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
@@ -116,7 +102,6 @@ public final class EngineConfig {
         // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
-        gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
@@ -147,18 +132,11 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the GC deletes cycle in milliseconds.
-     */
-    public long getGcDeletesInMillis() {
-        return gcDeletesInMillis;
-    }
-
-    /**
      * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
      * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
      * <p>
      *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
+     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
      *     to fail.
      * </p>
      */
@@ -219,13 +197,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link MergeSchedulerConfig}
-     */
-    public MergeSchedulerConfig getMergeSchedulerConfig() {
-        return mergeSchedulerConfig;
-    }
-
-    /**
      * Returns a listener that should be called on engine failure
      */
     public Engine.EventListener getEventListener() {
@@ -256,13 +227,6 @@ public final class EngineConfig {
      */
     public Similarity getSimilarity() {
         return similarity;
-    }
-
-    /**
-     * Sets the GC deletes cycle in milliseconds.
-     */
-    public void setGcDeletesInMillis(long gcDeletesInMillis) {
-        this.gcDeletesInMillis = gcDeletesInMillis;
     }
 
     /**

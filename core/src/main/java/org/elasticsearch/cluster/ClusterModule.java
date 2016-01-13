@@ -149,7 +149,6 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(IndexSettings.INDEX_REFRESH_INTERVAL, Validator.TIME);
         registerIndexDynamicSetting(PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS, Validator.EMPTY);
         registerIndexDynamicSetting(IndexSettings.INDEX_GC_DELETES_SETTING, Validator.TIME);
-        registerIndexDynamicSetting(IndexSettings.INDEX_FLUSH_ON_CLOSE, Validator.BOOLEAN);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, Validator.TIME);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, Validator.TIME);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, Validator.TIME);

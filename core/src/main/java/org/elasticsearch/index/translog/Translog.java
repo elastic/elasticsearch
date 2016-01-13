@@ -576,8 +576,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (current.getTragicException() != null) {
             try {
                 close();
+            } catch (AlreadyClosedException inner) {
+                // don't do anything in this case. The AlreadyClosedException comes from TranslogWriter and we should not add it as suppressed because
+                // will contain the Exception ex as cause. See also https://github.com/elastic/elasticsearch/issues/15941
             } catch (Exception inner) {
                 ex.addSuppressed(inner);
+                assert (ex != inner.getCause());
             }
         }
     }

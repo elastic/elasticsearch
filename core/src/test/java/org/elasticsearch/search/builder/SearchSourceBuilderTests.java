@@ -57,7 +57,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescoreBaseBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -281,7 +281,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 // NORELEASE need a random rescore builder method
-                RescoreBuilder rescoreBuilder = new RescoreBuilder(RescoreBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
+                RescoreBaseBuilder rescoreBuilder = new RescoreBaseBuilder(RescoreBaseBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
                         randomAsciiOfLengthBetween(5, 20))));
                 builder.addRescorer(rescoreBuilder);
             }

@@ -36,7 +36,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder.Rescorer;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -679,9 +679,9 @@ public abstract class StreamOutput extends OutputStream {
      }
 
      /**
-     * Writes a {@link Rescorer} to the current stream
+     * Writes a {@link RescoreBuilder} to the current stream
      */
-    public void writeRescorer(Rescorer rescorer) throws IOException {
+    public void writeRescorer(RescoreBuilder rescorer) throws IOException {
         writeNamedWriteable(rescorer);
     }
 }

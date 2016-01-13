@@ -45,7 +45,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescoreBaseBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -458,7 +458,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return suggestBuilder;
     }
 
-    public SearchSourceBuilder addRescorer(RescoreBuilder rescoreBuilder) {
+    public SearchSourceBuilder addRescorer(RescoreBaseBuilder rescoreBuilder) {
         try {
             if (rescoreBuilders == null) {
                 rescoreBuilders = new ArrayList<>();

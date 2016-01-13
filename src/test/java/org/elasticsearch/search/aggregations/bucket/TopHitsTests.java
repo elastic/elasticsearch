@@ -43,6 +43,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -791,7 +792,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(version, equalTo(1l));
 
         // Can't use named queries for the same reason explain doesn't work:
-        assertThat(searchHit.matchedQueries(), emptyArray());
+        assertThat(Arrays.asList(searchHit.matchedQueries()), equalTo(Arrays.asList("test")));
 
         SearchHitField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));

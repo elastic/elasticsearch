@@ -108,7 +108,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        WriteableIngestDocument otherWriteableIngestDocument = WriteableIngestDocument.readWriteableIngestDocumentFrom(streamInput);
+        WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(streamInput);
         assertThat(otherWriteableIngestDocument, equalTo(writeableIngestDocument));
     }
 }

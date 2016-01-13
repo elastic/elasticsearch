@@ -67,7 +67,7 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
             Exception exception = in.readThrowable();
             return new SimulateDocumentSimpleResult(exception);
         }
-        return new SimulateDocumentSimpleResult(WriteableIngestDocument.readWriteableIngestDocumentFrom(in));
+        return new SimulateDocumentSimpleResult(new WriteableIngestDocument(in));
     }
 
     @Override

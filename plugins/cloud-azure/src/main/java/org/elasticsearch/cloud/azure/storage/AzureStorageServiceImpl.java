@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
@@ -48,6 +49,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     private final String account;
     private final String key;
     private final String blob;
+    private final TimeValue timeout;
 
     private CloudBlobClient client;
 
@@ -58,6 +60,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         account = settings.get(ACCOUNT);
         key = settings.get(KEY);
         blob = "https://" + account + ".blob.core.windows.net/";
+        timeout = settings.getAsTime(Storage.TIMEOUT, TimeValue.timeValueMinutes(5));
 
         try {
             if (account != null) {
@@ -73,6 +76,15 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
                 // Create the blob client.
                 client = storageAccount.createCloudBlobClient();
+
+                // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
+                try {
+                    int timeoutAsInt = (int) timeout.getMillis();
+                    client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeoutAsInt);
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException("Can not convert [" + timeout +
+                            "]. It can not be longer than 2,147,483,647ms.");
+                }
             }
         } catch (Exception e) {
             // Can not start Azure Storage Client

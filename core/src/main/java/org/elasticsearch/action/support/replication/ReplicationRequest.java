@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
+public class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -61,14 +61,14 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     /**
      * Creates a new request that inherits headers and context from the request provided as argument.
      */
-    public ReplicationRequest(ActionRequest request) {
+    public ReplicationRequest(ActionRequest<?> request) {
         super(request);
     }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(ActionRequest request, ShardId shardId) {
+    public ReplicationRequest(ActionRequest<?> request, ShardId shardId) {
         super(request);
         this.index = shardId.getIndex();
         this.shardId = shardId;
@@ -77,7 +77,7 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      */
-    protected ReplicationRequest(T request) {
+    protected ReplicationRequest(Request request) {
         this(request, request);
     }
 
@@ -85,7 +85,7 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ReplicationRequest(T request, ActionRequest originalRequest) {
+    protected ReplicationRequest(Request request, ActionRequest<?> originalRequest) {
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
@@ -96,15 +96,15 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
@@ -117,9 +117,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     }
 
     @SuppressWarnings("unchecked")
-    public final T index(String index) {
+    public final Request index(String index) {
         this.index = index;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -150,9 +150,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public final Request consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -195,9 +195,10 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * Sets the target shard id for the request. The shard id is set when a
      * index/delete request is resolved by the transport action
      */
-    public T setShardId(ShardId shardId) {
+    @SuppressWarnings("unchecked")
+    public Request setShardId(ShardId shardId) {
         this.shardId = shardId;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override

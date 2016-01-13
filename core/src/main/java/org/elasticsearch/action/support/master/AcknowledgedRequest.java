@@ -33,7 +33,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedRequest<T extends MasterNodeRequest> extends MasterNodeRequest<T> implements AckedRequest {
+public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request> implements AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
@@ -42,7 +42,7 @@ public abstract class AcknowledgedRequest<T extends MasterNodeRequest> extends M
     protected AcknowledgedRequest() {
     }
 
-    protected AcknowledgedRequest(ActionRequest request) {
+    protected AcknowledgedRequest(ActionRequest<?> request) {
         super(request);
     }
 
@@ -52,9 +52,9 @@ public abstract class AcknowledgedRequest<T extends MasterNodeRequest> extends M
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-        return (T)this;
+        return (Request)this;
     }
 
     /**
@@ -63,9 +63,9 @@ public abstract class AcknowledgedRequest<T extends MasterNodeRequest> extends M
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**

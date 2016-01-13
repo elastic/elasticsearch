@@ -19,11 +19,10 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -45,6 +44,6 @@ public class RestPutPipelineAction extends BaseRestHandler {
         if (restRequest.hasContent()) {
             request.source(restRequest.content());
         }
-        client.execute(PutPipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        client.putPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

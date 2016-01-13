@@ -19,12 +19,11 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -43,6 +42,6 @@ public class RestGetPipelineAction extends BaseRestHandler {
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         GetPipelineRequest request = new GetPipelineRequest();
         request.ids(Strings.splitStringByCommaToArray(restRequest.param("id")));
-        client.execute(GetPipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        client.getPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

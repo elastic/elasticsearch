@@ -19,11 +19,10 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -52,6 +51,6 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
             request.setSource(RestActions.getRestContent(restRequest));
         }
 
-        client.execute(SimulatePipelineAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        client.simulatePipeline(request, new RestToXContentListener<>(channel));
     }
 }

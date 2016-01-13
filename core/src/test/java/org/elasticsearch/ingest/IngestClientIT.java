@@ -25,17 +25,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.ingest.DeletePipelineAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
-import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -69,7 +66,7 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void testSimulate() throws Exception {
-        new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
+        client().preparePutPipeline()
                 .setId("_id")
                 .setSource(jsonBuilder().startObject()
                         .field("description", "my_pipeline")
@@ -81,30 +78,37 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endArray()
                         .endObject().bytes())
                 .get();
-        GetPipelineResponse getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+        GetPipelineResponse getResponse = client().prepareGetPipeline()
                 .setIds("_id")
                 .get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        SimulatePipelineResponse response = new SimulatePipelineRequestBuilder(client(), SimulatePipelineAction.INSTANCE)
+        BytesReference bytes = jsonBuilder().startObject()
+            .startArray("docs")
+            .startObject()
+            .field("_index", "index")
+            .field("_type", "type")
+            .field("_id", "id")
+            .startObject("_source")
+            .field("foo", "bar")
+            .field("fail", false)
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().bytes();
+        SimulatePipelineResponse response;
+        if (randomBoolean()) {
+            response = client().prepareSimulatePipeline()
                 .setId("_id")
-                .setSource(jsonBuilder().startObject()
-                        .startArray("docs")
-                        .startObject()
-                        .field("_index", "index")
-                        .field("_type", "type")
-                        .field("_id", "id")
-                        .startObject("_source")
-                        .field("foo", "bar")
-                        .field("fail", false)
-                        .endObject()
-                        .endObject()
-                        .endArray()
-                        .endObject().bytes())
-                .get();
-
+                .setSource(bytes).get();
+        } else {
+            SimulatePipelineRequest request = new SimulatePipelineRequest();
+            request.setId("_id");
+            request.setSource(bytes);
+            response = client().simulatePipeline(request).get();
+        }
         assertThat(response.isVerbose(), equalTo(false));
         assertThat(response.getPipelineId(), equalTo("_id"));
         assertThat(response.getResults().size(), equalTo(1));
@@ -122,18 +126,19 @@ public class IngestClientIT extends ESIntegTestCase {
     public void testBulkWithIngestFailures() throws Exception {
         createIndex("index");
 
-        new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
-            .setId("_id")
-            .setSource(jsonBuilder().startObject()
-                .field("description", "my_pipeline")
-                .startArray("processors")
-                .startObject()
-                .startObject("test")
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject().bytes())
-            .get();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
+        putPipelineRequest.id("_id");
+        putPipelineRequest.source(jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().bytes());
+
+        client().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
@@ -159,9 +164,10 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void test() throws Exception {
-        new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
-                .setId("_id")
-                .setSource(jsonBuilder().startObject()
+
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
+        putPipelineRequest.id("_id");
+        putPipelineRequest.source(jsonBuilder().startObject()
                         .field("description", "my_pipeline")
                         .startArray("processors")
                         .startObject()
@@ -169,11 +175,12 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endArray()
-                        .endObject().bytes())
-                .get();
-        GetPipelineResponse getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                .setIds("_id")
-                .get();
+                        .endObject().bytes());
+        client().putPipeline(putPipelineRequest).get();
+
+        GetPipelineRequest getPipelineRequest = new GetPipelineRequest();
+        getPipelineRequest.ids("_id");
+        GetPipelineResponse getResponse = client().getPipeline(getPipelineRequest).get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
@@ -191,15 +198,13 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
 
-        DeleteResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
-                .setId("_id")
-                .get();
+        DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest();
+        deletePipelineRequest.id("_id");
+        DeleteResponse response = client().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isFound(), is(true));
         assertThat(response.getId(), equalTo("_id"));
 
-        getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                .setIds("_id")
-                .get();
+        getResponse = client().prepareGetPipeline().setIds("_id").get();
         assertThat(getResponse.isFound(), is(false));
         assertThat(getResponse.pipelines().size(), equalTo(0));
     }

@@ -84,7 +84,6 @@ public final class EngineConfig {
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
-    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
 
     private static final String DEFAULT_CODEC_NAME = "default";

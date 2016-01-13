@@ -30,6 +30,10 @@ import java.util.Map;
  */
 public final class Pipeline {
 
+    final static String DESCRIPTION_KEY = "description";
+    final static String PROCESSORS_KEY = "processors";
+    final static String ON_FAILURE_KEY = "on_failure";
+
     private final String id;
     private final String description;
     private final CompoundProcessor compoundProcessor;
@@ -79,9 +83,9 @@ public final class Pipeline {
     public final static class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(config, "description"); // TODO(simonw): can we make these strings constants?
-            List<Processor> processors = readProcessors("processors", processorRegistry, config);
-            List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+            String description = ConfigurationUtils.readOptionalStringProperty(config, DESCRIPTION_KEY);
+            List<Processor> processors = readProcessors(PROCESSORS_KEY, processorRegistry, config);
+            List<Processor> onFailureProcessors = readProcessors(ON_FAILURE_KEY, processorRegistry, config);
             if (config.isEmpty() == false) {
                 throw new IllegalArgumentException("pipeline [" + id + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
             }
@@ -106,7 +110,7 @@ public final class Pipeline {
         private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
             Processor.Factory factory = processorRegistry.get(type);
             if (factory != null) {
-                List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+                List<Processor> onFailureProcessors = readProcessors(ON_FAILURE_KEY, processorRegistry, config);
                 Processor processor = factory.create(config);
                 if (config.isEmpty() == false) {
                     throw new IllegalArgumentException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));

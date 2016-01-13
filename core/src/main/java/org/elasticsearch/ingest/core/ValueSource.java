@@ -57,9 +57,7 @@ public interface ValueSource {
                 valueSourceList.add(wrap(item, templateService));
             }
             return new ListValue(valueSourceList);
-        } else if (value == null || value instanceof Integer || // TODO(simonw): maybe we just check for Number?
-            value instanceof Long || value instanceof Float ||
-            value instanceof Double || value instanceof Boolean) {
+        } else if (value == null || value instanceof Number || value instanceof Boolean) {
             return new ObjectValue(value);
         } else if (value instanceof String) {
             return new TemplatedValue(templateService.compile((String) value));

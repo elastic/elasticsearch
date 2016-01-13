@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
@@ -34,8 +35,8 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig = new HashMap<>();
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
@@ -48,9 +49,9 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testCreateWithPipelineOnFailure() throws Exception {
         Map<String, Object> processorConfig = new HashMap<>();
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
-        pipelineConfig.put("on_failure", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.ON_FAILURE_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
@@ -66,8 +67,8 @@ public class PipelineFactoryTests extends ESTestCase {
         Map<String, Object> processorConfig = new HashMap<>();
         processorConfig.put("unused", "value");
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         try {
@@ -79,11 +80,11 @@ public class PipelineFactoryTests extends ESTestCase {
 
     public void testCreateProcessorsWithOnFailureProperties() throws Exception {
         Map<String, Object> processorConfig = new HashMap<>();
-        processorConfig.put("on_failure", Collections.singletonList(Collections.singletonMap("test", new HashMap<>())));
+        processorConfig.put(Pipeline.ON_FAILURE_KEY, Collections.singletonList(Collections.singletonMap("test", new HashMap<>())));
 
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);

@@ -68,7 +68,6 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 public abstract class TaskManagerTestCase extends ESTestCase {
 
     protected static ThreadPool threadPool;
-    public static final ClusterName clusterName = new ClusterName("test-cluster");
     protected TestNode[] testNodes;
     protected int nodesCount;
 
@@ -184,9 +183,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
+            clusterService = createClusterService(threadPool);
+            ClusterName clusterName = clusterService.state().getClusterName();
             transportService = new TransportService(settings,
                     new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(),
-                        new NoneCircuitBreakerService()), threadPool) {
+                        new NoneCircuitBreakerService()), threadPool, clusterName) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -197,7 +198,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService = createClusterService(threadPool);
             clusterService.add(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);

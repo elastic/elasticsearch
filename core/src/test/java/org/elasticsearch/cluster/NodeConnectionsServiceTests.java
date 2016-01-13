@@ -149,7 +149,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(transport, THREAD_POOL, ClusterName.DEFAULT);
         transportService.start();
         transportService.acceptIncomingRequests();
     }

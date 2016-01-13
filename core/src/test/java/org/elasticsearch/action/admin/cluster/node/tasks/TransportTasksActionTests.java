@@ -299,7 +299,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
+            actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", testNodes[i].clusterService.state().getClusterName(), threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
                     logger.info("Action on node {}", node);
@@ -583,7 +583,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
+            actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", testNodes[i].clusterService.state().getClusterName(), threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
                     logger.info("Action on node {}", node);
@@ -622,7 +622,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
+            tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", testNodes[i].clusterService.state().getClusterName(), threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
                     logger.info("Task action on node {}", node);
@@ -679,7 +679,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
-            tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", clusterName, threadPool,
+            tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", testNodes[i].clusterService.state().getClusterName(), threadPool,
                 testNodes[i].clusterService, testNodes[i].transportService) {
 
                 @Override

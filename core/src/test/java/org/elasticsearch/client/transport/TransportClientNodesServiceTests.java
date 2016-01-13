@@ -62,8 +62,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         private final int nodesCount;
 
         TestIteration() {
+            ClusterName clusterName = new ClusterName("test");
             threadPool = new ThreadPool("transport-client-nodes-service-tests");
-            transport = new FailAndRetryMockTransport<TestResponse>(random()) {
+            transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
                 public List<String> getLocalAddresses() {
                     return Collections.emptyList();
@@ -74,12 +75,12 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(Settings.EMPTY, transport, threadPool) {
+            transportService = new TransportService(Settings.EMPTY, transport, threadPool, clusterName) {
                 @Override
                 public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action,
                                                                       TransportRequest request, final TransportResponseHandler<T> handler) {
                     if (TransportLivenessAction.NAME.equals(action)) {
-                        super.sendRequest(node, action, request, wrapLivenessResponseHandler(handler, node));
+                        super.sendRequest(node, action, request, wrapLivenessResponseHandler(handler, node, clusterName));
                     } else {
                         super.sendRequest(node, action, request, handler);
                     }
@@ -90,7 +91,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                                                                       TransportRequestOptions options,
                                                                       TransportResponseHandler<T> handler) {
                     if (TransportLivenessAction.NAME.equals(action)) {
-                        super.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node));
+                        super.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node, clusterName));
                     } else {
                         super.sendRequest(node, action, request, options, handler);
                     }
@@ -98,8 +99,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             };
             transportService.start();
             transportService.acceptIncomingRequests();
-            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool,
-                    Version.CURRENT);
+            transportClientNodesService =
+                    new TransportClientNodesService(Settings.EMPTY, clusterName, transportService, threadPool, Version.CURRENT);
             this.nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
                 transportClientNodesService.addTransportAddresses(new LocalTransportAddress("node" + i));
@@ -108,7 +109,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
 
         private <T extends TransportResponse> TransportResponseHandler wrapLivenessResponseHandler(TransportResponseHandler<T> handler,
-                                                                                                   DiscoveryNode node) {
+                                                                                                   DiscoveryNode node,
+                                                                                                   ClusterName clusterName) {
             return new TransportResponseHandler<T>() {
                 @Override
                 public T newInstance() {
@@ -118,7 +120,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 @Override
                 @SuppressWarnings("unchecked")
                 public void handleResponse(T response) {
-                    LivenessResponse livenessResponse = new LivenessResponse(ClusterName.DEFAULT,
+                    LivenessResponse livenessResponse = new LivenessResponse(clusterName,
                             new DiscoveryNode(node.getName(), node.getId(), "liveness-hostname" + node.getId(),
                                     "liveness-hostaddress" + node.getId(),
                                     new LocalTransportAddress("liveness-address-" + node.getId()), node.getAttributes(), node.getRoles(),

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,7 +66,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry);
+    protected abstract MockTransportService build(Settings settings, Version version, ClusterName clusterName);
 
     @Override
     @Before
@@ -78,8 +79,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version0, new NamedWriteableRegistry()
-        );
+                version0,
+                ClusterName.DEFAULT);
         serviceA.acceptIncomingRequests();
         nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceB = build(
@@ -88,8 +89,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version1, new NamedWriteableRegistry()
-        );
+                version1,
+                ClusterName.DEFAULT);
         serviceB.acceptIncomingRequests();
         nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
 
@@ -1178,7 +1179,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeLight(nodeA);
+            serviceB.connectToNodeLight(nodeA, 100);
             fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
@@ -1238,7 +1239,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeLight(nodeA);
+            serviceB.connectToNodeLight(nodeA, 100);
             fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
@@ -1298,8 +1299,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version0, new NamedWriteableRegistry()
-        );
+                version0,
+                ClusterName.DEFAULT);
         AtomicBoolean requestProcessed = new AtomicBoolean();
         service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
                 (request, channel) -> {

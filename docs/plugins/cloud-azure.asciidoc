@@ -534,6 +534,20 @@ cloud:
         storage_key: your_azure_storage_key
 ----
 
+You can set the timeout to use when making any single request. It can be defined globally, per account or both.
+Defaults to `5m`.
+
+[source,yaml]
+----
+cloud:
+    azure:
+        storage:
+            account: your_azure_storage_account
+            key: your_azure_storage_key
+            timeout: 10s
+----
+
+
 The Azure repository supports following settings:
 
 `container`::

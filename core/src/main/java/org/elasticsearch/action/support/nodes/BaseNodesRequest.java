@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BaseNodesRequest<Self extends BaseNodesRequest<Self>> extends ActionRequest<Self> {
+public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest<Request> {
 
     public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
@@ -57,9 +57,9 @@ public abstract class BaseNodesRequest<Self extends BaseNodesRequest<Self>> exte
     }
 
     @SuppressWarnings("unchecked")
-    public final Self nodesIds(String... nodesIds) {
+    public final Request nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (Self) this;
+        return (Request) this;
     }
 
     public TimeValue timeout() {
@@ -67,15 +67,15 @@ public abstract class BaseNodesRequest<Self extends BaseNodesRequest<Self>> exte
     }
 
     @SuppressWarnings("unchecked")
-    public final Self timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (Self) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final Self timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override

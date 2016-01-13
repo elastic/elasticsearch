@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends ActionRequest<Self> {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
 
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
@@ -82,9 +82,9 @@ public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends Actio
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final Self actions(String... actions) {
+    public final Request actions(String... actions) {
         this.actions = actions;
-        return (Self) this;
+        return (Request) this;
     }
 
     /**
@@ -99,9 +99,9 @@ public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final Self nodesIds(String... nodesIds) {
+    public final Request nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (Self) this;
+        return (Request) this;
     }
 
     /**
@@ -112,9 +112,9 @@ public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public Self parentNode(String parentNode) {
+    public Request parentNode(String parentNode) {
         this.parentNode = parentNode;
-        return (Self) this;
+        return (Request) this;
     }
 
     /**
@@ -125,9 +125,9 @@ public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public Self parentTaskId(long parentTaskId) {
+    public Request parentTaskId(long parentTaskId) {
         this.parentTaskId = parentTaskId;
-        return (Self) this;
+        return (Request) this;
     }
 
 
@@ -136,15 +136,15 @@ public class BaseTasksRequest<Self extends BaseTasksRequest<Self>> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final Self timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (Self) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final Self timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override

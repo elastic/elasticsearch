@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BroadcastRequest<Self extends BroadcastRequest<Self>> extends ActionRequest<Self> implements IndicesRequest.Replaceable {
+public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest<Request> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -55,9 +55,9 @@ public class BroadcastRequest<Self extends BroadcastRequest<Self>> extends Actio
 
     @SuppressWarnings("unchecked")
     @Override
-    public final Self indices(String... indices) {
+    public final Request indices(String... indices) {
         this.indices = indices;
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override
@@ -71,9 +71,9 @@ public class BroadcastRequest<Self extends BroadcastRequest<Self>> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final Self indicesOptions(IndicesOptions indicesOptions) {
+    public final Request indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override

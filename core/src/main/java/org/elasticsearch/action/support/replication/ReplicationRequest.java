@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends ActionRequest<Self> implements IndicesRequest {
+public class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -77,7 +77,7 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      */
-    protected ReplicationRequest(Self request) {
+    protected ReplicationRequest(Request request) {
         this(request, request);
     }
 
@@ -85,7 +85,7 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ReplicationRequest(Self request, ActionRequest<?> originalRequest) {
+    protected ReplicationRequest(Request request, ActionRequest<?> originalRequest) {
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
@@ -96,15 +96,15 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final Self timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (Self) this;
+        return (Request) this;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final Self timeout(String timeout) {
+    public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
@@ -117,9 +117,9 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
     }
 
     @SuppressWarnings("unchecked")
-    public final Self index(String index) {
+    public final Request index(String index) {
         this.index = index;
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override
@@ -150,9 +150,9 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public final Self consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public final Request consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override
@@ -196,9 +196,9 @@ public class ReplicationRequest<Self extends ReplicationRequest<Self>> extends A
      * index/delete request is resolved by the transport action
      */
     @SuppressWarnings("unchecked")
-    public Self setShardId(ShardId shardId) {
+    public Request setShardId(ShardId shardId) {
         this.shardId = shardId;
-        return (Self) this;
+        return (Request) this;
     }
 
     @Override

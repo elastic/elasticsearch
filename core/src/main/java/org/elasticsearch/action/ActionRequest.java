@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class ActionRequest<Self extends ActionRequest<Self>> extends TransportRequest {
+public abstract class ActionRequest<Request extends ActionRequest<Request>> extends TransportRequest {
 
     public ActionRequest() {
         super();

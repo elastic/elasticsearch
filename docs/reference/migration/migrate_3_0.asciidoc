@@ -603,6 +603,13 @@ Allocation IDs assign unique identifiers to shard copies. This allows the cluste
 copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
 containing only the most recent data can become primaries.
 
+=== Reroute commands
+
+The reroute command `allocate` has been split into two distinct commands `allocate_replica` and `allocate_empty_primary`.
+This was done as we introduced a new `allocate_stale_primary` command. The new `allocate_replica` command corresponds to the
+old `allocate` command  with `allow_primary` set to false. The new `allocate_empty_primary` command corresponds to the old
+`allocate` command with `allow_primary` set to true.
+
 ==== `index.shared_filesystem.recover_on_any_node` changes
 
 The behavior of `index.shared_filesystem.recover_on_any_node = true` has been changed. Previously, in the case where no

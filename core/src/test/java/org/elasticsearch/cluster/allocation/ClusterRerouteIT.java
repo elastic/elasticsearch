@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -100,7 +100,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
-                .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
+                .add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", 0), node_1, true))
                 .setDryRun(true)
                 .execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
@@ -113,7 +113,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
-                .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
+                .add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -212,7 +212,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
-                .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
+                .add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -246,7 +246,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
-                .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
+                .add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));

@@ -1,0 +1,33 @@
+---
+"Test De-Dot Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "dedot" : {
+                  "separator" : "3"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {"a.b.c": "hello world"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.a3b3c: "hello world" }
+

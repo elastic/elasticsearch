@@ -463,7 +463,7 @@ public final class IngestDocument {
 
     /**
      * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
-     * metadata fields will not be present anymore. Should be used only for reading.
+     * metadata fields will not be present anymore.
      * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
      */
     public Map<String, Object> getSourceAndMetadata() {

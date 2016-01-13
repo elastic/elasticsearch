@@ -169,11 +169,13 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(1)) {
             @Override
             protected void runInternal() {
+                final CountDownLatch l1 = latch.get();
+                final CountDownLatch l2 = latch2.get();
                 count.incrementAndGet();
                 assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
-                latch.get().countDown();
+                l1.countDown();
                 try {
-                    latch2.get().await();
+                    l2.await();
                 } catch (InterruptedException e) {
                     fail("interrupted");
                 }

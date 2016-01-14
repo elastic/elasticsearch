@@ -1,0 +1,33 @@
+# Integration tests for Phonetic analysis components
+#
+
+
+"French_Phonetic":
+    - do:
+        indices.create:
+            index:  phonetic_sample
+            body:
+                settings:
+                    index:
+                        analysis:
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer:  standard
+                                    filter: ["standard", "lowercase", "french_phonetic"]
+                            filter:
+                                french_phonetic:
+                                    type: phonetic
+                                    encoder: french_phonetic
+    - do:
+        cluster.health:
+            wait_for_status: yellow
+    - do:
+        indices.analyze:
+            index: phonetic_sample
+            analyzer: my_analyzer
+            text: Merah Meira
+
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: "M2RA"}
+    - match:  { tokens.1.token: "M2RA"}
+

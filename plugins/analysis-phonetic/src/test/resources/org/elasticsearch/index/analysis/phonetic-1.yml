@@ -31,3 +31,6 @@ index:
       daitch_mokotoff:
         type: phonetic
         encoder: daitch_mokotoff
+      french_phonetic:
+        type: phonetic
+        encoder: french_phonetic

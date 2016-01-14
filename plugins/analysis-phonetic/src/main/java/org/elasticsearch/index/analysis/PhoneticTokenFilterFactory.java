@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
@@ -42,9 +39,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.phonetic.FrenchPhonetic;
 import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
+
+import java.util.Arrays;
+import java.util.HashSet;
 
 /**
  *
@@ -112,6 +113,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = new Nysiis();
         } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
             this.encoder = new DaitchMokotoffSoundex();
+        } else if ("french_phonetic".equalsIgnoreCase(encodername)) {
+            this.encoder = new FrenchPhonetic();
         } else {
             throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }

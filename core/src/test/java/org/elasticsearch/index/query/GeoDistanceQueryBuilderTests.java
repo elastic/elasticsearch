@@ -204,6 +204,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         double distance = queryBuilder.distance();
         if (queryBuilder.geoDistance() != null) {
             distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
+            distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
             assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
         }
     }

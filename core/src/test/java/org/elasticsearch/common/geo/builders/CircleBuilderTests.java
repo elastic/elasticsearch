@@ -42,9 +42,18 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
         DistanceUnit unit = original.unit();
 
         if (randomBoolean()) {
-            mutation.center(new Coordinate(original.center().x/2, original.center().y/2));
+            if (original.center().x > 0.0 || original.center().y > 0.0) {
+                mutation.center(new Coordinate(original.center().x/2, original.center().y/2));
+            } else {
+                // original center was 0.0, 0.0
+                mutation.center(randomDouble() + 0.1, randomDouble() + 0.1);
+            }
         } else if (randomBoolean()) {
-            radius = radius/2;
+            if (radius > 0) {
+                radius = radius/2;
+            } else {
+                radius = randomDouble() + 0.1;
+            }
         } else {
             DistanceUnit newRandom = unit;
             while (newRandom == unit) {
@@ -56,10 +65,15 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
     }
 
     static CircleBuilder createRandomShape() {
-        double centerX = randomDoubleBetween(-180, 180, false);
-        double centerY = randomDoubleBetween(-90, 90, false);
-        return new CircleBuilder()
-                .center(new Coordinate(centerX, centerY))
-                .radius(randomDoubleBetween(0.1, 10.0, false), randomFrom(DistanceUnit.values()));
+        CircleBuilder circle = new CircleBuilder();
+        if (frequently()) {
+            double centerX = randomDoubleBetween(-180, 180, false);
+            double centerY = randomDoubleBetween(-90, 90, false);
+            circle.center(centerX, centerY);
+        }
+        if (randomBoolean()) {
+            circle.radius(randomDoubleBetween(0.1, 10.0, false), randomFrom(DistanceUnit.values()));
+        }
+        return circle;
     }
 }

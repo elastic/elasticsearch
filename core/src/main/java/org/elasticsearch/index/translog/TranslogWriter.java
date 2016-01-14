@@ -92,7 +92,7 @@ public class TranslogWriter extends TranslogReader {
             writeCheckpoint(headerLength, 0, file.getParent(), fileGeneration, StandardOpenOption.WRITE);
             final TranslogWriter writer = new TranslogWriter(shardId, fileGeneration, new ChannelReference(file, fileGeneration, channel, onClose), bufferSize);
             return writer;
-        } catch (Throwable throwable){
+        } catch (Throwable throwable) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
             IOUtils.closeWhileHandlingException(channel);

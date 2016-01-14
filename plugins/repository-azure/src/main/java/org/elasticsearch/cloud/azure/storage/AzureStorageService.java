@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+
 import org.elasticsearch.common.blobstore.BlobMetaData;
 
 import java.io.InputStream;
@@ -36,10 +37,6 @@ public interface AzureStorageService {
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
-        @Deprecated
-        public static final String ACCOUNT_DEPRECATED = "cloud.azure.storage.account";
-        @Deprecated
-        public static final String KEY_DEPRECATED = "cloud.azure.storage.key";
 
         public static final String TIMEOUT = "cloud.azure.storage.timeout";
 

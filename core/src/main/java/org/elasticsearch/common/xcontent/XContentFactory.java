@@ -133,6 +133,9 @@ public class XContentFactory {
      * Returns the {@link org.elasticsearch.common.xcontent.XContent} for the provided content type.
      */
     public static XContent xContent(XContentType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("Cannot get xcontent for unknown type");
+        }
         return type.xContent();
     }
 

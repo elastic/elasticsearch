@@ -21,11 +21,13 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.LuceneTestCase;
@@ -105,6 +107,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
+    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15846
     public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
@@ -112,10 +115,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 Directory dir = store.directory();
                 if (!Lucene.indexExists(dir)) {
                     return;
-                }
-                if (IndexWriter.isLocked(dir)) {
-                    ESTestCase.checkIndexFailed = true;
-                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
                     BytesStreamOutput os = new BytesStreamOutput();
@@ -134,6 +133,9 @@ public class MockFSDirectoryService extends FsDirectoryService {
                             logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         }
                     }
+                } catch (LockObtainFailedException e) {
+                    ESTestCase.checkIndexFailed = true;
+                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
                 }
             } catch (Exception e) {
                 logger.warn("failed to check index", e);

@@ -115,4 +115,7 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
+
+  // load averages on Linux
+  permission java.io.FilePermission "/proc/loadavg", "read";
 };

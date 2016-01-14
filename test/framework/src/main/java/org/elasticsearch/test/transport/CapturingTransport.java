@@ -67,6 +67,19 @@ public class CapturingTransport implements Transport {
     }
 
     /**
+     * Returns all requests captured so far. This method does clear the
+     * captured requests list. If you do not want the captured requests
+     * list cleared, use {@link #capturedRequests()}.
+     *
+     * @return the captured requests
+     */
+    public CapturedRequest[] getCapturedRequestsAndClear() {
+        CapturedRequest[] capturedRequests = capturedRequests();
+        clear();
+        return capturedRequests;
+    }
+
+    /**
      * returns all requests captured so far, grouped by target node.
      * Doesn't clear the captured request list. See {@link #clear()}
      */
@@ -80,6 +93,20 @@ public class CapturingTransport implements Transport {
             }
             nodeList.add(request);
         }
+        return map;
+    }
+
+    /**
+     * Returns all requests captured so far, grouped by target node.
+     * This method does clear the captured request list. If you do not
+     * want the captured requests list cleared, use
+     * {@link #capturedRequestsByTargetNode()}.
+     *
+     * @return the captured requests grouped by target node
+     */
+    public Map<String, List<CapturedRequest>> getCapturedRequestsByTargetNodeAndClear() {
+        Map<String, List<CapturedRequest>> map = capturedRequestsByTargetNode();
+        clear();
         return map;
     }
 

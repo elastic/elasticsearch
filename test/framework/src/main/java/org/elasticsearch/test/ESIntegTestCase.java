@@ -101,9 +101,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
@@ -511,10 +510,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
-            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durability.values()));
@@ -1800,14 +1799,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
     }
 
-    /** Return the mock plugins the cluster should use. These may be randomly omitted based on the cluster seed. */
+    /** Return the mock plugins the cluster should use */
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return pluginList(MockTransportService.TestPlugin.class,
-                          MockFSIndexStore.TestPlugin.class,
-                          NodeMocksPlugin.class,
-                          MockEngineFactoryPlugin.class,
-                          MockSearchService.TestPlugin.class,
-                          AssertingLocalTransport.TestPlugin.class);
+        final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
+        if (randomBoolean()) { // sometimes run without those completely
+            if (randomBoolean()) {
+                mocks.add(MockTransportService.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockFSIndexStore.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(NodeMocksPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockEngineFactoryPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockSearchService.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(AssertingLocalTransport.TestPlugin.class);
+            }
+        }
+        return Collections.unmodifiableList(mocks);
     }
 
     /**

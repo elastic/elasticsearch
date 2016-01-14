@@ -34,7 +34,8 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest<Request>
+        implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -77,9 +78,9 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     }
 
     @SuppressWarnings("unchecked")
-    public final T index(String index) {
+    public final Request index(String index) {
         this.index = index;
-        return (T) this;
+        return (Request) this;
     }
 
     public TimeValue timeout() {
@@ -90,15 +91,15 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 

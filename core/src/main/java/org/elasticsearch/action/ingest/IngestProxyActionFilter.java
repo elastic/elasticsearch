@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.ingest.IngestModule;
+import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -125,10 +125,10 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     private DiscoveryNode randomIngestNode() {
-        assert IngestModule.isIngestEnabled(clusterService.localNode().attributes()) == false;
+        assert NodeModule.isNodeIngestEnabled(clusterService.localNode().attributes()) == false;
         List<DiscoveryNode> ingestNodes = new ArrayList<>();
         for (DiscoveryNode node : clusterService.state().nodes()) {
-            if (IngestModule.isIngestEnabled(node.getAttributes())) {
+            if (NodeModule.isNodeIngestEnabled(node.getAttributes())) {
                 ingestNodes.add(node);
             }
         }

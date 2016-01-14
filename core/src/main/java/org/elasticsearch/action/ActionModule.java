@@ -197,7 +197,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestModule;
+import org.elasticsearch.node.NodeModule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -228,7 +228,7 @@ public class ActionModule extends AbstractModule {
     private final boolean proxy;
 
     public ActionModule(Settings settings, boolean proxy) {
-        this.ingestEnabled = IngestModule.isIngestEnabled(settings);
+        this.ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
         this.proxy = proxy;
     }
 

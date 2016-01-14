@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.IngestModule;
+import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.BufferedReader;
@@ -55,8 +55,8 @@ public class IngestGrokPlugin extends Plugin {
         return "Ingest processor that uses grok patterns to split text";
     }
 
-    public void onModule(IngestModule ingestModule) {
-        ingestModule.registerProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(builtinPatterns));
+    public void onModule(NodeModule nodeModule) {
+        nodeModule.registerProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(builtinPatterns));
     }
 
     static Map<String, String> loadBuiltinPatterns() throws IOException {

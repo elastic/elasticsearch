@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestBootstrapper;
 import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,9 +41,9 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     @Inject
     public DeletePipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, IngestBootstrapper bootstrapper) {
+                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
         super(settings, DeletePipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
-        this.pipelineStore = bootstrapper.getPipelineStore();
+        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 
     @Override

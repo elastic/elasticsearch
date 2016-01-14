@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.node;
 
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -25,42 +25,42 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IngestModuleTests extends ESTestCase {
+public class NodeModuleTests extends ESTestCase {
 
-    public void testIsIngestEnabledSettings() {
-        assertThat(IngestModule.isIngestEnabled(Settings.EMPTY), equalTo(true));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", true).build()), equalTo(true));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", "true").build()), equalTo(true));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", false).build()), equalTo(false));
+    public void testIsNodeIngestEnabledSettings() {
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.EMPTY), equalTo(true));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", true).build()), equalTo(true));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", "true").build()), equalTo(true));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", false).build()), equalTo(false));
 
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", "false").build()), equalTo(false));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", "off").build()), equalTo(false));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", "no").build()), equalTo(false));
-        assertThat(IngestModule.isIngestEnabled(Settings.builder().put("node.ingest", "0").build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", "false").build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", "off").build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", "no").build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(Settings.builder().put("node.ingest", "0").build()), equalTo(false));
     }
 
     public void testIsIngestEnabledAttributes() {
-        assertThat(IngestModule.isIngestEnabled(ImmutableOpenMap.<String, String>builder().build()), equalTo(true));
+        assertThat(NodeModule.isNodeIngestEnabled(ImmutableOpenMap.<String, String>builder().build()), equalTo(true));
 
         ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.<String, String>builder();
         builder.put("ingest", "true");
-        assertThat(IngestModule.isIngestEnabled(builder.build()), equalTo(true));
+        assertThat(NodeModule.isNodeIngestEnabled(builder.build()), equalTo(true));
 
         builder = ImmutableOpenMap.<String, String>builder();
         builder.put("ingest", "false");
-        assertThat(IngestModule.isIngestEnabled(builder.build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(builder.build()), equalTo(false));
 
         builder = ImmutableOpenMap.<String, String>builder();
         builder.put("ingest", "off");
-        assertThat(IngestModule.isIngestEnabled(builder.build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(builder.build()), equalTo(false));
 
         builder = ImmutableOpenMap.<String, String>builder();
         builder.put("ingest", "no");
-        assertThat(IngestModule.isIngestEnabled(builder.build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(builder.build()), equalTo(false));
 
         builder = ImmutableOpenMap.<String, String>builder();
         builder.put("ingest", "0");
-        assertThat(IngestModule.isIngestEnabled(builder.build()), equalTo(false));
+        assertThat(NodeModule.isNodeIngestEnabled(builder.build()), equalTo(false));
     }
 
     public void testIsIngestEnabledMethodsReturnTheSameValue() {
@@ -75,6 +75,6 @@ public class IngestModuleTests extends ESTestCase {
         builder.put("ingest", randomString);
         ImmutableOpenMap<String, String> attributes = builder.build();
 
-        assertThat(IngestModule.isIngestEnabled(settings), equalTo(IngestModule.isIngestEnabled(attributes)));
+        assertThat(NodeModule.isNodeIngestEnabled(settings), equalTo(NodeModule.isNodeIngestEnabled(attributes)));
     }
 }

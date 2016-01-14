@@ -19,50 +19,28 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * Instantiates and wires all the services that the ingest plugin will be needing.
  * Also the bootstrapper is in charge of starting and stopping the ingest plugin based on the cluster state.
  */
-public class IngestBootstrapper extends AbstractLifecycleComponent {
+public class IngestService implements Closeable {
 
     private final Environment environment;
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
     private final ProcessorsRegistry processorsRegistry;
 
-    // TODO(simonw): I would like to stress this abstraction a little more and move it's construction into
-    // NodeService and instead of making it AbstractLifecycleComponent just impl Closeable.
-    // that way we can start the effort of making NodeModule the central point of required service and also move the registration of the
-    // pipelines into NodeModule? I'd really like to prevent adding yet another module.
-    @Inject
-    public IngestBootstrapper(Settings settings, ThreadPool threadPool, Environment environment,
-                              ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
-        super(settings);
+    public IngestService(Settings settings, ThreadPool threadPool, Environment environment,
+                         ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
         this.environment = environment;
         this.processorsRegistry = processorsRegistry;
         this.pipelineStore = new PipelineStore(settings, clusterService);
@@ -77,26 +55,13 @@ public class IngestBootstrapper extends AbstractLifecycleComponent {
         return pipelineExecutionService;
     }
 
-    @Inject
     public void setScriptService(ScriptService scriptService) {
         pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, environment, scriptService);
     }
 
     @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
-        try {
-            pipelineStore.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public void close() throws IOException {
+        pipelineStore.close();
     }
 
 }

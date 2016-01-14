@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.ingest.IngestModule;
+import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 
 public class IngestGeoIpPlugin extends Plugin {
@@ -34,7 +34,7 @@ public class IngestGeoIpPlugin extends Plugin {
         return "Plugin that allows to plug in ingest processors";
     }
 
-    public void onModule(IngestModule ingestModule) {
-        ingestModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+    public void onModule(NodeModule nodeModule) {
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
     }
 }

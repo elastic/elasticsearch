@@ -35,6 +35,7 @@ import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -224,7 +225,7 @@ public class IngestClientIT extends ESIntegTestCase {
             return "ingest mock";
         }
 
-        public void onModule(IngestModule ingestModule) {
+        public void onModule(NodeModule ingestModule) {
             ingestModule.registerProcessor("test", (environment, templateService) -> config ->
                 new TestProcessor("test", ingestDocument -> {
                     ingestDocument.setFieldValue("processed", true);

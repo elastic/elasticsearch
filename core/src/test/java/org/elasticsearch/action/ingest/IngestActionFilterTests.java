@@ -29,13 +29,14 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestBootstrapper;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,8 +64,10 @@ public class IngestActionFilterTests extends ESTestCase {
     @Before
     public void setup() {
         executionService = mock(PipelineExecutionService.class);
-        IngestBootstrapper bootstrapper = mock(IngestBootstrapper.class);
-        when(bootstrapper.getPipelineExecutionService()).thenReturn(executionService);
+        IngestService ingestService = mock(IngestService.class);
+        when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
+        NodeService bootstrapper = mock(NodeService.class);
+        when(bootstrapper.getIngestService()).thenReturn(ingestService);
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
     }
 
@@ -170,8 +173,10 @@ public class IngestActionFilterTests extends ESTestCase {
         };
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
-        IngestBootstrapper bootstrapper = mock(IngestBootstrapper.class);
-        when(bootstrapper.getPipelineExecutionService()).thenReturn(executionService);
+        IngestService ingestService = mock(IngestService.class);
+        when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
+        NodeService bootstrapper = mock(NodeService.class);
+        when(bootstrapper.getIngestService()).thenReturn(ingestService);
         filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
 
         BulkRequest bulkRequest = new BulkRequest();

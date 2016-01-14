@@ -71,10 +71,10 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.ingest.IngestModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -196,7 +196,6 @@ public class Node implements Releasable {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
-            modules.add(new IngestModule());
 
             pluginsService.processModules(modules);
 
@@ -346,6 +345,12 @@ public class Node implements Releasable {
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("tribe");
         injector.getInstance(TribeService.class).close();
+        stopWatch.stop().start("ingest_service");
+        try {
+            injector.getInstance(NodeService.class).getIngestService().close();
+        } catch (IOException e) {
+            logger.warn("IngestService close failed", e);
+        }
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();

@@ -24,20 +24,27 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.PipelineExecutionService;
+import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -55,6 +62,7 @@ public class NodeService extends AbstractComponent {
     private final IndicesService indicesService;
     private final PluginsService pluginService;
     private final CircuitBreakerService circuitBreakerService;
+    private final IngestService ingestService;
     private ScriptService scriptService;
 
     @Nullable
@@ -67,10 +75,10 @@ public class NodeService extends AbstractComponent {
     private final Discovery discovery;
 
     @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
-                       TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService,
-                       Version version) {
+    public NodeService(Settings settings, Environment environment, ThreadPool threadPool, MonitorService monitorService,
+                       Discovery discovery, TransportService transportService, IndicesService indicesService,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
+                       ProcessorsRegistry processorsRegistry, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -81,12 +89,14 @@ public class NodeService extends AbstractComponent {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.ingestService = new IngestService(settings, threadPool, environment, clusterService, processorsRegistry);
     }
 
     // can not use constructor injection or there will be a circular dependency
     @Inject(optional = true)
     public void setScriptService(ScriptService scriptService) {
         this.scriptService = scriptService;
+        this.ingestService.setScriptService(scriptService);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -175,5 +185,9 @@ public class NodeService extends AbstractComponent {
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null
         );
+    }
+
+    public IngestService getIngestService() {
+        return ingestService;
     }
 }

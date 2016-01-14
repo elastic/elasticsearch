@@ -20,9 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,8 +29,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestBootstrapper;
 import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,9 +41,9 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     @Inject
     public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, IngestBootstrapper bootstrapper) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
         super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
-        this.pipelineStore = bootstrapper.getPipelineStore();
+        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 
     @Override

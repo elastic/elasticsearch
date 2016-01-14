@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -119,7 +120,8 @@ public final class IndexSettings {
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
-        IndexSettings.MAX_RESULT_WINDOW_SETTING
+        IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING
     )));
 
 

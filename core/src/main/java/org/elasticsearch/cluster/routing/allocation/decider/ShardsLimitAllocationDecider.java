@@ -32,12 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
- * than {@value #INDEX_TOTAL_SHARDS_PER_NODE} per index and
+ * than <tt>index.routing.allocation.total_shards_per_node</tt> per index and
  * <tt>cluster.routing.allocation.total_shards_per_node</tt> globally during the allocation
  * process. The limits of this decider can be changed in real-time via a the
  * index settings API.
  * <p>
- * If {@value #INDEX_TOTAL_SHARDS_PER_NODE} is reset to a negative value shards
+ * If <tt>index.routing.allocation.total_shards_per_node</tt> is reset to a negative value shards
  * per index are unlimited per node. Shards currently in the
  * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
  * {@link AllocationDecider} until the shard changed its state to either
@@ -59,12 +59,13 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      * Controls the maximum number of shards per index on a single Elasticsearch
      * node. Negative values are interpreted as unlimited.
      */
-    public static final String INDEX_TOTAL_SHARDS_PER_NODE = "index.routing.allocation.total_shards_per_node";
+    public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting("index.routing.allocation.total_shards_per_node", -1, -1, true, Setting.Scope.INDEX);
+
     /**
      * Controls the maximum number of shards per node on a global level.
      * Negative values are interpreted as unlimited.
      */
-    public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1, true, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1, true, Setting.Scope.CLUSTER);
 
 
     @Inject
@@ -81,7 +82,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
-        int indexShardLimit = indexMd.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
+        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings()); // TODO this sucks as it's not taking the node level setting into account
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;
@@ -118,7 +119,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
-        int indexShardLimit = indexMd.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
+        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings()); // TODO this sucks as it's not taking the node level setting into account
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;

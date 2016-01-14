@@ -160,7 +160,6 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE, Validator.TIME);
         registerIndexDynamicSetting(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT, Validator.EMPTY);
         registerIndexDynamicSetting(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL, Validator.EMPTY);
-        registerIndexDynamicSetting(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, Validator.INTEGER);
         registerIndexDynamicSetting(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, Validator.DOUBLE);
         registerIndexDynamicSetting(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT, Validator.BYTES_SIZE);
         registerIndexDynamicSetting(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, Validator.INTEGER_GTE_2);

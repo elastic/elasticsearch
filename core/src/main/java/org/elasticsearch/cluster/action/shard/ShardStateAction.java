@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -59,8 +60,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -223,9 +227,24 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
+            Set<ShardRoutingEntry> nonTrivialTasks = Collections.newSetFromMap(new IdentityHashMap<>());
             List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
-                failedShards.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
+                RoutingNodes.RoutingNodeIterator routingNodeIterator =
+                    currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
+                if (routingNodeIterator != null) {
+                    for (ShardRouting maybe : routingNodeIterator) {
+                        if (task.getShardRouting().isSameAllocation(maybe)) {
+                            nonTrivialTasks.add(task);
+                            failedShards.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
+                            break;
+                        }
+                    }
+                }
+                if (!nonTrivialTasks.contains(task)) {
+                    // the requested shard does not exist
+                    batchResultBuilder.success(task);
+                }
             }
             ClusterState maybeUpdatedState = currentState;
             try {
@@ -233,9 +252,9 @@ public class ShardStateAction extends AbstractComponent {
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                batchResultBuilder.successes(tasks);
+                batchResultBuilder.successes(nonTrivialTasks);
             } catch (Throwable t) {
-                batchResultBuilder.failures(tasks, t);
+                batchResultBuilder.failures(nonTrivialTasks, t);
             }
             return batchResultBuilder.build(maybeUpdatedState);
         }

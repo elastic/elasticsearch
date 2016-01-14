@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
-import org.elasticsearch.cluster.action.shard.NoOpShardStateActionListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -73,7 +72,6 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +91,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
     private final NodeServicesProvider nodeServicesProvider;
 
-    private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new NoOpShardStateActionListener();
+    private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {};
 
     // a map of mappings type we have seen per index due to cluster state
     // we need this so we won't remove types automatically created as part of the indexing process
@@ -755,7 +753,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } catch (Throwable e) {
             logger.warn("failed to clean index ({})", e, reason);
         }
-
     }
 
     private void deleteIndex(String index, String reason) {

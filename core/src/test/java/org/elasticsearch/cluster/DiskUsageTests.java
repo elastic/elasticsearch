@@ -95,7 +95,7 @@ public class DiskUsageTests extends ESTestCase {
             }
         }
     }
-    
+
     public void testFillShardLevelInfo() {
         ShardRouting test_0 = ShardRouting.newUnassigned("test", 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         ShardRoutingHelper.initialize(test_0, "node1");
@@ -171,8 +171,8 @@ public class DiskUsageTests extends ESTestCase {
     }
 
     public void testFillDiskUsageSomeInvalidValues() {
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages = ImmutableOpenMap.builder();
+        Map<String, DiskUsage> newLeastAvailableUsages = new HashMap<>();
+        Map<String, DiskUsage> newMostAvailableUsages = new HashMap<>();
         FsInfo.Path[] node1FSInfo =  new FsInfo.Path[] {
                 new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
                 new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),
@@ -188,11 +188,11 @@ public class DiskUsageTests extends ESTestCase {
         };
         NodeStats[] nodeStats = new NodeStats[] {
                 new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null),
+                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null),
                 new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null),
+                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null),
                 new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null)
+                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null)
         };
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
         DiskUsage leastNode_1 = newLeastAvailableUsages.get("node_1");

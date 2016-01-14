@@ -25,7 +25,6 @@ import org.apache.lucene.document.StringField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -90,7 +89,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testLevelSetting() {
-        IndexingSlowLog.Level level = randomFrom(IndexingSlowLog.Level.values());
+        SlowLogLevel level = randomFrom(SlowLogLevel.values());
         IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level)
@@ -98,10 +97,10 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
         IndexingSlowLog log = new IndexingSlowLog(settings);
         assertEquals(level, log.getLevel());
-        level = randomFrom(IndexingSlowLog.Level.values());
+        level = randomFrom(SlowLogLevel.values());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level).build()));
         assertEquals(level, log.getLevel());
-        level = randomFrom(IndexingSlowLog.Level.values());
+        level = randomFrom(SlowLogLevel.values());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level).build()));
         assertEquals(level, log.getLevel());
 
@@ -110,7 +109,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(level, log.getLevel());
 
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
-        assertEquals(IndexingSlowLog.Level.TRACE, log.getLevel());
+        assertEquals(SlowLogLevel.TRACE, log.getLevel());
 
         metaData = newIndexMeta("index", Settings.settingsBuilder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -122,9 +121,9 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), "NOT A LEVEL").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "No enum constant org.elasticsearch.index.IndexingSlowLog.Level.NOT A LEVEL");
+            assertEquals(ex.getMessage(), "No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL");
         }
-        assertEquals(IndexingSlowLog.Level.TRACE, log.getLevel());
+        assertEquals(SlowLogLevel.TRACE, log.getLevel());
     }
 
     public void testSetLevels() {

@@ -62,7 +62,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -154,7 +153,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             this.fsyncTask = null;
         }
         this.refreshTask = new AsyncRefreshTask(this);
-        searchSlowLog = new SearchSlowLog(indexSettings.getSettings());
+        searchSlowLog = new SearchSlowLog(indexSettings);
     }
 
     public int numberOfShards() {
@@ -574,12 +573,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 } catch (Exception e) {
                     logger.warn("[{}] failed to notify shard about setting change", e, shard.shardId().id());
                 }
-            }
-
-            try {
-                searchSlowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
                 rescheduleRefreshTasks();

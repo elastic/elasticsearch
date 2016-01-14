@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
@@ -33,18 +31,16 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 /**
  */
 public final class IndexingSlowLog implements IndexingOperationListener {
-    private volatile boolean reformat;
-    private volatile long indexWarnThreshold;
-    private volatile long indexInfoThreshold;
-    private volatile long indexDebugThreshold;
-    private volatile long indexTraceThreshold;
+    private boolean reformat;
+    private long indexWarnThreshold;
+    private long indexInfoThreshold;
+    private long indexDebugThreshold;
+    private long indexTraceThreshold;
     /**
      * How much of the source to log in the slowlog - 0 means log none and
      * anything greater than 0 means log at least that many <em>characters</em>
@@ -52,7 +48,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      */
     private int maxSourceCharsToLog;
 
-    private volatile Level level;
+    private SlowLogLevel level;
 
     private final ESLogger indexLogger;
     private final ESLogger deleteLogger;
@@ -63,7 +59,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING = Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, true, Setting.Scope.INDEX);
-    public static final Setting<Level> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", Level.TRACE.name(), Level::parse, true, Setting.Scope.INDEX);
+    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, true, Setting.Scope.INDEX);
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log
@@ -110,7 +106,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         this.maxSourceCharsToLog = maxSourceCharsToLog;
     }
 
-    private void setLevel(Level level) {
+    private void setLevel(SlowLogLevel level) {
         this.level = level;
         this.indexLogger.setLevel(level.name());
         this.deleteLogger.setLevel(level.name());
@@ -123,12 +119,15 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private void setInfoThreshold(TimeValue infoThreshold) {
         this.indexInfoThreshold = infoThreshold.nanos();
     }
+
     private void setDebugThreshold(TimeValue debugThreshold) {
         this.indexDebugThreshold = debugThreshold.nanos();
     }
+
     private void setTraceThreshold(TimeValue traceThreshold) {
         this.indexTraceThreshold = traceThreshold.nanos();
     }
+
     private void setReformat(boolean reformat) {
         this.reformat = reformat;
     }
@@ -190,14 +189,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    public enum Level {
-        WARN, TRACE, INFO, DEBUG;
-
-        public static Level parse(String level) {
-            return valueOf(level.toUpperCase(Locale.ROOT));
-        }
-    }
-
     boolean isReformat() {
         return reformat;
     }
@@ -222,7 +213,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         return maxSourceCharsToLog;
     }
 
-    Level getLevel() {
+    SlowLogLevel getLevel() {
         return level;
     }
 

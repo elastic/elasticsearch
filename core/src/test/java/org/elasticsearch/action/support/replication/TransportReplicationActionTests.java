@@ -566,8 +566,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                             // force a new cluster state to simulate a new master having been elected
                             clusterService.setState(ClusterState.builder(clusterService.state()));
                             transport.handleResponse(currentRequest.requestId, new NotMasterException("shard-failed-test"));
-                            CapturingTransport.CapturedRequest[] retryRequests = transport.capturedRequests();
-                            transport.clear();
+                            CapturingTransport.CapturedRequest[] retryRequests = transport.getCapturedRequestsAndClear();
                             assertEquals(1, retryRequests.length);
                             currentRequest = retryRequests[0];
                         }

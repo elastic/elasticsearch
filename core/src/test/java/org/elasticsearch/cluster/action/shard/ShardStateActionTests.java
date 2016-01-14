@@ -182,8 +182,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
         });
 
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         assertFalse(success.get());
         List<Exception> possibleExceptions = new ArrayList<>();
@@ -243,8 +242,7 @@ public class ShardStateActionTests extends ESTestCase {
         invoked.set(true);
 
         // assert a retry request was sent
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         retried.set(capturedRequests.length == 1);
         if (retried.get()) {
             // finish the request

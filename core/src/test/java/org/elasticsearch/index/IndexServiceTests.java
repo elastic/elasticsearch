@@ -314,7 +314,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     public void testAsyncFsyncActuallyWorks() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "10ms") // very often :)
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .build();
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");

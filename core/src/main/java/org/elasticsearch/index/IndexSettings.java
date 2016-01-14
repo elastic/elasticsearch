@@ -59,7 +59,7 @@ public final class IndexSettings {
     public static final String QUERY_STRING_ALLOW_LEADING_WILDCARD = "indices.query.query_string.allowLeadingWildcard";
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
-    public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
+    public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
     public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
@@ -103,7 +103,8 @@ public final class IndexSettings {
         IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-        MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING
+        MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+        IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING
     )));
 
     /**
@@ -180,8 +181,8 @@ public final class IndexSettings {
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.defaultAllowUnmappedFields = settings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indexNameMatcher = indexNameMatcher;
-        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST.name());
-        this.durability = getFromSettings(settings, Translog.Durability.REQUEST);
+        this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
         flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
@@ -189,6 +190,10 @@ public final class IndexSettings {
         gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
+    }
+
+    private void setTranslogDurability(Translog.Durability durability) {
+        this.durability = durability;
     }
 
     /**
@@ -340,23 +345,8 @@ public final class IndexSettings {
         return durability;
     }
 
-    private Translog.Durability getFromSettings(Settings settings, Translog.Durability defaultValue) {
-        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, defaultValue.name());
-        try {
-            return Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durability.values()));
-            return defaultValue;
-        }
-    }
 
     private void updateSettings(Settings settings) {
-        final Translog.Durability durability = getFromSettings(settings, this.durability);
-        if (durability != this.durability) {
-            logger.info("updating durability from [{}] to [{}]", this.durability, durability);
-            this.durability = durability;
-        }
-
         TimeValue refreshInterval = settings.getAsTime(IndexSettings.INDEX_REFRESH_INTERVAL, this.refreshInterval);
         if (!refreshInterval.equals(this.refreshInterval)) {
             logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);

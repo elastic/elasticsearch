@@ -400,7 +400,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, durability.name()).build()).get();
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
         assertEquals(durability, shard.getTranslogDurability());
     }
 
@@ -692,7 +692,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST).build());
+        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");

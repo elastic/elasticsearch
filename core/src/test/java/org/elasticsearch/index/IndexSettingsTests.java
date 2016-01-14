@@ -153,11 +153,11 @@ public class IndexSettingsTests extends ESTestCase {
     public void testUpdateDurability() {
         IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, "async")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
             .build());
         IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(Translog.Durability.ASYNC, settings.getTranslogDurability());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY, "request").build()));
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "request").build()));
         assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability());
 
         metaData = newIndexMeta("index", Settings.settingsBuilder()
@@ -166,6 +166,5 @@ public class IndexSettingsTests extends ESTestCase {
         settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability()); // test default
     }
-
 
 }

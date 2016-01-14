@@ -39,8 +39,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class IndicesWarmer extends AbstractComponent {
 
-    public static final String INDEX_WARMER_ENABLED = "index.warmer.enabled";
-
     private final ThreadPool threadPool;
 
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -62,8 +60,7 @@ public final class IndicesWarmer extends AbstractComponent {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
-        final Settings indexSettings = settings.getSettings();
-        if (!indexSettings.getAsBoolean(INDEX_WARMER_ENABLED, settings.getNodeSettings().getAsBoolean(INDEX_WARMER_ENABLED, true))) {
+        if (settings.isWarmerEnabled() == false) {
             return;
         }
         if (logger.isTraceEnabled()) {

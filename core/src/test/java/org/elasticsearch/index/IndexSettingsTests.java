@@ -167,4 +167,24 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability()); // test default
     }
 
+    public void testIsWarmerEnabled() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), false)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertFalse(settings.isWarmerEnabled());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), "true").build()));
+        assertTrue(settings.isWarmerEnabled());
+
+        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability());
+
+        metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertTrue(settings.isWarmerEnabled());
+    }
+
+
 }

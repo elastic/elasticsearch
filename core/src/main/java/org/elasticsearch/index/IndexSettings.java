@@ -60,6 +60,8 @@ public final class IndexSettings {
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting("index.warmer.enabled", true, true, Setting.Scope.INDEX);
+
     public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
@@ -97,6 +99,7 @@ public final class IndexSettings {
     private final MergePolicyConfig mergePolicyConfig;
     private final ScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+    private volatile boolean warmerEnabled;
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
@@ -104,8 +107,10 @@ public final class IndexSettings {
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
-        IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING
+        IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
+        IndexSettings.INDEX_WARMER_ENABLED_SETTING
     )));
+
 
     /**
      * Returns the default search field for this index.
@@ -188,12 +193,10 @@ public final class IndexSettings {
         flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
+        warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
-    }
-
-    private void setTranslogDurability(Translog.Durability durability) {
-        this.durability = durability;
     }
 
     /**
@@ -343,6 +346,21 @@ public final class IndexSettings {
      */
     public Translog.Durability getTranslogDurability() {
         return durability;
+    }
+
+    private void setTranslogDurability(Translog.Durability durability) {
+        this.durability = durability;
+    }
+
+    /**
+     * Returns true if index warmers are enabled, otherwise <code>false</code>
+     */
+    public boolean isWarmerEnabled() {
+        return warmerEnabled;
+    }
+
+    private void setEnableWarmer(boolean enableWarmer) {
+        this.warmerEnabled = enableWarmer;
     }
 
 

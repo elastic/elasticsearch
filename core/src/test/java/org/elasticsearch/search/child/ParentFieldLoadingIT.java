@@ -47,7 +47,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
     private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();

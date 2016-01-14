@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -184,6 +186,28 @@ public class IndexSettingsTests extends ESTestCase {
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
         assertTrue(settings.isWarmerEnabled());
+    }
+
+    public void testRefreshInterval() {
+        String refreshInterval = getRandomTimeString();
+        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(TimeValue.parseTimeValue(refreshInterval, new TimeValue(1, TimeUnit.DAYS), IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), settings.getRefreshInterval());
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build()));
+        assertEquals(TimeValue.parseTimeValue(newRefreshInterval, new TimeValue(1, TimeUnit.DAYS), IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), settings.getRefreshInterval());
+    }
+
+    private String getRandomTimeString() {
+        int refreshIntervalInt= randomFrom(-1, Math.abs(randomInt()));
+        String refreshInterval =  Integer.toString(refreshIntervalInt);
+        if (refreshIntervalInt >= 0) {
+            refreshInterval += randomFrom("s", "ms", "h");
+        }
+        return refreshInterval;
     }
 
 

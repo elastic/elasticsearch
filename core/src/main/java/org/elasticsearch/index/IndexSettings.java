@@ -65,6 +65,8 @@ public final class IndexSettings {
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting("index.warmer.enabled", true, true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING = Setting.boolSetting("index.ttl.disable_purge", false, true, Setting.Scope.INDEX);
+
     /**
      * Index setting describing the maximum value of from + size on a query.
      * The Default maximum value of from + size on a query is 10,000. This was chosen as
@@ -114,8 +116,11 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile boolean TTLPurgeDisabled;
+
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        INDEX_TTL_DISABLE_PURGE_SETTING,
         IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
         IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
@@ -132,8 +137,6 @@ public final class IndexSettings {
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING
     )));
-
-
 
     /**
      * Returns the default search field for this index.
@@ -222,6 +225,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
 
@@ -457,6 +462,17 @@ public final class IndexSettings {
      */
     public MergePolicy getMergePolicy() {
         return mergePolicyConfig.getMergePolicy();
+    }
+
+    /**
+     * Returns <code>true</code> if the TTL purge is disabled for this index. Default is <code>false</code>
+     */
+    public boolean isTTLPurgeDisabled() {
+        return TTLPurgeDisabled;
+    }
+
+    private  void setTTLPurgeDisabled(boolean ttlPurgeDisabled) {
+        this.TTLPurgeDisabled = ttlPurgeDisabled;
     }
 
     boolean containsSetting(Setting<?> setting) {

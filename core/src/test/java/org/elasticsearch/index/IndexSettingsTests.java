@@ -245,4 +245,25 @@ public class IndexSettingsTests extends ESTestCase {
             // expected
         }
     }
+
+    public void testIsTTLPurgeDisabled() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.getKey(), false)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertFalse(settings.isTTLPurgeDisabled());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.getKey(), "true").build()));
+        assertTrue(settings.isTTLPurgeDisabled());
+
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertFalse("reset to default", settings.isTTLPurgeDisabled());
+
+        metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertFalse(settings.isTTLPurgeDisabled());
+    }
+
 }

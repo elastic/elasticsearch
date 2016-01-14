@@ -23,6 +23,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -117,7 +118,7 @@ public final class MergePolicyConfig {
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final ESLogger logger;
     private final boolean mergesEnabled;
-    private volatile double noCFSRatio;
+    private volatile double noCFSRatio; // we should probably get rid of this one since we can get it from mergePolicy
 
     public static final double          DEFAULT_EXPUNGE_DELETES_ALLOWED     = 10d;
     public static final ByteSizeValue   DEFAULT_FLOOR_SEGMENT               = new ByteSizeValue(2, ByteSizeUnit.MB);
@@ -126,7 +127,7 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue   DEFAULT_MAX_MERGED_SEGMENT          = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double          DEFAULT_SEGMENTS_PER_TIER           = 10.0d;
     public static final double          DEFAULT_RECLAIM_DELETES_WEIGHT      = 2.0d;
-    public static final String          INDEX_COMPOUND_FORMAT               = "index.compound_format";
+    public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING       = new Setting<>("index.compound_format", Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO), MergePolicyConfig::parseNoCFSRatio, true, Setting.Scope.INDEX);
 
     public static final String INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED = "index.merge.policy.expunge_deletes_allowed";
     public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.policy.floor_segment";
@@ -138,18 +139,19 @@ public final class MergePolicyConfig {
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled";
 
 
-     MergePolicyConfig(ESLogger logger, Settings indexSettings) {
+     MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
-        this.noCFSRatio = parseNoCFSRatio(indexSettings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO)));
-        double forceMergeDeletesPctAllowed = indexSettings.getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
-        ByteSizeValue floorSegment = indexSettings.getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
-        int maxMergeAtOnce = indexSettings.getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
-        int maxMergeAtOnceExplicit = indexSettings.getAsInt("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
+        indexSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
+        noCFSRatio = indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING);
+        double forceMergeDeletesPctAllowed = indexSettings.getSettings().getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
+        ByteSizeValue floorSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
+        int maxMergeAtOnce = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
+        int maxMergeAtOnceExplicit = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
-        ByteSizeValue maxMergedSegment = indexSettings.getAsBytesSize("index.merge.policy.max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
-        double segmentsPerTier = indexSettings.getAsDouble("index.merge.policy.segments_per_tier", DEFAULT_SEGMENTS_PER_TIER);
-        double reclaimDeletesWeight = indexSettings.getAsDouble("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
-        this.mergesEnabled = indexSettings.getAsBoolean(INDEX_MERGE_ENABLED, true);
+        ByteSizeValue maxMergedSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
+        double segmentsPerTier = indexSettings.getSettings().getAsDouble("index.merge.policy.segments_per_tier", DEFAULT_SEGMENTS_PER_TIER);
+        double reclaimDeletesWeight = indexSettings.getSettings().getAsDouble("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
+        this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
         }
@@ -164,6 +166,11 @@ public final class MergePolicyConfig {
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         logger.debug("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
+    }
+
+    private void setNoCFSRatio(Double noCFSRatio) {
+        this.noCFSRatio = noCFSRatio.doubleValue();
+        mergePolicy.setNoCFSRatio(noCFSRatio);
     }
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
@@ -234,13 +241,6 @@ public final class MergePolicyConfig {
             logger.info("updating [reclaim_deletes_weight] from [{}] to [{}]", oldReclaimDeletesWeight, reclaimDeletesWeight);
             mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         }
-
-        double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(MergePolicyConfig.this.noCFSRatio)));
-        if (noCFSRatio != MergePolicyConfig.this.noCFSRatio) {
-            logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(MergePolicyConfig.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
-            mergePolicy.setNoCFSRatio(noCFSRatio);
-            MergePolicyConfig.this.noCFSRatio = noCFSRatio;
-        }
     }
 
     private static double parseNoCFSRatio(String noCFSRatio) {
@@ -259,16 +259,6 @@ public final class MergePolicyConfig {
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("Expected a boolean or a value in the interval [0..1] but was: [" + noCFSRatio + "]", ex);
             }
-        }
-    }
-
-    private static String formatNoCFSRatio(double ratio) {
-        if (ratio == 1.0) {
-            return Boolean.TRUE.toString();
-        } else if (ratio == 0.0) {
-            return Boolean.FALSE.toString();
-        } else {
-            return Double.toString(ratio);
         }
     }
 }

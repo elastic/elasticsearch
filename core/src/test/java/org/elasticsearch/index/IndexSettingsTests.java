@@ -142,7 +142,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     }
 
-    private IndexMetaData newIndexMeta(String name, Settings indexSettings) {
+    public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

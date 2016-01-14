@@ -178,7 +178,7 @@ public class DiskUsageTests extends ESTestCase {
 
         FsInfo.Path[] node3FSInfo =  new FsInfo.Path[] {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
-                new FsInfo.Path("/least", "/dev/sda", -10, -1, -1),
+                new FsInfo.Path("/least", "/dev/sda", 10, -8, 0),
         };
         NodeStats[] nodeStats = new NodeStats[] {
                 new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
@@ -201,7 +201,7 @@ public class DiskUsageTests extends ESTestCase {
 
         DiskUsage leastNode_3 = newLeastAvailableUsages.get("node_3");
         DiskUsage mostNode_3 = newMostAvailableUsages.get("node_3");
-        assertNull("node3 should have been skipped", leastNode_3);
+        assertDiskUsage(leastNode_3, node3FSInfo[1]);
         assertDiskUsage(mostNode_3, node3FSInfo[0]);
     }
 

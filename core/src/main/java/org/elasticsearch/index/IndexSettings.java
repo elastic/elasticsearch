@@ -72,15 +72,16 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING = Setting.intSetting("index.max_result_window", 10000, 1, true, Setting.Scope.INDEX);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.SECONDS), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MICROSECONDS), true, Setting.Scope.INDEX);
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+
 
     /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
      */
-    public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
+    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+    public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MICROSECONDS), true, Setting.Scope.INDEX);
 
     private final String uuid;
     private final Index index;
@@ -121,7 +122,8 @@ public final class IndexSettings {
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
-        ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING
+        ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
+        IndexSettings.INDEX_GC_DELETES_SETTING
     )));
 
 
@@ -207,7 +209,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
-        gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
+        scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
+        gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
@@ -215,6 +218,10 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
 
+    }
+
+    private void setGCDeletes(TimeValue timeValue) {
+        this.gcDeletesInMillis = timeValue.getMillis();
     }
 
     private void setRefreshInterval(TimeValue timeValue) {
@@ -391,13 +398,6 @@ public final class IndexSettings {
             logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
             this.flushThresholdSize = flushThresholdSize;
         }
-
-        long gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis)).getMillis();
-        if (gcDeletesInMillis != this.gcDeletesInMillis) {
-            logger.info("updating {} from [{}] to [{}]", IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
-            this.gcDeletesInMillis = gcDeletesInMillis;
-        }
-
         mergePolicyConfig.onRefreshSettings(settings);
     }
 

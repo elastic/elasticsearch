@@ -45,7 +45,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             Settings build = Settings.builder()
                     .put(IndexSettings.INDEX_GC_DELETES_SETTING, gcDeletes, TimeUnit.MILLISECONDS)
                     .build();
-            assertEquals(gcDeletes, build.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, null).millis());
+            assertEquals(gcDeletes, build.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), null).millis());
 
             client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
             LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();

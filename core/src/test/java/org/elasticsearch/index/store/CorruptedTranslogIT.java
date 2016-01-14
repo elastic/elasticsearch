@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -66,9 +67,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedTranslogIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // we really need local GW here since this also checks for corruption etc.
-        // and we need to make sure primaries are not just trashed if we don't have replicas
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testCorruptTranslogFiles() throws Exception {
@@ -78,8 +77,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.refresh_interval", "-1")
-                .put(MockEngineSupport.FLUSH_ON_CLOSE_RATIO, 0.0d) // never flush - always recover from translog
-                .put(IndexSettings.INDEX_FLUSH_ON_CLOSE, false) // never flush - always recover from translog
+                .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
         ));
         ensureYellow();
 
@@ -103,7 +101,6 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();
             fail("all shards should be failed due to a corrupted translog");
         } catch (SearchPhaseExecutionException e) {
-            e.printStackTrace();
             // Good, all shards should be failed because there is only a
             // single shard and its translog is corrupt
         }

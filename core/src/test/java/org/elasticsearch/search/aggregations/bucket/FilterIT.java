@@ -43,6 +43,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -149,9 +150,27 @@ public class FilterIT extends ESIntegTestCase {
         assertThat((double) filter.getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
-    @Test
-    public void withContextBasedSubAggregation() throws Exception {
+    public void testAsSubAggregation() {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo").field("value").interval(2L).subAggregation(
+                                filter("filter").filter(matchAllQuery()))).get();
 
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getBuckets().size(), greaterThanOrEqualTo(1));
+
+        for (Histogram.Bucket bucket : histo.getBuckets()) {
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertEquals(bucket.getDocCount(), filter.getDocCount());
+        }
+    }
+
+    @Test
+    public void testWithContextBasedSubAggregation() throws Exception {
         try {
             client().prepareSearch("idx")
                     .addAggregation(filter("tag1")

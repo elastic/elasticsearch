@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -39,21 +40,21 @@ public class GceNetworkTests extends ESTestCase {
      * Test for network.host: _gce_
      */
     public void testNetworkHostGceDefault() throws IOException {
-        resolveGce("_gce_", InetAddress.getByName("10.240.0.2"));
+        resolveGce("_gce_", InetAddresses.forString("10.240.0.2"));
     }
 
     /**
      * Test for network.host: _gce:privateIp_
      */
     public void testNetworkHostPrivateIp() throws IOException {
-        resolveGce("_gce:privateIp_", InetAddress.getByName("10.240.0.2"));
+        resolveGce("_gce:privateIp_", InetAddresses.forString("10.240.0.2"));
     }
 
     /**
      * Test for network.host: _gce:hostname_
      */
     public void testNetworkHostPrivateDns() throws IOException {
-        resolveGce("_gce:hostname_", InetAddress.getByName("localhost"));
+        resolveGce("_gce:hostname_", InetAddresses.forString("127.0.0.1"));
     }
 
     /**
@@ -70,8 +71,8 @@ public class GceNetworkTests extends ESTestCase {
      * network.host: _gce:privateIp:1_
      */
     public void testNetworkHostPrivateIpInterface() throws IOException {
-        resolveGce("_gce:privateIp:0_", InetAddress.getByName("10.240.0.2"));
-        resolveGce("_gce:privateIp:1_", InetAddress.getByName("10.150.0.1"));
+        resolveGce("_gce:privateIp:0_", InetAddresses.forString("10.240.0.2"));
+        resolveGce("_gce:privateIp:1_", InetAddresses.forString("10.150.0.1"));
     }
 
     /**

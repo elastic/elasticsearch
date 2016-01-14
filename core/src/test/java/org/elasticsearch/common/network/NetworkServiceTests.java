@@ -88,7 +88,7 @@ public class NetworkServiceTests extends ESTestCase {
      */
     public void testBindAnyLocalV4() throws Exception {
         NetworkService service = new NetworkService(Settings.EMPTY);
-        assertEquals(InetAddress.getByName("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" })[0]);
+        assertEquals(InetAddresses.forString("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" })[0]);
     }
 
     /**
@@ -96,7 +96,7 @@ public class NetworkServiceTests extends ESTestCase {
      */
     public void testBindAnyLocalV6() throws Exception {
         NetworkService service = new NetworkService(Settings.EMPTY);
-        assertEquals(InetAddress.getByName("::"), service.resolveBindHostAddresses(new String[] { "::" })[0]);
+        assertEquals(InetAddresses.forString("::"), service.resolveBindHostAddresses(new String[] { "::" })[0]);
     }
 
     /**

@@ -41,6 +41,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -441,7 +442,7 @@ public class Node implements Releasable {
         Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
-                InetAddress inetAddress = InetAddress.getByName(address.getAddress());
+                InetAddress inetAddress = InetAddresses.forString(address.getAddress());
                 if (inetAddress instanceof Inet6Address && inetAddress.isLinkLocalAddress()) {
                     // no link local, just causes problems
                     continue;

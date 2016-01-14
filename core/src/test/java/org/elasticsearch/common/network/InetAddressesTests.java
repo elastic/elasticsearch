@@ -16,11 +16,13 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+@SuppressForbidden(reason = "checks that InetAddresses logic is consistent with InetAddress")
 public class InetAddressesTests extends ESTestCase {
     public void testForStringBogusInput() {
         String[] bogusInputs = {

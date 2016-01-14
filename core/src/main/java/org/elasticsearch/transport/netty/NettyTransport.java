@@ -692,6 +692,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     /** parse a hostname+port range spec into its equivalent addresses */
+    @SuppressForbidden(reason = "does DNS lookup when unicast hosts are hostnames")
     static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;

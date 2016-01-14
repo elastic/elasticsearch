@@ -22,6 +22,7 @@ package org.elasticsearch.common.transport;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -39,11 +40,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class BoundTransportAddressTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        InetAddress[] inetAddresses = InetAddress.getAllByName("0.0.0.0");
+        InetAddress inetAddress = InetAddresses.forString("0.0.0.0");
         List<InetSocketTransportAddress> transportAddressList = new ArrayList<>();
-        for (InetAddress address : inetAddresses) {
-            transportAddressList.add(new InetSocketTransportAddress(address, randomIntBetween(9200, 9299)));
-        }
+        transportAddressList.add(new InetSocketTransportAddress(inetAddress, randomIntBetween(9200, 9299)));
         final BoundTransportAddress transportAddress = new BoundTransportAddress(transportAddressList.toArray(new InetSocketTransportAddress[0]), transportAddressList.get(0));
         assertThat(transportAddress.boundAddresses().length, equalTo(transportAddressList.size()));
 

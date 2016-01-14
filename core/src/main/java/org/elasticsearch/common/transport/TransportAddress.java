@@ -35,6 +35,7 @@ public interface TransportAddress extends Writeable<TransportAddress> {
     /**
      * Returns the address string for this transport address
      */
+    // TODO: can this be a byte[]/InetAddress ?
     String getAddress();
 
     /**

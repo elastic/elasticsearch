@@ -45,13 +45,13 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
         return transportService;
     }
 
+    // this is not a particularly good test: what if tcp blackhole is enabled (very slow), or the port is in use?
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9876), Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_timeout"));
-            assertThat(e.getMessage(), containsString("[localhost/127.0.0.1:9876]"));
         }
     }
 }

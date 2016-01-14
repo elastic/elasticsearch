@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.aws.network;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -91,6 +92,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
      * @return the appropriate host resolved from ec2 meta-data, or null if it cannot be obtained.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
+    @SuppressForbidden(reason = "resolves ec2 hostnames if asked to")
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
         String metadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + type.ec2Name;
@@ -104,10 +106,11 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
 
             String metadataResult = urlReader.readLine();
             if (metadataResult == null || metadataResult.length() == 0) {
-                throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
+                throw new IOException("no ec2 metadata returned from [" + url + "] for [" + type.configName + "]");
             }
-            // only one address: because we explicitly ask for only one via the Ec2HostnameType
-            return new InetAddress[] { InetAddress.getByName(metadataResult) };
+            // really should be only one address: because we explicitly ask for only one via the Ec2HostnameType
+            // but why do we even allow configuring this by hostname...
+            return InetAddress.getAllByName(metadataResult);
         } catch (IOException e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
         } finally {

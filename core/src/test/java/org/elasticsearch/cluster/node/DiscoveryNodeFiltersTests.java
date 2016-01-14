@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -27,8 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,8 +47,8 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     private static InetSocketTransportAddress localAddress;
 
     @BeforeClass
-    public static void createLocalAddress() throws UnknownHostException {
-        localAddress = new InetSocketTransportAddress(InetAddress.getByName("192.1.1.54"), 9999);
+    public static void createLocalAddress() {
+        localAddress = new InetSocketTransportAddress(InetAddresses.forString("192.1.1.54"), 9999);
     }
 
     @AfterClass

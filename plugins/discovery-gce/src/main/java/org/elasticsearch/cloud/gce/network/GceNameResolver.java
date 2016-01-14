@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.gce.network;
 
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +83,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
      * @return the appropriate host resolved from gce meta-data.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
+    @SuppressForbidden(reason = "resolves gce hostnames if asked to")
     private InetAddress[] resolve(String value) throws IOException {
         String gceMetadataPath;
         if (value.equals(GceAddressResolverType.GCE.configName)) {
@@ -109,8 +111,9 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
             if (metadataResult == null || metadataResult.length() == 0) {
                 throw new IOException("no gce metadata returned from [" + gceMetadataPath + "] for [" + value + "]");
             }
-            // only one address: because we explicitly ask for only one via the GceHostnameType
-            return new InetAddress[] { InetAddress.getByName(metadataResult) };
+            // really should be only one address: because we explicitly ask for only one via the Ec2HostnameType
+            // but why do we even allow configuring this by hostname...
+            return InetAddress.getAllByName(metadataResult);
         } catch (IOException e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + gceMetadataPath + "]", e);
         }

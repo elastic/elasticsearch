@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -57,7 +58,6 @@ import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -291,7 +291,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0_beta1);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-        DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0), Version.V_1_6_0);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddresses.forString("0.0.0.0"), 0), Version.V_1_6_0);
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
         zenDiscovery.handleJoinRequest(node, clusterService.state(), new MembershipAction.JoinCallback() {
             @Override

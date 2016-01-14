@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -88,6 +89,7 @@ public class NetworkAddressTests extends ESTestCase {
     }
 
     /** Test that ipv4 address formatting round trips */
+    @SuppressForbidden(reason = "checks against InetAddress on purpose")
     public void testRoundTripV4() throws Exception {
         byte bytes[] = new byte[4];
         Random random = random();
@@ -101,6 +103,7 @@ public class NetworkAddressTests extends ESTestCase {
     }
 
     /** Test that ipv6 address formatting round trips */
+    @SuppressForbidden(reason = "checks against InetAddress on purpose")
     public void testRoundTripV6() throws Exception {
         byte bytes[] = new byte[16];
         Random random = random();
@@ -115,13 +118,13 @@ public class NetworkAddressTests extends ESTestCase {
     
     /** creates address without any lookups. hostname can be null, for missing */
     private InetAddress forge(String hostname, String address) throws IOException {
-        byte bytes[] = InetAddress.getByName(address).getAddress();
+        byte bytes[] = InetAddresses.forString(address).getAddress();
         return InetAddress.getByAddress(hostname, bytes);
     }
     
     /** creates scoped ipv6 address without any lookups. hostname can be null, for missing */
     private InetAddress forgeScoped(String hostname, String address, int scopeid) throws IOException {
-        byte bytes[] = InetAddress.getByName(address).getAddress();
+        byte bytes[] = InetAddresses.forString(address).getAddress();
         return Inet6Address.getByAddress(hostname, bytes, scopeid);
     }
 }

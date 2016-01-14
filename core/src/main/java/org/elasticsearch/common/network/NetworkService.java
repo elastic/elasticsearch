@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -210,6 +211,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     /** resolves a single host specification */
+    @SuppressForbidden(reason = "does DNS lookup when bind/publish host is specified as hostname")
     private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);

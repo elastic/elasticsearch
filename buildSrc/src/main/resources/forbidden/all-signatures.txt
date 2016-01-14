@@ -18,9 +18,6 @@
 java.net.URL#getPath()
 java.net.URL#getFile()
 
-@defaultMessage Usage of getLocalHost is discouraged
-java.net.InetAddress#getLocalHost()
-
 @defaultMessage Use java.nio.file instead of java.io.File API
 java.util.jar.JarFile
 java.util.zip.ZipFile
@@ -85,11 +82,13 @@ java.net.Inet4Address#getHostAddress()
 java.net.Inet6Address#getHostAddress()
 java.net.InetSocketAddress#toString()
 
-@defaultMessage avoid DNS lookups by accident: if you have a valid reason, then @SuppressWarnings with that reason so its completely clear
+@defaultMessage avoid DNS lookups by accident: if you have a valid reason, then @SuppressForbidden with that reason so its completely clear
+java.net.InetAddress#getAllByName(java.lang.String)
 java.net.InetAddress#getHostName()
 java.net.InetAddress#getCanonicalHostName()
-
+java.net.InetAddress#getByName(java.lang.String) @ Use InetAddresses.forString to parse an address, or InetAddress.getAllByName to resolve a hostname
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+java.net.InetAddress#getLocalHost() @ Use getLoopbackAddress() instead, which avoids a DNS lookup
 
 @defaultMessage Do not violate java's access system
 java.lang.Class#getDeclaredClasses() @ Do not violate java's access system: Use getClasses() instead

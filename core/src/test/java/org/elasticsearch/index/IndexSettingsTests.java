@@ -178,9 +178,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertFalse(settings.isWarmerEnabled());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), "true").build()));
         assertTrue(settings.isWarmerEnabled());
-
-        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability());
-
         metaData = newIndexMeta("index", Settings.settingsBuilder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
@@ -210,5 +207,23 @@ public class IndexSettingsTests extends ESTestCase {
         return refreshInterval;
     }
 
+    public void testMaxResultWindow() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), 15)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(15, settings.getMaxResultWindow());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), 42).build()));
+        assertEquals(42, settings.getMaxResultWindow());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
 
+        metaData = newIndexMeta("index", Settings.settingsBuilder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
+
+    }
 }

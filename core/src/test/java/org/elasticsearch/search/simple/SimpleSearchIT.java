@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -282,54 +283,54 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
-        assertWindowFails(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
-        assertWindowFails(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1));
-        assertWindowFails(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
-                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
+        assertWindowFails(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
+        assertWindowFails(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1));
+        assertWindowFails(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY))
+                .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
     }
 
     public void testLargeFromAndSizeSucceeds() throws Exception {
         createIndex("idx");
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
-        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW - 10).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW / 2)
-                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW / 2 - 1).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) - 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) / 2)
+                .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) / 2 - 1).get(), 1);
     }
 
     public void testTooLargeFromAndSizeOkBySetting() throws Exception {
-        prepareCreate("idx").setSettings(DefaultSearchContext.MAX_RESULT_WINDOW, DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 2).get();
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2).get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
-        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
-                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY))
+                .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
     }
 
     public void testTooLargeFromAndSizeOkByDynamicSetting() throws Exception {
         createIndex("idx");
         assertAcked(client().admin().indices().prepareUpdateSettings("idx")
                 .setSettings(
-                        Settings.builder().put(DefaultSearchContext.MAX_RESULT_WINDOW, DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 2))
+                        Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2))
                 .get());
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
-        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
-                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY))
+                .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
     }
 
     public void testTooLargeFromAndSizeBackwardsCompatibilityRecommendation() throws Exception {
-        prepareCreate("idx").setSettings(DefaultSearchContext.MAX_RESULT_WINDOW, Integer.MAX_VALUE).get();
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE).get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
-        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
-        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10)
-                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10)
+                .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
@@ -350,7 +351,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to: ["
-                    + DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
+                    + IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
             assertThat(e.toString(), containsString("See the scroll api for a more efficient way to request large data sets"));
         }
     }

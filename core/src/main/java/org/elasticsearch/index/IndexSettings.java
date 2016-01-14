@@ -61,6 +61,15 @@ public final class IndexSettings {
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting("index.warmer.enabled", true, true, Setting.Scope.INDEX);
+    /**
+     * Index setting describing the maximum value of from + size on a query.
+     * The Default maximum value of from + size on a query is 10,000. This was chosen as
+     * a conservative default as it is sure to not cause trouble. Users can
+     * certainly profile their cluster and decide to set it to 100,000
+     * safely. 1,000,000 is probably way to high for any cluster to set
+     * safely.
+     */
+    public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING = Setting.intSetting("index.max_result_window", 10000, 1, true, Setting.Scope.INDEX);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.SECONDS), true, Setting.Scope.INDEX);
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
@@ -99,6 +108,7 @@ public final class IndexSettings {
     private final ScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
+    private volatile int maxResultWindow;
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
@@ -108,8 +118,10 @@ public final class IndexSettings {
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
-        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
+        IndexSettings.MAX_RESULT_WINDOW_SETTING
     )));
+
 
 
     /**
@@ -196,6 +208,8 @@ public final class IndexSettings {
         gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
 
@@ -409,6 +423,18 @@ public final class IndexSettings {
      * Returns the {@link MergeSchedulerConfig}
      */
     public MergeSchedulerConfig getMergeSchedulerConfig() { return mergeSchedulerConfig; }
+
+    /**
+     * Returns the max result window for search requests, describing the maximum value of from + size on a query.
+     */
+    public int getMaxResultWindow() {
+        return this.maxResultWindow;
+    }
+
+    private void setMaxResultWindow(int maxResultWindow) {
+        this.maxResultWindow = maxResultWindow;
+    }
+
 
     /**
      * Returns the GC deletes cycle in milliseconds.

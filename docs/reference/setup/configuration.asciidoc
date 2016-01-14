@@ -44,7 +44,7 @@ using the <<cluster-nodes-info>> API, with:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/_nodes/process?pretty
+curl localhost:9200/_nodes/stats/process?pretty
 --------------------------------------------------
 
 [float]

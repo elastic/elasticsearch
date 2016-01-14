@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -123,7 +124,8 @@ public final class IndexSettings {
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
-        IndexSettings.INDEX_GC_DELETES_SETTING
+        IndexSettings.INDEX_GC_DELETES_SETTING,
+        IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING
     )));
 
 

@@ -185,7 +185,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testQueryCache() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true).get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).get());
         ensureGreen();
 
         // index docs until we have at least one doc on each shard, otherwise, our tests will not work
@@ -265,7 +265,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // set the index level setting to false, and see that the reverse works
 
         client().admin().indices().prepareClearCache().setRequestCache(true).get(); // clean the cache
-        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, false)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));

@@ -469,7 +469,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, random.nextBoolean());
+            builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), random.nextBoolean());
         }
 
         if (random.nextBoolean()) {

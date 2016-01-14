@@ -166,6 +166,16 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns the value for this setting but falls back to the second provided settings object
+     */
+    public final T get(Settings primary, Settings secondary) {
+        if (exists(primary)) {
+            return get(primary);
+        }
+        return get(secondary);
+    }
+
+    /**
      * The settings scope - settings can either be cluster settings or per index settings.
      */
     public enum Scope {

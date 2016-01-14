@@ -150,7 +150,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
                                     "index.shard.inactive_time",
-                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
+                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey()));
 
     /**
      * Elasticsearch 2.0 requires units on byte/memory and time settings; this method adds the default unit to any such settings that are

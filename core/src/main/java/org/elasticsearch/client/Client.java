@@ -602,5 +602,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     Settings settings();
 
+    /**
+     * Returns a new lightweight Client that applies all given headers to each of the requests
+     * issued from it.
+     */
     Client filterWithHeader(Map<String, String> headers);
 }

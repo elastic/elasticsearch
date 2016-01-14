@@ -32,11 +32,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A ThreadContext a map of string headers and a transient map of keyed objects that are associated with
+ * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
  * a thread. It allows to store and retrieve header information across method calls, network calls as well as threads spawned from a
  * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool} have out of the box
- * support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread that is forking off.
- * Network calls will also preserve the senders heaaders automatically.
+ * support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread that it is forking from.".
+ * Network calls will also preserve the senders headers automatically.
  */
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
 
@@ -253,6 +253,8 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
                     super.set(object);
                 }
             } catch (NullPointerException ex) {
+                /* This is odd but CloseableThreadLocal throws a NPE if it was closed but still accessed.
+                   to get a real exception we call ensureOpen() to tell the user we are already closed.*/
                 ensureOpen();
                 throw ex;
             }
@@ -267,6 +269,8 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
                 }
                 return defaultStruct;
             } catch (NullPointerException ex) {
+                /* This is odd but CloseableThreadLocal throws a NPE if it was closed but still accessed.
+                   to get a real exception we call ensureOpen() to tell the user we are already closed.*/
                 ensureOpen();
                 throw ex;
             }

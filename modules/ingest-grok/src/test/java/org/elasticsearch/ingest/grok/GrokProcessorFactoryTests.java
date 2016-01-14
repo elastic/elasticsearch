@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.grok.GrokProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GrokProcessorFactoryTests extends ESTestCase {
 
     public void testBuild() throws Exception {
-        GrokProcessor.Factory factory = new GrokProcessor.Factory();
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -43,7 +42,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithCustomPatterns() throws Exception {
-        GrokProcessor.Factory factory = new GrokProcessor.Factory();
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

@@ -24,7 +24,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -375,5 +380,25 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
             assertHitCount(searchResponse, 1l);
             assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }
+    }
+
+    public void test15949() {
+        client().admin().indices().prepareCreate("test")
+            .setSettings("index.number_of_shards", 1)
+            .addMapping("test", "children", "type=nested")
+            .get();
+        client().prepareIndex("test", "test", "1").setSource("foo", "bar", "children", Arrays.asList(Collections.singletonMap("a", "b"))).get();
+        client().prepareIndex("test", "test", "2").setSource().get();
+        client().prepareIndex("test", "test", "2").setSource().get();
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.boolQuery()
+                        .should(QueryBuilders.matchAllQuery())
+                        .should(QueryBuilders.boolQuery()
+                                .queryName("abc")
+                                .should(QueryBuilders.matchQuery("foo", "bar"))
+                                .should(QueryBuilders.matchQuery("foo", "bar"))))
+                .get();
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
     }
 }

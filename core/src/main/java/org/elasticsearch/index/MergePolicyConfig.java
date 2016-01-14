@@ -118,7 +118,6 @@ public final class MergePolicyConfig {
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final ESLogger logger;
     private final boolean mergesEnabled;
-    private volatile double noCFSRatio; // we should probably get rid of this one since we can get it from mergePolicy
 
     public static final double          DEFAULT_EXPUNGE_DELETES_ALLOWED     = 10d;
     public static final ByteSizeValue   DEFAULT_FLOOR_SEGMENT               = new ByteSizeValue(2, ByteSizeUnit.MB);
@@ -142,7 +141,6 @@ public final class MergePolicyConfig {
      MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
         indexSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
-        noCFSRatio = indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING);
         double forceMergeDeletesPctAllowed = indexSettings.getSettings().getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
         ByteSizeValue floorSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
         int maxMergeAtOnce = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
@@ -156,7 +154,7 @@ public final class MergePolicyConfig {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
-        mergePolicy.setNoCFSRatio(noCFSRatio);
+        mergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
@@ -169,7 +167,6 @@ public final class MergePolicyConfig {
     }
 
     private void setNoCFSRatio(Double noCFSRatio) {
-        this.noCFSRatio = noCFSRatio.doubleValue();
         mergePolicy.setNoCFSRatio(noCFSRatio);
     }
 

@@ -687,10 +687,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
         private synchronized void onTaskCompletion() {
             if (mustReschedule()) {
-                indexService.logger.debug("scheduling {} every {}", toString(), interval);
+                indexService.logger.trace("scheduling {} every {}", toString(), interval);
                 this.scheduledFuture = threadPool.schedule(interval, getThreadPool(), BaseAsyncTask.this);
             } else {
-                indexService.logger.debug("scheduled {} disabled", toString());
+                indexService.logger.trace("scheduled {} disabled", toString());
                 this.scheduledFuture = null;
             }
         }

@@ -922,7 +922,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onShardFailedFailure(Exception e) {
+            public void onFailure(Throwable t) {
                 success.set(false);
                 latch.countDown();
                 assert false;

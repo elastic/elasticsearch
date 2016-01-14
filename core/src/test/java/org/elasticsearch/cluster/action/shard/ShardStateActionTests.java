@@ -88,9 +88,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, Listener listener) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, Listener listener) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(observer, shardRoutingEntry, listener);
+            super.waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }
@@ -145,7 +145,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onShardFailedFailure(Exception e) {
+            public void onFailure(Throwable t) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -193,7 +193,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onShardFailedFailure(Exception e) {
+            public void onFailure(Throwable e) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -216,7 +216,7 @@ public class ShardStateActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
-        AtomicReference<Exception> exception = new AtomicReference<>();
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
 
         LongConsumer retryLoop = requestId -> {
             if (randomBoolean()) {
@@ -243,9 +243,9 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onShardFailedFailure(Exception e) {
+            public void onFailure(Throwable t) {
                 success.set(false);
-                exception.set(e);
+                throwable.set(t);
                 latch.countDown();
                 assert false;
             }
@@ -258,7 +258,7 @@ public class ShardStateActionTests extends ESTestCase {
         retryLoop.accept(capturedRequests[0].requestId);
 
         latch.await();
-        assertNull(exception.get());
+        assertNull(throwable.get());
         assertThat(retries.get(), equalTo(numberOfRetries));
         assertTrue(success.get());
     }
@@ -280,7 +280,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onShardFailedFailure(Exception e) {
+            public void onFailure(Throwable t) {
                 failure.set(true);
             }
         });

@@ -334,7 +334,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // we reuse the files on disk after full restarts for replicas.
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {

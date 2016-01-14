@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -150,7 +149,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
                                     "index.shard.inactive_time",
-                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey()));
+                                    "index.unassigned.node_left.delayed_timeout"));
 
     /**
      * Elasticsearch 2.0 requires units on byte/memory and time settings; this method adds the default unit to any such settings that are

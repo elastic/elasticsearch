@@ -329,7 +329,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
 
         ));
         ensureGreen(); // allocated with empty commit
@@ -393,7 +393,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                                 // This does corrupt files on the replica, so we can't check:
                         .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

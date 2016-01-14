@@ -140,7 +140,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2).get();
         assertAcked(prepareCreate("test").setSettings(settingsBuilder()
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE).build()));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node

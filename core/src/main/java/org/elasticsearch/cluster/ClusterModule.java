@@ -130,8 +130,6 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_REQUIRE_GROUP + "*", Validator.EMPTY);
         registerIndexDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "*", Validator.EMPTY);
         registerIndexDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "*", Validator.EMPTY);
-        registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
-        registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, Validator.EMPTY);
         registerIndexDynamicSetting(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, Validator.NON_NEGATIVE_INTEGER);
         registerIndexDynamicSetting(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, Validator.EMPTY);
         registerIndexDynamicSetting(IndexMetaData.SETTING_READ_ONLY, Validator.EMPTY);

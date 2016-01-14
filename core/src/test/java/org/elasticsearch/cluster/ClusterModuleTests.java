@@ -95,9 +95,9 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterIndexDynamicSettingDuplicate() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
         try {
-            module.registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
+            module.registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Validator.EMPTY);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE + "] twice");
+            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 

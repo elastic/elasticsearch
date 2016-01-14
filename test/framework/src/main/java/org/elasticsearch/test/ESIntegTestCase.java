@@ -1283,7 +1283,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final void enableAllocation(String... indices) {
         client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
-                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all"
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"
         )).get();
     }
 
@@ -1292,7 +1292,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final void disableAllocation(String... indices) {
         client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
-                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none"
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"
         )).get();
     }
 

@@ -40,9 +40,7 @@ import java.util.logging.Level;
 /**
  */
 public final class IndexingSlowLog implements IndexingOperationListener {
-
     private volatile boolean reformat;
-
     private volatile long indexWarnThreshold;
     private volatile long indexInfoThreshold;
     private volatile long indexDebugThreshold;
@@ -60,10 +58,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private final ESLogger deleteLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1), TimeValue.timeValueNanos(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info", TimeValue.timeValueNanos(-1), TimeValue.timeValueNanos(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1), TimeValue.timeValueNanos(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1), TimeValue.timeValueNanos(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING = Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, true, Setting.Scope.INDEX);
     public static final Setting<Level> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", Level.TRACE.name(), Level::parse, true, Setting.Scope.INDEX);
     /**
@@ -199,4 +197,33 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             return valueOf(level.toUpperCase(Locale.ROOT));
         }
     }
+
+    boolean isReformat() {
+        return reformat;
+    }
+
+    long getIndexWarnThreshold() {
+        return indexWarnThreshold;
+    }
+
+    long getIndexInfoThreshold() {
+        return indexInfoThreshold;
+    }
+
+    long getIndexTraceThreshold() {
+        return indexTraceThreshold;
+    }
+
+    long getIndexDebugThreshold() {
+        return indexDebugThreshold;
+    }
+
+    int getMaxSourceCharsToLog() {
+        return maxSourceCharsToLog;
+    }
+
+    Level getLevel() {
+        return level;
+    }
+
 }

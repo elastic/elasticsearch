@@ -19,16 +19,10 @@
 
 package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,47 +64,17 @@ public final class GrokProcessor implements Processor {
 
     public final static class Factory implements Processor.Factory<GrokProcessor> {
 
-        private final static String[] PATTERN_NAMES = new String[] {
-            "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
-            "postgresql", "rails", "redis", "ruby"
-        };
-        private final Map<String, String> builtinPatternBank;
+        private final Map<String, String> builtinPatterns;
 
-        public Factory() throws IOException {
-            // TODO(simonw): we should have a static helper method to load these patterns and make this
-            // factory only accept a String->String map instead. That way we can load
-            // the patterns in the IngestGrokPlugin ctor or even in a static context and this ctor doesn't need to throw any exception.
-            Map<String, String> builtinPatterns = new HashMap<>();
-            for (String pattern : PATTERN_NAMES) {
-                try(InputStream is = getClass().getResourceAsStream("/patterns/" + pattern)) {
-                    loadBankFromStream(builtinPatterns, is);
-                }
-            }
-            this.builtinPatternBank = Collections.unmodifiableMap(builtinPatterns);
-        }
-
-        static void loadBankFromStream(Map<String, String> patternBank, InputStream inputStream) throws IOException {
-            String line;
-            BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-            while ((line = br.readLine()) != null) {
-                String trimmedLine = line.replaceAll("^\\s+", "");
-                if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
-                    continue;
-                }
-
-                String[] parts = trimmedLine.split("\\s+", 2);
-                if (parts.length == 2) {
-                    patternBank.put(parts[0], parts[1]);
-                }
-            }
+        public Factory(Map<String, String> builtinPatterns) {
+            this.builtinPatterns = builtinPatterns;
         }
 
         public GrokProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(builtinPatternBank);
+            Map<String, String> patternBank = new HashMap<>(builtinPatterns);
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

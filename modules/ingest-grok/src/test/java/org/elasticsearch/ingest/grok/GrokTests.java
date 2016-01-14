@@ -19,13 +19,10 @@
 
 package org.elasticsearch.ingest.grok;
 
-import org.elasticsearch.ingest.grok.Grok;
-import org.elasticsearch.ingest.grok.GrokProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -39,22 +36,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class GrokTests extends ESTestCase {
     private Map<String, String> basePatterns;
 
-    private Map<String, String> newBankFromStreams(InputStream... inputStreams) throws IOException {
-        Map<String, String> patternBank = new HashMap<>();
-
-        for (InputStream is : inputStreams) {
-            GrokProcessor.Factory.loadBankFromStream(patternBank, is);
-        }
-
-        return patternBank;
-    }
-
     @Before
     public void setup() throws IOException {
-        basePatterns = newBankFromStreams(
-                getClass().getResourceAsStream("/patterns/grok-patterns"),
-                getClass().getResourceAsStream("/patterns/linux-syslog")
-        );
+        basePatterns = IngestGrokPlugin.loadBuiltinPatterns();
     }
 
     public void testMatchWithoutCaptures() {

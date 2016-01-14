@@ -73,6 +73,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public class PluginManager {
 
     public static final String PROPERTY_SUPPORT_STAGING_URLS = "es.plugins.staging";
+    public static final String ROOT_DIRECTORY = "elasticsearch";
 
     public enum OutputMode {
         DEFAULT, SILENT, VERBOSE
@@ -82,13 +83,14 @@ public class PluginManager {
             "elasticsearch",
             "elasticsearch.bat",
             "elasticsearch.in.sh",
-            "plugin",
-            "plugin.bat",
+            "elasticsearch-plugin",
+            "elasticsearch-plugin.bat",
             "service.bat"));
 
     static final Set<String> MODULES = unmodifiableSet(newHashSet(
             "lang-expression",
-            "lang-groovy"));
+            "lang-groovy",
+            "lang-mustache"));
 
     static final Set<String> OFFICIAL_PLUGINS = unmodifiableSet(newHashSet(
             "analysis-icu",
@@ -238,7 +240,7 @@ public class PluginManager {
         Path root = tmp.resolve(pluginHandle.name);
         unzipPlugin(pluginFile, root);
 
-        // find the actual root (in case its unzipped with extra directory wrapping)
+        // find the actual root for the elasticsearch plugin (the zip may contain other system plugins).
         root = findPluginRoot(root);
 
         // read and validate the plugin descriptor
@@ -434,22 +436,32 @@ public class PluginManager {
         }
     }
 
-    /** we check whether we need to remove the top-level folder while extracting
-     *  sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
-     */
+    /** check whether the directory 'elasticsearch/${plugin.name}' exists in the zip and contains the plugin descriptor file */
     private Path findPluginRoot(Path dir) throws IOException {
-        if (Files.exists(dir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES))) {
-            return dir;
-        } else {
-            final Path[] topLevelFiles = FileSystemUtils.files(dir);
-            if (topLevelFiles.length == 1 && Files.isDirectory(topLevelFiles[0])) {
-                Path subdir = topLevelFiles[0];
-                if (Files.exists(subdir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES))) {
-                    return subdir;
-                }
-            }
+        final Path systemRoot = dir.resolve(ROOT_DIRECTORY);
+        if (!Files.exists(systemRoot)) {
+            throw new RuntimeException("Could not find '" + ROOT_DIRECTORY + "' directory in plugin zip");
         }
-        throw new RuntimeException("Could not find plugin descriptor '" + PluginInfo.ES_PLUGIN_PROPERTIES + "' in plugin zip");
+
+        if (!Files.isDirectory(systemRoot)) {
+            throw new RuntimeException("'" + ROOT_DIRECTORY + "' must be a directory");
+        }
+
+        Path[] pluginRoots = FileSystemUtils.files(systemRoot);
+        if (pluginRoots.length != 1) {
+            throw new RuntimeException("Missing or multiple directory found in " + ROOT_DIRECTORY + "`");
+        }
+
+        Path propertiesInfo = pluginRoots[0].resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
+        if (Files.exists(propertiesInfo)) {
+            PluginInfo pluginInfo = PluginInfo.readFromProperties(pluginRoots[0]);
+            Path pluginRoot = systemRoot.resolve(pluginInfo.getName());
+            if (!pluginRoot.equals(pluginRoots[0])) {
+                throw new IllegalArgumentException("Could not find `" + ROOT_DIRECTORY + "'/" + pluginInfo.getName() + "' directory in plugin zip");
+            }
+            return pluginRoot;
+        }
+        throw new RuntimeException("Plugin descriptor is missing");
     }
 
     /** check a candidate plugin for jar hell before installing it */

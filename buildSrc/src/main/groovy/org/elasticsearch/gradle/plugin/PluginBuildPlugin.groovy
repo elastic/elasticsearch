@@ -94,7 +94,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         SourceSet testSourceSet = project.sourceSets.test
         testSourceSet.output.dir(buildProperties.generatedResourcesDir, builtBy: 'pluginProperties')
         testSourceSet.resources.srcDir(pluginMetadata)
-
         // create the actual bundle task, which zips up all the files for the plugin
         Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties]) {
             from buildProperties // plugin properties file
@@ -111,6 +110,9 @@ public class PluginBuildPlugin extends BuildPlugin {
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'
+            }
+            if (!project.path.startsWith(':modules:')) {
+                into('elasticsearch/' + project.pluginProperties.extension.name)
             }
         }
         project.assemble.dependsOn(bundle)

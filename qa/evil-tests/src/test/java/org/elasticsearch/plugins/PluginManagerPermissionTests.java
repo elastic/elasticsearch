@@ -31,10 +31,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -362,11 +359,12 @@ public class PluginManagerPermissionTests extends ESTestCase {
         }
 
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
+        final Path pluginRoot = Paths.get("elasticsearch/" + pluginName);
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    stream.putNextEntry(new ZipEntry(pluginRoot.resolve(structure.relativize(file).toString()).toString()));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }

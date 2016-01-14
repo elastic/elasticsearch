@@ -64,11 +64,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -144,15 +140,29 @@ public class PluginManagerTests extends ESIntegTestCase {
         }
     }
 
+    private String findNamedProperty(String name, String... properties) {
+        for (int i = 0; i < properties.length; i+=2) {
+            if (name.equals(properties[i])) {
+                return properties[i+1];
+            }
+        }
+        return null;
+    }
+
     /** creates a plugin .zip and returns the url for testing */
     private String createPlugin(final Path structure, String... properties) throws IOException {
+        final String pluginName = findNamedProperty("name", properties);
+        if (pluginName == null) {
+            throw new IllegalArgumentException("Property [name] is missing");
+        }
+        final Path pluginRoot = Paths.get("elasticsearch/" + pluginName);
         PluginTestUtil.writeProperties(structure, properties);
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    stream.putNextEntry(new ZipEntry(pluginRoot.resolve(structure.relativize(file).toString()).toString()));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }
@@ -168,13 +178,18 @@ public class PluginManagerTests extends ESIntegTestCase {
 
     /** creates a plugin .zip and bad checksum file and returns the url for testing */
     private String createPluginWithBadChecksum(final Path structure, String... properties) throws IOException {
+        final String pluginName = findNamedProperty("name", properties);
+        if (pluginName == null) {
+            throw new IllegalArgumentException("Property [name] is missing");
+        }
+        final Path pluginRoot = Paths.get("elasticsearch/" + pluginName);
         PluginTestUtil.writeProperties(structure, properties);
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    stream.putNextEntry(new ZipEntry(pluginRoot.resolve(structure.relativize(file).toString()).toString()));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }
@@ -578,8 +593,8 @@ public class PluginManagerTests extends ESIntegTestCase {
         assertStatus("remove elasticsearch", USAGE);
         assertStatus("remove elasticsearch.bat", USAGE);
         assertStatus("remove elasticsearch.in.sh", USAGE);
-        assertStatus("remove plugin", USAGE);
-        assertStatus("remove plugin.bat", USAGE);
+        assertStatus("remove elasticsearch-plugin", USAGE);
+        assertStatus("remove elasticsearch-plugin.bat", USAGE);
         assertStatus("remove service.bat", USAGE);
         assertStatus("remove ELASTICSEARCH", USAGE);
         assertStatus("remove ELASTICSEARCH.IN.SH", USAGE);
@@ -673,6 +688,8 @@ public class PluginManagerTests extends ESIntegTestCase {
             }
         }
     }
+
+
 
     private static class LoggingServerHandler extends SimpleChannelUpstreamHandler {
 

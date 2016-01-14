@@ -309,6 +309,11 @@ disable doc values is by using the `doc_values` property of mappings.
 [[breaking_30_plugins]]
 === Plugin changes
 
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+The directory structure inside the zip has changed. The zip must contain a top-level folder titled `elasticsearch` and
+only one sub-folder titled after the name of the plugin. If you use the gradle build, this structure is automatically
+generated.
+
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
 into an intermediate query representation that can be streamed between the nodes in binary format, effectively the

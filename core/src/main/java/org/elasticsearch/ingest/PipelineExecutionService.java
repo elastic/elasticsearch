@@ -42,7 +42,7 @@ public class PipelineExecutionService {
 
     public void execute(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(request.pipeline());
-        threadPool.executor(ThreadPool.Names.INGEST).execute(() -> {
+        threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
             try {
                 innerExecute(request, pipeline);
                 completionHandler.accept(true);
@@ -54,7 +54,7 @@ public class PipelineExecutionService {
 
     public void execute(Iterable<ActionRequest> actionRequests,
                         BiConsumer<IndexRequest, Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
-        threadPool.executor(ThreadPool.Names.INGEST).execute(() -> {
+        threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
             for (ActionRequest actionRequest : actionRequests) {
                 if ((actionRequest instanceof IndexRequest)) {
                     IndexRequest indexRequest = (IndexRequest) actionRequest;

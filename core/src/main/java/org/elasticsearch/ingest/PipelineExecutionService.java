@@ -22,12 +22,12 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class PipelineExecutionService {
@@ -53,7 +53,7 @@ public class PipelineExecutionService {
     }
 
     public void execute(Iterable<ActionRequest> actionRequests,
-                        Consumer<Tuple<IndexRequest, Throwable>> itemFailureHandler, Consumer<Boolean> completionHandler) {
+                        BiConsumer<IndexRequest, Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
         threadPool.executor(ThreadPool.Names.INGEST).execute(() -> {
             for (ActionRequest actionRequest : actionRequests) {
                 if ((actionRequest instanceof IndexRequest)) {
@@ -64,7 +64,7 @@ public class PipelineExecutionService {
                             //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
                             indexRequest.pipeline(null);
                         } catch (Throwable e) {
-                            itemFailureHandler.accept(new Tuple<>(indexRequest, e));
+                            itemFailureHandler.accept(indexRequest, e);
                         }
                     }
                 }

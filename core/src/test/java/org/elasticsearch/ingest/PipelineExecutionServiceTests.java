@@ -25,7 +25,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -41,9 +40,11 @@ import org.mockito.invocation.InvocationOnMock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
@@ -95,24 +96,25 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         IndexRequest indexRequest2 = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).pipeline("does_not_exist");
         bulkRequest.add(indexRequest2);
         @SuppressWarnings("unchecked")
-        Consumer<Tuple<IndexRequest, Throwable>> failureHandler = mock(Consumer.class);
+        BiConsumer<IndexRequest, Throwable> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), failureHandler, completionHandler);
-        verify(failureHandler, times(1)).accept(argThat(new CustomTypeSafeMatcher<Tuple<IndexRequest,Throwable>>("failure handler was not called with the expected arguments") {
-            @Override
-            protected boolean matchesSafely(Tuple<IndexRequest, Throwable> item) {
-                if( item.v1() != indexRequest2) {
-                    return false;
+        verify(failureHandler, times(1)).accept(
+            argThat(new CustomTypeSafeMatcher<IndexRequest>("failure handler was not called with the expected arguments") {
+                @Override
+                protected boolean matchesSafely(IndexRequest item) {
+                    return item == indexRequest2;
                 }
-                if (item.v2() instanceof IllegalArgumentException == false) {
-                    return false;
-                }
-                IllegalArgumentException iae = (IllegalArgumentException) item.v2();
-                return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
-            }
 
-        }));
+            }),
+            argThat(new CustomTypeSafeMatcher<IllegalArgumentException>("failure handler was not called with the expected arguments") {
+                @Override
+                protected boolean matchesSafely(IllegalArgumentException iae) {
+                    return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
+                }
+            })
+        );
         verify(completionHandler, times(1)).accept(anyBoolean());
     }
 
@@ -308,11 +310,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         doThrow(error).when(processor).execute(any());
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
 
-        Consumer<Tuple<IndexRequest, Throwable>> requestItemErrorHandler = mock(Consumer.class);
+        BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(new Tuple<>(any(IndexRequest.class), error));
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(any(IndexRequest.class), eq(error));
         verify(completionHandler, times(1)).accept(true);
     }
 
@@ -330,12 +332,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, new CompoundProcessor()));
 
         @SuppressWarnings("unchecked")
-        Consumer<Tuple<IndexRequest, Throwable>> requestItemErrorHandler = mock(Consumer.class);
+        BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
-        verify(requestItemErrorHandler, never()).accept(any());
+        verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(true);
     }
 

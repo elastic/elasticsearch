@@ -465,7 +465,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         setRandomIndexNormsLoading(random, builder);
 
         if (random.nextBoolean()) {
-            builder.put(MergeSchedulerConfig.AUTO_THROTTLE, false);
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
         }
 
         if (random.nextBoolean()) {
@@ -493,8 +493,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             case 3:
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT, maxMergeCount);
-                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT, maxThreadCount);
+                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
+                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
                 break;
         }
 

@@ -21,9 +21,12 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,18 +45,27 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Scope scope;
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
-        super(settings);
-        for (Setting<?> entry : settingsSet) {
-            if (entry.getScope() != scope) {
-                throw new IllegalArgumentException("Setting must be a cluster setting but was: " + entry.getScope());
-            }
-            if (entry.hasComplexMatcher()) {
-                complexMatchers.put(entry.getKey(), entry);
-            } else {
-                keySettings.put(entry.getKey(), entry);
-            }
-        }
+        this(settings, Settings.EMPTY, settingsSet, scope);
+    }
+
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
+        super(nodeSettings);
+        this.lastSettingsApplied = scopeSettings;
         this.scope = scope;
+        for (Setting<?> entry : settingsSet) {
+            addSetting(entry);
+        }
+    }
+
+    protected final void addSetting(Setting<?> setting) {
+        if (setting.getScope() != scope) {
+            throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
+        }
+        if (setting.hasComplexMatcher()) {
+            complexMatchers.putIfAbsent(setting.getKey(), setting);
+        } else {
+            keySettings.putIfAbsent(setting.getKey(), setting);
+        }
     }
 
     public Setting.Scope getScope() {
@@ -251,6 +263,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
         }
         return builder.build();
+    }
+
+    /**
+     * Returns the value for the given setting.
+     */
+    public <T> T get(Setting<T> setting) {
+        if (setting.getScope() != scope) {
+            throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] != [" + setting.getScope() + "]");
+        }
+        if (get(setting.getKey()) == null) {
+            throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
+        }
+        return setting.get(this.lastSettingsApplied);
     }
 
 }

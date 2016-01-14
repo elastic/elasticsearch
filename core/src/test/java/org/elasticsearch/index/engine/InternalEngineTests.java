@@ -1600,8 +1600,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         // now it should be OK.
         IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
-                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build(),
-                Collections.emptyList());
+                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
         engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy());
     }
 

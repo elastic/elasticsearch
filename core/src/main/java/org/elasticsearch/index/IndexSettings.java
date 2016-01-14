@@ -25,19 +25,21 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -46,7 +48,7 @@ import java.util.function.Predicate;
  * This class encapsulates all index level settings and handles settings updates.
  * It's created per index and available to all index level classes and allows them to retrieve
  * the latest updated settings instance. Classes that need to listen to settings updates can register
- * a settings consumer at index creation via {@link IndexModule#addIndexSettingsListener(Consumer)} that will
+ * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
  */
 public final class IndexSettings {
@@ -70,7 +72,6 @@ public final class IndexSettings {
     public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
 
     private final String uuid;
-    private final List<Consumer<Settings>> updateListeners;
     private final Index index;
     private final Version version;
     private final ESLogger logger;
@@ -94,9 +95,16 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-
+    private final ScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
 
+    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
+        IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
+        MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
+        MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
+        MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING
+    )));
 
     /**
      * Returns the default search field for this index.
@@ -139,10 +147,9 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
-     * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners) {
-        this(indexMetaData, nodeSettings, updateListeners, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()));
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()));
     }
 
     /**
@@ -151,13 +158,12 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
-     * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      * @param indexNameMatcher a matcher that can resolve an expression to the index name or index alias
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners, final Predicate<String> indexNameMatcher) {
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings,final Predicate<String> indexNameMatcher) {
+        scopedSettings = new ScopedSettings(nodeSettings, indexMetaData.getSettings(), BUILT_IN_CLUSTER_SETTINGS);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.updateListeners = Collections.unmodifiableList( new ArrayList<>(updateListeners));
         this.index = new Index(indexMetaData.getIndex());
         version = Version.indexCreated(settings);
         uuid = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
@@ -179,20 +185,10 @@ public final class IndexSettings {
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
         flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        mergeSchedulerConfig = new MergeSchedulerConfig(settings);
+        mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
-    }
-
-
-    /**
-     * Creates a new {@link IndexSettings} instance adding the given listeners to the settings
-     */
-    IndexSettings newWithListener(final Collection<Consumer<Settings>> updateListeners) {
-        ArrayList<Consumer<Settings>> newUpdateListeners = new ArrayList<>(updateListeners);
-        newUpdateListeners.addAll(this.updateListeners);
-        return new IndexSettings(indexMetaData, nodeSettings, newUpdateListeners, indexNameMatcher);
     }
 
     /**
@@ -325,27 +321,16 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
+        scopedSettings.applySettings(newSettings);
+
+        // nocommit
         final Settings mergedSettings = this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
-        for (final Consumer<Settings> consumer : updateListeners) {
-            try {
-                consumer.accept(mergedSettings);
-            } catch (Exception e) {
-                logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
-            }
-        }
         try {
             updateSettings(mergedSettings);
         } catch (Exception e) {
             logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
         }
         return true;
-    }
-
-    /**
-     * Returns all settings update consumers
-     */
-    List<Consumer<Settings>> getUpdateListeners() { // for testing
-        return updateListeners;
     }
 
     /**
@@ -382,24 +367,6 @@ public final class IndexSettings {
         if (!flushThresholdSize.equals(this.flushThresholdSize)) {
             logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
             this.flushThresholdSize = flushThresholdSize;
-        }
-
-        final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
-        if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
-            mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
-        }
-
-        final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-        if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
-            mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
-        }
-
-        final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
-        if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
-            mergeSchedulerConfig.setAutoThrottle(autoThrottle);
         }
 
         long gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis)).getMillis();
@@ -450,4 +417,31 @@ public final class IndexSettings {
         return mergePolicyConfig.getMergePolicy();
     }
 
+    boolean containsSetting(Setting<?> setting) {
+        return scopedSettings.get(setting.getKey()) != null;
+    }
+
+    public <T> T getValue(Setting<T> setting) {
+        return scopedSettings.get(setting);
+    }
+
+    private static final class ScopedSettings extends AbstractScopedSettings {
+
+        ScopedSettings(Settings settings, Settings scopeSettings, Set<Setting<?>> settingsSet) {
+            super(settings, scopeSettings, settingsSet, Setting.Scope.INDEX);
+        }
+
+        void addSettingInternal(Setting<?> settings) {
+            addSetting(settings);
+        }
+    }
+
+    void addSetting(Setting<?> setting) {
+        scopedSettings.addSettingInternal(setting);
+    }
+
+    <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+        scopedSettings.addSettingInternal(setting);
+        scopedSettings.addSettingsUpdateConsumer(setting, consumer);
+    }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -68,8 +70,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
         @Override
         public void onIndexModule(IndexModule module) {
             if (module.getIndex().getName().equals("test")) { // only for the test index
-                module.addIndexSettingsListener(service);
-                service.accept(module.getSettings());
+                module.addSettingsUpdateConsumer(SettingsTestingService.VALUE, service::setValue);
+                service.setValue(SettingsTestingService.VALUE.get(module.getSettings()));
             }
         }
 
@@ -92,13 +94,14 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
     }
 
-    public static class SettingsTestingService implements Consumer<Settings> {
+    public static class SettingsTestingService {
         public volatile int value;
+        public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, true, Setting.Scope.INDEX);
 
-        @Override
-        public void accept(Settings settings) {
-            value = settings.getAsInt("index.test.new.setting", -1);
+        public void setValue(int value) {
+            this.value = value;
         }
+
     }
 
     public void testListener() {

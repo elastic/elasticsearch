@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
@@ -57,7 +57,7 @@ import java.util.function.Consumer;
  *         <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, BiFunction)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via {@link #addIndexEventListener(IndexEventListener)}</li>
- *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addIndexSettingsListener(Consumer)}</li>
+ *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
  */
 public final class IndexModule {
@@ -75,7 +75,6 @@ public final class IndexModule {
     // pkg private so tests can mock
     final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
-    private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
@@ -92,17 +91,28 @@ public final class IndexModule {
     }
 
     /**
-     * Adds a settings consumer for this index
+     * Adds a Setting for this index.
      */
-    public void addIndexSettingsListener(Consumer<Settings> listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
+    public <T> void addSetting(Setting<T> setting) {
+        addSettingsUpdateConsumer(setting, null);
+    }
+
+    /**
+     * Adds a Setting and it's consumer for this index.
+     */
+    public <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+        if (setting == null) {
+            throw new IllegalArgumentException("setting must not be null");
+        }
+        if (indexSettings.containsSetting(setting)) {
+            throw new IllegalArgumentException("setting already registered: " + setting);
+        }
+        if (consumer != null) {
+            indexSettings.addSettingsUpdateConsumer(setting, consumer);
+        } else {
+            indexSettings.addSetting(setting);
         }
 
-        if (settingsConsumers.contains(listener)) {
-            throw new IllegalStateException("listener already registered");
-        }
-        settingsConsumers.add(listener);
     }
 
     /**
@@ -245,27 +255,29 @@ public final class IndexModule {
 
     public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider, MapperRegistry mapperRegistry,
                                         IndexingOperationListener... listeners) throws IOException {
-        final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
         IndexEventListener eventListener = freeze();
-        final String storeType = settings.getSettings().get(STORE_TYPE);
+        final String storeType = indexSettings.getSettings().get(STORE_TYPE);
         final IndexStore store;
         if (storeType == null || isBuiltinType(storeType)) {
-            store = new IndexStore(settings, indexStoreConfig);
+            store = new IndexStore(indexSettings, indexStoreConfig);
         } else {
             BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
-            store = factory.apply(settings, indexStoreConfig);
+            store = factory.apply(indexSettings, indexStoreConfig);
             if (store == null) {
                 throw new IllegalStateException("store must not be null");
             }
         }
-        final String queryCacheType = settings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
+        indexSettings.addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
+        indexSettings.addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
+        final String queryCacheType = indexSettings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
-        final QueryCache queryCache = queryCacheProvider.apply(settings, servicesProvider.getIndicesQueryCache());
-        return new IndexService(settings, environment, new SimilarityService(settings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
+        final QueryCache queryCache = queryCacheProvider.apply(indexSettings, servicesProvider.getIndicesQueryCache());
+        return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
                 servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, listeners);
     }
+
 }

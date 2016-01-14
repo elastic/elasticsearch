@@ -163,9 +163,7 @@ public class PercolatorServiceTests extends ESTestCase {
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .build(),
-                Settings.EMPTY, Collections.emptyList()
-        );
+                .build(), Settings.EMPTY);
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,

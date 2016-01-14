@@ -142,13 +142,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
                     .setSettings(Settings.builder()
-                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
                                  .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "2")
+                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
                                  .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0) // get stats all the time - no caching
                                  ));
         ensureGreen();
@@ -180,13 +180,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder()
-                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
-                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
+                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), "1mb"))
             .get();
 
         // Make sure setting says it is in fact changed:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(getSettingsResponse.getSetting("test", IndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
+        assertThat(getSettingsResponse.getSetting("test", IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey()), equalTo("merge"));
 
         // Also make sure we see throttling kicking in:
         boolean done = false;
@@ -220,7 +220,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder()
-                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none"))
             .get();
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
@@ -312,9 +312,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                      .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
                                      .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "2")
-                                     .put(MergeSchedulerConfig.AUTO_THROTTLE, "true")
+                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
+                                     .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
                                      ));
 
             // Disable auto throttle:
@@ -323,7 +323,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder()
-                             .put(MergeSchedulerConfig.AUTO_THROTTLE, "no"))
+                             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "no"))
                 .get();
 
             // Make sure we log the change:
@@ -331,7 +331,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             // Make sure setting says it is in fact changed:
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE), equalTo("no"));
+            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("no"));
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
@@ -354,8 +354,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                      .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
                                      .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "10000")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "10000")
+                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10000")
+                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
                                      ));
 
             assertFalse(mockAppender.sawUpdateMaxThreadCount);
@@ -366,7 +366,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder()
-                             .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
+                             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                              )
                 .get();
 
@@ -375,7 +375,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             // Make sure setting says it is in fact changed:
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT), equalTo("1"));
+            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
             rootLogger.removeAppender(mockAppender);

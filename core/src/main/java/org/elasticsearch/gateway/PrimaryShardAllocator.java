@@ -73,7 +73,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             }
 
             final IndexMetaData indexMetaData = metaData.index(shard.getIndex());
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings, Collections.emptyList());
+            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
 
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 // when we create a fresh index

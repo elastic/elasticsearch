@@ -576,11 +576,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 }
             }
             try {
-                indexStore.onRefreshSettings(settings);
-            } catch (Exception e) {
-                logger.warn("failed to refresh index store settings", e);
-            }
-            try {
                 slowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
             } catch (Exception e) {
                 logger.warn("failed to refresh slowlog settings", e);

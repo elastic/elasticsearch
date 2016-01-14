@@ -280,7 +280,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         final String indexName = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList(), indexNameMatcher);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
@@ -570,7 +570,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         // play safe here and make sure that we take node level settings into account.
         // we might run on nodes where we use shard FS and then in the future don't delete
         // actual content.
-        return new IndexSettings(metaData, settings, Collections.emptyList());
+        return new IndexSettings(metaData, settings);
     }
 
     /**

@@ -257,7 +257,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } else {
                 final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
-                indexSettings = new IndexSettings(metaData, settings, Collections.emptyList());
+                indexSettings = new IndexSettings(metaData, settings);
                 indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
             }
             try {

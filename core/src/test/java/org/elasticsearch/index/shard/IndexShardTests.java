@@ -128,16 +128,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndexShardTests extends ESSingleNodeTestCase {
 
-    public void testFlushOnDeleteSetting() throws Exception {
-        final boolean booleanValue = randomBoolean();
-        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_FLUSH_ON_CLOSE, booleanValue).build());
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        assertEquals(booleanValue, shard.getIndexSettings().isFlushOnClose());
-    }
-
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             ShardId id = new ShardId("foo", 1);

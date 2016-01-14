@@ -64,11 +64,6 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
 
     /**
-     * Index setting to control if a flush is executed before engine is closed. The default is <code>true</code>
-     */
-    public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
-
-    /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
      */
@@ -97,7 +92,6 @@ public final class IndexSettings {
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
-    private final boolean flushOnClose;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
 
@@ -185,7 +179,6 @@ public final class IndexSettings {
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
         flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        flushOnClose = settings.getAsBoolean(IndexSettings.INDEX_FLUSH_ON_CLOSE, true);
         mergeSchedulerConfig = new MergeSchedulerConfig(settings);
         gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
@@ -437,11 +430,6 @@ public final class IndexSettings {
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
-
-    /**
-     * Returns <code>true</code> iff this index should be flushed on close. Default is <code>true</code>
-     */
-    public boolean isFlushOnClose() { return flushOnClose; }
 
     /**
      * Returns the {@link MergeSchedulerConfig}

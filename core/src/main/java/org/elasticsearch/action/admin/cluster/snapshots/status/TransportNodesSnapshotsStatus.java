@@ -146,7 +146,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public Request() {
         }
 
-        public Request(ActionRequest request, String[] nodesIds) {
+        public Request(ActionRequest<?> request, String[] nodesIds) {
             super(request, nodesIds);
         }
 
@@ -180,6 +180,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             this.failures = failures;
         }
 
+        @Override
         public FailedNodeException[] failures() {
             return failures;
         }

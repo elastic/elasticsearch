@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -25,6 +26,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -35,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -54,6 +58,16 @@ public final class IndexSettings {
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
+    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
+    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+
+    /**
+     * Index setting to enable / disable deletes garbage collection.
+     * This setting is realtime updateable
+     */
+    public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
 
     private final String uuid;
     private final List<Consumer<Settings>> updateListeners;
@@ -76,6 +90,13 @@ public final class IndexSettings {
     private final Predicate<String> indexNameMatcher;
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
+    private volatile TimeValue refreshInterval;
+    private volatile ByteSizeValue flushThresholdSize;
+    private final MergeSchedulerConfig mergeSchedulerConfig;
+    private final MergePolicyConfig mergePolicyConfig;
+
+    private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+
 
     /**
      * Returns the default search field for this index.
@@ -156,7 +177,11 @@ public final class IndexSettings {
         final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST.name());
         this.durability = getFromSettings(settings, Translog.Durability.REQUEST);
         syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
-
+        refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
+        flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
+        mergeSchedulerConfig = new MergeSchedulerConfig(settings);
+        gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
+        this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         assert indexNameMatcher.test(indexMetaData.getIndex());
     }
 
@@ -346,10 +371,83 @@ public final class IndexSettings {
             logger.info("updating durability from [{}] to [{}]", this.durability, durability);
             this.durability = durability;
         }
+
+        TimeValue refreshInterval = settings.getAsTime(IndexSettings.INDEX_REFRESH_INTERVAL, this.refreshInterval);
+        if (!refreshInterval.equals(this.refreshInterval)) {
+            logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
+            this.refreshInterval = refreshInterval;
+        }
+
+        ByteSizeValue flushThresholdSize = settings.getAsBytesSize(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
+        if (!flushThresholdSize.equals(this.flushThresholdSize)) {
+            logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
+            this.flushThresholdSize = flushThresholdSize;
+        }
+
+        final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
+        if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
+            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
+            mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
+        }
+
+        final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
+        if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
+            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
+            mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
+        }
+
+        final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
+        if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
+            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
+            mergeSchedulerConfig.setAutoThrottle(autoThrottle);
+        }
+
+        long gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis)).getMillis();
+        if (gcDeletesInMillis != this.gcDeletesInMillis) {
+            logger.info("updating {} from [{}] to [{}]", IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
+            this.gcDeletesInMillis = gcDeletesInMillis;
+        }
+
+        mergePolicyConfig.onRefreshSettings(settings);
     }
 
+    /**
+     * Returns the translog sync interval. This is the interval in which the transaction log is asynchronously fsynced unless
+     * the transaction log is fsyncing on every operations
+     */
     public TimeValue getTranslogSyncInterval() {
         return syncInterval;
+    }
+
+    /**
+     * Returns this interval in which the shards of this index are asynchronously refreshed. <tt>-1</tt> means async refresh is disabled.
+     */
+    public TimeValue getRefreshInterval() {
+        return refreshInterval;
+    }
+
+    /**
+     * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
+     */
+    public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
+
+    /**
+     * Returns the {@link MergeSchedulerConfig}
+     */
+    public MergeSchedulerConfig getMergeSchedulerConfig() { return mergeSchedulerConfig; }
+
+    /**
+     * Returns the GC deletes cycle in milliseconds.
+     */
+    public long getGcDeletesInMillis() {
+        return gcDeletesInMillis;
+    }
+
+    /**
+     * Returns the merge policy that should be used for this index.
+     */
+    public MergePolicy getMergePolicy() {
+        return mergePolicyConfig.getMergePolicy();
     }
 
 }

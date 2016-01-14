@@ -309,9 +309,10 @@ class BuildPlugin implements Plugin<Project> {
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
+                 * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 // compile with compact 3 profile by default
                 // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
                 if (project.compactProfile != 'full') {

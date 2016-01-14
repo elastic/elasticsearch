@@ -46,11 +46,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -383,7 +383,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertThat(source, Matchers.hasKey("foo"));
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put("refresh_interval", EngineConfig.DEFAULT_REFRESH_INTERVAL)
+                .put("refresh_interval", IndexSettings.DEFAULT_REFRESH_INTERVAL)
                 .build()));
     }
 

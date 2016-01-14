@@ -184,11 +184,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             searchContext.preProcess();
 
             valid = true;
-            if (request.explain()) {
-                explanation = searchContext.parsedQuery().query().toString();
-            }
             if (request.rewrite()) {
                 explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());
+            } else if (request.explain()) {
+                explanation = searchContext.filteredQuery().query().toString();
             }
         } catch (QueryShardException|ParsingException e) {
             valid = false;

@@ -34,10 +34,10 @@ import java.util.List;
 public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
 
     public static final ParseField SLOP_FIELD = new ParseField("slop");
-    public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads");
+    public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads").withAllDeprecated("no longer supported");
     public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     public static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
-  
+
     @Override
     public String[] names() {
         return new String[]{SpanNearQueryBuilder.NAME, Strings.toCamelCase(SpanNearQueryBuilder.NAME)};
@@ -50,7 +50,6 @@ public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Integer slop = null;
         boolean inOrder = SpanNearQueryBuilder.DEFAULT_IN_ORDER;
-        boolean collectPayloads = SpanNearQueryBuilder.DEFAULT_COLLECT_PAYLOADS;
         String queryName = null;
 
         List<SpanQueryBuilder> clauses = new ArrayList<>();
@@ -76,7 +75,7 @@ public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
                     inOrder = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
-                    collectPayloads = parser.booleanValue();
+                    // Deprecated in 3.0.0
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
                     slop = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
@@ -104,7 +103,6 @@ public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
             queryBuilder.clause(clauses.get(i));
         }
         queryBuilder.inOrder(inOrder);
-        queryBuilder.collectPayloads(collectPayloads);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
         return queryBuilder;

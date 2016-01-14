@@ -168,11 +168,6 @@ public class InternalSettingsPreparer {
             output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
-        String v = output.get(Settings.SETTINGS_REQUIRE_UNITS);
-        if (v != null) {
-            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
-        }
-
         replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed

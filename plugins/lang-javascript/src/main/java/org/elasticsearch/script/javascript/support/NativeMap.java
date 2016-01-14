@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script.javascript.support;
 
-import java.util.Iterator;
-import java.util.Map;
-
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Wrapper;
+
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Wrapper for exposing maps in Rhino scripts.
@@ -31,8 +31,6 @@ import org.mozilla.javascript.Wrapper;
  *
  */
 public class NativeMap implements Scriptable, Wrapper {
-    private static final long serialVersionUID = 3664761893203964569L;
-
     private Map<Object, Object> map;
     private Scriptable parentScope;
     private Scriptable prototype;

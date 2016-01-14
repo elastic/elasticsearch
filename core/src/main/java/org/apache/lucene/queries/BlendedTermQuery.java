@@ -36,6 +36,7 @@ import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -326,7 +327,7 @@ public abstract class BlendedTermQuery extends Query {
                     }
                     if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
                             || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
-                            * (float) maxDoc))) {
+                            * maxDoc))) {
                         highBuilder.add(query, BooleanClause.Occur.SHOULD);
                     } else {
                         lowBuilder.add(query, BooleanClause.Occur.SHOULD);
@@ -362,15 +363,15 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreakerMultiplier);
+                List<Query> queries = new ArrayList<>(ctx.length);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null && boosts[i] != 1f) {
                         query = new BoostQuery(query, boosts[i]);
                     }
-                    disMaxQuery.add(query);
+                    queries.add(query);
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, tieBreakerMultiplier);
             }
         };
     }

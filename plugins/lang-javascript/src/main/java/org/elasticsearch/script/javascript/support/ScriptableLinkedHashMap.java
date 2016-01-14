@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script.javascript.support;
 
+import org.mozilla.javascript.Scriptable;
+
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import org.mozilla.javascript.Scriptable;
 
 /**
  * Implementation of a Scriptable Map. This is the best choice for maps that want to represent
@@ -33,8 +33,6 @@ import org.mozilla.javascript.Scriptable;
  *
  */
 public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements ScriptableMap<K, V> {
-    private static final long serialVersionUID = 3774167893214964123L;
-
     private Scriptable parentScope;
     private Scriptable prototype;
 

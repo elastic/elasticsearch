@@ -256,6 +256,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                     } finally {
                         runLock.unlock();
                     }
+                    // Could be while we were checking, more bytes arrived:
+                    totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
                 } else {
                     break;
                 }

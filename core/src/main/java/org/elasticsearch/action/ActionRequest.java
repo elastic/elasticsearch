@@ -28,13 +28,13 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class ActionRequest<T extends ActionRequest> extends TransportRequest {
+public abstract class ActionRequest<Request extends ActionRequest<Request>> extends TransportRequest {
 
     public ActionRequest() {
         super();
     }
 
-    protected ActionRequest(ActionRequest request) {
+    protected ActionRequest(ActionRequest<?> request) {
         super(request);
         // this does not set the listenerThreaded API, if needed, its up to the caller to set it
         // since most times, we actually want it to not be threaded...

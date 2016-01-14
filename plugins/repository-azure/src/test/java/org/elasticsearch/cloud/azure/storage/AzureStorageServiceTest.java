@@ -47,8 +47,18 @@ public class AzureStorageServiceTest extends ESTestCase {
             azureStorageService.getSelectedClient("whatever", LocationMode.PRIMARY_ONLY);
             fail("we should have raised an IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No azure storage can be found. Check your elasticsearch.yml."));
+            assertThat(e.getMessage(), is("No primary azure storage can be found. Check your elasticsearch.yml."));
         }
+    }
+
+    public void testGetSelectedClientWithNoSecondary() {
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
+            .put("cloud.azure.storage.azure1.account", "myaccount1")
+            .put("cloud.azure.storage.azure1.key", "mykey1")
+            .build());
+        azureStorageService.doStart();
+        CloudBlobClient client = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
     public void testGetSelectedClientPrimary() {

@@ -23,6 +23,8 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
+import java.time.LocalDateTime
+
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
 
@@ -55,10 +57,12 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
+        ant.echo(message: "[${LocalDateTime.now()}] Waiting for elasticsearch node ${node.httpUri()}", level: "info")
         ant.get(src: "http://${node.httpUri()}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
+        ant.echo(message: "[${LocalDateTime.now()}] Finished waiting for elasticsearch node ${node.httpUri()}. Reachable? ${tmpFile.exists()}", level: "info")
         return tmpFile.exists()
     }
 

@@ -44,11 +44,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -93,6 +91,7 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -142,7 +141,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final Store store;
-    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchService;
     private final ShardGetService getService;
@@ -162,7 +160,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final SimilarityService similarityService;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
-    private final MergePolicyConfig mergePolicyConfig;
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
@@ -172,8 +169,6 @@ public class IndexShard extends AbstractIndexShardComponent {
      *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
      *  being indexed/deleted. */
     private final AtomicLong writingBytes = new AtomicLong();
-
-    private TimeValue refreshInterval;
 
     private volatile ScheduledFuture<?> refreshScheduledFuture;
     protected volatile ShardRouting shardRouting;
@@ -191,16 +186,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MeanMetric flushMetric = new MeanMetric();
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
-    private volatile boolean flushOnClose = true;
-    private volatile ByteSizeValue flushThresholdSize;
-
-    /**
-     * Index setting to control if a flush is executed before engine is closed
-     * This setting is realtime updateable.
-     */
-    public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     private final ShardPath path;
 
@@ -219,7 +204,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
-                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider, IndexingOperationListener... listeners) {
+                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider, SearchSlowLog slowLog, IndexingOperationListener... listeners) {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
         this.idxSettings = indexSettings;
@@ -231,7 +216,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
         this.store = store;
         this.indexEventListener = indexEventListener;
-        this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = provider.getThreadPool();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
@@ -241,7 +225,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService = provider.getTermVectorsService();
-        this.searchService = new ShardSearchStats(settings);
+        this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
@@ -249,10 +233,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
-        this.refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
-        this.flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.path = path;
-        this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -269,7 +250,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
@@ -561,23 +541,25 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        if (canIndex()) {
-            long bytes = getEngine().getIndexBufferRAMBytesUsed();
-            writingBytes.addAndGet(bytes);
-            try {
-                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
+        if (getEngine().refreshNeeded()) {
+            if (canIndex()) {
+                long bytes = getEngine().getIndexBufferRAMBytesUsed();
+                writingBytes.addAndGet(bytes);
+                try {
+                    logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
+                    long time = System.nanoTime();
+                    getEngine().refresh(source);
+                    refreshMetric.inc(System.nanoTime() - time);
+                } finally {
+                    logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                    writingBytes.addAndGet(-bytes);
+                }
+            } else {
+                logger.debug("refresh with source [{}]", source);
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
-            } finally {
-                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                writingBytes.addAndGet(-bytes);
             }
-        } else {
-            logger.debug("refresh with source [{}]", source);
-            long time = System.nanoTime();
-            getEngine().refresh(source);
-            refreshMetric.inc(System.nanoTime() - time);
         }
     }
 
@@ -820,7 +802,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
-                    if (engine != null && flushEngine && this.flushOnClose) {
+                    if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
@@ -954,7 +936,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         getEngine().refresh("recovery_finalization");
-        startScheduledTasksIfNeeded();
         engineConfig.setEnableGcDeletes(true);
     }
 
@@ -1022,15 +1003,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void startScheduledTasksIfNeeded() {
-        if (refreshInterval.millis() > 0) {
-            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
-            logger.debug("scheduling refresher every {}", refreshInterval);
-        } else {
-            logger.debug("scheduled refresher disabled");
-        }
-    }
-
     /** Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed */
     public long getIndexBufferRAMBytesUsed() {
         Engine engine = getEngineOrNull();
@@ -1059,10 +1031,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 indexEventListener.onShardInactive(this);
             }
         }
-    }
-
-    public final boolean isFlushOnClose() {
-        return flushOnClose;
     }
 
     /**
@@ -1106,7 +1074,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (engine != null) {
             try {
                 Translog translog = engine.getTranslog();
-                return translog.sizeInBytes() > flushThresholdSize.bytes();
+                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().bytes();
             } catch (AlreadyClosedException | EngineClosedException ex) {
                 // that's fine we are already close - no need to flush
             }
@@ -1114,73 +1082,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return false;
     }
 
-    public void onRefreshSettings(Settings settings) {
-        boolean change = false;
-        synchronized (mutex) {
-            if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
-                return;
-            }
-            ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
-            if (!flushThresholdSize.equals(this.flushThresholdSize)) {
-                logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
-                this.flushThresholdSize = flushThresholdSize;
-            }
-
-            final EngineConfig config = engineConfig;
-            final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, this.flushOnClose);
-            if (flushOnClose != this.flushOnClose) {
-                logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
-                this.flushOnClose = flushOnClose;
-            }
-
-            TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, this.refreshInterval);
-            if (!refreshInterval.equals(this.refreshInterval)) {
-                logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
-                if (refreshScheduledFuture != null) {
-                    // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
-                    // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
-                    // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
-                    FutureUtils.cancel(refreshScheduledFuture);
-                    refreshScheduledFuture = null;
-                }
-                this.refreshInterval = refreshInterval;
-                if (refreshInterval.millis() > 0) {
-                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
-                }
-            }
-
-            long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
-            if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
-                config.setGcDeletesInMillis(gcDeletesInMillis);
-                change = true;
-            }
-
-            final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
-            if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
-                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
-                mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
-                change = true;
-            }
-
-            final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-            if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
-                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
-                mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
-                change = true;
-            }
-
-            final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
-            if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
-                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
-                mergeSchedulerConfig.setAutoThrottle(autoThrottle);
-                change = true;
-            }
-        }
-        mergePolicyConfig.onRefreshSettings(settings);
-        searchService.onRefreshSettings(settings);
-        if (change) {
-            getEngine().onSettingsChanged();
+    public void onSettingsChanged() {
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null) {
+            engineOrNull.onSettingsChanged();
         }
     }
 
@@ -1284,43 +1189,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         internalIndexingStats.noopUpdate(type);
     }
 
-    final class EngineRefresher implements Runnable {
-        @Override
-        public void run() {
-            // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
-            if (!getEngine().refreshNeeded()) {
-                reschedule();
-                return;
-            }
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        // TODO: now that we use refresh to clear the indexing buffer, we should check here if we did that "recently" and
-                        // reschedule if so...
-                        if (getEngine().refreshNeeded()) {
-                            refresh("schedule");
-                        }
-                    } catch (Exception e) {
-                        handleRefreshException(e);
-                    }
-
-                    reschedule();
-                }
-            });
-        }
-
-        /**
-         * Schedules another (future) refresh, if refresh_interval is still enabled.
-         */
-        private void reschedule() {
-            synchronized (mutex) {
-                if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
-                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
-                }
-            }
-        }
-    }
 
     private void checkIndex() throws IOException {
         if (store.tryIncRef()) {
@@ -1497,7 +1365,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
-            threadPool, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+            threadPool, indexSettings, engineWarmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
             idxSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));
     }

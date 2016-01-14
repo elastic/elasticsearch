@@ -432,7 +432,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @return this for chaining
      */
     public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
+        sourceBuilder().addRescorer(new RescoreBuilder(rescorer));
         return this;
     }
 
@@ -444,7 +444,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @return this for chaining
      */
     public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+        sourceBuilder().addRescorer(new RescoreBuilder(rescorer).windowSize(window));
         return this;
     }
 

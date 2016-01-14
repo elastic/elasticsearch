@@ -118,4 +118,7 @@ grant {
 
   // load averages on Linux
   permission java.io.FilePermission "/proc/loadavg", "read";
+
+  // load averages on FreeBSD
+  permission java.io.FilePermission "/compat/linux/proc/loadavg", "read";
 };

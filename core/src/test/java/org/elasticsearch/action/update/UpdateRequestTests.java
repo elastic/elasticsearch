@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -165,5 +166,16 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(action, instanceOf(IndexRequest.class));
         indexAction = (IndexRequest) action;
         assertThat(indexAction.ttl(), is(providedTTLValue));
+    }
+
+    // Related to issue #15822
+    public void testInvalidBodyThrowsParseException() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        try {
+            request.source(new byte[] { (byte) '"' });
+            fail("Should have thrown a ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
+        }
     }
 }

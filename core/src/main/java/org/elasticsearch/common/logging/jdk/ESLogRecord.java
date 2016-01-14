@@ -30,8 +30,6 @@ import java.util.logging.LogRecord;
  * information of the code calling the logger
  */
 public class ESLogRecord extends LogRecord {
-
-    private static final long serialVersionUID = 1107741560233585726L;
     private static final String FQCN = AbstractESLogger.class.getName();
     private String sourceClassName;
     private String sourceMethodName;

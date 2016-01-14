@@ -67,7 +67,7 @@ public class ChildrenParser implements Aggregator.Parser {
             }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new ParentToChildrenAggregator.Factory(null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new ParentToChildrenAggregator.Factory(null, null);
     }
 }

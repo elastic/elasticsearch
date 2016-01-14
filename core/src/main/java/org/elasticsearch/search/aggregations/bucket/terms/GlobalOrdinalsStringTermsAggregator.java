@@ -347,7 +347,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
-            assert factories == null || factories.count() == 0;
+            assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
 

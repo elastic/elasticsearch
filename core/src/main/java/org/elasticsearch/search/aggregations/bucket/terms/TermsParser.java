@@ -52,7 +52,7 @@ public class TermsParser extends AbstractTermsParser {
     protected TermsAggregatorFactory doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        TermsAggregatorFactory factory = new TermsAggregatorFactory(aggregationName, valuesSourceType, targetValueType);
+        TermsAggregatorFactory factory = new TermsAggregatorFactory(aggregationName, targetValueType);
         List<OrderElement> orderElements = (List<OrderElement>) otherOptions.get(TermsAggregatorFactory.ORDER_FIELD);
         if (orderElements != null) {
             List<Terms.Order> orders = new ArrayList<>(orderElements.size());
@@ -97,7 +97,7 @@ public class TermsParser extends AbstractTermsParser {
                         orderElements.add(orderParam);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "Order elements must be of type object in [" + aggregationName + "].");
+                                "Order elements must be of type object in [" + aggregationName + "] found token of type [" + token + "].");
                     }
                 }
                 otherOptions.put(TermsAggregatorFactory.ORDER_FIELD, orderElements);
@@ -179,8 +179,8 @@ public class TermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new TermsAggregatorFactory(null, null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new TermsAggregatorFactory(null, null);
     }
 
 }

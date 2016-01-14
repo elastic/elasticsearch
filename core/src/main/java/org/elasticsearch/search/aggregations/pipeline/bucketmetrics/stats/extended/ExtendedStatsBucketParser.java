@@ -36,7 +36,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, Map<String, Object> unparsedParams)
+    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams)
             throws ParseException {
 
         Double sigma = null;
@@ -52,7 +52,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
             }
         }
         ExtendedStatsBucketPipelineAggregator.Factory factory = new ExtendedStatsBucketPipelineAggregator.Factory(pipelineAggregatorName,
-                bucketsPaths);
+                bucketsPath);
         if (sigma != null) {
             factory.sigma(sigma);
         }

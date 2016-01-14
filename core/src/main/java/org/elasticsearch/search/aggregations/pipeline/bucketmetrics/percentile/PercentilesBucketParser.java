@@ -39,7 +39,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, Map<String, Object> unparsedParams)
+    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams)
             throws ParseException {
 
         double[] percents = null;
@@ -66,7 +66,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
         }
 
         PercentilesBucketPipelineAggregator.Factory factory = new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName,
-                bucketsPaths);
+                bucketsPath);
         if (percents != null) {
             factory.percents(percents);
         }

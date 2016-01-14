@@ -26,7 +26,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -152,16 +153,26 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Delegates to {@link PercolateSourceBuilder#addAggregation(AbstractAggregationBuilder)}
+     * Delegates to
+     * {@link PercolateSourceBuilder#addAggregation(AggregatorFactory)}
      */
-    public PercolateRequestBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
+    public PercolateRequestBuilder addAggregation(AggregatorFactory<?> aggregationBuilder) {
         sourceBuilder().addAggregation(aggregationBuilder);
         return this;
     }
 
     /**
-     * Sets the percolate request definition directly on the request.
-     * This will overwrite any definitions set by any of the delegate methods.
+     * Delegates to
+     * {@link PercolateSourceBuilder#addAggregation(PipelineAggregatorFactory)}
+     */
+    public PercolateRequestBuilder addAggregation(PipelineAggregatorFactory aggregationBuilder) {
+        sourceBuilder().addAggregation(aggregationBuilder);
+        return this;
+    }
+
+    /**
+     * Sets the percolate request definition directly on the request. This will
+     * overwrite any definitions set by any of the delegate methods.
      */
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;

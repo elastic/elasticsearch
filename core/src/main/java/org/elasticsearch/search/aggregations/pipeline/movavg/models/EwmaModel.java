@@ -170,7 +170,7 @@ public class EwmaModel extends MovAvgModel {
 
     public static class EWMAModelBuilder implements MovAvgModelBuilder {
 
-        private Double alpha;
+        private double alpha = DEFAULT_ALPHA;
 
         /**
          * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
@@ -190,12 +190,15 @@ public class EwmaModel extends MovAvgModel {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
-            if (alpha != null) {
-                builder.field("alpha", alpha);
-            }
+            builder.field("alpha", alpha);
 
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public MovAvgModel build() {
+            return new EwmaModel(alpha);
         }
     }
 }

@@ -34,8 +34,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Scrip
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -54,7 +52,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     @Override
     protected SignificantTermsAggregatorFactory createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, ValuesSourceType.ANY, null);
+        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {

@@ -110,11 +110,8 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         out.writeMap(metaData);
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    // NORELEASE remove this method when agg refactor complete
     @Override
     public String getWriteableName() {
         return type;
@@ -129,10 +126,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         return factory;
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        return null;
-    }
+    protected abstract PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -166,21 +160,14 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         return false;
     }
 
-    // NORELEASE make this method abstract when agg refactor complete
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
+    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected int doHashCode() {
-        return 0;
-    }
+    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
@@ -200,10 +187,6 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         return doEquals(obj);
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected boolean doEquals(Object obj) {
-        return true;
-    }
+    protected abstract boolean doEquals(Object obj);
 
 }

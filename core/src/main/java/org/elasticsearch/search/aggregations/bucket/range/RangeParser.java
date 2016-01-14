@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -53,10 +52,13 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected RangeAggregator.Factory<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected RangeAggregator.AbstractFactory<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        RangeAggregator.Factory factory = new RangeAggregator.Factory(aggregationName);
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        RangeAggregator.Factory factory = new RangeAggregator.Factory(aggregationName, ranges);
+        for (Range range : ranges) {
+            factory.addRange(range);
+        }
         Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
         if (keyed != null) {
             factory.keyed(keyed);
@@ -92,7 +94,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new RangeAggregator.Factory(null, Collections.emptyList()) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new RangeAggregator.Factory(null);
     }
 }

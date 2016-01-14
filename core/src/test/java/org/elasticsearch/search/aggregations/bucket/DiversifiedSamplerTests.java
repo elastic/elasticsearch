@@ -23,14 +23,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class DiversifiedSamplerTests extends BaseAggregationTestCase<SamplerAggregator.DiversifiedFactory> {
 
     @Override
     protected final SamplerAggregator.DiversifiedFactory createTestAggregatorFactory() {
-        SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory("foo", ValuesSourceType.ANY,
-                null);
+        SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory("foo");
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

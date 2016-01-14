@@ -35,9 +35,8 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
     @Override
     protected Factory createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        String[] bucketsPaths = new String[1];
-        bucketsPaths[0] = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPaths);
+        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        Factory factory = new Factory(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }
@@ -47,40 +46,40 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         if (randomBoolean()) {
             switch (randomInt(4)) {
             case 0:
-                factory.model(new SimpleModel());
+                factory.modelBuilder(new SimpleModel.SimpleModelBuilder());
                 factory.window(randomIntBetween(1, 100));
                 break;
             case 1:
-                factory.model(new LinearModel());
+                factory.modelBuilder(new LinearModel.LinearModelBuilder());
                 factory.window(randomIntBetween(1, 100));
                 break;
             case 2:
                 if (randomBoolean()) {
-                    factory.model(new EwmaModel());
+                    factory.modelBuilder(new EwmaModel.EWMAModelBuilder());
                     factory.window(randomIntBetween(1, 100));
                 } else {
-                    factory.model(new EwmaModel(randomDouble()));
+                    factory.modelBuilder(new EwmaModel.EWMAModelBuilder().alpha(randomDouble()));
                     factory.window(randomIntBetween(1, 100));
                 }
                 break;
             case 3:
                 if (randomBoolean()) {
-                    factory.model(new HoltLinearModel());
+                    factory.modelBuilder(new HoltLinearModel.HoltLinearModelBuilder());
                     factory.window(randomIntBetween(1, 100));
                 } else {
-                    factory.model(new HoltLinearModel(randomDouble(), randomDouble()));
+                    factory.modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(randomDouble()).beta(randomDouble()));
                     factory.window(randomIntBetween(1, 100));
                 }
                 break;
             case 4:
             default:
                 if (randomBoolean()) {
-                    factory.model(new HoltWintersModel());
+                    factory.modelBuilder(new HoltWintersModel.HoltWintersModelBuilder());
                     factory.window(randomIntBetween(2, 100));
                 } else {
                     int period = randomIntBetween(1, 100);
-                    factory.model(new HoltWintersModel(randomDouble(), randomDouble(), randomDouble(), period,
-                            randomFrom(SeasonalityType.values()), randomBoolean()));
+                    factory.modelBuilder(new HoltWintersModel.HoltWintersModelBuilder().alpha(randomDouble()).beta(randomDouble())
+                            .gamma(randomDouble()).period(period).seasonalityType(randomFrom(SeasonalityType.values())).pad(randomBoolean()));
                     factory.window(randomIntBetween(2 * period, 200 * period));
                 }
                 break;

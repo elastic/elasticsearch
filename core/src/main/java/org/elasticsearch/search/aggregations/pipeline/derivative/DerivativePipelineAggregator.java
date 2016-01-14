@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -163,7 +164,11 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private String units;
 
-        public Factory(String name, String[] bucketsPaths) {
+        public Factory(String name, String bucketsPath) {
+            this(name, new String[] { bucketsPath });
+        }
+
+        private Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
@@ -185,12 +190,17 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             return gapPolicy;
         }
 
-        public Factory units(String units) {
+        public Factory unit(String units) {
             this.units = units;
             return this;
         }
 
-        public String units() {
+        public Factory unit(DateHistogramInterval units) {
+            this.units = units.toString();
+            return this;
+        }
+
+        public String unit() {
             return units;
         }
 

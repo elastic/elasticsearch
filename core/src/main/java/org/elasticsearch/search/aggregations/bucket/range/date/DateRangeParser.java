@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -47,8 +46,11 @@ public class DateRangeParser extends RangeParser {
     @Override
     protected DateRangeAggregatorFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        DateRangeAggregatorFactory factory = new DateRangeAggregatorFactory(aggregationName);
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        DateRangeAggregatorFactory factory = new DateRangeAggregatorFactory(aggregationName, ranges);
+        for (Range range : ranges) {
+            factory.addRange(range);
+        }
         Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
         if (keyed != null) {
             factory.keyed(keyed);
@@ -57,7 +59,7 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new DateRangeAggregatorFactory(null, Collections.emptyList()) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new DateRangeAggregatorFactory(null);
     }
 }

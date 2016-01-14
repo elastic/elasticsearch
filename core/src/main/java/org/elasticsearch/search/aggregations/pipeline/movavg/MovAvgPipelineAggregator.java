@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -287,7 +288,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         private int predict = 0;
         private Boolean minimize;
 
-        public Factory(String name, String[] bucketsPaths) {
+        public Factory(String name, String bucketsPath) {
+            this(name, new String[] { bucketsPath });
+        }
+
+        private Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
@@ -358,6 +363,18 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param model
          *            A MovAvgModel which has been prepopulated with settings
          */
+        public Factory modelBuilder(MovAvgModelBuilder model) {
+            this.model = model.build();
+            return this;
+        }
+
+        /**
+         * Sets a MovAvgModel for the Moving Average. The model is used to
+         * define what type of moving average you want to use on the series
+         *
+         * @param model
+         *            A MovAvgModel which has been prepopulated with settings
+         */
         public Factory model(MovAvgModel model) {
             this.model = model;
             return this;
@@ -381,6 +398,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          *            Number of predictions to make
          */
         public Factory predict(int predict) {
+            if (predict <= 0) {
+                throw new IllegalArgumentException("predict must be greater than 0. Found [" + predict + "] in [" + name + "]");
+            }
             this.predict = predict;
             return this;
         }

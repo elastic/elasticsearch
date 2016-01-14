@@ -38,7 +38,8 @@ public class PercentageScore extends SignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("percentage");
 
-    private PercentageScore() {}
+    public PercentageScore() {
+    }
 
     @Override
     public String getWriteableName() {

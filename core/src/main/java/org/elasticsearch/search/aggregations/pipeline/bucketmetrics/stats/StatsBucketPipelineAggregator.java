@@ -97,7 +97,11 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
 
     public static class Factory extends BucketMetricsFactory<Factory> {
 
-        public Factory(String name, String[] bucketsPaths) {
+        public Factory(String name, String bucketsPath) {
+            this(name, new String[] { bucketsPath });
+        }
+
+        private Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 

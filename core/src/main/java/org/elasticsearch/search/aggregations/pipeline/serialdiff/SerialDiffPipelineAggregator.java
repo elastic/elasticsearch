@@ -151,7 +151,11 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private int lag = 1;
 
-        public Factory(String name, String[] bucketsPaths) {
+        public Factory(String name, String bucketsPath) {
+            this(name, new String[] { bucketsPath });
+        }
+
+        private Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 

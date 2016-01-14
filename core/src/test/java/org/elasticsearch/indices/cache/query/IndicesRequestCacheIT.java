@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.util.List;
 
@@ -50,15 +51,19 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
         final SearchResponse r1 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+                .addAggregation(dateHistogram("histo").field("f").timeZone(DateTimeZone.forID("+01:00")).minDocCount(0)
+                        .dateHistogramInterval(DateHistogramInterval.MONTH))
+                .get();
         assertSearchResponse(r1);
 
         // The cached is actually used
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
 
         for (int i = 0; i < 10; ++i) {
-            final SearchResponse r2 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+            final SearchResponse r2 = client().prepareSearch("index").setSize(0)
+                    .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
+                            .timeZone(DateTimeZone.forID("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
+                    .get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");

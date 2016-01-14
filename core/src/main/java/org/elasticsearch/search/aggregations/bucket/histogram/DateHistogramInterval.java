@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The interval the date histogram is based on.
@@ -72,6 +73,23 @@ public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
     @Override
     public String toString() {
         return expression;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(expression);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        DateHistogramInterval other = (DateHistogramInterval) obj;
+        return Objects.equals(expression, other.expression);
     }
 
     @Override

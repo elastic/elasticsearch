@@ -66,8 +66,8 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new GeoBoundsAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new GeoBoundsAggregator.Factory(null);
     }
 
 }

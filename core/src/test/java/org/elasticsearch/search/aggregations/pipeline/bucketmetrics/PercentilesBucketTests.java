@@ -25,8 +25,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.P
 public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregator.Factory> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String[] bucketsPaths) {
-        Factory factory = new Factory(name, bucketsPaths);
+    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        Factory factory = new Factory(name, bucketsPath);
         if (randomBoolean()) {
             int numPercents = randomIntBetween(1, 20);
             double[] percents = new double[numPercents];

@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.FieldsParseElement;
@@ -206,8 +205,8 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new TopHitsAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new TopHitsAggregator.Factory(null);
     }
 
 }

@@ -29,9 +29,8 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
     @Override
     protected Factory createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        String[] bucketsPaths = new String[1];
-        bucketsPaths[0] = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPaths);
+        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        Factory factory = new Factory(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

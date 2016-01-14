@@ -26,7 +26,7 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -112,7 +112,7 @@ public class DateRangeTests extends ESIntegTestCase {
     }
 
     public void testDateMath() throws Exception {
-        DateRangeBuilder rangeBuilder = dateRange("range");
+        DateRangeAggregatorFactory rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {

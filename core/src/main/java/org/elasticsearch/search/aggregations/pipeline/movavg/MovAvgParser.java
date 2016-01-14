@@ -141,7 +141,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
         }
 
-        MovAvgPipelineAggregator.Factory factory = new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
+        MovAvgPipelineAggregator.Factory factory = new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }

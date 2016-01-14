@@ -68,7 +68,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return an empty {@link AggregatorFactory} instance for this parser
          *         that can be used for deserialization
          */
-        AggregatorFactory[] getFactoryPrototypes();
+        AggregatorFactory<?> getFactoryPrototypes();
     }
 
     /**

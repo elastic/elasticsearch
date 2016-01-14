@@ -72,8 +72,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return InternalGeoHashGrid.TYPE.name();
     }
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new GeoGridFactory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new GeoGridFactory(null);
     }
 
     @Override

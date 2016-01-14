@@ -210,7 +210,7 @@ public class HoltLinearModel extends MovAvgModel {
             return false;
         }
         HoltLinearModel other = (HoltLinearModel) obj;
-        return Objects.equals(alpha, other.alpha) 
+        return Objects.equals(alpha, other.alpha)
                 && Objects.equals(beta, other.beta);
     }
 
@@ -235,8 +235,8 @@ public class HoltLinearModel extends MovAvgModel {
     public static class HoltLinearModelBuilder implements MovAvgModelBuilder {
 
 
-        private Double alpha;
-        private Double beta;
+        private double alpha = DEFAULT_ALPHA;
+        private double beta = DEFAULT_BETA;
 
         /**
          * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
@@ -268,17 +268,16 @@ public class HoltLinearModel extends MovAvgModel {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
-
-            if (alpha != null) {
-                builder.field("alpha", alpha);
-            }
-
-            if (beta != null) {
-                builder.field("beta", beta);
-            }
+            builder.field("alpha", alpha);
+            builder.field("beta", beta);
 
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public MovAvgModel build() {
+            return new HoltLinearModel(alpha, beta);
         }
     }
 }

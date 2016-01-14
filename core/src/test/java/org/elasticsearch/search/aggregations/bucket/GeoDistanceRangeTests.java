@@ -27,15 +27,13 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceFactory> {
 
     @Override
     protected GeoDistanceFactory createTestAggregatorFactory() {
         int numRanges = randomIntBetween(1, 10);
-        List<Range> ranges = new ArrayList<>(numRanges);
+        GeoPoint origin = RandomShapeGenerator.randomPoint(getRandom());
+        GeoDistanceFactory factory = new GeoDistanceFactory("foo", origin);
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -45,10 +43,8 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceFa
             double to = randomBoolean() ? Double.POSITIVE_INFINITY
                     : (Double.compare(from, 0) == 0 ? randomIntBetween(0, Integer.MAX_VALUE)
                             : randomIntBetween((int) from, Integer.MAX_VALUE));
-            ranges.add(new Range(key, from, to));
+            factory.addRange(new Range(key, from, to));
         }
-        GeoPoint origin = RandomShapeGenerator.randomPoint(getRandom());
-        GeoDistanceFactory factory = new GeoDistanceFactory("foo", origin, ranges);
         factory.field(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());

@@ -20,9 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
@@ -50,38 +48,28 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
             Double compression, Integer numberOfSignificantValueDigits, Boolean keyed) {
-        if (method == PercentilesMethod.TDIGEST) {
-            TDigestPercentileRanksAggregator.Factory factory = new TDigestPercentileRanksAggregator.Factory(aggregationName);
-            if (keys != null) {
-                factory.values(keys);
-            }
-            if (compression != null) {
-                factory.compression(compression);
-            }
-            if (keyed != null) {
-                factory.keyed(keyed);
-            }
-            return factory;
-        } else if (method == PercentilesMethod.HDR) {
-            HDRPercentileRanksAggregator.Factory factory = new HDRPercentileRanksAggregator.Factory(aggregationName);
-            if (keys != null) {
-                factory.values(keys);
-            }
-            if (numberOfSignificantValueDigits != null) {
-                factory.numberOfSignificantValueDigits(numberOfSignificantValueDigits);
-            }
-            if (keyed != null) {
-                factory.keyed(keyed);
-            }
-            return factory;
-        } else {
-            throw new AssertionError();
+        PercentileRanksAggregatorFactory factory = new PercentileRanksAggregatorFactory(aggregationName);
+        if (keys != null) {
+            factory.values(keys);
         }
+        if (method != null) {
+            factory.method(method);
+        }
+        if (compression != null) {
+            factory.compression(compression);
+        }
+        if (numberOfSignificantValueDigits != null) {
+            factory.numberOfSignificantValueDigits(numberOfSignificantValueDigits);
+        }
+        if (keyed != null) {
+            factory.keyed(keyed);
+        }
+        return factory;
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new TDigestPercentileRanksAggregator.Factory(null), new HDRPercentileRanksAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new PercentileRanksAggregatorFactory(null);
     }
 
 }

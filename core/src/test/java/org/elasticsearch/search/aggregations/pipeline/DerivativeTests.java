@@ -29,9 +29,8 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
     @Override
     protected Factory createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        String[] bucketsPaths = new String[1];
-        bucketsPaths[0] = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPaths);
+        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        Factory factory = new Factory(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }
@@ -40,9 +39,9 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
-                factory.units(String.valueOf(randomInt()));
+                factory.unit(String.valueOf(randomInt()));
             } else {
-                factory.units(String.valueOf(randomIntBetween(1, 10) + randomFrom("s", "m", "h", "d", "w", "M", "y")));
+                factory.unit(String.valueOf(randomIntBetween(1, 10) + randomFrom("s", "m", "h", "d", "w", "M", "y")));
             }
         }
         return factory;

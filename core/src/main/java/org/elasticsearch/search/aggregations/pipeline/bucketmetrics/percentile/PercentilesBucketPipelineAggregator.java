@@ -128,7 +128,11 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
-        public Factory(String name, String[] bucketsPaths) {
+        public Factory(String name, String bucketsPath) {
+            this(name, new String[] { bucketsPath });
+        }
+
+        private Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 

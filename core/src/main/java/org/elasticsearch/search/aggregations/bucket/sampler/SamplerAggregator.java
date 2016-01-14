@@ -264,8 +264,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
         private String executionHint = null;
 
-        public DiversifiedFactory(String name, ValuesSourceType valueSourceType, ValueType valueType) {
-            super(name, TYPE, valueSourceType, valueType);
+        public DiversifiedFactory(String name) {
+            super(name, TYPE, ValuesSourceType.ANY, null);
         }
 
         /**
@@ -372,7 +372,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         @Override
         protected DiversifiedFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            DiversifiedFactory factory = new DiversifiedFactory(name, valuesSourceType, targetValueType);
+            DiversifiedFactory factory = new DiversifiedFactory(name);
             factory.shardSize = in.readVInt();
             factory.maxDocsPerValue = in.readVInt();
             factory.executionHint = in.readOptionalString();

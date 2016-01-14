@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
@@ -96,6 +97,30 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return (AF) this;
     }
 
+    /**
+     * Add a sub aggregation to this aggregation.
+     */
+    @SuppressWarnings("unchecked")
+    public AF subAggregation(AggregatorFactory<?> aggregation) {
+        AggregatorFactories.Builder builder = AggregatorFactories.builder();
+        builder.addAggregators(factories);
+        builder.addAggregator(aggregation);
+        factories = builder.build();
+        return (AF) this;
+    }
+
+    /**
+     * Add a sub aggregation to this aggregation.
+     */
+    @SuppressWarnings("unchecked")
+    public AF subAggregation(PipelineAggregatorFactory aggregation) {
+        AggregatorFactories.Builder builder = AggregatorFactories.builder();
+        builder.addAggregators(factories);
+        builder.addPipelineAggregator(aggregation);
+        factories = builder.build();
+        return (AF) this;
+    }
+
     public String name() {
         return name;
     }
@@ -134,8 +159,9 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     public void doValidate() {
     }
 
-    public void setMetaData(Map<String, Object> metaData) {
+    public AF setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
+        return (AF) this;
     }
 
     @Override
@@ -148,10 +174,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return factory;
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected AggregatorFactory<AF> doReadFrom(String name, StreamInput in) throws IOException {
-        return null;
-    }
+    protected abstract AggregatorFactory<AF> doReadFrom(String name, StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
@@ -161,9 +184,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         out.writeMap(metaData);
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -175,7 +196,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         builder.field(type.name());
         internalXContent(builder, params);
 
-        if (factories != null && factories.count() > 0) {
+        if (factories != null && (factories.countAggregators() + factories.countPipelineAggregators()) > 0) {
             builder.field("aggregations");
             factories.toXContent(builder, params);
 
@@ -184,10 +205,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return builder.endObject();
     }
 
-    // NORELEASE make this method abstract when agg refactor complete
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
+    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
     public String getWriteableName() {
@@ -327,12 +345,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return Objects.hash(factories, metaData, name, type, doHashCode());
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected int doHashCode() {
-        throw new UnsupportedOperationException(
-                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
-    }
+    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
@@ -352,11 +365,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return doEquals(obj);
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected boolean doEquals(Object obj) {
-        throw new UnsupportedOperationException(
-                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
-    }
+    protected abstract boolean doEquals(Object obj);
 
 }

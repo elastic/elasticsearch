@@ -125,6 +125,11 @@ public class SimpleModel extends MovAvgModel {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             return builder;
         }
+
+        @Override
+        public MovAvgModel build() {
+            return new SimpleModel();
+        }
     }
 
     @Override

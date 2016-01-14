@@ -21,27 +21,27 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentilesAggregator;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentilesAggregator.Factory;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorFactory;
 
-public class TDigestPercentilesTests extends BaseAggregationTestCase<TDigestPercentilesAggregator.Factory> {
+public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRanksAggregatorFactory> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
-        Factory factory = new Factory(randomAsciiOfLengthBetween(1, 20));
+    protected PercentileRanksAggregatorFactory createTestAggregatorFactory() {
+        PercentileRanksAggregatorFactory factory = new PercentileRanksAggregatorFactory(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }
+        int valuesSize = randomIntBetween(1, 20);
+        double[] values = new double[valuesSize];
+        for (int i = 0; i < valuesSize; i++) {
+            values[i] = randomDouble() * 100;
+        }
+        factory.values(values);
         if (randomBoolean()) {
-            int percentsSize = randomIntBetween(1, 20);
-            double[] percents = new double[percentsSize];
-            for (int i = 0; i < percentsSize; i++) {
-                percents[i] = randomDouble() * 100;
-            }
-            factory.percents(percents);
+            factory.numberOfSignificantValueDigits(randomIntBetween(0, 5));
         }
         if (randomBoolean()) {
-            factory.compression(randomDoubleBetween(10, 40000, true));
+            factory.compression(randomIntBetween(1, 50000));
         }
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
@@ -59,9 +59,6 @@ public class TDigestPercentilesTests extends BaseAggregationTestCase<TDigestPerc
         }
         if (randomBoolean()) {
             factory.missing("MISSING");
-        }
-        if (randomBoolean()) {
-            factory.format("###.00");
         }
         return factory;
     }

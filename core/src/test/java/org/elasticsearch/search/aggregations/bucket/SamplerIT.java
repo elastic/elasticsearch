@@ -23,11 +23,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -40,6 +38,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -124,8 +124,8 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testSimpleSampler() throws Exception {
-        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
-        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        SamplerAggregator.Factory sampleAgg = sampler("sample").shardSize(100);
+        sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).execute().actionGet();
         assertSearchResponse(response);
@@ -141,8 +141,8 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testUnmappedChildAggNoDiversity() throws Exception {
-        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
-        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        SamplerAggregator.Factory sampleAgg = sampler("sample").shardSize(100);
+        sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy"))
@@ -158,8 +158,8 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmappedChildAggNoDiversity() throws Exception {
-        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
-        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        SamplerAggregator.Factory sampleAgg = sampler("sample").shardSize(100);
+        sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy"))

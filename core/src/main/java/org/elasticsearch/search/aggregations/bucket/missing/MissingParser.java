@@ -53,7 +53,7 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new MissingAggregator.Factory(null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new MissingAggregator.Factory(null, null);
     }
 }

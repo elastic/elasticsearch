@@ -59,6 +59,11 @@ public class ExtendedBounds implements ToXContent {
         this.max = max;
     }
 
+    public ExtendedBounds(String minAsStr, String maxAsStr) {
+        this.minAsStr = minAsStr;
+        this.maxAsStr = maxAsStr;
+    }
+
     void processAndValidate(String aggName, SearchContext context, ValueParser parser) {
         assert parser != null;
         if (minAsStr != null) {
@@ -90,6 +95,8 @@ public class ExtendedBounds implements ToXContent {
         } else {
             out.writeBoolean(false);
         }
+        out.writeOptionalString(minAsStr);
+        out.writeOptionalString(maxAsStr);
     }
 
     static ExtendedBounds readFrom(StreamInput in) throws IOException {
@@ -100,6 +107,8 @@ public class ExtendedBounds implements ToXContent {
         if (in.readBoolean()) {
             bounds.max = in.readLong();
         }
+        bounds.minAsStr = in.readOptionalString();
+        bounds.maxAsStr = in.readOptionalString();
         return bounds;
     }
 
@@ -139,9 +148,13 @@ public class ExtendedBounds implements ToXContent {
         builder.startObject(EXTENDED_BOUNDS_FIELD.getPreferredName());
         if (min != null) {
             builder.field(MIN_FIELD.getPreferredName(), min);
+        } else {
+            builder.field(MIN_FIELD.getPreferredName(), minAsStr);
         }
         if (max != null) {
             builder.field(MAX_FIELD.getPreferredName(), max);
+        } else {
+            builder.field(MAX_FIELD.getPreferredName(), maxAsStr);
         }
         builder.endObject();
         return builder;

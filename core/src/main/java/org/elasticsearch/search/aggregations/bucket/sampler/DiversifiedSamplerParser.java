@@ -47,8 +47,7 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
     @Override
     protected SamplerAggregator.DiversifiedFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory(aggregationName, valuesSourceType,
-                targetValueType);
+        SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory(aggregationName);
         Integer shardSize = (Integer) otherOptions.get(SamplerAggregator.SHARD_SIZE_FIELD);
         if (shardSize != null) {
             factory.shardSize(shardSize);
@@ -88,8 +87,8 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new SamplerAggregator.DiversifiedFactory(null, null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new SamplerAggregator.DiversifiedFactory(null);
     }
 
 }

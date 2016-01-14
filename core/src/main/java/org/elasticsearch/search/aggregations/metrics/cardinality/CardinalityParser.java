@@ -72,7 +72,7 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new CardinalityAggregatorFactory(null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new CardinalityAggregatorFactory(null, null);
     }
 }

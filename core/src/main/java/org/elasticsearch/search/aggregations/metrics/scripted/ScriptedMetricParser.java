@@ -151,8 +151,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new ScriptedMetricAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new ScriptedMetricAggregator.Factory(null);
     }
 
 }

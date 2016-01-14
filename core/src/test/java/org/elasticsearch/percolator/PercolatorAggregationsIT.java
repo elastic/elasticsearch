@@ -165,7 +165,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a").setBucketsPaths("a>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a", "a>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, expectedCount[i % numUniqueQueries]);
@@ -245,7 +245,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms").setBucketsPaths("terms>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms", "terms>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, numQueries);

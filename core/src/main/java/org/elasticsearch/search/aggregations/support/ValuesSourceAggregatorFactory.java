@@ -59,10 +59,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     public static abstract class LeafOnly<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
             extends ValuesSourceAggregatorFactory<VS, AF> {
 
-        protected LeafOnly(String name, Type type, ValuesSourceParser.Input<VS> input) {
-            super(name, type, input);
-        }
-
         protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, type, valuesSourceType, targetValueType);
         }
@@ -82,25 +78,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     private Object missing = null;
     private DateTimeZone timeZone;
     protected ValuesSourceConfig<VS> config;
-
-    // NORELEASE remove this method when aggs refactoring complete
-    /**
-     * This constructor remains here until all subclasses have been moved to the
-     * new constructor. This also means moving from using
-     * {@link ValuesSourceParser} to using {@link AbstractValuesSourceParser}.
-     */
-    @Deprecated
-    protected ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceParser.Input<VS> input) {
-        super(name, type);
-        this.valuesSourceType = input.valuesSourceType;
-        this.targetValueType = input.targetValueType;
-        this.field = input.field;
-        this.script = input.script;
-        this.valueType = input.valueType;
-        this.format = input.format;
-        this.missing = input.missing;
-        this.timeZone = input.timezone;
-    }
 
     protected ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name, type);
@@ -379,9 +356,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         }
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @Override
     protected final ValuesSourceAggregatorFactory<VS, AF> doReadFrom(String name, StreamInput in) throws IOException {
@@ -406,14 +381,11 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         return factory;
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected ValuesSourceAggregatorFactory<VS, AF> innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
-            StreamInput in) throws IOException {
-        return null;
-    }
+    protected abstract ValuesSourceAggregatorFactory<VS, AF> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, StreamInput in) throws IOException;
 
     @Override
-    protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (field != null) {
             builder.field("field", field);
@@ -430,15 +402,15 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
+        if (valueType != null) {
+            builder.field("value_type", valueType.getPreferredName());
+        }
         doXContentBody(builder, params);
         builder.endObject();
         return builder;
     }
 
-    // NORELEASE make this abstract when agg refactor complete
-    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
+    protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
     protected final int doHashCode() {
@@ -446,12 +418,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
                 innerHashCode());
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected int innerHashCode() {
-        throw new UnsupportedOperationException(
-                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
-    }
+    protected abstract int innerHashCode();
 
     @Override
     protected final boolean doEquals(Object obj) {
@@ -475,10 +442,5 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         return innerEquals(obj);
     }
 
-    // NORELEASE make this method abstract here when agg refactor complete (so
-    // that subclasses are forced to implement it)
-    protected boolean innerEquals(Object obj) {
-        throw new UnsupportedOperationException(
-                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
-    }
+    protected abstract boolean innerEquals(Object obj);
 }

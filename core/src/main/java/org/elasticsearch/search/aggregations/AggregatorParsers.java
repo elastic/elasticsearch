@@ -60,23 +60,15 @@ public class AggregatorParsers {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
-            AggregatorFactory[] factoryPrototypes = parser.getFactoryPrototypes();
-            // NORELEASE remove this check when agg refactoring complete
-            if (factoryPrototypes != null) {
-                for (AggregatorFactory factoryPrototype : factoryPrototypes) {
-                    namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
-                }
-            }
+            AggregatorFactory<?> factoryPrototype = parser.getFactoryPrototypes();
+            namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
             PipelineAggregatorFactory factoryPrototype = parser.getFactoryPrototype();
-            // NORELEASE remove this check when agg refactoring complete
-            if (factoryPrototype != null) {
-                namedWriteableRegistry.registerPrototype(PipelineAggregatorFactory.class, factoryPrototype);
-            }
+            namedWriteableRegistry.registerPrototype(PipelineAggregatorFactory.class, factoryPrototype);
         }
         this.pipelineAggregatorParsers = unmodifiableMap(pipelineAggregatorParsersBuilder);
     }

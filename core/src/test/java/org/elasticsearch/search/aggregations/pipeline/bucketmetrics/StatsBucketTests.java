@@ -25,8 +25,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsB
 public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketPipelineAggregator.Factory> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String[] bucketsPaths) {
-        return new Factory(name, bucketsPaths);
+    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        return new Factory(name, bucketsPath);
     }
 
 

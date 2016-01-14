@@ -35,17 +35,19 @@ import java.io.IOException;
 public enum ValueType implements Writeable<ValueType> {
 
     @Deprecated
-    ANY((byte) 0, "any", ValuesSourceType.ANY, IndexFieldData.class, ValueFormat.RAW), STRING((byte) 1, "string", ValuesSourceType.BYTES,
+    ANY((byte) 0, "any", "any", ValuesSourceType.ANY, IndexFieldData.class, ValueFormat.RAW), 
+    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
             IndexFieldData.class,
             ValueFormat.RAW),
- LONG((byte) 2, "byte|short|integer|long", ValuesSourceType.NUMERIC,
+    LONG((byte) 2, "byte|short|integer|long", "long",
+                    ValuesSourceType.NUMERIC,
             IndexNumericFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    DOUBLE((byte) 3, "float|double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
+    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
@@ -56,31 +58,31 @@ public enum ValueType implements Writeable<ValueType> {
             return true;
         }
     },
-    NUMBER((byte) 4, "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
+    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    DATE((byte) 5, "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.DateTime.DEFAULT) {
+    DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.DateTime.DEFAULT) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    IP((byte) 6, "ip", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.IPv4) {
+    IP((byte) 6, "ip", "ip", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.IPv4) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    NUMERIC((byte) 7, "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
+    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    GEOPOINT((byte) 8, "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, ValueFormat.RAW) {
+    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isGeoPoint() {
             return true;
@@ -92,11 +94,13 @@ public enum ValueType implements Writeable<ValueType> {
     final Class<? extends IndexFieldData> fieldDataType;
     final ValueFormat defaultFormat;
     private final byte id;
+    private String preferredName;
 
-    private ValueType(byte id, String description, ValuesSourceType valuesSourceType, Class<? extends IndexFieldData> fieldDataType,
+    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, Class<? extends IndexFieldData> fieldDataType,
             ValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
+        this.preferredName = preferredName;
         this.valuesSourceType = valuesSourceType;
         this.fieldDataType = fieldDataType;
         this.defaultFormat = defaultFormat;
@@ -106,6 +110,10 @@ public enum ValueType implements Writeable<ValueType> {
         return description;
     }
 
+    public String getPreferredName() {
+        return preferredName;
+    }
+    
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }

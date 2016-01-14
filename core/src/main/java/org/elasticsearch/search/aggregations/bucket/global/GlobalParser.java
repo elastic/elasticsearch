@@ -42,8 +42,8 @@ public class GlobalParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new GlobalAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new GlobalAggregator.Factory(null);
     }
 
 }

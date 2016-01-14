@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -210,7 +211,11 @@ public class FiltersAggregator extends BucketsAggregator {
          * @param filters
          *            the KeyedFilters to use with this aggregation.
          */
-        public Factory(String name, List<KeyedFilter> filters) {
+        public Factory(String name, KeyedFilter... filters) {
+            this(name, Arrays.asList(filters));
+        }
+
+        private Factory(String name, List<KeyedFilter> filters) {
             super(name, InternalFilters.TYPE);
             this.filters = filters;
             this.keyed = true;

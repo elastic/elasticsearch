@@ -33,8 +33,8 @@ public class MinBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, Map<String, Object> unparsedParams) {
-        return new MinBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
+    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams) {
+        return new MinBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPath);
     }
 
     @Override

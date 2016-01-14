@@ -84,7 +84,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        CumulativeSumPipelineAggregator.Factory factory = new CumulativeSumPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
+        CumulativeSumPipelineAggregator.Factory factory = new CumulativeSumPipelineAggregator.Factory(pipelineAggregatorName,
+                bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }

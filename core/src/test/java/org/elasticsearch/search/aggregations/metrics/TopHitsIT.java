@@ -690,8 +690,7 @@ public class TopHitsIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .setQuery(matchQuery("title", "title"))
                 .addAggregation(
-                        nested("to-comments")
-                                .path("comments")
+                        nested("to-comments", "comments")
                                 .subAggregation(
                                         terms("users")
                                                 .field("comments.user")
@@ -741,10 +740,9 @@ public class TopHitsIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .setQuery(matchQuery("title", "title"))
                 .addAggregation(
-                        nested("to-comments")
-                                .path("comments")
+                        nested("to-comments", "comments")
                                 .subAggregation(
-                                    nested("to-reviewers").path("comments.reviewers").subAggregation(
+                                    nested("to-reviewers", "comments.reviewers").subAggregation(
                                             // Also need to sort on _doc because there are two reviewers with the same name
                                             topHits("top-reviewers").sort("comments.reviewers.name", SortOrder.ASC).sort("_doc", SortOrder.DESC).size(7)
                                     )
@@ -848,7 +846,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .prepareSearch("articles")
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
-                        nested("to-comments").path("comments").subAggregation(
+                        nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
                                         .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("message", null)
@@ -897,8 +895,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .interval(5)
                                 .order(Histogram.Order.aggregation("to-comments", true))
                                 .subAggregation(
-                                        nested("to-comments")
-                                                .path("comments")
+                                        nested("to-comments", "comments")
                                                 .subAggregation(topHits("comments")
                                                         .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text"))))
                                                         .sort("comments.id", SortOrder.ASC))

@@ -96,10 +96,27 @@ class InternalOrder extends Terms.Order {
     public static boolean isCountDesc(Terms.Order order) {
         if (order == COUNT_DESC) {
             return true;
-        }else if (order instanceof CompoundOrder) {
+        } else if (order instanceof CompoundOrder) {
             // check if its a compound order with count desc and the tie breaker (term asc)
             CompoundOrder compoundOrder = (CompoundOrder) order;
             if (compoundOrder.orderElements.size() == 2 && compoundOrder.orderElements.get(0) == COUNT_DESC && compoundOrder.orderElements.get(1) == TERM_ASC) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isTermOrder(Terms.Order order) {
+        if (order == TERM_ASC) {
+            return true;
+        } else if (order == TERM_DESC) {
+            return true;
+        } else if (order instanceof CompoundOrder) {
+            // check if its a compound order with only a single element ordering
+            // by term
+            CompoundOrder compoundOrder = (CompoundOrder) order;
+            if (compoundOrder.orderElements.size() == 1 && compoundOrder.orderElements.get(0) == TERM_ASC
+                    || compoundOrder.orderElements.get(0) == TERM_DESC) {
                 return true;
             }
         }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms.support;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
@@ -226,6 +227,10 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         this.excludeValues = null;
     }
 
+    public IncludeExclude(String include, String exclude) {
+        this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));
+    }
+
     /**
      * @param includeValues   The terms to be included
      * @param excludeValues   The terms to be excluded
@@ -238,6 +243,51 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         this.exclude = null;
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
+    }
+
+    public IncludeExclude(String[] includeValues, String[] excludeValues) {
+        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
+    }
+
+    public IncludeExclude(double[] includeValues, double[] excludeValues) {
+        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
+    }
+
+    public IncludeExclude(long[] includeValues, long[] excludeValues) {
+        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
+    }
+
+    private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
+        SortedSet<BytesRef> returnSet = null;
+        if (values != null) {
+            returnSet = new TreeSet<>();
+            for (String value : values) {
+                returnSet.add(new BytesRef(value));
+            }
+        }
+        return returnSet;
+    }
+
+    private static SortedSet<BytesRef> convertToBytesRefSet(double[] values) {
+        SortedSet<BytesRef> returnSet = null;
+        if (values != null) {
+            returnSet = new TreeSet<>();
+            for (double value : values) {
+                returnSet.add(new BytesRef(String.valueOf(value)));
+            }
+        }
+        return returnSet;
+    }
+
+    private static SortedSet<BytesRef> convertToBytesRefSet(long[] values) {
+        SortedSet<BytesRef> returnSet = null;
+        if (values != null) {
+            returnSet = new TreeSet<>();
+            for (long value : values) {
+                returnSet.add(new BytesRef(String.valueOf(value)));
+            }
+        }
+        return returnSet;
     }
 
     /**

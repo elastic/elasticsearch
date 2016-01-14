@@ -66,7 +66,7 @@ public class NestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new NestedAggregator.Factory(null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new NestedAggregator.Factory(null, null);
     }
 }

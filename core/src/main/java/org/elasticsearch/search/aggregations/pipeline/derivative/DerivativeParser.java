@@ -91,7 +91,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        DerivativePipelineAggregator.Factory factory = new DerivativePipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
+        DerivativePipelineAggregator.Factory factory = new DerivativePipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -99,8 +99,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
             factory.gapPolicy(gapPolicy);
         }
         if (units != null) {
-            factory.units(units);
-                }
+            factory.unit(units);
+        }
         return factory;
     }
 

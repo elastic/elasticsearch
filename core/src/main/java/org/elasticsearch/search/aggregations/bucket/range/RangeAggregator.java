@@ -75,8 +75,8 @@ public class RangeAggregator extends BucketsAggregator {
         protected double to = Double.POSITIVE_INFINITY;
         protected String toAsStr;
 
-        public Range(String key, double from, double to) {
-            this(key, from, null, to, null);
+        public Range(String key, Double from, Double to) {
+            this(key, from == null ? Double.NEGATIVE_INFINITY : from, null, to == null ? Double.POSITIVE_INFINITY : to, null);
         }
 
         public Range(String key, String from, String to) {
@@ -396,20 +396,25 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
+    public static abstract class AbstractFactory<AF extends AbstractFactory<AF, R>, R extends Range>
+            extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
 
         private final InternalRange.Factory rangeFactory;
-        private final List<? extends Range> ranges;
+        private List<R> ranges = new ArrayList<>();
         private boolean keyed = false;
 
-        public Factory(String name, List<? extends Range> ranges) {
-            this(name, InternalRange.FACTORY, ranges);
-        }
-
-        protected Factory(String name, InternalRange.Factory rangeFactory, List<? extends Range> ranges) {
+        protected AbstractFactory(String name, InternalRange.Factory rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
             this.rangeFactory = rangeFactory;
-            this.ranges = ranges;
+        }
+
+        public AF addRange(R range) {
+            ranges.add(range);
+            return (AF) this;
+        }
+
+        public List<R> ranges() {
+            return ranges;
         }
 
         public AF keyed(boolean keyed) {
@@ -443,19 +448,12 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         protected AF innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            Factory<AF> factory = createFactoryFromStream(name, in);
+            AbstractFactory<AF, R> factory = createFactoryFromStream(name, in);
             factory.keyed = in.readBoolean();
             return (AF) factory;
         }
 
-        protected Factory<AF> createFactoryFromStream(String name, StreamInput in) throws IOException {
-            int size = in.readVInt();
-            List<Range> ranges = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                ranges.add(Range.PROTOTYPE.readFrom(in));
-            }
-            return new Factory<AF>(name, ranges);
-        }
+        protected abstract AbstractFactory<AF, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
 
         @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
@@ -473,9 +471,92 @@ public class RangeAggregator extends BucketsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            Factory other = (Factory) obj;
+            AbstractFactory<AF, R> other = (AbstractFactory<AF, R>) obj;
             return Objects.equals(ranges, other.ranges)
                     && Objects.equals(keyed, other.keyed);
+        }
+    }
+
+    public static class Factory extends AbstractFactory<Factory, Range> {
+
+        public Factory(String name) {
+            super(name, InternalRange.FACTORY);
+        }
+
+        /**
+         * Add a new range to this aggregation.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param from
+         *            the lower bound on the distances, inclusive
+         * @param to
+         *            the upper bound on the distances, exclusive
+         */
+        public Factory addRange(String key, double from, double to) {
+            addRange(new Range(key, from, to));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addRange(String, double, double)} but the key will be
+         * automatically generated based on <code>from</code> and
+         * <code>to</code>.
+         */
+        public Factory addRange(double from, double to) {
+            return addRange(null, from, to);
+        }
+
+        /**
+         * Add a new range with no lower bound.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param to
+         *            the upper bound on the distances, exclusive
+         */
+        public Factory addUnboundedTo(String key, double to) {
+            addRange(new Range(key, null, to));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addUnboundedTo(String, double)} but the key will be
+         * computed automatically.
+         */
+        public Factory addUnboundedTo(double to) {
+            return addUnboundedTo(null, to);
+        }
+
+        /**
+         * Add a new range with no upper bound.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param from
+         *            the lower bound on the distances, inclusive
+         */
+        public Factory addUnboundedFrom(String key, double from) {
+            addRange(new Range(key, from, null));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+         * computed automatically.
+         */
+        public Factory addUnboundedFrom(double from) {
+            return addUnboundedFrom(null, from);
+        }
+
+        @Override
+        protected Factory createFactoryFromStream(String name, StreamInput in) throws IOException {
+            int size = in.readVInt();
+            Factory factory = new Factory(name);
+            for (int i = 0; i < size; i++) {
+                factory.addRange(Range.PROTOTYPE.readFrom(in));
+            }
+            return factory;
         }
     }
 

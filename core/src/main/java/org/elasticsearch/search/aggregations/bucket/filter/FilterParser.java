@@ -52,8 +52,8 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new FilterAggregator.Factory(null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new FilterAggregator.Factory(null, null);
     }
 
 }

@@ -30,11 +30,13 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -289,8 +291,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
-                        .include(includes)
-                        .exclude(excludes)
+                        .includeExclude(new IncludeExclude(includes, excludes))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
         assertSearchResponse(response);
@@ -706,7 +707,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
-                        .valueType(Terms.ValueType.LONG)
+                        .valueType(ValueType.LONG)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
@@ -876,7 +877,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter", asc))
-                        .subAggregation(filter("filter").filter(QueryBuilders.matchAllQuery()))
+.subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
                 ).execute().actionGet();
 
 
@@ -913,8 +914,8 @@ public class LongTermsTests extends AbstractTermsTestCase {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>filter2>max", asc))
-                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
-                                .subAggregation(filter("filter2").filter(QueryBuilders.matchAllQuery())
+                .subAggregation(filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
+                        filter("filter2", QueryBuilders.matchAllQuery())
                                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 ).execute().actionGet();
 

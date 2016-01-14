@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -232,16 +233,14 @@ public class SerialDiffIT extends ESIntegTestCase {
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .extendedBounds(new ExtendedBounds(0L, (long) (interval * (numBuckets - 1))))
                                 .subAggregation(metric)
-                                .subAggregation(diff("diff_counts")
+                                .subAggregation(diff("diff_counts", "_count")
                                         .lag(lag)
-                                        .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("_count"))
-                                .subAggregation(diff("diff_values")
+                                        .gapPolicy(gapPolicy))
+                                .subAggregation(diff("diff_values", "the_metric")
                                         .lag(lag)
-                                        .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_metric"))
+                                        .gapPolicy(gapPolicy))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -281,12 +280,11 @@ public class SerialDiffIT extends ESIntegTestCase {
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .extendedBounds(new ExtendedBounds(0L, (long) (interval * (numBuckets - 1))))
                                 .subAggregation(metric)
-                                .subAggregation(diff("diff_counts")
+                                .subAggregation(diff("diff_counts", "_count")
                                         .lag(-1)
-                                        .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("_count"))
+                                        .gapPolicy(gapPolicy))
                 ).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), is("all shards failed"));

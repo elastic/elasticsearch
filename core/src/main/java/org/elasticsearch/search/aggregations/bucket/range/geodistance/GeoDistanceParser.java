@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,20 +76,20 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
     public static class Range extends RangeAggregator.Range {
 
-        static final Range PROTOTYPE = new Range(null, -1, -1);
+        static final Range PROTOTYPE = new Range(null, null, null);
 
-        public Range(String key, double from, double to) {
+        public Range(String key, Double from, Double to) {
             super(key(key, from, to), from, to);
         }
 
-        private static String key(String key, double from, double to) {
+        private static String key(String key, Double from, Double to) {
             if (key != null) {
                 return key;
             }
             StringBuilder sb = new StringBuilder();
-            sb.append(from == 0 ? "*" : from);
+            sb.append((from == null || from == 0) ? "*" : from);
             sb.append("-");
-            sb.append(Double.isInfinite(to) ? "*" : to);
+            sb.append((to == null || Double.isInfinite(to)) ? "*" : to);
             return sb.toString();
         }
 
@@ -115,8 +114,11 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     protected GeoDistanceFactory createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
+        GeoDistanceFactory factory = new GeoDistanceFactory(aggregationName, origin);
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        GeoDistanceFactory factory = new GeoDistanceFactory(aggregationName, origin, ranges);
+        for (Range range : ranges) {
+            factory.addRange(range);
+        }
         Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
         if (keyed != null) {
             factory.keyed(keyed);
@@ -199,20 +201,94 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
         private final GeoPoint origin;
         private final InternalRange.Factory rangeFactory;
-        private final List<Range> ranges;
+        private List<Range> ranges = new ArrayList<>();
         private DistanceUnit unit = DistanceUnit.DEFAULT;
         private GeoDistance distanceType = GeoDistance.DEFAULT;
         private boolean keyed = false;
 
-        public GeoDistanceFactory(String name, GeoPoint origin, List<Range> ranges) {
-            this(name, origin, InternalGeoDistance.FACTORY, ranges);
+        public GeoDistanceFactory(String name, GeoPoint origin) {
+            this(name, origin, InternalGeoDistance.FACTORY);
         }
 
-        private GeoDistanceFactory(String name, GeoPoint origin, InternalRange.Factory rangeFactory, List<Range> ranges) {
+        private GeoDistanceFactory(String name, GeoPoint origin, InternalRange.Factory rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
             this.origin = origin;
             this.rangeFactory = rangeFactory;
-            this.ranges = ranges;
+        }
+
+        public GeoDistanceFactory addRange(Range range) {
+            ranges.add(range);
+            return this;
+        }
+
+        /**
+         * Add a new range to this aggregation.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param from
+         *            the lower bound on the distances, inclusive
+         * @param to
+         *            the upper bound on the distances, exclusive
+         */
+        public GeoDistanceFactory addRange(String key, double from, double to) {
+            ranges.add(new Range(key, from, to));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addRange(String, double, double)} but the key will be
+         * automatically generated based on <code>from</code> and
+         * <code>to</code>.
+         */
+        public GeoDistanceFactory addRange(double from, double to) {
+            return addRange(null, from, to);
+        }
+
+        /**
+         * Add a new range with no lower bound.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param to
+         *            the upper bound on the distances, exclusive
+         */
+        public GeoDistanceFactory addUnboundedTo(String key, double to) {
+            ranges.add(new Range(key, null, to));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addUnboundedTo(String, double)} but the key will be
+         * computed automatically.
+         */
+        public GeoDistanceFactory addUnboundedTo(double to) {
+            return addUnboundedTo(null, to);
+        }
+
+        /**
+         * Add a new range with no upper bound.
+         *
+         * @param key
+         *            the key to use for this range in the response
+         * @param from
+         *            the lower bound on the distances, inclusive
+         */
+        public GeoDistanceFactory addUnboundedFrom(String key, double from) {
+            addRange(new Range(key, from, null));
+            return this;
+        }
+
+        /**
+         * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+         * computed automatically.
+         */
+        public GeoDistanceFactory addUnboundedFrom(double from) {
+            return addUnboundedFrom(null, from);
+        }
+
+        public List<Range> range() {
+            return ranges;
         }
 
         @Override
@@ -280,11 +356,10 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
                 String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) throws IOException {
             GeoPoint origin = new GeoPoint(in.readDouble(), in.readDouble());
             int size = in.readVInt();
-            List<Range> ranges = new ArrayList<>(size);
+            GeoDistanceFactory factory = new GeoDistanceFactory(name, origin);
             for (int i = 0; i < size; i++) {
-                ranges.add(Range.PROTOTYPE.readFrom(in));
+                factory.addRange(Range.PROTOTYPE.readFrom(in));
             }
-            GeoDistanceFactory factory = new GeoDistanceFactory(name, origin, ranges);
             factory.keyed = in.readBoolean();
             factory.distanceType = GeoDistance.readGeoDistanceFrom(in);
             factory.unit = DistanceUnit.readDistanceUnit(in);
@@ -361,8 +436,8 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new GeoDistanceFactory(null, null, Collections.emptyList()) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new GeoDistanceFactory(null, null);
     }
 
 }

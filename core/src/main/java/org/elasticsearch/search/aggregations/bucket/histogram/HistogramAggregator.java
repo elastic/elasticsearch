@@ -162,7 +162,7 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, Factory<AF>> {
+    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
 
         public static final Factory PROTOTYPE = new Factory("");
 
@@ -286,7 +286,8 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
-            builder.field(Rounding.Interval.INTERVAL_FIELD.getPreferredName(), interval);
+            builder.field(Rounding.Interval.INTERVAL_FIELD.getPreferredName());
+            doXContentInterval(builder, params);
             builder.field(Rounding.OffsetRounding.OFFSET_FIELD.getPreferredName(), offset);
 
             if (order != null) {
@@ -302,6 +303,11 @@ public class HistogramAggregator extends BucketsAggregator {
                 extendedBounds.toXContent(builder, params);
             }
 
+            return builder;
+        }
+
+        protected XContentBuilder doXContentInterval(XContentBuilder builder, Params params) throws IOException {
+            builder.value(interval);
             return builder;
         }
 
@@ -413,6 +419,20 @@ public class HistogramAggregator extends BucketsAggregator {
             return this;
         }
 
+        public DateHistogramFactory offset(String offset) {
+            return offset(parseStringOffset(offset));
+        }
+
+        protected static long parseStringOffset(String offset) {
+            if (offset.charAt(0) == '-') {
+                return -TimeValue.parseTimeValue(offset.substring(1), null, DateHistogramFactory.class.getSimpleName() + ".parseOffset")
+                        .millis();
+            }
+            int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
+            return TimeValue.parseTimeValue(offset.substring(beginIndex), null, DateHistogramFactory.class.getSimpleName() + ".parseOffset")
+                    .millis();
+        }
+
         public DateHistogramInterval dateHistogramInterval() {
             return dateHistogramInterval;
         }
@@ -420,6 +440,7 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected Rounding createRounding() {
             TimeZoneRounding.Builder tzRoundingBuilder;
+            if (dateHistogramInterval != null) {
             DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
             if (dateTimeUnit != null) {
                 tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
@@ -427,6 +448,10 @@ public class HistogramAggregator extends BucketsAggregator {
                 // the interval is a time value?
                 tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass()
                         .getSimpleName() + ".interval"));
+            }
+            } else {
+                // the interval is an integer time value in millis?
+                tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.timeValueMillis(interval()));
             }
             if (timeZone() != null) {
                 tzRoundingBuilder.timeZone(timeZone());
@@ -452,6 +477,16 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         public String getWriteableName() {
             return InternalDateHistogram.TYPE.name();
+        }
+
+        @Override
+        protected XContentBuilder doXContentInterval(XContentBuilder builder, Params params) throws IOException {
+            if (dateHistogramInterval == null) {
+                super.doXContentInterval(builder, params);
+            } else {
+                builder.value(dateHistogramInterval.toString());
+            }
+            return builder;
         }
 
         @Override

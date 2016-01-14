@@ -91,7 +91,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
 
         BucketMetricsFactory factory = null;
         try {
-            factory = buildFactory(pipelineAggregatorName, bucketsPaths, leftover);
+            factory = buildFactory(pipelineAggregatorName, bucketsPaths[0], leftover);
             if (format != null) {
                 factory.format(format);
             }
@@ -112,7 +112,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         return factory;
     }
 
-    protected abstract BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths,
+    protected abstract BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPaths,
             Map<String, Object> unparsedParams) throws ParseException;
 
 }

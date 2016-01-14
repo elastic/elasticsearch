@@ -38,7 +38,8 @@ public class JLHScore extends SignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("jlh");
 
-    private JLHScore() {}
+    public JLHScore() {
+    }
 
     @Override
     public String getWriteableName() {
@@ -112,7 +113,7 @@ public class JLHScore extends SignificanceHeuristic {
                 throws IOException, QueryShardException {
             // move to the closing bracket
             if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("failed to parse [jhl] significance heuristic. expected an empty object, but found [{}] instead", parser.currentToken());
+                throw new ElasticsearchParseException("failed to parse [jlh] significance heuristic. expected an empty object, but found [{}] instead", parser.currentToken());
             }
             return PROTOTYPE;
         }

@@ -68,8 +68,8 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new SamplerAggregator.Factory(null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new SamplerAggregator.Factory(null);
     }
 
 }

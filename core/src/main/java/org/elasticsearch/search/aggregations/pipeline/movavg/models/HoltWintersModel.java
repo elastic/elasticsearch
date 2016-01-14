@@ -389,7 +389,7 @@ public class HoltWintersModel extends MovAvgModel {
             return false;
         }
         HoltWintersModel other = (HoltWintersModel) obj;
-        return Objects.equals(alpha, other.alpha) 
+        return Objects.equals(alpha, other.alpha)
                 && Objects.equals(beta, other.beta)
                 && Objects.equals(gamma, other.gamma)
                 && Objects.equals(period, other.period)
@@ -443,12 +443,12 @@ public class HoltWintersModel extends MovAvgModel {
 
     public static class HoltWintersModelBuilder implements MovAvgModelBuilder {
 
-        private Double alpha;
-        private Double beta;
-        private Double gamma;
-        private Integer period;
-        private SeasonalityType seasonalityType;
-        private Boolean pad;
+        private double alpha = DEFAULT_ALPHA;
+        private double beta = DEFAULT_BETA;
+        private double gamma = DEFAULT_GAMMA;
+        private int period = DEFAULT_PERIOD;
+        private SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;
+        private Boolean pad = null;
 
         /**
          * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
@@ -500,33 +500,23 @@ public class HoltWintersModel extends MovAvgModel {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
-
-            if (alpha != null) {
-                builder.field("alpha", alpha);
-            }
-
-            if (beta != null) {
-                builder.field("beta", beta);
-            }
-
-            if (gamma != null) {
-                builder.field("gamma", gamma);
-            }
-
-            if (period != null) {
-                builder.field("period", period);
-            }
-
+            builder.field("alpha", alpha);
+            builder.field("beta", beta);
+            builder.field("gamma", gamma);
+            builder.field("period", period);
             if (pad != null) {
                 builder.field("pad", pad);
             }
-
-            if (seasonalityType != null) {
-                builder.field("type", seasonalityType.getName());
-            }
+            builder.field("type", seasonalityType.getName());
 
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public MovAvgModel build() {
+            boolean pad = this.pad == null ? (seasonalityType == SeasonalityType.MULTIPLICATIVE) : this.pad;
+            return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);
         }
     }
 }

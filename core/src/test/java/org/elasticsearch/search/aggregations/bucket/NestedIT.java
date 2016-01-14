@@ -167,7 +167,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(nested("nested").path("nested")
+                .addAggregation(nested("nested", "nested")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
                 .execute().actionGet();
 
@@ -205,7 +205,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
-                .addAggregation(nested("nested").path("value")
+                .addAggregation(nested("nested", "value")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
                 .execute().actionGet();
 
@@ -217,7 +217,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestedWithSubTermsAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(nested("nested").path("nested")
+                .addAggregation(nested("nested", "nested")
                         .subAggregation(terms("values").field("nested.value").size(100)
                                 .collectMode(aggCollectionMode)))
                 .execute().actionGet();
@@ -270,7 +270,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("top_values").field("value").size(100)
                         .collectMode(aggCollectionMode)
-                        .subAggregation(nested("nested").path("nested")
+                        .subAggregation(nested("nested", "nested")
                                 .subAggregation(max("max_value").field("nested.value"))))
                 .execute().actionGet();
 
@@ -296,10 +296,10 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
-                .addAggregation(nested("level1").path("nested1")
+                .addAggregation(nested("level1", "nested1")
                         .subAggregation(terms("a").field("nested1.a")
                                 .collectMode(aggCollectionMode)
-                                .subAggregation(nested("level2").path("nested1.nested2")
+                        .subAggregation(nested("level2", "nested1.nested2")
                                         .subAggregation(sum("sum").field("nested1.nested2.b")))))
                 .get();
         assertSearchResponse(response);
@@ -333,7 +333,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
-                        .subAggregation(nested("nested").path("nested")))
+                        .subAggregation(nested("nested", "nested")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
@@ -352,7 +352,7 @@ public class NestedIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                     .setQuery(matchAllQuery())
-                    .addAggregation(nested("object_field").path("incorrect"))
+                    .addAggregation(nested("object_field", "incorrect"))
                     .execute().actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
@@ -407,9 +407,10 @@ public class NestedIT extends ESIntegTestCase {
                         terms("startDate").field("dates.month.start").subAggregation(
                                 terms("endDate").field("dates.month.end").subAggregation(
                                         terms("period").field("dates.month.label").subAggregation(
-                                                nested("ctxt_idfier_nested").path("comments").subAggregation(
-                                                        filter("comment_filter").filter(termQuery("comments.identifier", "29111")).subAggregation(
-                                                                nested("nested_tags").path("comments.tags").subAggregation(
+                                                nested("ctxt_idfier_nested", "comments")
+                                                .subAggregation(filter("comment_filter", termQuery("comments.identifier", "29111"))
+                                                        .subAggregation(nested("nested_tags", "comments.tags")
+                                                                .subAggregation(
                                                                         terms("tag").field("comments.tags.name")
                                                                 )
                                                         )
@@ -488,7 +489,7 @@ public class NestedIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("idx4").setTypes("product")
                 .addAggregation(terms("category").field("categories").subAggregation(
-                        nested("property").path("property").subAggregation(
+                        nested("property", "property").subAggregation(
                                 terms("property_id").field("property.id")
                         )
                 ))

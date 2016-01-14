@@ -27,9 +27,8 @@ public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsFac
     @Override
     protected final PAF createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        String[] bucketsPaths = new String[1];
-        bucketsPaths[0] = randomAsciiOfLengthBetween(3, 20);
-        PAF factory = doCreateTestAggregatorFactory(name, bucketsPaths);
+        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        PAF factory = doCreateTestAggregatorFactory(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }
@@ -39,6 +38,6 @@ public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsFac
         return factory;
     }
 
-    protected abstract PAF doCreateTestAggregatorFactory(String name, String[] bucketsPaths);
+    protected abstract PAF doCreateTestAggregatorFactory(String name, String bucketsPath);
 
 }

@@ -25,15 +25,12 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorFactory.Range;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorFactory> {
 
     @Override
     protected IPv4RangeAggregatorFactory createTestAggregatorFactory() {
         int numRanges = randomIntBetween(1, 10);
-        List<Range> ranges = new ArrayList<>(numRanges);
+        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -45,11 +42,11 @@ public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorF
                         : (Double.isInfinite(from) ? randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
                                 : randomIntBetween((int) from, Integer.MAX_VALUE));
                 if (randomBoolean()) {
-                    ranges.add(new Range(key, from, to));
+                    factory.addRange(new Range(key, from, to));
                 } else {
                     String fromAsStr = Double.isInfinite(from) ? null : IpFieldMapper.longToIp((long) from);
                     String toAsStr = Double.isInfinite(to) ? null : IpFieldMapper.longToIp((long) to);
-                    ranges.add(new Range(key, fromAsStr, toAsStr));
+                    factory.addRange(new Range(key, fromAsStr, toAsStr));
                 }
             } else {
                 int mask = randomInt(32);
@@ -58,10 +55,9 @@ public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorF
                 long blockSize = 1L << (32 - mask);
                 ipAsLong = ipAsLong - (ipAsLong & (blockSize - 1));
                 String cidr = Cidrs.createCIDR(ipAsLong, mask);
-                ranges.add(new Range(key, cidr));
+                factory.addRange(new Range(key, cidr));
             }
         }
-        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory("foo", ranges);
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.keyed(randomBoolean());

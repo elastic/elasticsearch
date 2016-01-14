@@ -161,8 +161,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
-        super(name, SignificantStringTerms.TYPE, valuesSourceType, valueType);
+    public SignificantTermsAggregatorFactory(String name, ValueType valueType) {
+        super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
     }
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
@@ -171,6 +171,44 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     public SignificantTermsAggregatorFactory bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         this.bucketCountThresholds = bucketCountThresholds;
+        return this;
+    }
+
+    /**
+     * Sets the size - indicating how many term buckets should be returned
+     * (defaults to 10)
+     */
+    public SignificantTermsAggregatorFactory size(int size) {
+        bucketCountThresholds.setRequiredSize(size);
+        return this;
+    }
+
+    /**
+     * Sets the shard_size - indicating the number of term buckets each shard
+     * will return to the coordinating node (the node that coordinates the
+     * search execution). The higher the shard size is, the more accurate the
+     * results are.
+     */
+    public SignificantTermsAggregatorFactory shardSize(int shardSize) {
+        bucketCountThresholds.setShardSize(shardSize);
+        return this;
+    }
+
+    /**
+     * Set the minimum document count terms should have in order to appear in
+     * the response.
+     */
+    public SignificantTermsAggregatorFactory minDocCount(long minDocCount) {
+        bucketCountThresholds.setMinDocCount(minDocCount);
+        return this;
+    }
+
+    /**
+     * Set the minimum document count terms should have on the shard in order to
+     * appear in the response.
+     */
+    public SignificantTermsAggregatorFactory shardMinDocCount(long shardMinDocCount) {
+        bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
 
@@ -399,7 +437,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     @Override
     protected SignificantTermsAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, valuesSourceType, targetValueType);
+        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, targetValueType);
         factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
         factory.executionHint = in.readOptionalString();
         if (in.readBoolean()) {

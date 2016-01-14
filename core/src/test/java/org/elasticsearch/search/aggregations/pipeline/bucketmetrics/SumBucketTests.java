@@ -25,8 +25,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucke
 public class SumBucketTests extends AbstractBucketMetricsTestCase<SumBucketPipelineAggregator.Factory> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String[] bucketsPaths) {
-        return new Factory(name, bucketsPaths);
+    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        return new Factory(name, bucketsPath);
     }
 
 

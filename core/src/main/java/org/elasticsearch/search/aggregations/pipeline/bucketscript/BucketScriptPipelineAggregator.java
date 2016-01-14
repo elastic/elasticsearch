@@ -173,6 +173,18 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             this.script = script;
         }
 
+        public Factory(String name, Script script, String... bucketsPaths) {
+            this(name, convertToBucketsPathMap(bucketsPaths), script);
+        }
+
+        private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {
+            Map<String, String> bucketsPathsMap = new HashMap<>();
+            for (int i = 0; i < bucketsPaths.length; i++) {
+                bucketsPathsMap.put("_value" + i, bucketsPaths[i]);
+            }
+            return bucketsPathsMap;
+        }
+
         /**
          * Sets the format to use on the output of this aggregation.
          */

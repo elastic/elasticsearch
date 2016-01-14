@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -128,7 +127,7 @@ public class FiltersParser implements Aggregator.Parser {
 
         FiltersAggregator.Factory factory;
         if (keyedFilters != null) {
-            factory = new FiltersAggregator.Factory(aggregationName, keyedFilters);
+            factory = new FiltersAggregator.Factory(aggregationName, keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
         } else {
             factory = new FiltersAggregator.Factory(aggregationName, nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
         }
@@ -142,8 +141,8 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new FiltersAggregator.Factory(null, Collections.emptyList()) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new FiltersAggregator.Factory(null, new FiltersAggregator.KeyedFilter[0]);
     }
 
 }

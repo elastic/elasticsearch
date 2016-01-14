@@ -24,15 +24,12 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Factory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class RangeTests extends BaseAggregationTestCase<RangeAggregator.Factory> {
 
     @Override
     protected Factory createTestAggregatorFactory() {
         int numRanges = randomIntBetween(1, 10);
-        List<Range> ranges = new ArrayList<>(numRanges);
+        Factory factory = new Factory("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -43,14 +40,13 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregator.Factory>
                     : (Double.isInfinite(from) ? randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
                             : randomIntBetween((int) from, Integer.MAX_VALUE));
             if (randomBoolean()) {
-                ranges.add(new Range(key, from, to));
+                factory.addRange(new Range(key, from, to));
             } else {
                 String fromAsStr = Double.isInfinite(from) ? null : String.valueOf(from);
                 String toAsStr = Double.isInfinite(to) ? null : String.valueOf(to);
-                ranges.add(new Range(key, fromAsStr, toAsStr));
+                factory.addRange(new Range(key, fromAsStr, toAsStr));
             }
         }
-        Factory factory = new Factory("foo", ranges);
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.format("###.##");

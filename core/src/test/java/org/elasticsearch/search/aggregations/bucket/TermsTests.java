@@ -28,8 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
@@ -50,7 +48,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregatorFactory> 
     @Override
     protected TermsAggregatorFactory createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        TermsAggregatorFactory factory = new TermsAggregatorFactory(name, ValuesSourceType.ANY, null);
+        TermsAggregatorFactory factory = new TermsAggregatorFactory(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {

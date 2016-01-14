@@ -64,8 +64,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
     protected SignificantTermsAggregatorFactory doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(aggregationName, valuesSourceType,
-                targetValueType);
+        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(aggregationName, targetValueType);
         if (bucketCountThresholds != null) {
             factory.bucketCountThresholds(bucketCountThresholds);
         }
@@ -108,8 +107,8 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { new SignificantTermsAggregatorFactory(null, null, null) };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return new SignificantTermsAggregatorFactory(null, null);
     }
 
     @Override

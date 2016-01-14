@@ -26,9 +26,6 @@ import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.Factory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.Factory> {
 
     @Override
@@ -37,13 +34,13 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.Fact
         int size = randomIntBetween(1, 20);
         Factory factory;
         if (randomBoolean()) {
-            List<KeyedFilter> filters = new ArrayList<>(size);
+            KeyedFilter[] filters = new KeyedFilter[size];
             for (int i = 0; i < size; i++) {
                 // NORELEASE make RandomQueryBuilder work outside of the
                 // AbstractQueryTestCase
                 // builder.query(RandomQueryBuilder.createQuery(getRandom()));
-                filters.add(new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
-                        QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20))));
+                filters[i] = new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
+                        QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
             factory = new Factory(randomAsciiOfLengthBetween(1, 20), filters);
         } else {

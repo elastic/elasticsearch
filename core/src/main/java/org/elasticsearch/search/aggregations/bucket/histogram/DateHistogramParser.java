@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.DateHistogramFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -97,15 +96,11 @@ public class DateHistogramParser extends HistogramParser {
 
     @Override
     protected long parseStringOffset(String offset) throws IOException {
-        if (offset.charAt(0) == '-') {
-            return -TimeValue.parseTimeValue(offset.substring(1), null, getClass().getSimpleName() + ".parseOffset").millis();
-        }
-        int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
-        return TimeValue.parseTimeValue(offset.substring(beginIndex), null, getClass().getSimpleName() + ".parseOffset").millis();
+        return DateHistogramFactory.parseStringOffset(offset);
     }
 
     @Override
-    public AggregatorFactory[] getFactoryPrototypes() {
-        return new AggregatorFactory[] { HistogramAggregator.DateHistogramFactory.PROTOTYPE };
+    public AggregatorFactory<?> getFactoryPrototypes() {
+        return HistogramAggregator.DateHistogramFactory.PROTOTYPE;
     }
 }

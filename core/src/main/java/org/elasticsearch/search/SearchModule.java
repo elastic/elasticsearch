@@ -436,7 +436,6 @@ public class SearchModule extends AbstractModule {
         AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, indicesQueriesRegistry);
         AggregationPhase aggPhase = new AggregationPhase(aggParseElement, aggBinaryParseElement);
         bind(AggregatorParsers.class).toInstance(aggregatorParsers);
-        ;
         bind(AggregationParseElement.class).toInstance(aggParseElement);
         bind(AggregationPhase.class).toInstance(aggPhase);
     }

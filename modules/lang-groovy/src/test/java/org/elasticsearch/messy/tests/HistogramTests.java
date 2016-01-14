@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -556,7 +557,7 @@ public class HistogramTests extends ESIntegTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("filter>max", asc))
-                        .subAggregation(filter("filter").filter(matchAllQuery())
+                        .subAggregation(filter("filter", matchAllQuery())
                                 .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 .execute().actionGet();
 
@@ -896,7 +897,7 @@ public class HistogramTests extends ESIntegTestCase {
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval)).execute().actionGet();
+                                .extendedBounds(new ExtendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -986,7 +987,7 @@ public class HistogramTests extends ESIntegTestCase {
                             .field(SINGLE_VALUED_FIELD_NAME)
                             .interval(interval)
                             .minDocCount(0)
-                            .extendedBounds(boundsMin, boundsMax))
+                            .extendedBounds(new ExtendedBounds(boundsMin, boundsMax)))
                     .execute().actionGet();
 
             if (invalidBoundsError) {

@@ -33,8 +33,8 @@ public class MaxBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, Map<String, Object> unparsedParams) {
-        return new MaxBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
+    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams) {
+        return new MaxBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPath);
     }
 
     @Override

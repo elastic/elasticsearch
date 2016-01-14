@@ -83,8 +83,10 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertThat(mp.getMergePolicy().getNoCFSRatio(), equalTo(0.1));
 
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
-        mp.onRefreshSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d).build());
-        assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d, 0.0d);
+
+        IndexSettings indexSettings = indexSettings(Settings.EMPTY);
+        indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING.getKey(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d).build()));
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d, 0.0d);
 
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getFloorSegmentMB(), MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mbFrac(), 0);
         mp.onRefreshSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT, new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb() + 1, ByteSizeUnit.MB)).build());
@@ -111,8 +113,9 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getSegmentsPerTier(), MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER + 1, 0);
 
         mp.onRefreshSettings(EMPTY_SETTINGS); // update without the settings and see if we stick to the values
-
-        assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d, 0.0d);
+        indexSettings.updateIndexMetaData(newIndexMeta("index", EMPTY_SETTINGS));
+        // this will fail because we now reset each setting which is not passed with the sttings update. are we sure this is the desired behavior?
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d, 0.0d);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getFloorSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb() + 1, ByteSizeUnit.MB).mbFrac(), 0.001);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE-1);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnceExplicit(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT-1);

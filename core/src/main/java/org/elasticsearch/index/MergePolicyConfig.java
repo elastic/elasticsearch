@@ -128,7 +128,7 @@ public final class MergePolicyConfig {
     public static final double          DEFAULT_RECLAIM_DELETES_WEIGHT      = 2.0d;
     public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING       = new Setting<>("index.compound_format", Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO), MergePolicyConfig::parseNoCFSRatio, true, Setting.Scope.INDEX);
 
-    public static final String INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED = "index.merge.policy.expunge_deletes_allowed";
+    public static final Setting<Double> INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING = Setting.doubleSetting("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d, true, Setting.Scope.INDEX);
     public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.policy.floor_segment";
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.policy.max_merge_at_once";
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.policy.max_merge_at_once_explicit";
@@ -141,6 +141,7 @@ public final class MergePolicyConfig {
      MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
         indexSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
+         indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
         double forceMergeDeletesPctAllowed = indexSettings.getSettings().getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
         ByteSizeValue floorSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
         int maxMergeAtOnce = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
@@ -166,6 +167,10 @@ public final class MergePolicyConfig {
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
     }
 
+    private void expungeDeletesAllowed(Double value) {
+        mergePolicy.setForceMergeDeletesPctAllowed(value);
+    }
+
     private void setNoCFSRatio(Double noCFSRatio) {
         mergePolicy.setNoCFSRatio(noCFSRatio);
     }
@@ -189,13 +194,6 @@ public final class MergePolicyConfig {
     }
 
     void onRefreshSettings(Settings settings) {
-        final double oldExpungeDeletesPctAllowed = mergePolicy.getForceMergeDeletesPctAllowed();
-        final double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, oldExpungeDeletesPctAllowed);
-        if (expungeDeletesPctAllowed != oldExpungeDeletesPctAllowed) {
-            logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", oldExpungeDeletesPctAllowed, expungeDeletesPctAllowed);
-            mergePolicy.setForceMergeDeletesPctAllowed(expungeDeletesPctAllowed);
-        }
-
         final double oldFloorSegmentMB = mergePolicy.getFloorSegmentMB();
         final ByteSizeValue floorSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_FLOOR_SEGMENT, null);
         if (floorSegment != null && floorSegment.mbFrac() != oldFloorSegmentMB) {

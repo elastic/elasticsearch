@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -168,6 +169,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void awaitMarvelDocsCount(Matcher<Long> matcher, String... types) throws Exception {
         securedFlush();
         securedRefresh();
+
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -189,8 +191,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
+        String indices = MarvelSettings.MARVEL_INDICES_PREFIX + "*";
         try {
-            long count = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*").setSize(0)
+            assertNoFailures(client().admin().indices().prepareRefresh(indices).get());
+            long count = client().prepareSearch(indices).setSize(0)
                     .setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);

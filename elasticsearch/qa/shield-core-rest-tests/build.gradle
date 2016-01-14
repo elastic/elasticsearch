@@ -27,7 +27,8 @@ integTest {
      'indices.recovery/10_basic/Indices recovery test*',
      'indices.shard_stores/10_basic/no indices test',
      'cat.nodeattrs/10_basic/Test cat nodes attrs output',
-     'bulk/40_fields/Fields'].join(',')
+     'bulk/40_fields/Fields',
+     'indices.get_alias/10_basic/Get alias against closed indices'].join(',')
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')

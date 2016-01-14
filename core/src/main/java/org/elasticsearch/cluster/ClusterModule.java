@@ -75,6 +75,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.indexing.IndexingSlowLog;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -279,6 +280,7 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(IndicesRequestCache.DEPRECATED_INDEX_CACHE_REQUEST_ENABLED, Validator.BOOLEAN);
         registerIndexDynamicSetting(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, Validator.TIME);
         registerIndexDynamicSetting(DefaultSearchContext.MAX_RESULT_WINDOW, Validator.POSITIVE_INTEGER);
+        registerIndexDynamicSetting(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, Validator.NON_NEGATIVE_INTEGER);
     }
 
     public void registerIndexDynamicSetting(String setting, Validator validator) {

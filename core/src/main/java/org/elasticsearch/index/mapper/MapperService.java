@@ -99,6 +99,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String DEFAULT_MAPPING = "_default_";
     public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
+    public static final String INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = "index.mapping.nested_fields.limit";
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
@@ -122,6 +123,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     };
 
     private final Settings indexSettings;
+
+    private final IndexSettingsService indexSettingsService;
 
     private final AnalysisService analysisService;
 
@@ -157,14 +160,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(Index index, IndexSettingsService indexSettingsService, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
                          ScriptService scriptService, MapperRegistry mapperRegistry) {
-        this(index, indexSettingsService.getSettings(), analysisService, similarityLookupService, scriptService, mapperRegistry);
-    }
-
-    public MapperService(Index index, Settings indexSettings, AnalysisService analysisService,
-                         SimilarityLookupService similarityLookupService,
-                         ScriptService scriptService, MapperRegistry mapperRegistry) {
-        super(index, indexSettings);
-        this.indexSettings = indexSettings;
+        super(index, indexSettingsService.getSettings());
+        this.indexSettings = indexSettingsService.getSettings();
+        this.indexSettingsService = indexSettingsService;
         this.analysisService = analysisService;
         this.mapperRegistry = mapperRegistry;
         this.fieldTypes = new FieldTypeLookup();
@@ -176,23 +174,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.dynamic = this.indexSettings.getAsBoolean(INDEX_MAPPER_DYNAMIC_SETTING, INDEX_MAPPER_DYNAMIC_DEFAULT);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +
-                "\"properties\" : {\n" +
-                    "\"query\" : {\n" +
-                        "\"type\" : \"object\",\n" +
-                        "\"enabled\" : false\n" +
-                    "}\n" +
-                "}\n" +
+            "\"properties\" : {\n" +
+            "\"query\" : {\n" +
+            "\"type\" : \"object\",\n" +
+            "\"enabled\" : false\n" +
             "}\n" +
-        "}";
+            "}\n" +
+            "}\n" +
+            "}";
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
             defaultMappingSource =  "{" +
                 "\"_default_\": {" +
-                    "\"properties\": {" +
-                        "\"script\": { \"enabled\": false }," +
-                        "\"template\": { \"enabled\": false }" +
-                    "}" +
+                "\"properties\": {" +
+                "\"script\": { \"enabled\": false }," +
+                "\"template\": { \"enabled\": false }" +
                 "}" +
-            "}";
+                "}" +
+                "}";
         } else {
             defaultMappingSource = "{\"_default_\":{}}";
         }
@@ -202,6 +200,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         } else if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}]", dynamic);
         }
+    }
+
+    public MapperService(Index index, Settings indexSettings, AnalysisService analysisService,
+                         SimilarityLookupService similarityLookupService,
+                         ScriptService scriptService, MapperRegistry mapperRegistry) {
+        this(index, new IndexSettingsService(index, indexSettings), analysisService, similarityLookupService, scriptService, mapperRegistry);
     }
 
     public void close() {
@@ -282,12 +286,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         // only apply the default mapping if we don't have the type yet
                         && mappers.containsKey(type) == false;
                 DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
-                return merge(mergeWith, updateAllTypes);
+                return merge(mergeWith, reason, updateAllTypes);
             }
         }
     }
 
-    private synchronized DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
+    private synchronized DocumentMapper merge(DocumentMapper mapper, MergeReason reason, boolean updateAllTypes) {
         if (mapper.type().length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
@@ -344,6 +348,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        if (reason == MergeReason.MAPPING_UPDATE) {
+            checkNestedFieldsLimit(fullPathObjectMappers);
+        }
+
         Set<String> parentTypes = this.parentTypes;
         if (oldMapper == null && newMapper.parentFieldMapper().active()) {
             parentTypes = new HashSet<>(parentTypes.size() + 1);
@@ -428,7 +437,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // Before 3.0 some metadata mappers are also registered under the root object mapper
             // So we avoid false positives by deduplicating mappers
             // given that we check exact equality, this would still catch the case that a mapper
-            // is defined under the root object 
+            // is defined under the root object
             Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<FieldMapper, Boolean>());
             uniqueFieldMappers.addAll(fieldMappers);
             fieldMappers = uniqueFieldMappers;
@@ -463,6 +472,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
                 throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
+        }
+    }
+
+    private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
+        long allowedNestedFields = indexSettingsService.getSettings().getAsLong(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 50L);
+        long actualNestedFields = 0;
+        for (ObjectMapper objectMapper : fullPathObjectMappers.values()) {
+            if (objectMapper.nested().isNested()) {
+                actualNestedFields++;
+            }
+        }
+        if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
+            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().name() + "] has been exceeded");
         }
     }
 

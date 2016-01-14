@@ -12,7 +12,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
+import org.elasticsearch.marvel.agent.exporter.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -27,7 +27,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     protected final ClusterService clusterService;
     protected final MarvelSettings marvelSettings;
     protected final MarvelLicensee licensee;
-    protected final IndexNameResolver dataIndexNameResolver;
+    private final MonitoringIndexNameResolver dataIndexNameResolver;
 
     @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService,
@@ -116,14 +116,19 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
         return clusterService.state().metaData().clusterUUID();
     }
 
+
     protected DiscoveryNode localNode() {
         return clusterService.localNode();
+    }
+
+    public String resolveDataIndexName(long timestamp) {
+        return dataIndexNameResolver.resolve(timestamp);
     }
 
     /**
      * Resolves monitoring's data index name
      */
-    public class DataIndexNameResolver implements IndexNameResolver {
+    public class DataIndexNameResolver implements MonitoringIndexNameResolver {
 
         private final String index;
 
@@ -139,6 +144,11 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
         @Override
         public String resolve(long timestamp) {
+            return index;
+        }
+
+        @Override
+        public String indexPattern() {
             return index;
         }
     }

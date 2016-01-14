@@ -8,9 +8,17 @@ package org.elasticsearch.marvel.agent.exporter;
 /**
  *
  */
-public interface IndexNameResolver {
+public interface MonitoringIndexNameResolver {
 
     String resolve(MarvelDoc doc);
 
     String resolve(long timestamp);
+
+    /**
+     * Returns the generic part of the index name (ie without any dynamic part like a timestamp) that can be used to match indices names.
+     *
+     * @return the index pattern
+     */
+    String indexPattern();
+
 }

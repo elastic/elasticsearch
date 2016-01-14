@@ -24,11 +24,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
 import org.joda.time.DateTime;
@@ -268,11 +268,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 long expirationTime = expiration.getMillis();
                 Set<String> indices = new HashSet<>();
 
+                // Only clean up indices that match the timestamped index pattern
+                String pattern = indexNameResolver().indexPattern();
                 for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
                     String indexName =  index.key;
-                    if (Regex.simpleMatch(MarvelSettings.MONITORING_INDICES_PREFIX + "*", indexName)) {
-                        // Never delete the data indices
-                        if (indexName.startsWith(MarvelSettings.MONITORING_DATA_INDEX_PREFIX)) {
+
+                    if (Regex.simpleMatch(pattern, indexName)) {
+                        // Should not happen, but just in case... we never delete the data indices
+                        if (indexName.startsWith(MarvelSettings.MONITORING_DATA_INDEX_PREFIX)
+                                || indexName.equalsIgnoreCase(MarvelSettings.LEGACY_DATA_INDEX_NAME)) {
                             continue;
                         }
 

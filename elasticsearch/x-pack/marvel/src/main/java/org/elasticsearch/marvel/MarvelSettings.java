@@ -24,6 +24,8 @@ public class MarvelSettings extends AbstractComponent {
 
     public static final String MONITORING_INDICES_PREFIX = ".monitoring-es-";
     public static final String MONITORING_DATA_INDEX_PREFIX = ".monitoring-es-data-";
+    public static final String LEGACY_DATA_INDEX_NAME = ".marvel-es-data";
+
     public static final String HISTORY_DURATION_SETTING_NAME = "history.duration";
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 

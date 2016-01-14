@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
-import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
+import org.elasticsearch.marvel.agent.exporter.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
@@ -31,7 +31,7 @@ public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
     private final Client client;
-    private final IndexNameResolver indexNameResolver;
+    private final MonitoringIndexNameResolver indexNameResolver;
     private final RendererRegistry renderers;
 
     private BytesStreamOutput buffer = null;
@@ -39,7 +39,7 @@ public class LocalBulk extends ExportBulk {
 
     AtomicReference<State> state = new AtomicReference<>();
 
-    public LocalBulk(String name, ESLogger logger, Client client, IndexNameResolver indexNameResolver, RendererRegistry renderers) {
+    public LocalBulk(String name, ESLogger logger, Client client, MonitoringIndexNameResolver indexNameResolver, RendererRegistry renderers) {
         super(name);
         this.logger = logger;
         this.client = client;

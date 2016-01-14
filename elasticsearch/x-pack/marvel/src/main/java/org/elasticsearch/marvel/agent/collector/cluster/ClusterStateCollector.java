@@ -86,7 +86,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
                 results.add(clusterStateNodeDoc);
 
                 // Adds a document for every node in the monitoring data index (type "node")
-                DiscoveryNodeMarvelDoc discoveryNodeDoc = new DiscoveryNodeMarvelDoc(dataIndexNameResolver.resolve(timestamp), NODE_TYPE,
+                DiscoveryNodeMarvelDoc discoveryNodeDoc = new DiscoveryNodeMarvelDoc(resolveDataIndexName(timestamp), NODE_TYPE,
                         node.getId());
                 discoveryNodeDoc.setClusterUUID(clusterUUID);
                 discoveryNodeDoc.setTimestamp(timestamp);

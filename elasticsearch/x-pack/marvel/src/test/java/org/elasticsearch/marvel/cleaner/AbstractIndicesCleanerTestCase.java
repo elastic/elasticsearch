@@ -10,15 +10,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
-import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.Locale;
 
@@ -49,7 +50,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     public void testDeleteIndex() throws Exception {
         internalCluster().startNode();
 
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "test", now().minusDays(10));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now().minusDays(10));
         assertIndicesCount(1);
 
         CleanerService.Listener listener = getListener();
@@ -57,10 +58,10 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         assertIndicesCount(0);
     }
 
-    public void testIgnoreDataIndex() throws Exception {
+    public void testIgnoreCurrentDataIndex() throws Exception {
         internalCluster().startNode();
 
-        createIndex(MarvelSettings.MONITORING_DATA_INDEX_PREFIX + "test", now().minusDays(10));
+        createDataIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now().minusDays(10));
         assertIndicesCount(1);
 
         CleanerService.Listener listener = getListener();
@@ -68,24 +69,41 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         assertIndicesCount(1);
     }
 
+    public void testIgnoreDataIndicesInOtherVersions() throws Exception {
+        internalCluster().startNode();
+
+        createIndex(MarvelSettings.LEGACY_DATA_INDEX_NAME, now().minusYears(1));
+        createDataIndex(0, now().minusDays(10));
+        createDataIndex(Integer.MAX_VALUE, now().minusDays(20));
+        assertIndicesCount(3);
+
+        CleanerService.Listener listener = getListener();
+        listener.onCleanUpIndices(days(0));
+        assertIndicesCount(3);
+    }
+
     public void testIgnoreCurrentTimestampedIndex() throws Exception {
         internalCluster().startNode();
 
-        IndexNameResolver indexNameResolver = null;
-        for (Exporter exporter : internalCluster().getInstance(Exporters.class)) {
-            indexNameResolver = exporter.indexNameResolver();
-        }
-        assertNotNull(indexNameResolver);
-
-        DateTime tenDaysAgo = now().minusDays(10);
-        createIndex(indexNameResolver.resolve(tenDaysAgo.getMillis()), tenDaysAgo);
-
-        DateTime today = now();
-        createIndex(indexNameResolver.resolve(today.getMillis()), today);
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now().minusDays(10));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now());
         assertIndicesCount(2);
 
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
+        assertIndicesCount(1);
+    }
+
+    public void testIgnoreTimestampedIndicesInOtherVersions() throws Exception {
+        internalCluster().startNode();
+
+        createTimestampedIndex(0, now().minusDays(10));
+        createTimestampedIndex(Integer.MAX_VALUE, now().minusDays(10));
+        assertIndicesCount(2);
+
+        CleanerService.Listener listener = getListener();
+        listener.onCleanUpIndices(days(0));
+        assertIndicesCount(2);
     }
 
     public void testDeleteIndices() throws Exception {
@@ -94,11 +112,11 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         CleanerService.Listener listener = getListener();
 
         final DateTime now = now();
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "one-year-ago", now.minusYears(1));
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "six-months-ago", now.minusMonths(6));
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "one-month-ago", now.minusMonths(1));
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "ten-days-ago", now.minusDays(10));
-        createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + "one-day-ago", now.minusDays(1));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusYears(1));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusMonths(6));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusMonths(1));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusDays(10));
+        createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusDays(1));
         assertIndicesCount(5);
 
         // Clean indices that have expired two years ago
@@ -134,7 +152,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
 
         final DateTime now = now();
         for (int i = 0; i < max; i++) {
-            createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + String.valueOf(i), now.minusDays(i));
+            createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusDays(i));
         }
         assertIndicesCount(max);
 
@@ -154,7 +172,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
 
         final DateTime now = now();
         for (int i = 0; i < max; i++) {
-            createIndex(MarvelSettings.MONITORING_INDICES_PREFIX + String.valueOf(i), now.minusDays(i));
+            createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusDays(i));
         }
         assertIndicesCount(max);
 
@@ -192,6 +210,23 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
             }
         }
         throw new IllegalStateException("unable to find listener");
+    }
+
+    /**
+     * Creates a monitoring data index in a given version.
+     */
+    protected void createDataIndex(int version, DateTime creationDate) {
+        String indexName = MarvelSettings.MONITORING_DATA_INDEX_PREFIX + String.valueOf(version);
+        createIndex(indexName, creationDate);
+    }
+
+    /**
+     * Creates a monitoring timestamped index in a given version.
+     */
+    protected void createTimestampedIndex(int version, DateTime creationDate) {
+        String indexName = MarvelSettings.MONITORING_INDICES_PREFIX + String.valueOf(version) + "-"
+                + DateTimeFormat.forPattern(Exporter.DEFAULT_INDEX_NAME_TIME_FORMAT).withZoneUTC().print(creationDate.getMillis());
+        createIndex(indexName, creationDate);
     }
 
     protected abstract void createIndex(String name, DateTime creationDate);

@@ -141,7 +141,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.slowLog = new IndexingSlowLog(indexSettings.getSettings());
+        this.slowLog = new IndexingSlowLog(indexSettings);
 
         // Add our slowLog to the incoming IndexingOperationListeners:
         this.listeners = new IndexingOperationListener[1+listenersIn.length];
@@ -574,11 +574,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 } catch (Exception e) {
                     logger.warn("[{}] failed to notify shard about setting change", e, shard.shardId().id());
                 }
-            }
-            try {
-                slowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
             }
 
             try {

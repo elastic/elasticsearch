@@ -64,8 +64,10 @@ cloud:
 
 `my_account1` is the default account which will be used by a repository unless you set an explicit one.
 
-You can set the timeout to use when making any single request. It can be defined globally, per account or both.
-Defaults to `5m`.
+You can set the client side timeout to use when making any single request. It can be defined globally, per account or both.
+It's not set by default which means that elasticsearch is using the
+http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
+set by the azure client (known as 5 minutes).
 
 [source,yaml]
 ----

@@ -44,7 +44,7 @@ public class IngestGeoIpPlugin extends Plugin {
 
     @Override
     public String description() {
-        return "Plugin that allows to plug in ingest processors";
+        return "Ingest processor that adds information about the geographical location of ip addresses";
     }
 
     public void onModule(NodeModule nodeModule) throws IOException {

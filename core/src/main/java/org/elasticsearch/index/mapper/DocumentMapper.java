@@ -79,10 +79,20 @@ public class DocumentMapper implements ToXContent {
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
+            final String type = rootObjectMapper.name();
+            DocumentMapper existingMapper = mapperService.documentMapper(type);
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperService.mapperRegistry.getMetadataMapperParsers().entrySet()) {
                 final String name = entry.getKey();
-                final TypeParser parser = entry.getValue();
-                final MetadataFieldMapper metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                final MetadataFieldMapper existingMetadataMapper = existingMapper == null
+                        ? null
+                        : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
+                final MetadataFieldMapper metadataMapper;
+                if (existingMetadataMapper == null) {
+                    final TypeParser parser = entry.getValue();
+                    metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                } else {
+                    metadataMapper = existingMetadataMapper;
+                }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             }
         }

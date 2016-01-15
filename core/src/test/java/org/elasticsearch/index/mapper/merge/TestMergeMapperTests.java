@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -202,5 +203,29 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
         if (error.get() != null) {
             throw error.get();
         }
+    }
+
+    public void testDoNotRepeatOriginalMapping() throws IOException {
+        CompressedXContent mapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_source")
+                        .field("enabled", false)
+                    .endObject()
+                .endObject().endObject().bytes());
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", mapping, true, false);
+
+        CompressedXContent update = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().bytes());
+        DocumentMapper mapper = mapperService.merge("type", update, false, false);
+
+        assertNotNull(mapper.mappers().getMapper("foo"));
+        assertFalse(mapper.sourceMapper().enabled());
     }
 }

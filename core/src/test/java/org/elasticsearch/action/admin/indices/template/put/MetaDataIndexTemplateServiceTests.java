@@ -105,7 +105,6 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Throwable t) {
-                t.printStackTrace();
                 throwables.add(t);
             }
         });

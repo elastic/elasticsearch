@@ -470,7 +470,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         List<String> validationErrors = new ArrayList<>();
         if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
             validationErrors.add("path.shared_data must be set in order to use custom data paths");
-        } else if (customPath != null) {
+        } else if (Strings.isEmpty(customPath) == false) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");

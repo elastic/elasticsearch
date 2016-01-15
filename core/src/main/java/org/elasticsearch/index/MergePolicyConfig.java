@@ -129,7 +129,7 @@ public final class MergePolicyConfig {
     public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING       = new Setting<>("index.compound_format", Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO), MergePolicyConfig::parseNoCFSRatio, true, Setting.Scope.INDEX);
 
     public static final Setting<Double> INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING = Setting.doubleSetting("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d, true, Setting.Scope.INDEX);
-    public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.policy.floor_segment";
+    public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT, true, Setting.Scope.INDEX);
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.policy.max_merge_at_once";
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.policy.max_merge_at_once_explicit";
     public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.policy.max_merged_segment";
@@ -141,9 +141,10 @@ public final class MergePolicyConfig {
      MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
         indexSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
-         indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
-        double forceMergeDeletesPctAllowed = indexSettings.getSettings().getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
-        ByteSizeValue floorSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
+        indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
+        indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, this::floorSegmentSetting);
+        double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
+        ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
         int maxMergeAtOnceExplicit = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
@@ -165,6 +166,10 @@ public final class MergePolicyConfig {
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         logger.debug("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
+    }
+
+    private void floorSegmentSetting(ByteSizeValue byteSizeValue) {
+        mergePolicy.setFloorSegmentMB(byteSizeValue.mbFrac());
     }
 
     private void expungeDeletesAllowed(Double value) {
@@ -194,13 +199,6 @@ public final class MergePolicyConfig {
     }
 
     void onRefreshSettings(Settings settings) {
-        final double oldFloorSegmentMB = mergePolicy.getFloorSegmentMB();
-        final ByteSizeValue floorSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_FLOOR_SEGMENT, null);
-        if (floorSegment != null && floorSegment.mbFrac() != oldFloorSegmentMB) {
-            logger.info("updating [floor_segment] from [{}mb] to [{}]", oldFloorSegmentMB, floorSegment);
-            mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
-        }
-
         final double oldSegmentsPerTier = mergePolicy.getSegmentsPerTier();
         final double segmentsPerTier = settings.getAsDouble(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, oldSegmentsPerTier);
         if (segmentsPerTier != oldSegmentsPerTier) {

@@ -111,7 +111,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
+                .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         client().admin().indices().prepareCreate("test")
                 .setSettings(settings)

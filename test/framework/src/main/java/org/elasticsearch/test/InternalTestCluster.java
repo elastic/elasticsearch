@@ -367,7 +367,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private Collection<Class<? extends Plugin>> getPlugins(long seed) {
+    private Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         if (isLocalTransportConfigured() == false) {
@@ -589,7 +589,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
-        Collection<Class<? extends Plugin>> plugins = getPlugins(seed);
+        Collection<Class<? extends Plugin>> plugins = getPlugins();
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()

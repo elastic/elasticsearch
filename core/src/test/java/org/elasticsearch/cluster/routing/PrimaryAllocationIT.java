@@ -22,11 +22,14 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +43,12 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class PrimaryAllocationIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // disruption tests need MockTransportService
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
         logger.info("--> starting 3 nodes, 1 master, 2 data");

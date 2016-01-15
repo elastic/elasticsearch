@@ -49,9 +49,9 @@ final class MockInternalEngine extends InternalEngine {
 
     @Override
     public void close() throws IOException {
-        switch (support().flushOrClose(this, MockEngineSupport.CloseAction.CLOSE)) {
+        switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
             case FLUSH_AND_CLOSE:
-                super.flushAndClose();
+                flushAndCloseInternal();
                 break;
             case CLOSE:
                 super.close();
@@ -62,16 +62,24 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public void flushAndClose() throws IOException {
         if (randomizeFlushOnClose) {
-            switch (support().flushOrClose(this, MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
+            switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
                 case FLUSH_AND_CLOSE:
-                    super.flushAndClose();
+                    flushAndCloseInternal();
                     break;
                 case CLOSE:
                     super.close();
                     break;
             }
         } else {
+            flushAndCloseInternal();
+        }
+    }
+
+    private void flushAndCloseInternal() throws IOException {
+        if (support().isFlushOnCloseDisabled() == false) {
             super.flushAndClose();
+        } else {
+            super.close();
         }
     }
 

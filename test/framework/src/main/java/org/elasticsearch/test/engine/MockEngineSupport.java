@@ -30,6 +30,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -50,9 +51,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class MockEngineSupport {
 
-    public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
-    public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
-    public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
+    /**
+     * Allows tests to wrap an index reader randomly with a given ratio. This is disabled by default ie. <tt>0.0d</tt> since reader wrapping is insanely
+     * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
+     */
+    public static final Setting<Double> WRAP_READER_RATIO = Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, false, Setting.Scope.INDEX);
+    /**
+     * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
+     */
+    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE = Setting.boolSetting("index.mock.disable_flush_on_close", false, false, Setting.Scope.INDEX);
+
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ESLogger logger = Loggers.getLogger(Engine.class);
@@ -61,20 +69,24 @@ public final class MockEngineSupport {
     private final QueryCachingPolicy filterCachingPolicy;
     private final SearcherCloseable searcherCloseable;
     private final MockContext mockContext;
+    private final boolean disableFlushOnClose;
+
+    public boolean isFlushOnCloseDisabled() {
+        return disableFlushOnClose;
+    }
+
 
     public static class MockContext {
         private final Random random;
         private final boolean wrapReader;
         private final Class<? extends FilterDirectoryReader> wrapper;
         private final Settings indexSettings;
-        private final double flushOnClose;
 
         public MockContext(Random random, boolean wrapReader, Class<? extends FilterDirectoryReader> wrapper, Settings indexSettings) {
             this.random = random;
             this.wrapReader = wrapReader;
             this.wrapper = wrapper;
             this.indexSettings = indexSettings;
-            flushOnClose = indexSettings.getAsDouble(FLUSH_ON_CLOSE_RATIO, 0.5d);
         }
     }
 
@@ -85,7 +97,7 @@ public final class MockEngineSupport {
         filterCachingPolicy = config.getQueryCachingPolicy();
         final long seed = settings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
-        final double ratio = settings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
+        final double ratio = WRAP_READER_RATIO.get(settings);
         boolean wrapReader = random.nextDouble() < ratio;
         if (logger.isTraceEnabled()) {
             logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
@@ -93,6 +105,7 @@ public final class MockEngineSupport {
         mockContext = new MockContext(random, wrapReader, wrapper, settings);
         this.searcherCloseable = new SearcherCloseable();
         LuceneTestCase.closeAfterSuite(searcherCloseable); // only one suite closeable per Engine
+        this.disableFlushOnClose = DISABLE_FLUSH_ON_CLOSE.get(settings);
     }
 
     enum CloseAction {
@@ -105,9 +118,9 @@ public final class MockEngineSupport {
      * Returns the CloseAction to execute on the actual engine. Note this method changes the state on
      * the first call and treats subsequent calls as if the engine passed is already closed.
      */
-    public CloseAction flushOrClose(Engine engine, CloseAction originalAction) throws IOException {
+    public CloseAction flushOrClose(CloseAction originalAction) throws IOException {
         if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
-            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+            if (mockContext.random.nextBoolean()) {
                 return CloseAction.FLUSH_AND_CLOSE;
             } else {
                 return CloseAction.CLOSE;

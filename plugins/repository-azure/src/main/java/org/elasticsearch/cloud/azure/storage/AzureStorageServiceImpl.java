@@ -90,8 +90,8 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
 
-        if (this.primaryStorageSettings == null || this.secondariesStorageSettings.isEmpty()) {
-            throw new IllegalArgumentException("No azure storage can be found. Check your elasticsearch.yml.");
+        if (this.primaryStorageSettings == null) {
+            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
         }
 
         if (account != null) {

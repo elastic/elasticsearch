@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Settings;
@@ -60,8 +60,7 @@ public final class MergeSchedulerConfig {
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
 
-    public MergeSchedulerConfig(IndexSettings indexSettings) {
-        final Settings settings = indexSettings.getSettings();
+    MergeSchedulerConfig(Settings settings) {
         maxThreadCount = settings.getAsInt(MAX_THREAD_COUNT, Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(settings) / 2)));
         maxMergeCount = settings.getAsInt(MAX_MERGE_COUNT, maxThreadCount + 5);
         this.autoThrottle = settings.getAsBoolean(AUTO_THROTTLE, true);
@@ -78,7 +77,7 @@ public final class MergeSchedulerConfig {
     /**
      * Enables / disables auto throttling on the {@link ConcurrentMergeScheduler}
      */
-    public void setAutoThrottle(boolean autoThrottle) {
+    void setAutoThrottle(boolean autoThrottle) {
         this.autoThrottle = autoThrottle;
     }
 
@@ -93,7 +92,7 @@ public final class MergeSchedulerConfig {
      * Expert: directly set the maximum number of merge threads and
      * simultaneous merges allowed.
      */
-    public void setMaxThreadCount(int maxThreadCount) {
+    void setMaxThreadCount(int maxThreadCount) {
         this.maxThreadCount = maxThreadCount;
     }
 
@@ -108,7 +107,7 @@ public final class MergeSchedulerConfig {
      *
      * Expert: set the maximum number of simultaneous merges allowed.
      */
-    public void setMaxMergeCount(int maxMergeCount) {
+    void setMaxMergeCount(int maxMergeCount) {
         this.maxMergeCount = maxMergeCount;
     }
 }

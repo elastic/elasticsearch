@@ -20,7 +20,9 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -38,8 +41,11 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     private final Client client;
@@ -56,18 +62,23 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(UpdateByQueryRequest request,
+    protected void doExecute(Task task, UpdateByQueryRequest request,
             ActionListener<BulkIndexByScrollResponse> listener) {
-        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
+    }
+
+    @Override
+    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+        throw new UnsupportedOperationException("task required");
     }
 
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
-        public AsyncIndexBySearchAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
                 UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-            super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
+            super(task, logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 
         @Override
@@ -83,9 +94,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected BulkIndexByScrollResponse buildResponse(long took) {
-            return new BulkIndexByScrollResponse(took, updated(), batches(), versionConflicts(), noops(), indexingFailures(),
-                    searchFailures());
+        protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
+                List<ShardSearchFailure> searchFailures) {
+            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures);
         }
 
         @Override

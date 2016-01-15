@@ -21,8 +21,10 @@ package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -39,9 +41,11 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
@@ -66,10 +70,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
+    protected void doExecute(Task task, ReindexRequest request, ActionListener<ReindexResponse> listener) {
         validateAgainstAliases(request.getSource(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
                 clusterService.state());
-        new AsyncIndexBySearchAction(logger, scriptService, client, threadPool, request, listener).start();
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
+    }
+
+    @Override
+    protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
+        throw new UnsupportedOperationException("task required");
     }
 
     /**
@@ -106,9 +115,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
-        public AsyncIndexBySearchAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
                 ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(logger, scriptService, client, threadPool, request, request.getSource(), listener);
+            super(task, logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 
         @Override
@@ -162,17 +171,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             }
         }
 
+        @Override
+        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures);
+        }
+
         /*
          * Methods below here handle script updating the index request. They try
          * to be pretty liberal with regards to types because script are often
          * dynamically typed.
          */
-        @Override
-        protected ReindexResponse buildResponse(long took) {
-            return new ReindexResponse(took, created(), updated(), batches(), versionConflicts(), noops(), indexingFailures(),
-                    searchFailures());
-        }
-
         @Override
         protected void scriptChangedIndex(IndexRequest index, Object to) {
             requireNonNull(to, "Can't reindex without a destination index!");

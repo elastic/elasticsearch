@@ -33,7 +33,7 @@ public class UpdateByQueryMetadataTests
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(logger, null, null, threadPool, request(), listener());
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, request(), listener());
     }
 
     @Override

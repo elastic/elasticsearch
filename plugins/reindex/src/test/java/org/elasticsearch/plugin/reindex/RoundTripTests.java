@@ -42,6 +42,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Round trip tests for all Streamable things declared in this plugin.
@@ -67,23 +68,6 @@ public class RoundTripTests extends ESTestCase {
         assertRequestEquals(update, tripped);
     }
 
-    public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomIndexingFailures(), randomSearchFailures());
-        ReindexResponse tripped = new ReindexResponse();
-        roundTrip(response, tripped);
-        assertResponseEquals(response, tripped);
-        assertEquals(response.getCreated(), tripped.getCreated());
-    }
-
-    public void testBulkIndexByScrollResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(randomPositiveLong(), randomPositiveLong(), randomPositiveInt(),
-                randomPositiveLong(), randomPositiveLong(), randomIndexingFailures(), randomSearchFailures());
-        BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
-        roundTrip(response, tripped);
-        assertResponseEquals(response, tripped);
-    }
-
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
         request.getSource().indices("test");
         request.getSource().source().size(between(1, 1000));
@@ -106,6 +90,35 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getScript(), tripped.getScript());
     }
 
+    public void testBulkByTaskStatus() throws IOException {
+        BulkByScrollTask.Status status = randomStatus();
+        BytesStreamOutput out = new BytesStreamOutput();
+        status.writeTo(out);
+        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
+        assertTaskStatusEquals(status, tripped);
+    }
+
+    public void testReindexResponse() throws IOException {
+        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus(), randomIndexingFailures(),
+                randomSearchFailures());
+        ReindexResponse tripped = new ReindexResponse();
+        roundTrip(response, tripped);
+        assertResponseEquals(response, tripped);
+    }
+
+    public void testBulkIndexByScrollResponse() throws IOException {
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+                randomIndexingFailures(), randomSearchFailures());
+        BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
+        roundTrip(response, tripped);
+        assertResponseEquals(response, tripped);
+    }
+
+    private BulkByScrollTask.Status randomStatus() {
+        return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                randomPositiveInt(), randomPositiveLong(), randomPositiveLong());
+    }
+
     private List<Failure> randomIndexingFailures() {
         return usually() ? emptyList()
                 : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()),
@@ -119,25 +132,6 @@ public class RoundTripTests extends ESTestCase {
         Index index = new Index(randomSimpleString(random()), "uuid");
         return singletonList(new ShardSearchFailure(randomSimpleString(random()),
                 new SearchShardTarget(randomSimpleString(random()), index, randomInt()), randomFrom(RestStatus.values())));
-    }
-
-
-    private void assertResponseEquals(BulkIndexByScrollResponse response, BulkIndexByScrollResponse tripped) {
-        assertEquals(response.getTook(), tripped.getTook());
-        assertEquals(response.getUpdated(), tripped.getUpdated());
-        assertEquals(response.getBatches(), tripped.getBatches());
-        assertEquals(response.getVersionConflicts(), tripped.getVersionConflicts());
-        assertEquals(response.getNoops(), tripped.getNoops());
-        assertEquals(response.getIndexingFailures().size(), tripped.getIndexingFailures().size());
-        for (int i = 0; i < response.getIndexingFailures().size(); i++) {
-            Failure expected = response.getIndexingFailures().get(i);
-            Failure actual = tripped.getIndexingFailures().get(i);
-            assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getType(), actual.getType());
-            assertEquals(expected.getId(), actual.getId());
-            assertEquals(expected.getMessage(), actual.getMessage());
-            assertEquals(expected.getStatus(), actual.getStatus());
-        }
     }
 
     private void roundTrip(Streamable example, Streamable empty) throws IOException {
@@ -163,5 +157,36 @@ public class RoundTripTests extends ESTestCase {
 
     private int randomPositiveInt() {
         return randomInt(Integer.MAX_VALUE);
+    }
+
+    private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
+        assertEquals(expected.getTook(), actual.getTook());
+        assertTaskStatusEquals(expected.getStatus(), actual.getStatus());
+        assertEquals(expected.getIndexingFailures().size(), actual.getIndexingFailures().size());
+        for (int i = 0; i < expected.getIndexingFailures().size(); i++) {
+            Failure expectedFailure = expected.getIndexingFailures().get(i);
+            Failure actualFailure = actual.getIndexingFailures().get(i);
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getType(), actualFailure.getType());
+            assertEquals(expectedFailure.getId(), actualFailure.getId());
+            assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+        }
+        assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
+        for (int i = 0; i < expected.getSearchFailures().size(); i++) {
+            ShardSearchFailure expectedFailure = expected.getSearchFailures().get(i);
+            ShardSearchFailure actualFailure = actual.getSearchFailures().get(i);
+            assertEquals(expectedFailure.shard(), actualFailure.shard());
+            assertEquals(expectedFailure.status(), actualFailure.status());
+            // We can't use getCause because throwable doesn't implement equals
+            assertEquals(expectedFailure.reason(), actualFailure.reason());
+        }
+    }
+
+    private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+        assertEquals(expected.getUpdated(), actual.getUpdated());
+        assertEquals(expected.getBatches(), actual.getBatches());
+        assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
+        assertEquals(expected.getNoops(), actual.getNoops());
     }
 }

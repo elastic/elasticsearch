@@ -21,75 +21,53 @@ package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugin.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Response for the ReindexAction.
+ */
 public class ReindexResponse extends BulkIndexByScrollResponse {
-    static final String CREATED_FIELD = "created";
-
-    private long created;
-
     public ReindexResponse() {
     }
 
-    public ReindexResponse(long took, long created, long updated, int batches, long versionConflicts, long noops, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-        super(took, updated, batches, versionConflicts, noops, indexingFailures, searchFailures);
-        this.created = created;
+    public ReindexResponse(TimeValue took, Status status, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+        super(took, status, indexingFailures, searchFailures);
     }
 
     public long getCreated() {
-        return created;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVLong(created);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        created = in.readVLong();
+        return getStatus().getCreated();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
-        builder.field(CREATED_FIELD, created);
+        builder.field("took", getTook());
+        getStatus().innerXContent(builder, params, true, false);
+        builder.startArray("failures");
+        for (Failure failure: getIndexingFailures()) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        for (ShardSearchFailure failure: getSearchFailures()) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
         return builder;
     }
 
     @Override
-    protected String toStringName() {
-        return "ReindexResponse";
-    }
-
-    @Override
-    protected void innerToString(StringBuilder builder) {
-        builder.append(",created=").append(created);
-    }
-
-    /**
-     * Get the first few failures to build a useful for toString.
-     */
-    protected void truncatedFailures(StringBuilder builder) {
-        builder.append(",failures=[");
-        Iterator<Failure> failures = getIndexingFailures().iterator();
-        int written = 0;
-        while (failures.hasNext() && written < 3) {
-            Failure failure = failures.next();
-            builder.append(failure.getMessage());
-            if (written != 0) {
-                builder.append(", ");
-            }
-            written++;
-        }
-        builder.append(']');
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("ReindexResponse[");
+        builder.append("took=").append(getTook()).append(',');
+        getStatus().innerToString(builder, true, false);
+        return builder.append(']').toString();
     }
 }

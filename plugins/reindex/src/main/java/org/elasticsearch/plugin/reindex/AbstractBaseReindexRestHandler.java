@@ -37,8 +37,8 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse, TA extends TransportAction<Request, Response>>
-        extends BaseRestHandler {
+public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse,
+        TA extends TransportAction<Request, Response>> extends BaseRestHandler {
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     private final ClusterService clusterService;
     private final TA action;

@@ -66,9 +66,9 @@ public class IngestActionFilterTests extends ESTestCase {
         executionService = mock(PipelineExecutionService.class);
         IngestService ingestService = mock(IngestService.class);
         when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
-        NodeService bootstrapper = mock(NodeService.class);
-        when(bootstrapper.getIngestService()).thenReturn(ingestService);
-        filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
+        NodeService nodeService = mock(NodeService.class);
+        when(nodeService.getIngestService()).thenReturn(ingestService);
+        filter = new IngestActionFilter(Settings.EMPTY, nodeService);
     }
 
     public void testApplyNoPipelineId() throws Exception {
@@ -175,9 +175,9 @@ public class IngestActionFilterTests extends ESTestCase {
         executionService = new PipelineExecutionService(store, threadPool);
         IngestService ingestService = mock(IngestService.class);
         when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
-        NodeService bootstrapper = mock(NodeService.class);
-        when(bootstrapper.getIngestService()).thenReturn(ingestService);
-        filter = new IngestActionFilter(Settings.EMPTY, bootstrapper);
+        NodeService nodeService = mock(NodeService.class);
+        when(nodeService.getIngestService()).thenReturn(ingestService);
+        filter = new IngestActionFilter(Settings.EMPTY, nodeService);
 
         BulkRequest bulkRequest = new BulkRequest();
         int numRequest = scaledRandomIntBetween(8, 64);

@@ -463,6 +463,20 @@ to the requester.
 }
 --------------------------------------------------
 
+==== DeDot Processor
+The DeDot Processor is used to remove dots (".") from field names and
+replace them with a specific `separator` string.
+
+[source,js]
+--------------------------------------------------
+{
+  "dedot": {
+    "separator": "_"
+  }
+}
+--------------------------------------------------
+
+
 === Accessing data in pipelines
 
 Processors in pipelines have read and write access to documents that pass through the pipeline.

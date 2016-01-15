@@ -130,7 +130,7 @@ public final class MergePolicyConfig {
 
     public static final Setting<Double> INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING = Setting.doubleSetting("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d, true, Setting.Scope.INDEX);
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT, true, Setting.Scope.INDEX);
-    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.policy.max_merge_at_once";
+    public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING = Setting.intSetting("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE, 2, true, Setting.Scope.INDEX);
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.policy.max_merge_at_once_explicit";
     public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.policy.max_merged_segment";
     public static final String INDEX_MERGE_POLICY_SEGMENTS_PER_TIER = "index.merge.policy.segments_per_tier";
@@ -143,9 +143,10 @@ public final class MergePolicyConfig {
         indexSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
         indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
         indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, this::floorSegmentSetting);
+         indexSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, this::maxMergesAtOnce);
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
-        int maxMergeAtOnce = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
+        int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
         int maxMergeAtOnceExplicit = indexSettings.getSettings().getAsInt("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getSettings().getAsBytesSize("index.merge.policy.max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
@@ -168,8 +169,12 @@ public final class MergePolicyConfig {
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
     }
 
-    private void floorSegmentSetting(ByteSizeValue byteSizeValue) {
-        mergePolicy.setFloorSegmentMB(byteSizeValue.mbFrac());
+    private void maxMergesAtOnce(Integer maxMergeAtOnce) {
+        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+    }
+
+    private void floorSegmentSetting(ByteSizeValue floorSegementSetting) {
+        mergePolicy.setFloorSegmentMB(floorSegementSetting.mbFrac());
     }
 
     private void expungeDeletesAllowed(Double value) {
@@ -204,14 +209,6 @@ public final class MergePolicyConfig {
         if (segmentsPerTier != oldSegmentsPerTier) {
             logger.info("updating [segments_per_tier] from [{}] to [{}]", oldSegmentsPerTier, segmentsPerTier);
             mergePolicy.setSegmentsPerTier(segmentsPerTier);
-        }
-
-        final int oldMaxMergeAtOnce = mergePolicy.getMaxMergeAtOnce();
-        int maxMergeAtOnce = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, oldMaxMergeAtOnce);
-        if (maxMergeAtOnce != oldMaxMergeAtOnce) {
-            logger.info("updating [max_merge_at_once] from [{}] to [{}]", oldMaxMergeAtOnce, maxMergeAtOnce);
-            maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
-            mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
         }
 
         final int oldMaxMergeAtOnceExplicit = mergePolicy.getMaxMergeAtOnceExplicit();

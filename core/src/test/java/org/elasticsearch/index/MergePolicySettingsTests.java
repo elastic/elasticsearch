@@ -92,9 +92,9 @@ public class MergePolicySettingsTests extends ESTestCase {
         indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb() + 1, ByteSizeUnit.MB)).build()));
         assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb() + 1, ByteSizeUnit.MB).mbFrac(), 0.001);
 
-        assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE);
-        mp.onRefreshSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE - 1).build());
-        assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE-1);
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE);
+        indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE - 1).build()));
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE - 1);
 
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnceExplicit(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         mp.onRefreshSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT, MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT - 1).build());
@@ -116,7 +116,7 @@ public class MergePolicySettingsTests extends ESTestCase {
         indexSettings.updateIndexMetaData(newIndexMeta("index", EMPTY_SETTINGS));
         assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
         assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb(), ByteSizeUnit.MB).mbFrac(), 0.00);
-        assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE-1);
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnceExplicit(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT-1);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergedSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.bytes() + 1).mbFrac(), 0.0001);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getReclaimDeletesWeight(), MergePolicyConfig.DEFAULT_RECLAIM_DELETES_WEIGHT + 1, 0);

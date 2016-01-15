@@ -25,7 +25,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
@@ -45,7 +44,7 @@ import org.elasticsearch.ingest.processor.UppercaseProcessor;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  *
@@ -65,19 +64,19 @@ public class NodeModule extends AbstractModule {
         this.monitorService = monitorService;
         this.processorsRegistry = new ProcessorsRegistry();
 
-        registerProcessor(DateProcessor.TYPE, (environment, templateService) -> new DateProcessor.Factory());
-        registerProcessor(SetProcessor.TYPE, (environment, templateService) -> new SetProcessor.Factory(templateService));
-        registerProcessor(AppendProcessor.TYPE, (environment, templateService) -> new AppendProcessor.Factory(templateService));
-        registerProcessor(RenameProcessor.TYPE, (environment, templateService) -> new RenameProcessor.Factory());
-        registerProcessor(RemoveProcessor.TYPE, (environment, templateService) -> new RemoveProcessor.Factory(templateService));
-        registerProcessor(SplitProcessor.TYPE, (environment, templateService) -> new SplitProcessor.Factory());
-        registerProcessor(JoinProcessor.TYPE, (environment, templateService) -> new JoinProcessor.Factory());
-        registerProcessor(UppercaseProcessor.TYPE, (environment, templateService) -> new UppercaseProcessor.Factory());
-        registerProcessor(LowercaseProcessor.TYPE, (environment, templateService) -> new LowercaseProcessor.Factory());
-        registerProcessor(TrimProcessor.TYPE, (environment, templateService) -> new TrimProcessor.Factory());
-        registerProcessor(ConvertProcessor.TYPE, (environment, templateService) -> new ConvertProcessor.Factory());
-        registerProcessor(GsubProcessor.TYPE, (environment, templateService) -> new GsubProcessor.Factory());
-        registerProcessor(FailProcessor.TYPE, (environment, templateService) -> new FailProcessor.Factory(templateService));
+        registerProcessor(DateProcessor.TYPE, (templateService) -> new DateProcessor.Factory());
+        registerProcessor(SetProcessor.TYPE, SetProcessor.Factory::new);
+        registerProcessor(AppendProcessor.TYPE, AppendProcessor.Factory::new);
+        registerProcessor(RenameProcessor.TYPE, (templateService) -> new RenameProcessor.Factory());
+        registerProcessor(RemoveProcessor.TYPE, RemoveProcessor.Factory::new);
+        registerProcessor(SplitProcessor.TYPE, (templateService) -> new SplitProcessor.Factory());
+        registerProcessor(JoinProcessor.TYPE, (templateService) -> new JoinProcessor.Factory());
+        registerProcessor(UppercaseProcessor.TYPE, (templateService) -> new UppercaseProcessor.Factory());
+        registerProcessor(LowercaseProcessor.TYPE, (templateService) -> new LowercaseProcessor.Factory());
+        registerProcessor(TrimProcessor.TYPE, (templateService) -> new TrimProcessor.Factory());
+        registerProcessor(ConvertProcessor.TYPE, (templateService) -> new ConvertProcessor.Factory());
+        registerProcessor(GsubProcessor.TYPE, (templateService) -> new GsubProcessor.Factory());
+        registerProcessor(FailProcessor.TYPE, FailProcessor.Factory::new);
     }
 
     @Override
@@ -100,9 +99,16 @@ public class NodeModule extends AbstractModule {
     }
 
     /**
+     * Returns the node
+     */
+    public Node getNode() {
+        return node;
+    }
+
+    /**
      * Adds a processor factory under a specific type name.
      */
-    public void registerProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
+    public void registerProcessor(String type, Function<TemplateService, Processor.Factory<?>> processorFactoryProvider) {
         processorsRegistry.registerProcessor(type, processorFactoryProvider);
     }
 

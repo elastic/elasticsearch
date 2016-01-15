@@ -35,8 +35,6 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.PipelineExecutionService;
-import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
@@ -44,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -89,7 +86,7 @@ public class NodeService extends AbstractComponent {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
-        this.ingestService = new IngestService(settings, threadPool, environment, clusterService, processorsRegistry);
+        this.ingestService = new IngestService(settings, threadPool, clusterService, processorsRegistry);
     }
 
     // can not use constructor injection or there will be a circular dependency

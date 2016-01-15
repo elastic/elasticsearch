@@ -41,8 +41,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 
 public class PipelineStoreTests extends ESTestCase {
@@ -54,8 +52,8 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         store = new PipelineStore(Settings.EMPTY, clusterService);
         ProcessorsRegistry registry = new ProcessorsRegistry();
-        registry.registerProcessor("set", (environment, templateService) -> new SetProcessor.Factory(TestTemplateService.instance()));
-        store.buildProcessorFactoryRegistry(registry, null, null);
+        registry.registerProcessor("set", (templateService) -> new SetProcessor.Factory(TestTemplateService.instance()));
+        store.buildProcessorFactoryRegistry(registry, null);
     }
 
     public void testUpdatePipelines() {

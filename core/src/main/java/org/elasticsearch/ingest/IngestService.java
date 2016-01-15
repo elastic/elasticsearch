@@ -21,7 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -34,14 +33,11 @@ import java.io.IOException;
  */
 public class IngestService implements Closeable {
 
-    private final Environment environment;
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
     private final ProcessorsRegistry processorsRegistry;
 
-    public IngestService(Settings settings, ThreadPool threadPool, Environment environment,
-                         ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
-        this.environment = environment;
+    public IngestService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
         this.processorsRegistry = processorsRegistry;
         this.pipelineStore = new PipelineStore(settings, clusterService);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
@@ -56,7 +52,7 @@ public class IngestService implements Closeable {
     }
 
     public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, environment, scriptService);
+        pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, scriptService);
     }
 
     @Override

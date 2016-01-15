@@ -19,8 +19,21 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.stream.Stream;
 
 public class IngestGeoIpPlugin extends Plugin {
 
@@ -31,10 +44,34 @@ public class IngestGeoIpPlugin extends Plugin {
 
     @Override
     public String description() {
-        return "Plugin that allows to plug in ingest processors";
+        return "Ingest processor that adds information about the geographical location of ip addresses";
     }
 
-    public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
+    public void onModule(NodeModule nodeModule) throws IOException {
+        Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
+        Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService) -> new GeoIpProcessor.Factory(databaseReaders));
+    }
+
+    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
+        if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
+            throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
+        }
+
+        Map<String, DatabaseReader> databaseReaders = new HashMap<>();
+        try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
+            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
+            // Use iterator instead of forEach otherwise IOException needs to be caught twice...
+            Iterator<Path> iterator = databaseFiles.iterator();
+            while (iterator.hasNext()) {
+                Path databasePath = iterator.next();
+                if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
+                    try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
+                        databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableMap(databaseReaders);
     }
 }
